@@ -12,11 +12,13 @@ public sealed class MySqlTableExpressionHelperTests
     [Fact]
     public void Collect_returns_distinct_aliases_from_direct_and_nested_join_sources()
     {
+        // Arrange
         var arguments = Expression.Constant(Array.Empty<object>());
         var direct = new FromSqlExpression("direct", "SELECT 1", arguments);
         var nested = new CrossJoinExpression(
             new CrossJoinExpression(new FromSqlExpression("joined", "SELECT 1", arguments)));
 
+        // Act
         var aliases = MySqlTableExpressionHelper.CollectAliases(
         [
             direct,
@@ -24,11 +26,14 @@ public sealed class MySqlTableExpressionHelperTests
             direct,
         ]);
 
+        var actual = aliases.Order(StringComparer.Ordinal);
+
+        // Assert
         Assert.Equal(
             [
                 "direct",
                 "joined",
             ],
-            aliases.Order(StringComparer.Ordinal));
+            actual);
     }
 }

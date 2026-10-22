@@ -6,6 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 public sealed class IntegrationDatabaseIsolationTests
 {
+    /// <summary>Verifies different owners can use the same table name without sharing rows.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Different_owners_can_use_the_same_table_name_without_sharing_rows()
     {
@@ -39,6 +40,7 @@ public sealed class IntegrationDatabaseIsolationTests
         Assert.Equal(2, secondValue);
     }
 
+    /// <summary>Verifies one owner reuses the same database.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public void One_owner_reuses_the_same_database()
     {

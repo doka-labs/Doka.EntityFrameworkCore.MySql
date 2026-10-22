@@ -9,6 +9,9 @@ public sealed class MySqlParameterSizeCommandInterceptorTests
     private static readonly char[] s_oversizedCharacters = ['a', 'b', 'c'];
     private static readonly char[] s_truncatedCharacters = ['a', 'b'];
 
+    /// <summary>
+    /// Verifies noop inputs do not call the value setter.
+    /// </summary>
     [Theory]
     [MemberData(nameof(NoOpValues))]
     public void Noop_inputs_do_not_call_the_value_setter(
@@ -17,14 +20,20 @@ public sealed class MySqlParameterSizeCommandInterceptorTests
         ParameterDirection direction
     )
     {
+        // Arrange
         var parameter = new TrackingDbParameter(value, size, direction);
 
+        // Act
         MySqlParameterSizeCommandInterceptor.TruncateInputValue(parameter);
 
+        // Assert
         Assert.Equal(0, parameter.ValueSetterCount);
         Assert.Same(value, parameter.Value);
     }
 
+    /// <summary>
+    /// Verifies oversized supported inputs are truncated with one setter.
+    /// </summary>
     [Theory]
     [MemberData(nameof(OversizedValues))]
     public void Oversized_supported_inputs_are_truncated_with_one_setter(
@@ -33,10 +42,13 @@ public sealed class MySqlParameterSizeCommandInterceptorTests
         object expected
     )
     {
+        // Arrange
         var parameter = new TrackingDbParameter(value, size, ParameterDirection.InputOutput);
 
+        // Act
         MySqlParameterSizeCommandInterceptor.TruncateInputValue(parameter);
 
+        // Assert
         Assert.Equal(1, parameter.ValueSetterCount);
         Assert.Equal(expected, parameter.Value);
         Assert.NotSame(value, parameter.Value);

@@ -173,10 +173,14 @@ key. No additional application option is required.
 | No values must be returned | Existing multi-row `INSERT ... VALUES` path. |
 | MariaDB supports `RETURNING` | Existing multi-row `INSERT ... RETURNING` path. |
 | MySQL, multiple compatible rows, every physical primary-key component is known, written, and non-temporary | One multi-row `INSERT` followed by one compound `SELECT ... UNION ALL ...` readback. |
-| Unavailable server-generated, temporary, or incomplete physical keys; incompatible shape; explicitly configured non-InnoDB engine; declared trigger | Existing per-row insert/readback path. |
+| MySQL, AUTO_INCREMENT key or known key with incompatible bulk shape, explicitly configured non-InnoDB engine, or declared trigger | Existing per-row insert/readback path. |
+| MySQL, unknown non-AUTO_INCREMENT server-generated primary-key component | Rejected before INSERT generation; assign the key or configure client generation. |
 
 A client-generated key can qualify once its actual value is available. An
-identity that the server still has to generate cannot. Composite, converted,
+identity that the server still has to generate cannot. An omitted component
+with a configured literal default uses per-row readback with that mapped
+literal in the complete key predicate, not `LAST_INSERT_ID()`. An arbitrary SQL
+default such as `UUID()` is not a known literal. Composite, converted,
 and shadow keys retain their provider mappings. Each readback branch compares
 the real table's complete key directly with the original parameters, so the
 column's database comparison and collation remain authoritative. Doka does not
@@ -456,6 +460,46 @@ The context default and property override also apply to scalar GUID properties
 inside non-collection complex types. Complex collections mapped as JSON retain
 their JSON document contract rather than receiving per-member relational GUID
 column metadata.
+
+### GUID SQL defaults and computed values
+
+An explicit SQL default takes precedence over implicit client GUID generation:
+
+```csharp
+modelBuilder.Entity<Order>()
+    .Property(order => order.Id)
+    .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
+    .HasDefaultValueSql("UUID()");
+```
+
+EF tracks an omitted key with a temporary GUID; MariaDB's `INSERT ... RETURNING`
+replaces it with the database value and propagates it to dependent foreign keys.
+An explicitly supplied key is preserved. MySQL has no equivalent insert-returning
+channel for an unknown UUID key: Doka rejects that insert before execution, rather
+than silently generating a client key or attempting an ambiguous readback.
+The model remains usable for migrations and for inserts with supplied keys.
+SQL defaults on non-key GUIDs can be read back using the known primary key on
+both engine families. Computed GUIDs retain EF's `OnAddOrUpdate` semantics.
+Shared-table properties inherit their physical root's defaults without having
+to repeat annotations; those defaults also prevent a dependent key from
+incorrectly inheriting client GUID or AUTO_INCREMENT generation.
+
+Explicit `UseMySqlClientGuidValueGeneration()`,
+`HasMySqlValueGenerationStrategy(...)`, application generator factories, and
+`ValueGeneratedNever()` remain authoritative. A literal `HasDefaultValue(Guid)`
+is not a SQL-generation request and retains permanent client key generation.
+Older snapshots may contain both the SQL default and an explicit `ClientGuid`
+annotation. Doka preserves that annotation because it cannot distinguish
+historical implicit generation from deliberate configuration. Recreating the
+snapshot from the corrected application model does not require a physical schema
+change; remove an application-level client strategy only when server generation
+is intended.
+
+The SQL expression is application-owned: `UUID()` produces a textual/native UUID,
+not Doka's Binary16 representation. Use `UNHEX(REPLACE(UUID(), '-', ''))` for a
+`binary(16)` default. Doka does not rewrite arbitrary SQL for the selected format.
+Migration restrictions and scaffolding behavior are described in
+[GUID SQL defaults](operations/migrations.md#guid-sql-defaults).
 
 Parameterized primitive collections preserve the effective storage
 representation of the property they are compared with. From 10.4.4, Doka

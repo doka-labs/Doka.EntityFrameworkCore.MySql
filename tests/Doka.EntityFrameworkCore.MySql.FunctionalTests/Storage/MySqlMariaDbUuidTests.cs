@@ -17,23 +17,27 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Native_uuid_default_has_unsized_store_type_and_text_parameter()
     {
+        // Arrange
         using var context = new DefaultUuidContext(
             CreateOptions<DefaultUuidContext>(
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
                 MySqlGuidFormat.Uuid));
 
+        // Act
         var property = context.Model.FindEntityType(typeof(UuidRecord))!.FindProperty(nameof(UuidRecord.Id))!;
         var mapping = property.GetRelationalTypeMapping();
         using var command = new MySqlCommand();
         var parameter = mapping.CreateParameter(command, "id", s_guid);
+        var literal = mapping.GenerateSqlLiteral(s_guid);
 
+        // Assert
         Assert.Equal(typeof(Guid), property.ClrType);
         Assert.Equal(MySqlGuidFormat.Uuid, property.GetMySqlGuidFormat());
         Assert.Equal("uuid", property.GetColumnType());
         Assert.Null(property.GetMaxLength());
         Assert.Null(property.IsFixedLength());
         Assert.Equal(typeof(string), mapping.Converter?.ProviderClrType);
-        Assert.Equal("'00112233-4455-6677-8899-aabbccddeeff'", mapping.GenerateSqlLiteral(s_guid));
+        Assert.Equal("'00112233-4455-6677-8899-aabbccddeeff'", literal);
         Assert.Equal(DbType.String, parameter.DbType);
         Assert.Equal("00112233-4455-6677-8899-aabbccddeeff", parameter.Value);
     }
@@ -44,13 +48,16 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Native_uuid_property_opt_in_preserves_binary16_default()
     {
+        // Arrange
         using var context = new PropertyUuidContext(
             CreateOptions<PropertyUuidContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
+        // Act
         var entityType = context.Model.FindEntityType(typeof(UuidRecord))!;
         var native = entityType.FindProperty(nameof(UuidRecord.Id))!;
         var binary = entityType.FindProperty(nameof(UuidRecord.OtherId))!;
 
+        // Assert
         Assert.Equal("uuid", native.GetColumnType());
         Assert.Equal("binary(16)", binary.GetColumnType());
         Assert.Equal(MySqlGuidFormat.Uuid, native.GetMySqlGuidFormat());
@@ -63,13 +70,17 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Native_uuid_complex_property_opt_in_preserves_binary16_default()
     {
+        // Arrange
         using var context = new ComplexUuidContext(
             CreateOptions<ComplexUuidContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(ComplexUuidRecord))!;
         var complexType = entityType.FindComplexProperty(nameof(ComplexUuidRecord.Details))!.ComplexType;
         var native = complexType.FindProperty(nameof(ComplexUuidDetails.ExternalId))!;
         var binary = entityType.FindProperty(nameof(ComplexUuidRecord.OtherId))!;
 
+        // Assert
         Assert.Equal("uuid", native.GetColumnType());
         Assert.Null(native.GetMaxLength());
         Assert.Equal(MySqlGuidFormat.Uuid, native.GetMySqlGuidFormat());
@@ -83,11 +94,14 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Explicit_uuid_column_type_selects_native_guid_mapping()
     {
+        // Arrange
         using var context = new ColumnTypeUuidContext(
             CreateOptions<ColumnTypeUuidContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
+        // Act
         var property = context.Model.FindEntityType(typeof(UuidRecord))!.FindProperty(nameof(UuidRecord.Id))!;
 
+        // Assert
         Assert.Equal(MySqlGuidFormat.Uuid, property.GetMySqlGuidFormat());
         Assert.Equal("uuid", property.GetRelationalTypeMapping().StoreType);
     }
@@ -98,15 +112,19 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Native_uuid_mapping_rejects_unrelated_clr_type()
     {
+        // Arrange
         using var context = new DefaultUuidContext(
             CreateOptions<DefaultUuidContext>(
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
                 MySqlGuidFormat.Uuid));
+
         var mappingSource = context.GetService<IRelationalTypeMappingSource>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() =>
             mappingSource.FindMapping(typeof(int), "uuid"));
 
+        // Assert
         Assert.Contains("Guid or string", exception.Message, StringComparison.Ordinal);
     }
 
@@ -121,13 +139,17 @@ public sealed class MySqlMariaDbUuidTests
         MySqlGuidFormat defaultFormat
     )
     {
+        // Arrange
         using var context = new ConvertedBytesContext(
             CreateOptions<ConvertedBytesContext>(
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
                 defaultFormat));
+
+        // Act
         var property = context.Model.FindEntityType(typeof(ConvertedBytesRecord))!
             .FindProperty(nameof(ConvertedBytesRecord.Id))!;
 
+        // Assert
         Assert.Equal(typeof(byte[]), property.GetProviderClrType());
         Assert.Equal("varbinary(17)", property.GetColumnType());
         Assert.Null(property.GetMySqlGuidFormat());
@@ -144,6 +166,7 @@ public sealed class MySqlMariaDbUuidTests
         MySqlGuidFormat defaultFormat
     )
     {
+        // Arrange
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         using var source = new LegacyConvertedBytesContext(
             CreateOptions<LegacyConvertedBytesContext>(serverVersion, defaultFormat));
@@ -154,6 +177,7 @@ public sealed class MySqlMariaDbUuidTests
         var sourceModel = source.GetService<IDesignTimeModel>().Model.GetRelationalModel();
         var targetModel = target.GetService<IDesignTimeModel>().Model;
 
+        // Act
         var operations = target.GetService<IMigrationsModelDiffer>()
             .GetDifferences(sourceModel, targetModel.GetRelationalModel());
 
@@ -161,6 +185,7 @@ public sealed class MySqlMariaDbUuidTests
         var commands = target.GetService<IMigrationsSqlGenerator>()
             .Generate(operations, targetModel);
 
+        // Assert
         Assert.Equal("varbinary(16)", alter.OldColumn.ColumnType);
         Assert.Equal("varbinary(17)", alter.ColumnType);
         Assert.Equal(typeof(byte[]), alter.OldColumn.ClrType);
@@ -176,16 +201,19 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void MySql_rejects_native_uuid_default()
     {
+        // Arrange
         var options = CreateOptions<DefaultUuidContext>(
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
             MySqlGuidFormat.Uuid);
 
+        // Act
         var exception = Assert.Throws<NotSupportedException>(() =>
         {
             using var context = new DefaultUuidContext(options);
             _ = context.Model;
         });
 
+        // Assert
         Assert.Contains("MariaDB 10.7", exception.Message, StringComparison.Ordinal);
     }
 
@@ -195,14 +223,17 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void MySql_rejects_native_uuid_property()
     {
+        // Arrange
         var options = CreateOptions<PropertyUuidContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var exception = Assert.Throws<NotSupportedException>(() =>
         {
             using var context = new PropertyUuidContext(options);
             _ = context.Model;
         });
 
+        // Assert
         Assert.Contains("MariaDB 10.7", exception.Message, StringComparison.Ordinal);
     }
 
@@ -212,18 +243,21 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void Older_mariadb_rejects_native_uuid_even_in_compatibility_mode()
     {
+        // Arrange
         var serverVersion = MySqlServerVersion.MariaDb(
             new Version(10, 6, 20),
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
         var options = CreateOptions<DefaultUuidContext>(serverVersion, MySqlGuidFormat.Uuid);
 
+        // Act
         var exception = Assert.Throws<NotSupportedException>(() =>
         {
             using var context = new DefaultUuidContext(options);
             _ = context.Model;
         });
 
+        // Assert
         Assert.Contains("MariaDB 10.7", exception.Message, StringComparison.Ordinal);
     }
 
@@ -234,15 +268,19 @@ public sealed class MySqlMariaDbUuidTests
     [Fact]
     public void MariaDb107_accepts_native_uuid_with_compatibility_opt_in()
     {
+        // Arrange
         var serverVersion = MySqlServerVersion.MariaDb(
             new Version(10, 7, 0),
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
         using var context = new DefaultUuidContext(
             CreateOptions<DefaultUuidContext>(serverVersion, MySqlGuidFormat.Uuid));
+
+        // Act
         var property = context.Model.FindEntityType(typeof(UuidRecord))!
             .FindProperty(nameof(UuidRecord.Id))!;
 
+        // Assert
         Assert.Equal("uuid", property.GetColumnType());
     }
 
@@ -252,10 +290,14 @@ public sealed class MySqlMariaDbUuidTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void MySql_rejects_native_uuid_migration_column(bool annotateFormat)
+    public void MySql_rejects_native_uuid_migration_column(
+        bool annotateFormat
+    )
     {
+        // Arrange
         using var context = new DefaultUuidContext(
             CreateOptions<DefaultUuidContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         var operation = new AddColumnOperation
         {
             Table = "UuidRecords",
@@ -272,8 +314,10 @@ public sealed class MySqlMariaDbUuidTests
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
+        // Act
         var exception = Assert.Throws<NotSupportedException>(() => generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("MariaDB 10.7", exception.Message, StringComparison.Ordinal);
     }
 
@@ -303,12 +347,16 @@ public sealed class MySqlMariaDbUuidTests
 
     private sealed class DefaultUuidContext(DbContextOptions<DefaultUuidContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.Entity<UuidRecord>();
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<UuidRecord>();
     }
 
     private sealed class PropertyUuidContext(DbContextOptions<PropertyUuidContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<UuidRecord>().Property(record => record.Id)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Uuid);
@@ -317,7 +365,9 @@ public sealed class MySqlMariaDbUuidTests
 
     private sealed class ColumnTypeUuidContext(DbContextOptions<ColumnTypeUuidContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<UuidRecord>().Property(record => record.Id)
                 .HasColumnType("uuid");
@@ -345,7 +395,9 @@ public sealed class MySqlMariaDbUuidTests
 
     private sealed class ComplexUuidContext(DbContextOptions<ComplexUuidContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<ComplexUuidRecord>().ComplexProperty(
                 record => record.Details,
@@ -356,7 +408,9 @@ public sealed class MySqlMariaDbUuidTests
 
     private sealed class ConvertedBytesContext(DbContextOptions<ConvertedBytesContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<ConvertedBytesRecord>().Property(record => record.Id)
                 .HasConversion<byte[]>();
@@ -367,7 +421,9 @@ public sealed class MySqlMariaDbUuidTests
         DbContextOptions<LegacyConvertedBytesContext> options
     ) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<ConvertedBytesRecord>().Property(record => record.Id)
                 .HasConversion<byte[]>()

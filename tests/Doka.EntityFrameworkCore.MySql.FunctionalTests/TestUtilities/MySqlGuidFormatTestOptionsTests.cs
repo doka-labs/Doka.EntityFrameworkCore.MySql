@@ -25,44 +25,30 @@ public sealed class MySqlGuidFormatTestOptionsTests
         string bootstrap
     )
     {
-        switch (bootstrap)
+        // Arrange
+        using var connection = bootstrap == "db-connection" ? new MySqlConnection(ConnectionString) : null;
+        using var dataSource = bootstrap == "data-source" ? new MySqlDataSourceBuilder(ConnectionString).Build() : null;
+
+        // Act
+        var options = bootstrap switch
         {
-            case "binary16":
-                AssertTransientOptions(
-                    MySqlGuidFormatTestOptions.BuildOptions<DbContext>(
-                        ConnectionString,
-                        "doka_guid_options_binary16",
-                        s_serverVersion));
-                break;
-            case "connection-string":
-                AssertTransientOptions(
-                    MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(ConnectionString, s_serverVersion));
-                break;
-            case "db-connection":
-                using (var connection = new MySqlConnection(ConnectionString))
-                {
-                    AssertTransientOptions(
-                        MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(connection, s_serverVersion));
-                }
+            "binary16" => MySqlGuidFormatTestOptions.BuildOptions<DbContext>(
+                ConnectionString,
+                "doka_guid_options_binary16",
+                s_serverVersion),
+            "connection-string" => MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(
+                ConnectionString,
+                s_serverVersion),
+            "db-connection" => MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(
+                connection ?? throw new InvalidOperationException("The connection fixture is missing."),
+                s_serverVersion),
+            "data-source" => MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(
+                dataSource ?? throw new InvalidOperationException("The data-source fixture is missing."),
+                s_serverVersion),
+            _ => throw new ArgumentOutOfRangeException(nameof(bootstrap), bootstrap, "Unknown Guid bootstrap path."),
+        };
 
-                break;
-            case "data-source":
-                using (var dataSource = new MySqlDataSourceBuilder(ConnectionString).Build())
-                {
-                    AssertTransientOptions(
-                        MySqlGuidFormatTestOptions.BuildDefaultChar36Options<DbContext>(dataSource, s_serverVersion));
-                }
-
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(bootstrap), bootstrap, "Unknown Guid bootstrap path.");
-        }
-    }
-
-    private static void AssertTransientOptions(
-        DbContextOptions options
-    )
-    {
+        // Assert
         var coreOptions = options.FindExtension<CoreOptionsExtension>();
 
         Assert.NotNull(coreOptions);

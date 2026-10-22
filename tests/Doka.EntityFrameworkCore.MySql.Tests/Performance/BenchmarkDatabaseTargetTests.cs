@@ -2,34 +2,63 @@ using Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests.Performance;
 
+/// <summary>
+/// Verifies benchmark targets follow the shared engine matrix and explicit connection overrides.
+/// </summary>
 public sealed class BenchmarkDatabaseTargetTests
 {
-    [Fact]
-    public void Every_contract_target_resolves_without_a_second_engine_matrix()
+    /// <summary>
+    /// Supplies every target from the contract without maintaining a duplicate engine list.
+    /// </summary>
+    public static IEnumerable<object[]> ContractTargets() => PerformanceContract.Load().RequiredTargets.Keys
+        .Select(targetId => new object[] { targetId });
+
+    /// <summary>
+    /// Verifies every contract target resolves without a second engine matrix.
+    /// </summary>
+    /// <param name="targetId">The target selected from the shared performance contract.</param>
+    [Theory]
+    [MemberData(nameof(ContractTargets))]
+    public void Every_contract_target_resolves_without_a_second_engine_matrix(
+        string targetId
+    )
     {
+        // Arrange
         var contract = PerformanceContract.Load();
+        var expected = contract.RequiredTargets[targetId];
 
-        foreach (var (targetId, expected) in contract.RequiredTargets)
-        {
-            var target = BenchmarkDatabaseTarget.Resolve(targetId, configuredPort: null, contract);
+        // Act
+        var target = BenchmarkDatabaseTarget.Resolve(targetId, configuredPort: null, contract);
 
-            Assert.Equal(targetId, target.TargetId);
-            Assert.Equal(expected.DisplayName, target.DisplayName);
-            Assert.Equal(expected.EngineFamily, target.EngineFamily);
-            Assert.Equal(Version.Parse(expected.ServerVersion), target.ServerVersion);
-            Assert.Equal(expected.HostPort, target.Port);
-            Assert.Equal(expected.EngineFamily == "MariaDB", target.IsMariaDb);
-        }
+        // Assert
+        Assert.Equal(targetId, target.TargetId);
+        Assert.Equal(expected.DisplayName, target.DisplayName);
+        Assert.Equal(expected.EngineFamily, target.EngineFamily);
+        Assert.Equal(Version.Parse(expected.ServerVersion), target.ServerVersion);
+        Assert.Equal(expected.HostPort, target.Port);
+        Assert.Equal(expected.EngineFamily == "MariaDB", target.IsMariaDb);
     }
 
+    /// <summary>
+    /// Verifies explicit port overrides the contract default.
+    /// </summary>
     [Fact]
     public void Explicit_port_overrides_the_contract_default()
     {
-        var target = BenchmarkDatabaseTarget.Resolve("mysql84", "49152", PerformanceContract.Load());
+        // Arrange
+        var contract = PerformanceContract.Load();
 
+        // Act
+        var target = BenchmarkDatabaseTarget.Resolve("mysql84", "49152", contract);
+
+        // Assert
         Assert.Equal(49152, target.Port);
     }
 
+    /// <summary>
+    /// Verifies invalid explicit port is rejected.
+    /// </summary>
+    /// <param name="configuredPort">The malformed or out-of-range port override.</param>
     [Theory]
     [InlineData("0")]
     [InlineData("65536")]
@@ -38,9 +67,15 @@ public sealed class BenchmarkDatabaseTargetTests
         string configuredPort
     )
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            BenchmarkDatabaseTarget.Resolve("mysql84", configuredPort, PerformanceContract.Load()));
+        // Arrange
+        Action act = () =>
+            BenchmarkDatabaseTarget.Resolve("mysql84", configuredPort, PerformanceContract.Load());
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("TCP port between 1 and 65535", exception.Message);
     }
 }

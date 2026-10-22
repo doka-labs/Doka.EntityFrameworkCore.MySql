@@ -29,21 +29,50 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         "SET @doka_scope_b = 1;",
     ];
 
+    /// <summary>
+    /// Verifies complete handler generation stays bounded and scales linearly.
+    /// </summary>
     [Fact]
-    public void Complete_handler_generation_stays_bounded_and_scales_linearly()
+    public void Complete_handler_generation_stays_within_the_allocation_budget()
     {
+        // Arrange
         var benchmark = new MigrationOperationHandlerGenerationBenchmark();
         benchmark.GlobalSetup();
 
         try
         {
             _ = benchmark.GenerateHandlerOperationMatrix();
+
+            // Act
             var matrixAllocation = MeasureAllocation(benchmark.GenerateHandlerOperationMatrix);
+
+            // Assert
+            Assert.InRange(matrixAllocation, 1L, MaximumMatrixAllocationBytes);
+        }
+        finally
+        {
+            benchmark.GlobalCleanup();
+        }
+    }
+
+    /// <summary>Verifies increasing handler populations preserves linear allocation growth.</summary>
+    [Fact]
+    public void Complete_handler_generation_scales_linearly()
+    {
+        // Arrange
+        var benchmark = new MigrationOperationHandlerGenerationBenchmark();
+        benchmark.GlobalSetup();
+
+        try
+        {
+            _ = benchmark.GenerateHandlerOperationMatrix();
+
+            // Act
             var hundredAllocation = MeasureAllocation(() => benchmark.GenerateOperationPopulation(1));
             var thousandAllocation = MeasureAllocation(() => benchmark.GenerateOperationPopulation(2));
             var normalizedGrowth = (thousandAllocation / 1000D) / (hundredAllocation / 100D);
 
-            Assert.InRange(matrixAllocation, 1L, MaximumMatrixAllocationBytes);
+            // Assert
             Assert.InRange(normalizedGrowth, 0D, MaximumNormalizedGrowthRatio);
         }
         finally
@@ -52,14 +81,25 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         }
     }
 
+    /// <summary>
+    /// Verifies benchmark driver reports invalid invocation as invalid evidence.
+    /// </summary>
     [Fact]
     public async Task Benchmark_driver_reports_invalid_invocation_as_invalid_evidence()
     {
-        var exitCode = await Doka.EntityFrameworkCore.MySql.Benchmarks.Program.Main(["--workloads"]);
+        // Arrange
+        string[] arguments = ["--workloads"];
 
+        // Act
+        var exitCode = await Doka.EntityFrameworkCore.MySql.Benchmarks.Program.Main(arguments);
+
+        // Assert
         Assert.Equal(78, exitCode);
     }
 
+    /// <summary>
+    /// Verifies handler scoped generation does not amplify allocations by sql size.
+    /// </summary>
     [Theory]
     [InlineData(5, 1)]
     [InlineData(4_288, 1)]
@@ -70,11 +110,13 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         int scopeCount
     )
     {
+        // Arrange
         using var fixture = new ScopedAllocationFixture();
         var bodyCommand = CreateBodyCommand(bodyLength);
         var opaqueCommand = string.Concat(s_setupCommands)
             + bodyCommand
             + string.Concat(s_cleanupCommands.Reverse());
+
         var opaqueOperations = CreateProbeOperations(
             s_setupCommands,
             bodyCommand,
@@ -82,6 +124,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             opaqueCommand,
             scopeCount,
             scoped: false);
+
         var scopedOperations = CreateProbeOperations(
             s_setupCommands,
             bodyCommand,
@@ -92,10 +135,12 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
 
         _ = fixture.Generate(opaqueOperations);
         _ = fixture.Generate(scopedOperations);
-
         var opaqueAllocation = MeasureMedianAllocation(() => fixture.Generate(opaqueOperations));
+
+        // Act
         var scopedAllocation = MeasureMedianAllocation(() => fixture.Generate(scopedOperations));
 
+        // Assert
         AssertScopedAllocation(
             "handler",
             bodyLength,
@@ -105,9 +150,13 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             MaximumHandlerScopedAllocationRatio);
     }
 
+    /// <summary>
+    /// Verifies handler scoped generation does not materialize fragment group intermediates.
+    /// </summary>
     [Fact]
     public void Handler_scoped_generation_does_not_materialize_fragment_group_intermediates()
     {
+        // Arrange
         const int commandCountPerRole = 32;
         const int commandLength = 16_000;
         using var fixture = new ScopedAllocationFixture();
@@ -117,6 +166,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         var opaqueCommand = string.Concat(setupCommands)
             + bodyCommand
             + string.Concat(cleanupCommands.Reverse());
+
         var opaqueOperations = CreateProbeOperations(
             setupCommands,
             bodyCommand,
@@ -124,6 +174,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             opaqueCommand,
             operationCount: 1,
             scoped: false);
+
         var scopedOperations = CreateProbeOperations(
             setupCommands,
             bodyCommand,
@@ -134,10 +185,12 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
 
         _ = fixture.Generate(opaqueOperations);
         _ = fixture.Generate(scopedOperations);
-
         var opaqueAllocation = MeasureMedianAllocation(() => fixture.Generate(opaqueOperations));
+
+        // Act
         var scopedAllocation = MeasureMedianAllocation(() => fixture.Generate(scopedOperations));
 
+        // Assert
         AssertScopedAllocation(
             "handler fragmented",
             opaqueCommand.Length,
@@ -147,6 +200,9 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             MaximumHandlerScopedAllocationRatio);
     }
 
+    /// <summary>
+    /// Verifies provider sql mode scope does not amplify allocations by sql size.
+    /// </summary>
     [Theory]
     [InlineData(5, 1)]
     [InlineData(4_288, 1)]
@@ -157,16 +213,18 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         int scopeCount
     )
     {
+        // Arrange
         using var fixture = new ScopedAllocationFixture();
         var ordinaryOperations = CreateProviderScopeOperations(commentLength, scopeCount, scoped: false);
         var scopedOperations = CreateProviderScopeOperations(commentLength, scopeCount, scoped: true);
-
         _ = fixture.Generate(ordinaryOperations);
         _ = fixture.Generate(scopedOperations);
-
         var ordinaryAllocation = MeasureMedianAllocation(() => fixture.Generate(ordinaryOperations));
+
+        // Act
         var scopedAllocation = MeasureMedianAllocation(() => fixture.Generate(scopedOperations));
 
+        // Assert
         AssertScopedAllocation(
             "provider sql_mode",
             commentLength,
@@ -176,22 +234,27 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             MaximumProviderScopedAllocationRatio);
     }
 
+    /// <summary>
+    /// Verifies provider sql mode scope reuses invariant fragments across many scopes.
+    /// </summary>
     [Fact]
     public void Provider_sql_mode_scope_reuses_invariant_fragments_across_many_scopes()
     {
+        // Arrange
         const int commentLength = 5;
         const int scopeCount = 256;
         using var fixture = new ScopedAllocationFixture();
         var ordinaryOperations = CreateProviderScopeOperations(commentLength, scopeCount, scoped: false);
         var scopedOperations = CreateProviderScopeOperations(commentLength, scopeCount, scoped: true);
-
         _ = fixture.Generate(ordinaryOperations);
         _ = fixture.Generate(scopedOperations);
-
         var ordinaryAllocation = MeasureMedianAllocation(() => fixture.Generate(ordinaryOperations));
         var scopedAllocation = MeasureMedianAllocation(() => fixture.Generate(scopedOperations));
+
+        // Act
         var incrementalBytesPerScope = (scopedAllocation - ordinaryAllocation) / scopeCount;
 
+        // Assert
         Assert.InRange(incrementalBytesPerScope, 0L, MaximumProviderIncrementalBytesPerScope);
     }
 
@@ -255,6 +318,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         var comment = scoped
             ? "\\" + new string('x', commentLength - 1)
             : new string('x', commentLength);
+
         var operations = new MigrationOperation[operationCount];
 
         for (var index = 0; index < operationCount; index++)
@@ -352,6 +416,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             var commands = context
                 .GetService<IMigrationsSqlGenerator>()
                 .Generate(operations, context.Model);
+
             long checksum = commands.Count;
 
             foreach (var command in commands)

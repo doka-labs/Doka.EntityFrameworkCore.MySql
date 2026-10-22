@@ -232,6 +232,7 @@ public sealed class MySqlTransactionOperabilityTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await ResetDatabaseObjectsAsync(connectionString)
@@ -241,7 +242,11 @@ public sealed class MySqlTransactionOperabilityTests
         {
             await using var context = new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion));
             var strategy = context.Database.CreateExecutionStrategy();
+            var supportsSavepoints = false;
 
+            // Act
+            // WHY: Both writes and rollback belong to one transaction; the final
+            // state proves the savepoint preserved only the earlier write.
             await strategy
                 .ExecuteAsync(async () =>
                 {
@@ -249,7 +254,7 @@ public sealed class MySqlTransactionOperabilityTests
                         .Database.BeginTransactionAsync()
                         .ConfigureAwait(false);
 
-                    Assert.True(transaction.SupportsSavepoints);
+                    supportsSavepoints = transaction.SupportsSavepoints;
 
                     context.Entities.Add(
                         new TransactionEntity
@@ -291,6 +296,9 @@ public sealed class MySqlTransactionOperabilityTests
                 .ToListAsync()
                 .ConfigureAwait(false);
 
+            // Assert
+            Assert.True(supportsSavepoints);
+
             var persistedName = Assert.Single(names);
 
             Assert.Equal("before-savepoint", persistedName);
@@ -307,6 +315,7 @@ public sealed class MySqlTransactionOperabilityTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await using var context = new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion));
@@ -316,8 +325,9 @@ public sealed class MySqlTransactionOperabilityTests
 
         var strategy = context.Database.CreateExecutionStrategy();
 
-        var exception = await Assert
-            .ThrowsAsync<InvalidOperationException>(() => strategy.ExecuteAsync(async () =>
+        // Act
+        var caught = await Record
+            .ExceptionAsync(() => strategy.ExecuteAsync(async () =>
             {
                 await context
                     .Database.ExecuteSqlRawAsync("SELECT 1")
@@ -327,6 +337,9 @@ public sealed class MySqlTransactionOperabilityTests
             }))
             .ConfigureAwait(false);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(caught);
+
         Assert.Contains("does not support user-initiated transactions", exception.Message, StringComparison.Ordinal);
     }
 
@@ -335,6 +348,7 @@ public sealed class MySqlTransactionOperabilityTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await ResetDatabaseObjectsAsync(connectionString)
@@ -343,8 +357,10 @@ public sealed class MySqlTransactionOperabilityTests
         try
         {
             await using var context = new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion));
+
             var strategy = context.Database.CreateExecutionStrategy();
 
+            // Act
             await strategy
                 .ExecuteInTransactionAsync(
                     async cancellationToken =>
@@ -366,6 +382,7 @@ public sealed class MySqlTransactionOperabilityTests
 
             context.ChangeTracker.Clear();
 
+            // Assert
             Assert.True(
                 await context
                     .Entities.AnyAsync(entity => entity.Name == "verify-succeeded")
@@ -384,6 +401,7 @@ public sealed class MySqlTransactionOperabilityTests
         bool complete
     )
     {
+        // Arrange
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var connectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
@@ -395,6 +413,9 @@ public sealed class MySqlTransactionOperabilityTests
 
         try
         {
+            // Act
+            // WHY: Scope completion and the independent readback form one
+            // commit-or-rollback lifecycle for the same ambient transaction.
             await using (var context =
                          new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion)))
             {
@@ -426,6 +447,7 @@ public sealed class MySqlTransactionOperabilityTests
             await using var verificationContext = new TransactionOperabilityContext(
                 CreateOptions(connectionString, serverVersion));
 
+            // Assert
             Assert.Equal(
                 complete,
                 await verificationContext

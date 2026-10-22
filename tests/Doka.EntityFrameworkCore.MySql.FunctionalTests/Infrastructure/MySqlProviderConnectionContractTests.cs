@@ -14,85 +14,95 @@ public sealed class MySqlProviderConnectionContractTests
     private const string GuidItemTable = "ProviderContractGuidItems";
     private const string GuidChildTable = "ProviderContractGuidChildren";
 
+    /// <summary>Verifies a matched-row update succeeds even when its stored value does not change.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    /// <param name="useAsync">Whether to exercise asynchronous persistence and reads.</param>
+    /// <param name="converterBacked">Whether normalization makes a CLR change store-equivalent.</param>
     [Theory]
-    [InlineData("connection-string", false)]
-    [InlineData("connection-string", true)]
-    [InlineData("db-connection", false)]
-    [InlineData("db-connection", true)]
-    [InlineData("data-source", false)]
-    [InlineData("data-source", true)]
+    [InlineData("connection-string", false, false)]
+    [InlineData("connection-string", true, false)]
+    [InlineData("connection-string", false, true)]
+    [InlineData("connection-string", true, true)]
+    [InlineData("db-connection", false, false)]
+    [InlineData("db-connection", true, false)]
+    [InlineData("db-connection", false, true)]
+    [InlineData("db-connection", true, true)]
+    [InlineData("data-source", false, false)]
+    [InlineData("data-source", true, false)]
+    [InlineData("data-source", false, true)]
+    [InlineData("data-source", true, true)]
     public async Task Matched_row_semantics_preserve_semantically_unchanged_updates(
         string bootstrap,
-        bool async
+        bool useAsync,
+        bool converterBacked
     )
     {
-        await using var lease = CreateOptionsLease<MatchedRowContext>(
-            bootstrap,
-            requireUserVariables: false);
+        // Arrange
+        await using var lease = CreateOptionsLease<MatchedRowContext>(bootstrap, requireUserVariables: false);
         await using var context = new MatchedRowContext(lease.Options);
 
         await ResetMatchedRowTableAsync(context);
 
         try
         {
-            context.Items.AddRange(
-                new MatchedRowItem
-                {
-                    Id = 1,
-                    Value = "unchanged",
-                    NormalizedValue = "stable",
-                    Token = "token-a",
-                },
-                new MatchedRowItem
-                {
-                    Id = 2,
-                    Value = "converter",
-                    NormalizedValue = "stable",
-                    Token = "token-b",
-                });
+            context.Items.AddRange(CreateMatchedRowItems());
 
-            if (async)
+            int inserted;
+
+            if (useAsync)
             {
-                Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
+                inserted = await context.SaveChangesAsync(CancellationToken.None);
             }
             else
             {
-                Assert.Equal(2, context.SaveChanges());
+                // WHY: The synchronous case qualifies the complete sync persistence path.
+                // ReSharper disable once MethodHasAsyncOverload
+                inserted = context.SaveChanges();
             }
 
+            // WHY: Both rows must exist before either unchanged-update case runs.
+            Assert.Equal(2, inserted);
             context.ChangeTracker.Clear();
 
-            var unchanged = async
-                ? await context.Items.SingleAsync(item => item.Id == 1, CancellationToken.None)
-                : context.Items.Single(item => item.Id == 1);
+            var id = converterBacked ? 2 : 1;
+            MatchedRowItem item;
 
-            context.Entry(unchanged).Property(item => item.Value).IsModified = true;
-
-            if (async)
+            if (useAsync)
             {
-                Assert.Equal(1, await context.SaveChangesAsync(CancellationToken.None));
+                item = await context.Items.SingleAsync(row => row.Id == id, CancellationToken.None);
             }
             else
             {
-                Assert.Equal(1, context.SaveChanges());
+                // WHY: Sync reads are part of this independently qualified API path.
+                // ReSharper disable once MethodHasAsyncOverload
+                item = context.Items.Single(row => row.Id == id);
             }
 
-            context.ChangeTracker.Clear();
-
-            var converterBacked = async
-                ? await context.Items.SingleAsync(item => item.Id == 2, CancellationToken.None)
-                : context.Items.Single(item => item.Id == 2);
-
-            converterBacked.NormalizedValue = "STABLE";
-
-            if (async)
+            if (converterBacked)
             {
-                Assert.Equal(1, await context.SaveChangesAsync(CancellationToken.None));
+                item.NormalizedValue = "STABLE";
             }
             else
             {
-                Assert.Equal(1, context.SaveChanges());
+                context.Entry(item).Property(row => row.Value).IsModified = true;
             }
+
+            // Act
+            int saved;
+
+            if (useAsync)
+            {
+                saved = await context.SaveChangesAsync(CancellationToken.None);
+            }
+            else
+            {
+                // WHY: This row-count assertion must exercise synchronous SaveChanges.
+                // ReSharper disable once MethodHasAsyncOverload
+                saved = context.SaveChanges();
+            }
+
+            // Assert
+            Assert.Equal(1, saved);
         }
         finally
         {
@@ -102,64 +112,47 @@ public sealed class MySqlProviderConnectionContractTests
         }
     }
 
-    [Fact]
-    public async Task Matched_row_semantics_preserve_real_concurrency_conflicts()
+    /// <summary>Verifies matched-row semantics still reject each real concurrency conflict.</summary>
+    /// <param name="deletedRow">Whether the row was deleted rather than its token changed.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Matched_row_semantics_preserve_real_concurrency_conflicts(
+        bool deletedRow
+    )
     {
+        // Arrange
         await using var lease = CreateOptionsLease<MatchedRowContext>(
             "connection-string",
             requireUserVariables: false);
+
         await using var context = new MatchedRowContext(lease.Options);
 
         await ResetMatchedRowTableAsync(context);
 
         try
         {
-            context.Items.AddRange(
-                new MatchedRowItem
-                {
-                    Id = 1,
-                    Value = "deleted",
-                    NormalizedValue = "first",
-                    Token = "token-a",
-                },
-                new MatchedRowItem
-                {
-                    Id = 2,
-                    Value = "changed",
-                    NormalizedValue = "second",
-                    Token = "token-b",
-                });
+            context.Items.AddRange(CreateMatchedRowItems());
 
+            // WHY: Seed completeness prevents a missing fixture row from
+            // masquerading as the intended optimistic-concurrency conflict.
             Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
             context.ChangeTracker.Clear();
 
-            var deleted = await context.Items.SingleAsync(
-                item => item.Id == 1,
-                CancellationToken.None);
+            var id = deletedRow ? 1 : 2;
+            var item = await context.Items.SingleAsync(row => row.Id == id, CancellationToken.None);
+            var interference = deletedRow
+                ? $"DELETE FROM `{MatchedRowTable}` WHERE `Id` = 1;"
+                : $"UPDATE `{MatchedRowTable}` SET `Token` = 'token-c' WHERE `Id` = 2;";
 
-            await context.Database.ExecuteSqlRawAsync(
-                $"DELETE FROM `{MatchedRowTable}` WHERE `Id` = 1;",
-                CancellationToken.None);
+            await context.Database.ExecuteSqlRawAsync(interference, CancellationToken.None);
+            item.Value = "local-update";
 
-            deleted.Value = "local-update";
+            // Act
+            var exception = await Record.ExceptionAsync(() => context.SaveChangesAsync(CancellationToken.None));
 
-            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
-                context.SaveChangesAsync(CancellationToken.None));
-
-            context.ChangeTracker.Clear();
-
-            var changed = await context.Items.SingleAsync(
-                item => item.Id == 2,
-                CancellationToken.None);
-
-            await context.Database.ExecuteSqlRawAsync(
-                $"UPDATE `{MatchedRowTable}` SET `Token` = 'token-c' WHERE `Id` = 2;",
-                CancellationToken.None);
-
-            changed.Value = "local-update";
-
-            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
-                context.SaveChangesAsync(CancellationToken.None));
+            // Assert
+            Assert.IsType<DbUpdateConcurrencyException>(exception);
         }
         finally
         {
@@ -169,17 +162,18 @@ public sealed class MySqlProviderConnectionContractTests
         }
     }
 
+    /// <summary>Verifies user variables retain their value on the provider's open session.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
     [Theory]
     [InlineData("connection-string")]
     [InlineData("db-connection")]
     [InlineData("data-source")]
-    public async Task Required_user_variables_execute_a_session_local_prepared_program(
+    public async Task Required_user_variables_execute_session_local_arithmetic(
         string bootstrap
     )
     {
-        await using var lease = CreateOptionsLease<DbContext>(
-            bootstrap,
-            requireUserVariables: true);
+        // Arrange
+        await using var lease = CreateOptionsLease<DbContext>(bootstrap, requireUserVariables: true);
         await using var context = new DbContext(lease.Options);
 
         await context.Database.OpenConnectionAsync(CancellationToken.None);
@@ -188,42 +182,15 @@ public sealed class MySqlProviderConnectionContractTests
         {
             var connection = context.Database.GetDbConnection();
 
-            await ExecuteNonQueryAsync(
-                connection,
-                "SET @doka_contract_value = 41;",
-                CancellationToken.None);
+            // Act
+            await ExecuteNonQueryAsync(connection, "SET @doka_contract_value = 41;", CancellationToken.None);
 
-            Assert.Equal(
-                42L,
-                Convert.ToInt64(
-                    await ExecuteScalarAsync(
-                        connection,
-                        "SELECT @doka_contract_value + 1;",
-                        CancellationToken.None),
-                    CultureInfo.InvariantCulture));
+            var result = Convert.ToInt64(
+                await ExecuteScalarAsync(connection, "SELECT @doka_contract_value + 1;", CancellationToken.None),
+                CultureInfo.InvariantCulture);
 
-            await ExecuteNonQueryAsync(
-                connection,
-                "SET @doka_contract_sql = 'SELECT 43';",
-                CancellationToken.None);
-            await ExecuteNonQueryAsync(
-                connection,
-                "PREPARE doka_contract_statement FROM @doka_contract_sql;",
-                CancellationToken.None);
-
-            Assert.Equal(
-                43L,
-                Convert.ToInt64(
-                    await ExecuteScalarAsync(
-                        connection,
-                        "EXECUTE doka_contract_statement;",
-                        CancellationToken.None),
-                    CultureInfo.InvariantCulture));
-
-            await ExecuteNonQueryAsync(
-                connection,
-                "DEALLOCATE PREPARE doka_contract_statement;",
-                CancellationToken.None);
+            // Assert
+            Assert.Equal(42L, result);
         }
         finally
         {
@@ -231,112 +198,269 @@ public sealed class MySqlProviderConnectionContractTests
         }
     }
 
+    /// <summary>Verifies preparation, execution and deallocation remain on the same provider session.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
     [Theory]
     [InlineData("connection-string")]
     [InlineData("db-connection")]
     [InlineData("data-source")]
-    public async Task Binary16_transport_preserves_default_and_char36_guid_mappings(
+    public async Task Required_user_variables_execute_a_session_local_prepared_program(
         string bootstrap
     )
     {
-        await using var lease = CreateOptionsLease<GuidContext>(
-            bootstrap,
-            requireUserVariables: false);
+        // Arrange
+        await using var lease = CreateOptionsLease<DbContext>(bootstrap, requireUserVariables: true);
+        await using var context = new DbContext(lease.Options);
+
+        await context.Database.OpenConnectionAsync(CancellationToken.None);
+
+        try
+        {
+            var connection = context.Database.GetDbConnection();
+
+            // Act
+            // WHY: Prepared statements are session-owned; these commands form
+            // one program and cannot be split across independent connections.
+            await ExecuteNonQueryAsync(connection, "SET @doka_contract_sql = 'SELECT 43';", CancellationToken.None);
+            await ExecuteNonQueryAsync(
+                connection,
+                "PREPARE doka_contract_statement FROM @doka_contract_sql;",
+                CancellationToken.None);
+
+            var result = Convert.ToInt64(
+                await ExecuteScalarAsync(connection, "EXECUTE doka_contract_statement;", CancellationToken.None),
+                CultureInfo.InvariantCulture);
+
+            await ExecuteNonQueryAsync(connection, "DEALLOCATE PREPARE doka_contract_statement;", CancellationToken.None);
+
+            // Assert
+            Assert.Equal(43L, result);
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    /// <summary>Verifies tracked materialization preserves binary and Char36 GUID mappings together.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_materializes_tracked_guid_mappings(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
         await ResetGuidTablesAsync(context);
 
-        var id = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
-        var alternateId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
-        var binaryValue = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f");
-        var textValue = Guid.Parse("30415263-7485-96a7-b8c9-daebfc0d1e2f");
-        var childValue = Guid.Parse("40516273-8495-a6b7-c8d9-eafb0c1d2e3f");
+        try
+        {
+            var expected = await SeedGuidItemAsync(context);
+
+            // Act
+            var tracked = await context.Items.Include(item => item.Children)
+                .SingleAsync(item => item.Id == expected.Id, CancellationToken.None);
+
+            // Assert
+            Assert.Equal(expected.AlternateId, tracked.AlternateId);
+            Assert.Equal(expected.BinaryValue, tracked.BinaryValue);
+            Assert.Null(tracked.OptionalBinaryValue);
+            Assert.Equal(expected.TextValue, tracked.TextValue);
+            Assert.Null(tracked.OptionalTextValue);
+            Assert.Equal(expected.Children.Single().ExternalId, Assert.Single(tracked.Children).ExternalId);
+        }
+        finally
+        {
+            await DropGuidTablesAsync(context);
+        }
+    }
+
+    /// <summary>Verifies a no-tracking alternate-key query preserves the GUID primary key.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_materializes_no_tracking_guid_query(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
+        await using var context = new GuidContext(lease.Options);
+
+        await ResetGuidTablesAsync(context);
 
         try
         {
-            context.Items.Add(
-                new GuidItem
-                {
-                    Id = id,
-                    AlternateId = alternateId,
-                    BinaryValue = binaryValue,
-                    OptionalBinaryValue = null,
-                    TextValue = textValue,
-                    OptionalTextValue = null,
-                    Children =
-                    {
-                        new GuidChild
-                        {
-                            Sequence = 1,
-                            ExternalId = childValue,
-                        },
-                    },
-                });
+            var expected = await SeedGuidItemAsync(context);
 
-            Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
-            context.ChangeTracker.Clear();
+            // Act
+            var loaded = await context.Items.AsNoTracking()
+                .SingleAsync(item => item.AlternateId == expected.AlternateId, CancellationToken.None);
 
-            var tracked = await context.Items
-                .Include(item => item.Children)
-                .SingleAsync(item => item.Id == id, CancellationToken.None);
+            // Assert
+            Assert.Equal(expected.Id, loaded.Id);
+        }
+        finally
+        {
+            await DropGuidTablesAsync(context);
+        }
+    }
 
-            Assert.Equal(alternateId, tracked.AlternateId);
-            Assert.Equal(binaryValue, tracked.BinaryValue);
-            Assert.Null(tracked.OptionalBinaryValue);
-            Assert.Equal(textValue, tracked.TextValue);
-            Assert.Null(tracked.OptionalTextValue);
-            Assert.Equal(childValue, Assert.Single(tracked.Children).ExternalId);
+    /// <summary>Verifies Find translates a GUID key through the configured binary transport.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_finds_guid_primary_key(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
+        await using var context = new GuidContext(lease.Options);
 
-            context.ChangeTracker.Clear();
+        await ResetGuidTablesAsync(context);
 
-            var noTracking = await context.Items
-                .AsNoTracking()
-                .SingleAsync(item => item.AlternateId == alternateId, CancellationToken.None);
+        try
+        {
+            var expected = await SeedGuidItemAsync(context);
 
-            var found = await context.Items.FindAsync([id], CancellationToken.None);
+            // Act
+            var found = await context.Items.FindAsync([expected.Id], CancellationToken.None);
 
-            Assert.Equal(id, noTracking.Id);
+            // Assert
             Assert.NotNull(found);
-            Assert.Equal(id, found.Id);
+            Assert.Equal(expected.Id, found.Id);
+        }
+        finally
+        {
+            await DropGuidTablesAsync(context);
+        }
+    }
+
+    /// <summary>Verifies compiled GUID queries retain their included relationship.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_materializes_compiled_guid_query(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
+        await using var context = new GuidContext(lease.Options);
+
+        await ResetGuidTablesAsync(context);
+
+        try
+        {
+            var expected = await SeedGuidItemAsync(context);
+            var query = CreateCompiledGuidQuery();
+
+            // Act
+            var compiled = await query(context, expected.Id).SingleAsync(CancellationToken.None);
+
+            // Assert
+            Assert.Equal(expected.Id, compiled.Id);
+            Assert.Single(compiled.Children);
+        }
+        finally
+        {
+            await DropGuidTablesAsync(context);
+        }
+    }
+
+    /// <summary>Verifies updates preserve both nullable binary and Char36 GUID values.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_updates_optional_guid_values(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
+        await using var context = new GuidContext(lease.Options);
+
+        await ResetGuidTablesAsync(context);
+
+        try
+        {
+            var expected = await SeedGuidItemAsync(context);
+            var query = CreateCompiledGuidQuery();
+            var compiled = await query(context, expected.Id).SingleAsync(CancellationToken.None);
+            var optionalBinary = expected.Children.Single().ExternalId;
+            compiled.OptionalBinaryValue = optionalBinary;
+            compiled.OptionalTextValue = expected.TextValue;
+
+            // Act
+            var saved = await context.SaveChangesAsync(CancellationToken.None);
 
             context.ChangeTracker.Clear();
 
-            var compiledQuery = EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) =>
-                queryContext.Items
-                    .Include(item => item.Children)
-                    .Where(item => item.Id == queryId));
+            var loaded = await context.Items.SingleAsync(item => item.Id == expected.Id, CancellationToken.None);
 
-            var compiled = await compiledQuery(context, id)
-                .SingleAsync(CancellationToken.None);
+            // Assert
+            Assert.Equal(1, saved);
+            Assert.Equal(optionalBinary, loaded.OptionalBinaryValue);
+            Assert.Equal(expected.TextValue, loaded.OptionalTextValue);
+        }
+        finally
+        {
+            await DropGuidTablesAsync(context);
+        }
+    }
 
-            Assert.Equal(id, compiled.Id);
-            Assert.Single(compiled.Children);
+    /// <summary>Verifies raw binary and character storage independently of EF materialization.</summary>
+    /// <param name="bootstrap">The configured connection ownership path.</param>
+    [Theory]
+    [InlineData("connection-string")]
+    [InlineData("db-connection")]
+    [InlineData("data-source")]
+    public async Task Binary16_transport_persists_binary_and_char36_storage(
+        string bootstrap
+    )
+    {
+        // Arrange
+        await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
+        await using var context = new GuidContext(lease.Options);
 
-            compiled.OptionalBinaryValue = childValue;
-            compiled.OptionalTextValue = textValue;
+        await ResetGuidTablesAsync(context);
 
-            Assert.Equal(1, await context.SaveChangesAsync(CancellationToken.None));
-
+        try
+        {
+            var expected = await SeedGuidItemAsync(context);
             var connection = context.Database.GetDbConnection();
+
             await context.Database.OpenConnectionAsync(CancellationToken.None);
 
-            Assert.Equal(
-                "00112233445566778899AABBCCDDEEFF",
-                Convert.ToString(
-                    await ExecuteScalarAsync(
-                        connection,
-                        $"SELECT HEX(`Id`) FROM `{GuidItemTable}`;",
-                        CancellationToken.None),
-                    CultureInfo.InvariantCulture));
+            // Act
+            var binaryHex = Convert.ToString(
+                await ExecuteScalarAsync(connection, $"SELECT HEX(`Id`) FROM `{GuidItemTable}`;", CancellationToken.None),
+                CultureInfo.InvariantCulture);
 
-            Assert.Equal(
-                textValue.ToString("D", CultureInfo.InvariantCulture),
-                Convert.ToString(
-                    await ExecuteScalarAsync(
-                        connection,
-                        $"SELECT CAST(`TextValue` AS CHAR(36)) FROM `{GuidItemTable}`;",
-                        CancellationToken.None),
-                    CultureInfo.InvariantCulture));
+            var text = Convert.ToString(
+                await ExecuteScalarAsync(
+                    connection,
+                    $"SELECT CAST(`TextValue` AS CHAR(36)) FROM `{GuidItemTable}`;",
+                    CancellationToken.None),
+                CultureInfo.InvariantCulture);
+
+            // Assert
+            Assert.Equal("00112233445566778899AABBCCDDEEFF", binaryHex);
+            Assert.Equal(expected.TextValue.ToString("D", CultureInfo.InvariantCulture), text);
         }
         finally
         {
@@ -344,6 +468,61 @@ public sealed class MySqlProviderConnectionContractTests
             await DropGuidTablesAsync(context);
         }
     }
+
+    private static MatchedRowItem[] CreateMatchedRowItems() =>
+    [
+        new()
+        {
+            Id = 1,
+            Value = "unchanged",
+            NormalizedValue = "stable",
+            Token = "token-a",
+        },
+        new()
+        {
+            Id = 2,
+            Value = "converter",
+            NormalizedValue = "stable",
+            Token = "token-b",
+        },
+    ];
+
+    private static async Task<GuidItem> SeedGuidItemAsync(
+        GuidContext context
+    )
+    {
+        var item = new GuidItem
+        {
+            Id = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff"),
+            AlternateId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f"),
+            BinaryValue = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f"),
+            OptionalBinaryValue = null,
+            TextValue = Guid.Parse("30415263-7485-96a7-b8c9-daebfc0d1e2f"),
+            OptionalTextValue = null,
+            Children =
+            {
+                new GuidChild
+                {
+                    Sequence = 1,
+                    ExternalId = Guid.Parse("40516273-8495-a6b7-c8d9-eafb0c1d2e3f"),
+                },
+            },
+        };
+
+        context.Items.Add(item);
+
+        // WHY: Every transport case requires the same complete parent/child
+        // graph; qualify the seed before observing a particular query path.
+        Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
+        context.ChangeTracker.Clear();
+
+        return item;
+    }
+
+    private static Func<GuidContext, Guid, IAsyncEnumerable<GuidItem>> CreateCompiledGuidQuery() =>
+        EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) => queryContext.Items
+            .Include(item => item.Children)
+            .Where(item => item.Id == queryId));
 
     private static ProviderOptionsLease<TContext> CreateOptionsLease<TContext>(
         string bootstrap,
@@ -482,6 +661,7 @@ public sealed class MySqlProviderConnectionContractTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
+
         return await command.ExecuteScalarAsync(cancellationToken);
     }
 

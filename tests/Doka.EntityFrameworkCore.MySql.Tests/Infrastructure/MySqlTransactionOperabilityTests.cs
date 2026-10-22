@@ -11,20 +11,22 @@ public sealed class MySqlTransactionOperabilityTests
     [Fact]
     public void Provider_transactions_expose_and_execute_savepoint_commands()
     {
+        // Arrange
         using var connection = new RecordingDbConnection();
         using var context = new TransactionOperabilityContext(CreateOptions(connection));
+
         using var transaction = context.Database.BeginTransaction();
 
-        Assert.True(transaction.SupportsSavepoints);
-
+        // Act
         transaction.CreateSavepoint("before-update");
         transaction.RollbackToSavepoint("before-update");
         transaction.ReleaseSavepoint("before-update");
-
         var commands = connection
             .Commands.Select(command => command.CommandText)
             .ToArray();
 
+        // Assert
+        Assert.True(transaction.SupportsSavepoints);
         Assert.Contains(
             commands,
             c => c.StartsWith("SAVEPOINT", StringComparison.OrdinalIgnoreCase)
@@ -46,8 +48,8 @@ public sealed class MySqlTransactionOperabilityTests
     [Fact]
     public async Task Commit_unknown_failures_emit_the_resilience_diagnostic()
     {
+        // Arrange
         MySqlSingletonOptions primedSingletonOptions;
-
         await using (var primingConnection = new RecordingDbConnection())
         await using (var primingContext =
             new TransactionOperabilityContext(
@@ -60,12 +62,10 @@ public sealed class MySqlTransactionOperabilityTests
                 .Single();
             await primingTransaction.RollbackAsync();
         }
-
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var connection =
             new RecordingDbConnection(commitFailure: new SocketException((int)SocketError.ConnectionReset));
-
         await using var context =
             new TransactionOperabilityContext(
                 CreateOptions(connection, loggerFactory, MySqlGuidFormat.Char36));
@@ -76,12 +76,15 @@ public sealed class MySqlTransactionOperabilityTests
             .Single();
 
         await using var transaction = await context.Database.BeginTransactionAsync();
+        Func<Task> act = () => transaction.CommitAsync();
 
+        // Act
+        var recordedException = await Record.ExceptionAsync(act);
+
+        // Assert
         Assert.Same(primedSingletonOptions, activeSingletonOptions);
-        await Assert.ThrowsAsync<SocketException>(() => transaction.CommitAsync());
-
+        Assert.IsType<SocketException>(recordedException);
         var entry = Assert.Single(sink.Entries, candidate => candidate.EventId.Id == MySqlEventId.CommitUnknown.Id);
-
         Assert.Equal(MySqlLoggerCategory.Resilience, entry.Category);
         Assert.Contains("ExecuteInTransaction", entry.Message, StringComparison.Ordinal);
     }
@@ -410,6 +413,7 @@ public sealed class MySqlTransactionOperabilityTests
             if (index >= 0)
             {
                 _parameters[index] = value;
+
                 return;
             }
 

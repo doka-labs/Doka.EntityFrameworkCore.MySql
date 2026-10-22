@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Honor explicit GUID SQL defaults and computed expressions instead of assigning
+  an implicit client GUID strategy. Preserve deliberate strategies, generator
+  factories, supplied keys, and existing snapshot annotations. MariaDB reads
+  server-generated keys through `RETURNING`; MySQL rejects unknown
+  non-AUTO_INCREMENT generated keys before inserting. Cover migration,
+  snapshot/designer, scaffolding, generated-value readback, and engine-specific
+  DDL restrictions across the supported matrix. See
+  [GUID generation](docs/provider-configuration.md#guid-sql-defaults-and-computed-values).
+- Resolve shared-table defaults before inferring GUID or AUTO_INCREMENT
+  generation. Retain complete MySQL readback predicates for literal-default
+  composite keys, including converted and shared-column defaults.
+
 ## [10.6.0] - 2026-10-20
 
 Stable minor release adding explicit query-composition controls and a

@@ -1,7 +1,14 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
-public sealed class GenericLikeBenchmarkTests
+/// <summary>
+/// Verifies generic LIKE benchmark measurements retain their initialized service and query-cache boundaries.
+/// </summary>
+public sealed partial class GenericLikeBenchmarkTests
 {
+    /// <summary>
+    /// Verifies repeated compilation uses one initialized context and preserves its services.
+    /// </summary>
+    /// <param name="isMariaDb">Whether to use the MariaDB engine profile.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -9,28 +16,41 @@ public sealed class GenericLikeBenchmarkTests
         bool isMariaDb
     )
     {
+        // Arrange
         var events = new List<EventData>();
         using var benchmark = new Benchmarks.GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
+        var observations = new (string Sql, EventData[] Events, ContextSnapshot[] Contexts)[4];
         events.Clear();
 
-        DbContext? compilationContext = null;
-        for (var iteration = 0; iteration < 4; iteration++)
+        // Act
+        // WHY: Repeated calls must compile every time while retaining the initialized service graph.
+        for (var iteration = 0; iteration < observations.Length; iteration++)
         {
             var sql = benchmark.CompileScalarQueryToQueryString();
+            observations[iteration] = (sql, events.ToArray(), CaptureCurrentContexts(contexts));
+            events.Clear();
+        }
 
-            Assert.False(string.IsNullOrWhiteSpace(sql));
-            var compilation = Assert.IsType<QueryExpressionEventData>(Assert.Single(events));
+        // Assert
+        DbContext? compilationContext = null;
+        Assert.All(observations, observation =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(observation.Sql));
+            var compilation = Assert.IsType<QueryExpressionEventData>(Assert.Single(observation.Events));
             Assert.Equal(CoreEventId.QueryCompilationStarting, compilation.EventId);
             var context = Assert.Single(contexts, snapshot => ReferenceEquals(snapshot.Context, compilation.Context));
             compilationContext ??= context.Context;
             Assert.Same(compilationContext, compilation.Context);
-            Assert.All(contexts, snapshot => snapshot.AssertUnchanged());
-            events.Clear();
-        }
+            AssertContextsUnchanged(contexts, observation.Contexts);
+        });
     }
 
+    /// <summary>
+    /// Verifies the first measured cached call and later calls require no compilation or service rebuilding.
+    /// </summary>
+    /// <param name="isMariaDb">Whether to use the MariaDB engine profile.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -38,24 +58,38 @@ public sealed class GenericLikeBenchmarkTests
         bool isMariaDb
     )
     {
+        // Arrange
         var events = new List<EventData>();
         using var benchmark = new Benchmarks.GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
+        var observations = new (string Sql, EventData[] Events, ContextSnapshot[] Contexts)[4];
         events.Clear();
 
+        // Act
         var expectedSql = benchmark.CachedScalarQueryToQueryString();
-        Assert.False(string.IsNullOrWhiteSpace(expectedSql));
-        Assert.Empty(events);
-
-        for (var iteration = 0; iteration < 4; iteration++)
+        var initialEvents = events.ToArray();
+        for (var iteration = 0; iteration < observations.Length; iteration++)
         {
-            Assert.Equal(expectedSql, benchmark.CachedScalarQueryToQueryString());
-            Assert.Empty(events);
-            Assert.All(contexts, snapshot => snapshot.AssertUnchanged());
+            var sql = benchmark.CachedScalarQueryToQueryString();
+            observations[iteration] = (sql, events.ToArray(), CaptureCurrentContexts(contexts));
         }
+
+        // Assert
+        Assert.False(string.IsNullOrWhiteSpace(expectedSql));
+        Assert.Empty(initialEvents);
+        Assert.All(observations, observation =>
+        {
+            Assert.Equal(expectedSql, observation.Sql);
+            Assert.Empty(observation.Events);
+            AssertContextsUnchanged(contexts, observation.Contexts);
+        });
     }
 
+    /// <summary>
+    /// Verifies alternating fresh compilation and cached execution preserves SQL and cache isolation.
+    /// </summary>
+    /// <param name="isMariaDb">Whether to use the MariaDB engine profile.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -63,13 +97,34 @@ public sealed class GenericLikeBenchmarkTests
         bool isMariaDb
     )
     {
+        // Arrange
         var events = new List<EventData>();
         using var benchmark = new Benchmarks.GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
+        var observations = new (
+            string CompiledSql,
+            EventData[] CompileEvents,
+            string CachedSql,
+            EventData[] CacheEvents)[4];
+
         events.Clear();
 
+        // Act
         var expectedSql = benchmark.CachedScalarQueryToQueryString();
-        Assert.Empty(events);
+        var initialEvents = events.ToArray();
+        // WHY: Alternation catches a fresh compilation accidentally invalidating the independently warmed cache.
+        for (var iteration = 0; iteration < observations.Length; iteration++)
+        {
+            var compiledSql = benchmark.CompileScalarQueryToQueryString();
+            var compileEvents = events.ToArray();
+            events.Clear();
+
+            var cachedSql = benchmark.CachedScalarQueryToQueryString();
+            observations[iteration] = (compiledSql, compileEvents, cachedSql, events.ToArray());
+        }
+
+        // Assert
+        Assert.Empty(initialEvents);
         Assert.Contains("FROM `TranslationEntities`", expectedSql, StringComparison.Ordinal);
         Assert.Contains("`SignedValue` LIKE @numberPattern", expectedSql, StringComparison.Ordinal);
         Assert.Contains("`CreatedAt` LIKE @datePattern", expectedSql, StringComparison.Ordinal);
@@ -78,18 +133,19 @@ public sealed class GenericLikeBenchmarkTests
         Assert.Contains("HEX(", expectedSql, StringComparison.Ordinal);
         Assert.Contains("`Token`", expectedSql, StringComparison.Ordinal);
         Assert.Contains("LIKE @guidPattern", expectedSql, StringComparison.Ordinal);
-
-        for (var iteration = 0; iteration < 4; iteration++)
+        Assert.All(observations, observation =>
         {
-            Assert.Equal(expectedSql, benchmark.CompileScalarQueryToQueryString());
-            Assert.Equal(CoreEventId.QueryCompilationStarting, Assert.Single(events).EventId);
-            events.Clear();
-
-            Assert.Equal(expectedSql, benchmark.CachedScalarQueryToQueryString());
-            Assert.Empty(events);
-        }
+            Assert.Equal(expectedSql, observation.CompiledSql);
+            Assert.Equal(CoreEventId.QueryCompilationStarting, Assert.Single(observation.CompileEvents).EventId);
+            Assert.Equal(expectedSql, observation.CachedSql);
+            Assert.Empty(observation.CacheEvents);
+        });
     }
 
+    /// <summary>
+    /// Verifies cleanup disposes both initialized contexts and closes their public model access.
+    /// </summary>
+    /// <param name="isMariaDb">Whether to use the MariaDB engine profile.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -97,53 +153,68 @@ public sealed class GenericLikeBenchmarkTests
         bool isMariaDb
     )
     {
+        // Arrange
         var events = new List<EventData>();
         using var benchmark = new Benchmarks.GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
         events.Clear();
 
+        // Act
         benchmark.Dispose();
+        var exceptions = contexts
+            .Select(snapshot => Record.Exception(() => snapshot.Context.Model))
+            .ToArray();
 
+        // Assert
         Assert.Equal(contexts.Length, events.Count);
-        foreach (var snapshot in contexts)
+        for (var index = 0; index < contexts.Length; index++)
         {
+            var snapshot = contexts[index];
             var disposed = Assert.Single(events.OfType<DbContextEventData>(), eventData =>
                 ReferenceEquals(eventData.Context, snapshot.Context));
+
             Assert.Equal(CoreEventId.ContextDisposed, disposed.EventId);
-            Assert.Throws<ObjectDisposedException>(() => snapshot.Context.Model);
+            Assert.IsType<ObjectDisposedException>(exceptions[index]);
         }
     }
 
+    /// <summary>
+    /// Verifies exactly two string benchmarks are bound to their allocation controls.
+    /// </summary>
     [Fact]
     public void Exactly_two_string_benchmarks_are_bound_to_their_allocation_controls()
     {
+        // Arrange
         var benchmarkMethods = typeof(Benchmarks.GenericLikeBenchmark)
             .GetMethods()
             .Where(method => method.IsDefined(typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute), inherit: true))
             .ToArray();
+
         var expectedMethods = new[]
         {
             nameof(Benchmarks.GenericLikeBenchmark.CachedScalarQueryToQueryString),
             nameof(Benchmarks.GenericLikeBenchmark.CompileScalarQueryToQueryString),
         };
 
-        Assert.Equal(
-            expectedMethods.Order(StringComparer.Ordinal),
-            benchmarkMethods.Select(method => method.Name).Order(StringComparer.Ordinal));
-        Assert.All(benchmarkMethods, method =>
-        {
-            Assert.Equal(typeof(string), method.ReturnType);
-            Assert.Empty(method.GetParameters());
-        });
-
         using var document = JsonDocument.Parse(
             File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
+
+        // Act
+        var actual = benchmarkMethods.Select(method => method.Name).Order(StringComparer.Ordinal).ToArray();
         var controls = document.RootElement
             .GetProperty("benchmarkDotNetControls")
             .EnumerateArray()
             .Where(control => control.GetProperty("type").GetString() == nameof(Benchmarks.GenericLikeBenchmark))
             .ToArray();
+
+        // Assert
+        Assert.Equal(expectedMethods.Order(StringComparer.Ordinal), actual);
+        Assert.All(benchmarkMethods, method =>
+        {
+            Assert.Equal(typeof(string), method.ReturnType);
+            Assert.Empty(method.GetParameters());
+        });
 
         Assert.Equal(expectedMethods.Length, controls.Length);
         AssertControlBinding(
@@ -154,76 +225,5 @@ public sealed class GenericLikeBenchmarkTests
             controls,
             "generic-like-compilation-allocation",
             nameof(Benchmarks.GenericLikeBenchmark.CompileScalarQueryToQueryString));
-    }
-
-    private static DbContextOptions<Benchmarks.BenchmarkContext> CreateOptions(
-        bool isMariaDb,
-        List<EventData> events
-    )
-    {
-        var serverVersion = isMariaDb
-            ? MySqlServerVersion.MariaDb(new Version(11, 4, 0))
-            : MySqlServerVersion.MySql(new Version(8, 4, 0));
-
-        return new DbContextOptionsBuilder<Benchmarks.BenchmarkContext>()
-            .UseMySql(
-                "Server=127.0.0.1;Database=benchmark_measurement_tests;",
-                serverVersion,
-                options => options.UseNetTopologySuite())
-            .LogTo(
-                (eventId, _) => eventId == CoreEventId.QueryCompilationStarting
-                    || eventId == CoreEventId.ContextInitialized
-                    || eventId == CoreEventId.ContextDisposed,
-                events.Add)
-            .Options;
-    }
-
-    private static ContextSnapshot[] CaptureInitializedContexts(
-        List<EventData> events
-    )
-    {
-        var contexts = events
-            .OfType<ContextInitializedEventData>()
-            .Select(eventData => Assert.IsType<Benchmarks.BenchmarkContext>(eventData.Context))
-            .Select(context => new ContextSnapshot(
-                context,
-                context.GetInfrastructure(),
-                context.Model,
-                context.GetService<IAsyncQueryProvider>()))
-            .ToArray();
-
-        Assert.Equal(2, contexts.Length);
-        Assert.NotSame(contexts[0].Context, contexts[1].Context);
-        Assert.NotSame(contexts[0].ServiceProvider, contexts[1].ServiceProvider);
-        Assert.NotSame(contexts[0].QueryProvider, contexts[1].QueryProvider);
-        Assert.Same(contexts[0].Model, contexts[1].Model);
-        return contexts;
-    }
-
-    private static void AssertControlBinding(
-        JsonElement[] controls,
-        string controlId,
-        string methodName
-    )
-    {
-        var control = Assert.Single(controls, entry => entry.GetProperty("id").GetString() == controlId);
-
-        Assert.Equal(methodName, control.GetProperty("method").GetString());
-        Assert.Equal("allocatedBytes", control.GetProperty("metric").GetString());
-    }
-
-    private sealed record ContextSnapshot(
-        Benchmarks.BenchmarkContext Context,
-        IServiceProvider ServiceProvider,
-        IModel Model,
-        IAsyncQueryProvider QueryProvider
-    )
-    {
-        public void AssertUnchanged()
-        {
-            Assert.Same(ServiceProvider, Context.GetInfrastructure());
-            Assert.Same(Model, Context.Model);
-            Assert.Same(QueryProvider, Context.GetService<IAsyncQueryProvider>());
-        }
     }
 }

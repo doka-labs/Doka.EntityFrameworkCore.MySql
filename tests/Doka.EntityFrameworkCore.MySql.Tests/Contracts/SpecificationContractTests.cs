@@ -22,33 +22,64 @@ public class SpecificationContractTests
     private static readonly string[] s_testTargets = ["mysql84"];
     private static readonly string[] s_testMethods = ["ExampleMySqlTest.Skipped"];
 
+    /// <summary>
+    /// Verifies baseline accepts existing provider debt without growth.
+    /// </summary>
     [Fact]
     public void Baseline_accepts_existing_provider_debt_without_growth()
     {
+        // Arrange
         var entry = Entry();
+
+        // Act
         var errors = Validate(Baseline(entry));
 
+        // Assert
         Assert.Empty(errors);
     }
 
+    /// <summary>
+    /// Verifies baseline rejects duplicate base identifiers independently of missing entries.
+    /// </summary>
     [Fact]
-    public void Baseline_rejects_duplicate_and_unknown_base_identifiers()
+    public void Baseline_rejects_duplicate_base_identifiers()
     {
+        // Arrange
         var entry = Entry();
-        var duplicateErrors = Validate(Baseline(entry, entry));
-        var missingErrors = Validate(Baseline());
+        var baseline = Baseline(entry, entry);
 
+        // Act
+        var errors = Validate(baseline);
+
+        // Assert
         Assert.Contains(
-            duplicateErrors,
+            errors,
             error => error.Contains("Duplicate baseline base ID", StringComparison.Ordinal));
+    }
+
+    /// <summary>Verifies baseline rejects an inventory base identifier missing from the baseline.</summary>
+    [Fact]
+    public void Baseline_rejects_missing_base_identifier()
+    {
+        // Arrange
+        var baseline = Baseline();
+
+        // Act
+        var errors = Validate(baseline);
+
+        // Assert
         Assert.Contains(
-            missingErrors,
+            errors,
             error => error.Contains("is absent from the baseline", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies baseline rejects removed implemented mapping.
+    /// </summary>
     [Fact]
     public void Baseline_rejects_removed_implemented_mapping()
     {
+        // Arrange
         var entry = Entry(
             baselineState: "implemented",
             providerTypes: ["Provider.Original"],
@@ -60,68 +91,112 @@ public class SpecificationContractTests
             [UpstreamBaseId] = ["Provider.Replacement"],
         };
 
+        // Act
         var errors = Validate(Baseline(entry), actualMappings);
 
+        // Assert
         Assert.Contains(errors, error => error.Contains("Provider.Original", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies baseline rejects gap growth with an otherwise valid phase assignment.
+    /// </summary>
     [Fact]
-    public void Baseline_rejects_gap_growth_and_invalid_phase_assignment()
+    public void Baseline_rejects_gap_growth()
     {
-        var entry = Entry(closurePhase: 3);
+        // Arrange
+        var entry = Entry();
         var baseline = Baseline(entry) with
         {
             InitialProviderGapCount = 0,
         };
 
+        // Act
         var errors = Validate(baseline);
 
-        Assert.Contains(errors, error => error.Contains("closurePhase 4, 5, or 6", StringComparison.Ordinal));
+        // Assert
         Assert.Contains(errors, error => error.Contains("Provider gap count grew", StringComparison.Ordinal));
     }
 
+    /// <summary>Verifies baseline rejects an invalid phase assignment without growing the gap count.</summary>
+    [Fact]
+    public void Baseline_rejects_invalid_phase_assignment()
+    {
+        // Arrange
+        var baseline = Baseline(Entry(closurePhase: 3));
+
+        // Act
+        var errors = Validate(baseline);
+
+        // Assert
+        Assert.Contains(errors, error => error.Contains("closurePhase 4, 5, or 6", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Verifies baseline rejects assignment fingerprint change.
+    /// </summary>
     [Fact]
     public void Baseline_rejects_assignment_fingerprint_change()
     {
+        // Arrange
         var baseline = Baseline(Entry()) with
         {
             AssignmentFingerprint = "tampered",
         };
 
+        // Act
         var errors = Validate(baseline);
 
+        // Assert
         Assert.Contains(errors, error => error.Contains("Assignment fingerprint mismatch", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies baseline rejects implemented contract without provider mapping.
+    /// </summary>
     [Fact]
     public void Baseline_rejects_implemented_contract_without_provider_mapping()
     {
+        // Arrange
         var entry = Entry(
             baselineState: "implemented",
             providerTypes: ["Provider.Original"],
             closurePhase: null,
             expiresAt: null);
 
+        // Act
         var errors = Validate(Baseline(entry));
 
+        // Assert
         Assert.Contains(errors, error => error.Contains("no longer has a provider mapping", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies publication gate rejects nonzero provider debt.
+    /// </summary>
     [Fact]
     public void Publication_gate_rejects_nonzero_provider_debt()
     {
-        var report = SpecificationContractValidator.EnforceZeroProviderDebt(
-            new SpecificationContractReport(EfCoreVersion, 1, 1, [UpstreamBaseId], []));
+        // Arrange
+        var input = new SpecificationContractReport(EfCoreVersion, 1, 1, [UpstreamBaseId], []);
 
+        // Act
+        var report = SpecificationContractValidator.EnforceZeroProviderDebt(input);
+
+        // Assert
         Assert.False(report.IsValid);
         Assert.Contains(
             report.Errors,
             error => error.Contains("Publication requires zero provider suite debt", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies debt report sorts and preserves exact current gap ids.
+    /// </summary>
     [Fact]
     public void Debt_report_sorts_and_preserves_exact_current_gap_ids()
     {
+        // Arrange
         var report = new SpecificationContractReport(
             EfCoreVersion,
             2,
@@ -129,8 +204,10 @@ public class SpecificationContractTests
             ["Specification.Tests:ZuluTestBase", UpstreamBaseId],
             []);
 
+        // Act
         var document = SpecificationDebtReport.Create(report);
 
+        // Assert
         Assert.Equal(SpecificationDebtReport.SchemaVersion, document.SchemaVersion);
         Assert.Equal(EfCoreVersion, document.EfCoreVersion);
         Assert.Equal(2, document.InitialProviderGapCount);
@@ -140,9 +217,13 @@ public class SpecificationContractTests
             document.CurrentProviderGaps);
     }
 
+    /// <summary>
+    /// Verifies debt report rejects duplicate identifiers in an otherwise valid contract.
+    /// </summary>
     [Fact]
-    public void Debt_report_rejects_duplicate_ids_and_invalid_contracts()
+    public void Debt_report_rejects_duplicate_ids()
     {
+        // Arrange
         var duplicateIds = new SpecificationContractReport(
             EfCoreVersion,
             2,
@@ -150,6 +231,18 @@ public class SpecificationContractTests
             [UpstreamBaseId, UpstreamBaseId],
             []);
 
+        // Act
+        var exception = Record.Exception(() => SpecificationDebtReport.Create(duplicateIds));
+
+        // Assert
+        Assert.IsType<InvalidDataException>(exception);
+    }
+
+    /// <summary>Verifies debt report refuses a contract that already contains validation errors.</summary>
+    [Fact]
+    public void Debt_report_rejects_invalid_contract()
+    {
+        // Arrange
         var invalidContract = new SpecificationContractReport(
             EfCoreVersion,
             1,
@@ -157,13 +250,30 @@ public class SpecificationContractTests
             [UpstreamBaseId],
             ["Contract validation failed."]);
 
-        Assert.Throws<InvalidDataException>(() => SpecificationDebtReport.Create(duplicateIds));
-        Assert.Throws<InvalidOperationException>(() => SpecificationDebtReport.Create(invalidContract));
+        // Act
+        var exception = Record.Exception(() => SpecificationDebtReport.Create(invalidContract));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
     }
 
-    [Fact]
-    public void Discovery_rejects_duplicate_missing_unexpected_and_fixture_drift()
+    /// <summary>
+    /// Verifies each discovery failure through an independently reported input case.
+    /// </summary>
+    /// <param name="violation">The independently reported invalid discovery input.</param>
+    /// <param name="expectedError">The diagnostic that must identify that failure.</param>
+    [Theory]
+    [InlineData("duplicate-target", "Duplicate discovery target")]
+    [InlineData("duplicate-test", "duplicate test ID")]
+    [InlineData("missing-test", "missing expected test ID")]
+    [InlineData("unexpected-test", "unexpected test ID")]
+    [InlineData("fixture-drift", "fixture set changed")]
+    public void Discovery_rejects_independent_contract_violation(
+        string violation,
+        string expectedError
+    )
     {
+        // Arrange
         var expected = DiscoveryContract.Update(
             null,
             EfCoreVersion,
@@ -174,24 +284,61 @@ public class SpecificationContractTests
                 SkippedTestId
             ]);
 
-        var duplicateTarget = expected with
+        var contract = violation == "duplicate-target" ? expected with
         {
             Targets =
             [
                 expected.Targets[0],
                 expected.Targets[0]
             ],
-        };
+        } : expected;
 
-        var actual = new[]
+        string[] actual = violation switch
         {
-            PassedTestId,
-            PassedTestId,
-            "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query." + "DifferentMySqlTest.Unexpected",
+            "duplicate-target" => [PassedTestId, SkippedTestId],
+            "duplicate-test" => [PassedTestId, PassedTestId, SkippedTestId],
+            "missing-test" => [PassedTestId],
+            "unexpected-test" => [PassedTestId, SkippedTestId, UnexpectedTestId],
+            "fixture-drift" =>
+            [
+                PassedTestId,
+                SkippedTestId,
+                "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.DifferentMySqlTest.Unexpected",
+            ],
+            _ => throw new ArgumentOutOfRangeException(nameof(violation), violation, "Unknown discovery violation."),
         };
 
-        var errors = DiscoveryContract.Validate(duplicateTarget, "mysql84", actual, requireAllTargets: false);
+        // Act
+        var errors = DiscoveryContract.Validate(contract, "mysql84", actual, requireAllTargets: false);
 
+        // Assert
+        Assert.Contains(errors, error => error.Contains(expectedError, StringComparison.Ordinal));
+    }
+
+    /// <summary>Verifies discovery reports every diagnostic when several inputs are invalid together.</summary>
+    [Fact]
+    public void Discovery_reports_all_contract_violations_in_one_pass()
+    {
+        // Arrange
+        var expected = Discovery(PassedTestId, SkippedTestId);
+        var contract = expected with
+        {
+            Targets = [expected.Targets[0], expected.Targets[0]],
+        };
+
+        string[] actual =
+        [
+            PassedTestId,
+            PassedTestId,
+            "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.DifferentMySqlTest.Unexpected",
+        ];
+
+        // Act
+        // WHY: The independent cases identify each failure. This compound input
+        // additionally guards diagnostic accumulation against early-return changes.
+        var errors = DiscoveryContract.Validate(contract, "mysql84", actual, requireAllTargets: false);
+
+        // Assert
         Assert.Contains(errors, error => error.Contains("Duplicate discovery target", StringComparison.Ordinal));
         Assert.Contains(errors, error => error.Contains("duplicate test ID", StringComparison.Ordinal));
         Assert.Contains(errors, error => error.Contains("missing expected test ID", StringComparison.Ordinal));
@@ -199,29 +346,40 @@ public class SpecificationContractTests
         Assert.Contains(errors, error => error.Contains("fixture set changed", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies contract json escapes non ascii characters without changing the value.
+    /// </summary>
     [Fact]
     public void Contract_json_escapes_non_ascii_characters_without_changing_the_value()
     {
+        // Arrange
         const string unicodeValue = "\u2764\U0001F44D";
-
-        var serialized = ContractJson.Serialize(new
+        var input = new
         {
             Value = unicodeValue,
-        });
+        };
 
+        // Act
+        var serialized = ContractJson.Serialize(input);
         var roundTripped = JsonSerializer.Deserialize<JsonElement>(serialized)
             .GetProperty("value")
             .GetString();
 
+        // Assert
         Assert.DoesNotContain(unicodeValue, serialized, StringComparison.Ordinal);
         Assert.All(serialized, character => Assert.InRange(character, '\0', '\u007f'));
         Assert.Equal(unicodeValue, roundTripped);
     }
 
+    /// <summary>
+    /// Verifies trx accepts only exact results and declared not executed ids.
+    /// </summary>
     [Fact]
     public void Trx_accepts_only_exact_results_and_declared_not_executed_ids()
     {
+        // Arrange
         var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+
         try
         {
             var trxPath = Path.Combine(directory.FullName, "valid.trx");
@@ -229,12 +387,14 @@ public class SpecificationContractTests
             File.WriteAllText(trxPath, Trx((PassedTestId, "Passed"), (SkippedTestId, "NotExecuted")));
             File.WriteAllText(dispositionPath, Dispositions(SkippedTestId));
 
+            // Act
             var report = TrxContract.Validate(
                 Discovery(PassedTestId, SkippedTestId),
                 "mysql84",
                 [trxPath],
                 dispositionPath);
 
+            // Assert
             Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Errors));
             Assert.Equal(2, report.Total);
             Assert.Equal(1, report.Passed);
@@ -246,10 +406,15 @@ public class SpecificationContractTests
         }
     }
 
+    /// <summary>
+    /// Verifies trx normalizes only escaped utf16 surrogate pairs.
+    /// </summary>
     [Fact]
     public void Trx_normalizes_only_escaped_utf16_surrogate_pairs()
     {
+        // Arrange
         var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+
         try
         {
             var trxPath = Path.Combine(directory.FullName, "unicode.trx");
@@ -265,12 +430,16 @@ public class SpecificationContractTests
                     (literalBmpEscapeId, "Passed")));
             File.WriteAllText(dispositionPath, EmptyDispositions());
 
+            // Act
+            // WHY: Mixed identities prove supplementary escapes normalize while
+            // literal BMP escapes remain unchanged in the same reconciled report.
             var report = TrxContract.Validate(
                 Discovery(supplementaryCharacterId, literalBmpEscapeId),
                 "mysql84",
                 [trxPath],
                 dispositionPath);
 
+            // Assert
             Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Errors));
             Assert.Equal(2, report.Passed);
         }
@@ -280,10 +449,15 @@ public class SpecificationContractTests
         }
     }
 
+    /// <summary>
+    /// Verifies TRX reports every diagnostic when several results violate the contract together.
+    /// </summary>
     [Fact]
-    public void Trx_rejects_duplicate_missing_failed_and_undeclared_results()
+    public void Trx_reports_all_contract_violations_in_one_pass()
     {
+        // Arrange
         var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+
         try
         {
             var trxPath = Path.Combine(directory.FullName, "invalid.trx");
@@ -297,12 +471,16 @@ public class SpecificationContractTests
                     (UnexpectedTestId, "Passed")));
             File.WriteAllText(dispositionPath, Dispositions());
 
+            // Act
+            // WHY: This single reconciliation must collect all diagnostics, even
+            // when an earlier result has already violated another invariant.
             var report = TrxContract.Validate(
                 Discovery(PassedTestId, SkippedTestId, MissingTestId),
                 "mysql84",
                 [trxPath],
                 dispositionPath);
 
+            // Assert
             Assert.Contains(report.Errors, error => error.Contains("2 outcomes", StringComparison.Ordinal));
             Assert.Contains(
                 report.Errors,
@@ -319,10 +497,15 @@ public class SpecificationContractTests
         }
     }
 
+    /// <summary>
+    /// Verifies trx rejects dispositioned test that now passes.
+    /// </summary>
     [Fact]
     public void Trx_rejects_dispositioned_test_that_now_passes()
     {
+        // Arrange
         var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+
         try
         {
             var trxPath = Path.Combine(directory.FullName, "passed.trx");
@@ -330,11 +513,60 @@ public class SpecificationContractTests
             File.WriteAllText(trxPath, Trx((SkippedTestId, "Passed")));
             File.WriteAllText(dispositionPath, Dispositions(SkippedTestId));
 
+            // Act
             var report = TrxContract.Validate(Discovery(SkippedTestId), "mysql84", [trxPath], dispositionPath);
 
+            // Assert
             Assert.Contains(
                 report.Errors,
                 error => error.Contains("passed and must be re-evaluated", StringComparison.Ordinal));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>Verifies one independently reported TRX reconciliation failure.</summary>
+    /// <param name="violation">The invalid result shape exercised by this case.</param>
+    /// <param name="expectedError">The diagnostic required for that result shape.</param>
+    [Theory]
+    [InlineData("duplicate", "2 outcomes")]
+    [InlineData("missing", "missing expected test ID")]
+    [InlineData("unexpected", "unexpected specification test ID")]
+    [InlineData("failed", "outcome")]
+    [InlineData("undeclared-not-executed", "undeclared NotExecuted")]
+    public void Trx_rejects_independent_contract_violation(
+        string violation,
+        string expectedError
+    )
+    {
+        // Arrange
+        var directory = Directory.CreateTempSubdirectory("doka-spec-contract-");
+
+        try
+        {
+            var trxPath = Path.Combine(directory.FullName, "invalid.trx");
+            var dispositionPath = Path.Combine(directory.FullName, "dispositions.json");
+            var expectedId = violation == "undeclared-not-executed" ? SkippedTestId : PassedTestId;
+            (string TestId, string Outcome)[] results = violation switch
+            {
+                "duplicate" => [(PassedTestId, "Passed"), (PassedTestId, "Passed")],
+                "missing" => [],
+                "unexpected" => [(PassedTestId, "Passed"), (UnexpectedTestId, "Passed")],
+                "failed" => [(PassedTestId, "Failed")],
+                "undeclared-not-executed" => [(SkippedTestId, "NotExecuted")],
+                _ => throw new ArgumentOutOfRangeException(nameof(violation), violation, "Unknown TRX violation."),
+            };
+
+            File.WriteAllText(trxPath, Trx(results));
+            File.WriteAllText(dispositionPath, EmptyDispositions());
+
+            // Act
+            var report = TrxContract.Validate(Discovery(expectedId), "mysql84", [trxPath], dispositionPath);
+
+            // Assert
+            Assert.Contains(report.Errors, error => error.Contains(expectedError, StringComparison.Ordinal));
         }
         finally
         {
@@ -353,6 +585,7 @@ public class SpecificationContractTests
             baseline,
             actualMappings ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
             errors);
+
         return errors;
     }
 

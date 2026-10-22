@@ -15,11 +15,14 @@ public sealed class MySqlGuidRelationshipConversionTests
     [Fact]
     public void Default_char36_builds_branching_guid_relationship_model()
     {
+        // Arrange
         using var context = new DefaultChar36RelationshipContext(
             CreateOptions<DefaultChar36RelationshipContext>());
 
+        // Act
         var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
 
+        // Assert
         Assert.All(properties, property =>
         {
             Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
@@ -38,11 +41,14 @@ public sealed class MySqlGuidRelationshipConversionTests
     [Fact]
     public void Consistent_application_converters_are_preserved_across_relationship_chains()
     {
+        // Arrange
         using var context = new ApplicationChar36RelationshipContext(
             CreateOptions<ApplicationChar36RelationshipContext>());
 
+        // Act
         var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
 
+        // Assert
         Assert.All(properties, property =>
         {
             Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
@@ -59,11 +65,14 @@ public sealed class MySqlGuidRelationshipConversionTests
     [Fact]
     public void Consistent_application_provider_types_are_preserved_across_relationship_chains()
     {
+        // Arrange
         using var context = new ApplicationProviderTypeRelationshipContext(
             CreateOptions<ApplicationProviderTypeRelationshipContext>());
 
+        // Act
         var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
 
+        // Assert
         Assert.All(properties, property =>
         {
             Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
@@ -80,11 +89,14 @@ public sealed class MySqlGuidRelationshipConversionTests
     [Fact]
     public void Conflicting_application_converter_and_provider_type_are_rejected()
     {
+        // Arrange
         using var context = new ConflictingConverterAndProviderTypeRelationshipContext(
             CreateOptions<ConflictingConverterAndProviderTypeRelationshipContext>());
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("conflicting conversions", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(nameof(GuidToStringConverter), exception.Message, StringComparison.Ordinal);
         Assert.Contains("string", exception.Message, StringComparison.OrdinalIgnoreCase);

@@ -18,57 +18,71 @@ public sealed class MySqlSqlGenerationHelperPropertyTests
     private static readonly MySqlSqlGenerationHelper s_helper = new(new RelationalSqlGenerationHelperDependencies());
 #pragma warning restore EF1001
 
+    /// <summary>Verifies quoted identifier roundtrips across generated nonblank names.</summary>
     [Property(MaxTest = 1000)]
     public bool DelimitIdentifier_round_trips_arbitrary_non_blank_identifier(
         string? identifier
     )
     {
+        // Arrange
         if (string.IsNullOrWhiteSpace(identifier))
         {
             return true;
         }
 
+        // Act
         var delimited = s_helper.DelimitIdentifier(identifier);
 
+        // Assert
         return delimited.StartsWith('`')
             && delimited.EndsWith('`')
             && UnescapeBackticked(delimited[1..^1]) == identifier;
     }
 
+    /// <summary>Verifies that quoting doubles every backtick in generated names.</summary>
     [Property(MaxTest = 1000)]
     public bool DelimitIdentifier_doubles_every_internal_backtick(
         string? identifier
     )
     {
+        // Arrange
         if (string.IsNullOrWhiteSpace(identifier))
         {
             return true;
         }
 
-        var delimited = s_helper.DelimitIdentifier(identifier);
-        var inner = delimited[1..^1];
-
         var inputBackticks = identifier.Count(c => c == '`');
+
+        // Act
+        var delimited = s_helper.DelimitIdentifier(identifier);
+
+        // Assert
+        var inner = delimited[1..^1];
         var innerBackticks = inner.Count(c => c == '`');
 
         return innerBackticks == inputBackticks * 2;
     }
 
+    /// <summary>Verifies separate schema and object quoting across generated identifier pairs.</summary>
     [Property(MaxTest = 1000)]
     public bool DelimitIdentifier_with_schema_round_trips(
         string? schema,
         string? name
     )
     {
+        // Arrange
         if (string.IsNullOrWhiteSpace(schema)
             || string.IsNullOrWhiteSpace(name))
         {
             return true;
         }
 
+        // Act
         var delimited = s_helper.DelimitIdentifier(name, schema);
 
+        // Assert
         var separatorIndex = FindSchemaSeparator(delimited);
+
         if (separatorIndex < 0)
         {
             return false;
@@ -85,17 +99,20 @@ public sealed class MySqlSqlGenerationHelperPropertyTests
             && UnescapeBackticked(namePart[1..^1]) == name;
     }
 
+    /// <summary>Reverses backtick doubling without invoking the provider encoder.</summary>
     private static string UnescapeBackticked(
         string value
     ) => value.Replace("``", "`", StringComparison.Ordinal);
 
+    /// <summary>Finds the schema separator outside quoted and doubled-backtick spans.</summary>
     private static int FindSchemaSeparator(
         string twoPart
     )
     {
-        // Walk left-to-right tracking backtick parity; the first dot outside a
+        // WHY: A dot within a quoted name is data. Track backtick parity so the first dot outside a
         // backtick-delimited span is the schema / name separator.
         var inBackticks = false;
+
         for (var index = 0; index < twoPart.Length; index++)
         {
             var character = twoPart[index];

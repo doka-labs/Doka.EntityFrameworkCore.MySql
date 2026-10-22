@@ -12,9 +12,15 @@ public sealed class MySqlConnectionContractTests
     private const string CompatibleBorrowedConnectionString =
         BaseConnectionString + "GuidFormat=Binary16;";
 
+    /// <summary>
+    /// Verifies provider owned normalization applies stable defaults once.
+    /// </summary>
     [Fact]
     public void Provider_owned_normalization_applies_stable_defaults_once()
     {
+        // Arrange
+
+        // Act
         var first = MySqlConnectionContract.NormalizeProviderOwned(
             BaseConnectionString,
             userVariablesRequired: false);
@@ -25,6 +31,7 @@ public sealed class MySqlConnectionContractTests
 
         var actual = new MySqlConnectionStringBuilder(first);
 
+        // Assert
         Assert.Equal(first, second);
         Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, actual.GuidFormat);
         Assert.Equal(MySqlDiagnostics.DefaultDriverPoolName, actual.ApplicationName);
@@ -34,9 +41,13 @@ public sealed class MySqlConnectionContractTests
         Assert.False(actual.ContainsKey("Allow User Variables"));
     }
 
+    /// <summary>
+    /// Verifies provider owned normalization preserves unrelated semantic values.
+    /// </summary>
     [Fact]
     public void Provider_owned_normalization_preserves_unrelated_semantic_values()
     {
+        // Arrange
         var configured = new MySqlConnectionStringBuilder(BaseConnectionString)
         {
             Port = 3307,
@@ -48,11 +59,13 @@ public sealed class MySqlConnectionContractTests
             SslMode = MySqlSslMode.VerifyFull,
         };
 
+        // Act
         var normalized = new MySqlConnectionStringBuilder(
             MySqlConnectionContract.NormalizeProviderOwned(
                 configured.ConnectionString,
                 userVariablesRequired: false));
 
+        // Assert
         Assert.Equal(configured.Server, normalized.Server);
         Assert.Equal(configured.Database, normalized.Database);
         Assert.Equal(configured.UserID, normalized.UserID);
@@ -66,6 +79,9 @@ public sealed class MySqlConnectionContractTests
         Assert.Equal(configured.SslMode, normalized.SslMode);
     }
 
+    /// <summary>
+    /// Verifies changed row semantics are rejected for provider owned strings.
+    /// </summary>
     [Theory]
     [InlineData("UseAffectedRows=true")]
     [InlineData("Use Affected Rows=true")]
@@ -73,16 +89,25 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}{option};",
-                userVariablesRequired: false));
+                userVariablesRequired: false);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported, exception.Reason);
         Assert.DoesNotContain("secret-canary", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("Password", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies matched row semantics are accepted through supported aliases.
+    /// </summary>
     [Theory]
     [InlineData("UseAffectedRows=false")]
     [InlineData("Use Affected Rows=false")]
@@ -90,13 +115,22 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
+        // Arrange
+
+        // Act
         var normalized = MySqlConnectionContract.NormalizeProviderOwned(
             $"{BaseConnectionString}{option};",
             userVariablesRequired: false);
 
-        Assert.False(new MySqlConnectionStringBuilder(normalized).UseAffectedRows);
+        var actual = new MySqlConnectionStringBuilder(normalized).UseAffectedRows;
+
+        // Assert
+        Assert.False(actual);
     }
 
+    /// <summary>
+    /// Verifies incompatible explicit guid transports are rejected for provider owned strings.
+    /// </summary>
     [Theory]
     [InlineData("Default")]
     [InlineData("Char36")]
@@ -107,47 +141,83 @@ public sealed class MySqlConnectionContractTests
         string guidFormat
     )
     {
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}GuidFormat={guidFormat};",
-                userVariablesRequired: false));
+                userVariablesRequired: false);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.GuidTransportIncompatible, exception.Reason);
     }
 
+    /// <summary>
+    /// Verifies legacy guid transport is rejected for provider owned strings.
+    /// </summary>
     [Fact]
     public void Legacy_guid_transport_is_rejected_for_provider_owned_strings()
     {
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}Old Guids=true;",
-                userVariablesRequired: false));
+                userVariablesRequired: false);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.GuidTransportIncompatible, exception.Reason);
     }
 
+    /// <summary>
+    /// Verifies explicit binary16 transport is accepted for provider owned strings.
+    /// </summary>
     [Fact]
     public void Explicit_binary16_transport_is_accepted_for_provider_owned_strings()
     {
+        // Arrange
+
+        // Act
         var normalized = MySqlConnectionContract.NormalizeProviderOwned(
             CompatibleBorrowedConnectionString,
             userVariablesRequired: false);
 
+        var actual = new MySqlConnectionStringBuilder(normalized).GuidFormat;
+
+        // Assert
         Assert.Equal(
             MySqlConnector.MySqlGuidFormat.Binary16,
-            new MySqlConnectionStringBuilder(normalized).GuidFormat);
+            actual);
     }
 
+    /// <summary>
+    /// Verifies required user variables are added when omitted.
+    /// </summary>
     [Fact]
     public void Required_user_variables_are_added_when_omitted()
     {
+        // Arrange
+
+        // Act
         var normalized = MySqlConnectionContract.NormalizeProviderOwned(
             BaseConnectionString,
             userVariablesRequired: true);
 
-        Assert.True(new MySqlConnectionStringBuilder(normalized).AllowUserVariables);
+        var actual = new MySqlConnectionStringBuilder(normalized).AllowUserVariables;
+
+        // Assert
+        Assert.True(actual);
     }
 
+    /// <summary>
+    /// Verifies required user variables accept supported true aliases.
+    /// </summary>
     [Theory]
     [InlineData("AllowUserVariables=true")]
     [InlineData("Allow User Variables=true")]
@@ -155,13 +225,22 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
+        // Arrange
+
+        // Act
         var normalized = MySqlConnectionContract.NormalizeProviderOwned(
             $"{BaseConnectionString}{option};",
             userVariablesRequired: true);
 
-        Assert.True(new MySqlConnectionStringBuilder(normalized).AllowUserVariables);
+        var actual = new MySqlConnectionStringBuilder(normalized).AllowUserVariables;
+
+        // Assert
+        Assert.True(actual);
     }
 
+    /// <summary>
+    /// Verifies required user variables reject explicit false aliases.
+    /// </summary>
     [Theory]
     [InlineData("AllowUserVariables=false")]
     [InlineData("Allow User Variables=false")]
@@ -169,67 +248,107 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}{option};",
-                userVariablesRequired: true));
+                userVariablesRequired: true);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.UserVariablesUnavailable, exception.Reason);
     }
 
+    /// <summary>
+    /// Verifies malformed provider owned string uses a sanitized error.
+    /// </summary>
     [Fact]
     public void Malformed_provider_owned_string_uses_a_sanitized_error()
     {
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlConnectionContract.NormalizeProviderOwned(
                 $"{BaseConnectionString}Unsupported Secret Option=secret-canary;",
-                userVariablesRequired: false));
+                userVariablesRequired: false);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.InvalidConnectionString, exception.Reason);
         Assert.Equal("The MySQL connection configuration is invalid.", exception.Message);
         Assert.DoesNotContain("secret-canary", exception.ToString(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies unreadable borrowed connection uses a sanitized error without state change.
+    /// </summary>
     [Fact]
     public void Unreadable_borrowed_connection_uses_a_sanitized_error_without_state_change()
     {
+        // Arrange
         using var connection = new ContractDbConnection(
             CompatibleBorrowedConnectionString,
             throwOnConnectionStringRead: true);
+
         connection.Open();
+        Action act = () =>
+            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.InvalidConnectionString, exception.Reason);
         Assert.Equal("The MySQL connection configuration is invalid.", exception.Message);
         Assert.Equal(ConnectionState.Open, connection.State);
     }
 
+    /// <summary>
+    /// Verifies compatible borrowed connection is accepted without mutation.
+    /// </summary>
     [Fact]
     public void Compatible_borrowed_connection_is_accepted_without_mutation()
     {
+        // Arrange
         using var connection = new ContractDbConnection(CompatibleBorrowedConnectionString);
         var originalConnectionString = connection.ConnectionString;
 
+        // Act
         MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
+        // Assert
         Assert.Equal(originalConnectionString, connection.ConnectionString);
         Assert.Equal(ConnectionState.Closed, connection.State);
     }
 
+    /// <summary>
+    /// Verifies compatible open borrowed connection is accepted without state change.
+    /// </summary>
     [Fact]
     public void Compatible_open_borrowed_connection_is_accepted_without_state_change()
     {
+        // Arrange
         using var connection = new ContractDbConnection(
             CompatibleBorrowedConnectionString + "AllowUserVariables=true;");
+
         connection.Open();
 
+        // Act
         MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: true);
 
+        // Assert
         Assert.Equal(ConnectionState.Open, connection.State);
     }
 
+    /// <summary>
+    /// Verifies incompatible borrowed guid transport is rejected without state change.
+    /// </summary>
     [Theory]
     [InlineData("GuidFormat=Default")]
     [InlineData("GuidFormat=Char36")]
@@ -241,30 +360,46 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
+        // Arrange
         using var connection = new ContractDbConnection($"{BaseConnectionString}{option};");
         connection.Open();
+        Action act = () =>
+            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.GuidTransportIncompatible, exception.Reason);
         Assert.Equal(ConnectionState.Open, connection.State);
     }
 
+    /// <summary>
+    /// Verifies borrowed connection with changed row semantics is rejected without mutation.
+    /// </summary>
     [Fact]
     public void Borrowed_connection_with_changed_row_semantics_is_rejected_without_mutation()
     {
+        // Arrange
         var configured = CompatibleBorrowedConnectionString + "UseAffectedRows=true;";
         using var connection = new ContractDbConnection(configured);
+        Action act = () =>
+            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported, exception.Reason);
         Assert.Equal(configured, connection.ConnectionString);
         Assert.Equal(ConnectionState.Closed, connection.State);
     }
 
+    /// <summary>
+    /// Verifies borrowed connection without required user variables is rejected.
+    /// </summary>
     [Theory]
     [InlineData("")]
     [InlineData("AllowUserVariables=false;")]
@@ -272,30 +407,45 @@ public sealed class MySqlConnectionContractTests
         string option
     )
     {
+        // Arrange
         using var connection = new ContractDbConnection(
             CompatibleBorrowedConnectionString + option);
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: true));
+        Action act = () =>
+            MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: true);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.UserVariablesUnavailable, exception.Reason);
         Assert.Equal(ConnectionState.Closed, connection.State);
     }
 
+    /// <summary>
+    /// Verifies compatible borrowed data source is accepted without reconstruction.
+    /// </summary>
     [Fact]
     public void Compatible_borrowed_data_source_is_accepted_without_reconstruction()
     {
+        // Arrange
         using var dataSource = new MySqlDataSourceBuilder(
             CompatibleBorrowedConnectionString + "AllowUserVariables=true;").Build();
 
+        // Act
         var extension = new MySqlOptionsExtension()
             .WithDataSource(dataSource)
             .WithUserVariablesRequired();
 
+        // Assert
         Assert.Same(dataSource, extension.DataSource);
         Assert.True(extension.UserVariablesRequired);
     }
 
+    /// <summary>
+    /// Verifies incompatible borrowed data source is rejected without reconstruction.
+    /// </summary>
     [Theory]
     [InlineData("GuidFormat=Default;")]
     [InlineData("GuidFormat=Char36;")]
@@ -309,12 +459,18 @@ public sealed class MySqlConnectionContractTests
         string options
     )
     {
+        // Arrange
         using var dataSource = new MySqlDataSourceBuilder(BaseConnectionString + options).Build();
-
-        Assert.Throws<MySqlConnectionContractException>(() =>
+        Action act = () =>
             new MySqlOptionsExtension()
                 .WithDataSource(dataSource)
-                .WithUserVariablesRequired());
+                .WithUserVariablesRequired();
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<MySqlConnectionContractException>(recordedException);
     }
 
     private sealed class ContractDbConnection : DbConnection

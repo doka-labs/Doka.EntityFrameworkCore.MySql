@@ -9,11 +9,40 @@ public sealed class MySql80CompatibilityBaselineTests
     private const string TableName = "Phase4MySql80Entities";
 
     /// <summary>
+    /// Verifies explicit legacy-server detection independently of the CRUD baseline.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
+    public async Task MySql80_explicit_legacy_detection_preserves_capabilities()
+    {
+        // Arrange
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
+
+        await IntegrationDatabaseUtilities.EnsureDatabaseExistsAsync(connectionString).ConfigureAwait(false);
+        await using var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        // Act
+        var detectedServerVersion = MySqlServerVersion.AutoDetect(
+            connection,
+            MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
+        // Assert
+        Assert.False(detectedServerVersion.IsMariaDb);
+        Assert.Equal(8, detectedServerVersion.Version.Major);
+        Assert.Equal(0, detectedServerVersion.Version.Minor);
+        Assert.Equal(
+            ProviderSupportStatus.Native,
+            detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
+        Assert.True(detectedServerVersion.Profile.Supports(ProviderCapability.Savepoints));
+    }
+
+    /// <summary>
     /// Verifies that the opt-in legacy compatibility baseline succeeds against an external MySQL 8.0 target.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public async Task MySql80_repo_local_compatibility_baseline_succeeds()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
 
         await ResetDatabaseObjectsAsync(connectionString)
@@ -21,23 +50,6 @@ public sealed class MySql80CompatibilityBaselineTests
 
         try
         {
-            await using var connection = new MySqlConnection(connectionString);
-            await connection
-                .OpenAsync()
-                .ConfigureAwait(false);
-
-            var detectedServerVersion = MySqlServerVersion.AutoDetect(
-                connection,
-                MySqlServerVersionCompatibilityMode.AllowUnsupported);
-
-            Assert.False(detectedServerVersion.IsMariaDb);
-            Assert.Equal(8, detectedServerVersion.Version.Major);
-            Assert.Equal(0, detectedServerVersion.Version.Minor);
-            Assert.Equal(
-                ProviderSupportStatus.Native,
-                detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
-            Assert.True(detectedServerVersion.Profile.Supports(ProviderCapability.Savepoints));
-
             await using var context = new MySql80CompatibilityContext(CreateOptions(connectionString));
 
             await context
@@ -57,11 +69,11 @@ public sealed class MySql80CompatibilityBaselineTests
             };
 
             context.Entities.Add(entity);
+
+            // Act
             await context
                 .SaveChangesAsync()
                 .ConfigureAwait(false);
-
-            Assert.True(entity.Id > 0);
 
             context.ChangeTracker.Clear();
 
@@ -69,6 +81,8 @@ public sealed class MySql80CompatibilityBaselineTests
                 .Entities.SingleAsync(candidate => candidate.Id == entity.Id)
                 .ConfigureAwait(false);
 
+            // Assert
+            Assert.True(entity.Id > 0);
             Assert.Equal("mysql80", loadedEntity.Name);
         }
         finally

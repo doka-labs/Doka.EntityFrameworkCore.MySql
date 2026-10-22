@@ -17,11 +17,14 @@ public sealed partial class MySqlIndexByteBudgetTests
         bool reverse
     )
     {
+        // Arrange
         using var context = CreateContext(reverse ? "reverse" : "forward");
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
         var properties = entity.GetProperties().ToDictionary(property => property.Name);
 
+        // Assert
         Assert.Equal(254, properties["Id"].GetMaxLength());
         Assert.Equal(254, properties["Scope"].GetMaxLength());
         Assert.Equal(254, properties["Tree"].GetMaxLength());

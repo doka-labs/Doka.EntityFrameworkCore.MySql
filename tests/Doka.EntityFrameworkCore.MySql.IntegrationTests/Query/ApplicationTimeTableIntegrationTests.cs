@@ -104,6 +104,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 $"`{ApplicationPeriodName}` WITHOUT OVERLAPS",
                 createTableSql,
                 StringComparison.Ordinal);
+
             return;
         }
 
@@ -144,6 +145,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         string connectionString
     )
     {
+        // Arrange
         using var serviceProvider = ScaffoldingTestServices.CreateDesignTimeServiceProvider();
         using var scope = serviceProvider.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -152,8 +154,10 @@ public sealed class ApplicationTimeTableIntegrationTests
             .GetRequiredService<IDatabaseModelFactory>()
             .Create(connectionString, databaseOptions);
 
+        // Act
         var sourceTable = Assert.Single(databaseModel.Tables);
 
+        // Assert
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value as bool?);
@@ -253,13 +257,17 @@ public sealed class ApplicationTimeTableIntegrationTests
         params ExpectedRow[] expectedRows
     )
     {
+        // Arrange
         await using var context = CreateBitemporalContext(target);
+
+        // Act
         var actualRows = await context
             .Items.AsNoTracking()
             .OrderBy(item => item.BusinessValidFrom)
             .Select(item => new ExpectedRow(item.Name, item.BusinessValidFrom, item.BusinessValidTo))
             .ToListAsync();
 
+        // Assert
         Assert.Equal(expectedRows, actualRows);
     }
 

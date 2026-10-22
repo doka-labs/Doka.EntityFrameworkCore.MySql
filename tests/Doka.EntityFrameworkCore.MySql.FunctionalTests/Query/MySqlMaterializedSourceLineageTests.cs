@@ -14,14 +14,22 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [InlineData(false, "Second", "LineageSecond")]
     [InlineData(true, "First", "LineageFirst")]
     [InlineData(true, "Second", "LineageSecond")]
-    public void Named_shared_source_preserves_exact_mapping(bool mariaDb, string name, string table)
+    public void Named_shared_source_preserves_exact_mapping(
+        bool mariaDb,
+        string name,
+        string table
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<SharedNode>(name).Where(row => row.Id > 1)
             .WithMaterializedSource(shared => shared.Select(row => new { row.Id, row.Name }));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains($"FROM `{table}`", sql, StringComparison.Ordinal);
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
     }
@@ -32,14 +40,22 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [InlineData(false, "Second", "LineageSecond")]
     [InlineData(true, "First", "LineageFirst")]
     [InlineData(true, "Second", "LineageSecond")]
-    public void Named_shared_source_preserves_navigation_identity(bool mariaDb, string name, string table)
+    public void Named_shared_source_preserves_navigation_identity(
+        bool mariaDb,
+        string name,
+        string table
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<SharedNode>(name).Where(row => row.Id > 1)
             .WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains($"FROM `{table}`", sql, StringComparison.Ordinal);
         Assert.Contains("LineageTargets", sql, StringComparison.Ordinal);
         Assert.Contains("JOIN", sql, StringComparison.Ordinal);
@@ -49,14 +65,20 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Entity_identity_projection_retains_named_lineage(bool mariaDb)
+    public void Entity_identity_projection_retains_named_lineage(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<SharedNode>("Second").Select(row => row)
             .WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `LineageSecond`", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("FROM `LineageFirst`", sql, StringComparison.Ordinal);
         Assert.Contains("LineageTargets", sql, StringComparison.Ordinal);
@@ -66,8 +88,11 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Entity_join_result_retains_the_selected_named_mapping(bool mariaDb)
+    public void Entity_join_result_retains_the_selected_named_mapping(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var source = context.Set<SharedNode>("First").Join(
             context.Set<SharedNode>("Second"),
@@ -75,10 +100,12 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             second => second.Id,
             (_, second) => second);
 
+        // Act
         var query = source.WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `LineageFirst`", sql, StringComparison.Ordinal);
         Assert.Contains("SecondTargetId", sql, StringComparison.Ordinal);
         Assert.Contains("LineageTargets", sql, StringComparison.Ordinal);
@@ -88,14 +115,19 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Temporal_navigation_after_binding_keeps_the_original_instant(bool mariaDb)
+    public void Temporal_navigation_after_binding_keeps_the_original_instant(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var query = context.Parents.TemporalAsOf(s_firstPoint).Where(parent => parent.Id > 1)
             .WithMaterializedSource(shared => shared.Select(parent => parent.Child.Name));
 
+        // Act
         var sql = query.ToQueryString();
 
+        // Assert
         AssertTemporalReads(sql, mariaDb, 2);
         AssertHistoricalTable(sql, mariaDb, "LineageParents");
         AssertHistoricalTable(sql, mariaDb, "LineageChildren");
@@ -105,14 +137,19 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Projected_temporal_entity_preserves_navigation_lineage(bool mariaDb)
+    public void Projected_temporal_entity_preserves_navigation_lineage(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var source = context.Parents.TemporalAsOf(s_firstPoint).Select(parent => parent.Child);
         var query = source.WithMaterializedSource(shared => shared.Select(child => child.Next!.Name));
 
+        // Act
         var sql = query.ToQueryString();
 
+        // Assert
         AssertTemporalReads(sql, mariaDb, 3);
         AssertHistoricalTable(sql, mariaDb, "LineageParents");
         AssertHistoricalTable(sql, mariaDb, "LineageChildren");
@@ -122,15 +159,21 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Temporal_and_current_bound_roots_reject_set_operations(bool mariaDb)
+    public void Temporal_and_current_bound_roots_reject_set_operations(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var historical = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
         var current = context.Parents.WithMaterializedSource(shared => shared);
+
+        // Act
         var query = historical.Concat(current);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("matching temporal operators", exception.ToString(), StringComparison.Ordinal);
     }
 
@@ -138,15 +181,21 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Different_temporal_boundaries_reject_bound_set_operations(bool mariaDb)
+    public void Different_temporal_boundaries_reject_bound_set_operations(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var first = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
         var second = context.Parents.TemporalAsOf(s_secondPoint).WithMaterializedSource(shared => shared);
+
+        // Act
         var query = first.Concat(second);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("identical UTC boundaries", exception.ToString(), StringComparison.Ordinal);
     }
 
@@ -154,15 +203,20 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Matching_temporal_boundaries_allow_bound_set_operations(bool mariaDb)
+    public void Matching_temporal_boundaries_allow_bound_set_operations(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var first = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
         var second = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
         var query = first.Concat(second);
 
+        // Act
         var sql = query.ToQueryString();
 
+        // Assert
         AssertTemporalReads(sql, mariaDb, 2);
     }
 
@@ -170,12 +224,16 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Fact]
     public void Bound_application_time_root_preserves_navigation_rejection()
     {
+        // Arrange
         using var context = CreateApplicationContext();
+
+        // Act
         var query = context.Parents.ForPortionOf(s_firstPoint, s_secondPoint)
             .WithMaterializedSource(shared => shared.Select(parent => parent.Child.Name));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("Navigation expansion", exception.ToString(), StringComparison.Ordinal);
         Assert.Contains("mutation-only", exception.ToString(), StringComparison.Ordinal);
     }
@@ -184,18 +242,24 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Fact]
     public void Bound_application_time_roots_preserve_range_compatibility()
     {
+        // Arrange
         using var context = CreateApplicationContext();
         var first = ExtractRoot(context, context.Parents.ForPortionOf(s_firstPoint, s_secondPoint));
         var second = ExtractRoot(context, context.Parents.ForPortionOf(s_firstPoint, s_secondPoint.AddDays(1)));
         var helper = context.GetService<INavigationExpansionExtensibilityHelper>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => helper.AreQueryRootsCompatible(first, second));
 
+        // Assert
         Assert.Contains("identical FOR PORTION OF boundaries", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Extracts a lexical entity leaf without SQL preprocessing or database access.</summary>
-    private static EntityQueryRootExpression ExtractRoot<TEntity>(DbContext context, IQueryable<TEntity> source)
+    private static EntityQueryRootExpression ExtractRoot<TEntity>(
+        DbContext context,
+        IQueryable<TEntity> source
+    )
     {
         var definitions = new Dictionary<int, Expression>();
         var query = source.WithMaterializedSource(shared => shared);
@@ -205,16 +269,27 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     }
 
     /// <summary>Checks native versus emulated historical table reads without depending on aliases.</summary>
-    private static void AssertHistoricalTable(string sql, bool mariaDb, string table)
+    private static void AssertHistoricalTable(
+        string sql,
+        bool mariaDb,
+        string table
+    )
         => Assert.Contains(mariaDb ? $"`{table}` FOR SYSTEM_TIME" : $"FROM `{table}History`", sql,
             StringComparison.Ordinal);
 
     /// <summary>Counts historical roots for both provider-owned temporal lowerings.</summary>
-    private static void AssertTemporalReads(string sql, bool mariaDb, int count)
+    private static void AssertTemporalReads(
+        string sql,
+        bool mariaDb,
+        int count
+    )
         => Assert.Equal(count, CountOccurrences(sql, mariaDb ? "FOR SYSTEM_TIME AS OF" : "History`"));
 
     /// <summary>Counts statement fragments whose multiplicity establishes root propagation.</summary>
-    private static int CountOccurrences(string value, string fragment)
+    private static int CountOccurrences(
+        string value,
+        string fragment
+    )
     {
         var count = 0;
         var offset = 0;

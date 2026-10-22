@@ -8,36 +8,95 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Trait("VerificationLane", "FullIntegration")]
 public sealed partial class MySqlIndexKeyIntegrationTests
 {
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MySql84);
+    /// <summary>
+    /// Verifies my sql84 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MySql84_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MySql84, scenario);
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MySql97);
+    /// <summary>
+    /// Verifies my sql97 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql97)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MySql97_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MySql97, scenario);
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+    /// <summary>
+    /// Verifies maria db1011 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb1011)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MariaDb1011_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb1011, scenario);
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb114);
+    /// <summary>
+    /// Verifies maria db114 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb114)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MariaDb114_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb114, scenario);
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb118);
+    /// <summary>
+    /// Verifies maria db118 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb118)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MariaDb118_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb118, scenario);
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_validates_index_key_contracts() =>
-        AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb123);
+    /// <summary>
+    /// Verifies maria db123 validates index key contracts.
+    /// </summary>
+    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb123)]
+    [InlineData(IndexKeyScenario.Overlong)]
+    [InlineData(IndexKeyScenario.Boundary)]
+    [InlineData(IndexKeyScenario.PrefixEvolution)]
+    public Task MariaDb123_validates_index_key_contracts(
+        IndexKeyScenario scenario
+    ) => AssertIndexKeyContractAsync(IntegrationDatabaseTarget.MariaDb123, scenario);
 
+    /// <summary>
+    /// Verifies maria db118 sync migration rejects silent index shortening.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_sync_migration_rejects_silent_index_shortening() =>
         AssertSyncWarningContractAsync(IntegrationDatabaseTarget.MariaDb118);
 
+    /// <summary>Identifies independent physical-index migration contracts.</summary>
+    public enum IndexKeyScenario
+    {
+        /// <summary>Rejects a key exceeding the server limit without advancing history.</summary>
+        Overlong,
+
+        /// <summary>Preserves the complete indexed value at the byte boundary.</summary>
+        Boundary,
+
+        /// <summary>Rebuilds an existing prefix while preserving rows.</summary>
+        PrefixEvolution,
+    }
+
     private static async Task AssertIndexKeyContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        IndexKeyScenario scenario
     )
     {
         var connectionStringBuilder = new MySqlConnectionStringBuilder(
@@ -45,6 +104,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         {
             GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         };
+
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
@@ -53,14 +113,13 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
         try
         {
-            await AssertOverlongMigrationFailsWithoutHistoryAsync(connection, serverVersion)
-                .ConfigureAwait(false);
-            await CleanupAsync(connection).ConfigureAwait(false);
-            await AssertBoundaryMigrationPreservesFullIndexAsync(connection, serverVersion)
-                .ConfigureAwait(false);
-            await CleanupAsync(connection).ConfigureAwait(false);
-            await AssertPrefixLengthEvolutionAsync(connection, serverVersion)
-                .ConfigureAwait(false);
+            await (scenario switch
+            {
+                IndexKeyScenario.Overlong => AssertOverlongMigrationFailsWithoutHistoryAsync(connection, serverVersion),
+                IndexKeyScenario.Boundary => AssertBoundaryMigrationPreservesFullIndexAsync(connection, serverVersion),
+                IndexKeyScenario.PrefixEvolution => AssertPrefixLengthEvolutionAsync(connection, serverVersion),
+                _ => throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null),
+            }).ConfigureAwait(false);
         }
         finally
         {
@@ -72,11 +131,13 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionStringBuilder = new MySqlConnectionStringBuilder(
             IntegrationTestEnvironment.GetConnectionString(target))
         {
             GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
         };
+
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
@@ -85,14 +146,18 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
         try
         {
-            using var context = new OverlongIndexMigrationContext(
+            await using var context = new OverlongIndexMigrationContext(
                 CreateOptions<OverlongIndexMigrationContext>(
                     connection,
                     serverVersion,
                     IndexKeyMigrationContract.OverlongHistoryTable));
 
+            // Act
+            // WHY: This case exercises the synchronous migration warning path independently of MigrateAsync.
+            // ReSharper disable once MethodHasAsyncOverload
             var exception = Assert.Throws<InvalidOperationException>(() => context.Database.Migrate());
 
+            // Assert
             Assert.Contains("server code 1071", exception.Message, StringComparison.Ordinal);
             Assert.Empty(context.Database.GetAppliedMigrations());
             Assert.Equal(
@@ -114,15 +179,18 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new OverlongIndexMigrationContext(
             CreateOptions<OverlongIndexMigrationContext>(
                 connection,
                 serverVersion,
                 IndexKeyMigrationContract.OverlongHistoryTable));
 
+        // Act
         var exception = await Record.ExceptionAsync(() =>
             context.Database.MigrateAsync(CancellationToken.None));
 
+        // Assert
         Assert.NotNull(exception);
         if (serverVersion.IsMariaDb)
         {
@@ -152,14 +220,17 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new BoundaryIndexMigrationContext(
             CreateOptions<BoundaryIndexMigrationContext>(
                 connection,
                 serverVersion,
                 IndexKeyMigrationContract.BoundaryHistoryTable));
 
+        // Act
         await context.Database.MigrateAsync(CancellationToken.None).ConfigureAwait(false);
 
+        // Assert
         Assert.Equal(
             [IndexKeyMigrationContract.BoundaryMigration],
             await context.Database.GetAppliedMigrationsAsync(CancellationToken.None).ConfigureAwait(false));
@@ -176,6 +247,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using (var setup = connection.CreateCommand())
         {
             setup.CommandText = $"CREATE TABLE `{IndexKeyMigrationContract.EvolutionTable}` ("
@@ -192,25 +264,23 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 connection,
                 serverVersion,
                 IndexKeyMigrationContract.EvolutionHistoryTable));
+
         await using var target = new TargetIndexPrefixIntegrationContext(
             CreateOptions<TargetIndexPrefixIntegrationContext>(
                 connection,
                 serverVersion,
                 IndexKeyMigrationContract.EvolutionHistoryTable));
+
         var sourceModel = source.GetService<IDesignTimeModel>().Model;
         var targetModel = target.GetService<IDesignTimeModel>().Model;
+
         var differ = target.GetService<IMigrationsModelDiffer>();
 
-        Assert.True(differ.HasDifferences(sourceModel.GetRelationalModel(), targetModel.GetRelationalModel()));
-
+        // Act
+        var hasDifferences = differ.HasDifferences(sourceModel.GetRelationalModel(), targetModel.GetRelationalModel());
         var operations = differ.GetDifferences(
             sourceModel.GetRelationalModel(),
             targetModel.GetRelationalModel());
-        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
-        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
-
-        Assert.Equal(IndexKeyMigrationContract.EvolutionIndex, drop.Name);
-        Assert.Equal([0, 48], create.GetMySqlMigrationMetadata().IndexPrefixLengths);
 
         var generator = target.GetService<IMigrationsSqlGenerator>();
         var relationalConnection = target.GetService<IRelationalConnection>();
@@ -222,23 +292,29 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 .ConfigureAwait(false);
         }
 
-        Assert.Equal(
-            48,
-            await ReadIndexPrefixLengthAsync(
+        var physicalPrefixLength = await ReadIndexPrefixLengthAsync(
                     connection,
                     IndexKeyMigrationContract.EvolutionTable,
                     IndexKeyMigrationContract.EvolutionIndex,
                     "Code")
-                .ConfigureAwait(false));
+                .ConfigureAwait(false);
 
         await using var verify = connection.CreateCommand();
         verify.CommandText = $"SELECT COUNT(*) FROM `{IndexKeyMigrationContract.EvolutionTable}` "
             + "WHERE `Id` = 1 AND `TenantId` = 7 AND `Code` = 'preserved';";
-        Assert.Equal(
-            1L,
-            Convert.ToInt64(
+        var preservedRows = Convert.ToInt64(
                 await verify.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
-                CultureInfo.InvariantCulture));
+                CultureInfo.InvariantCulture);
+
+        // Assert
+        Assert.True(hasDifferences);
+        var drop = Assert.Single(operations.OfType<DropIndexOperation>());
+        var create = Assert.Single(operations.OfType<CreateIndexOperation>());
+
+        Assert.Equal(IndexKeyMigrationContract.EvolutionIndex, drop.Name);
+        Assert.Equal([0, 48], create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(48, physicalPrefixLength);
+        Assert.Equal(1L, preservedRows);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
@@ -302,21 +378,67 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
 internal static class IndexKeyMigrationContract
 {
+    /// <summary>
+    /// The overlong migration used by this migration fixture.
+    /// </summary>
     public const string OverlongMigration = "20260831000000_OverlongIndex";
+
+    /// <summary>
+    /// The boundary migration used by this migration fixture.
+    /// </summary>
     public const string BoundaryMigration = "20260831000100_BoundaryIndex";
+
+    /// <summary>
+    /// The overlong history table used by this migration fixture.
+    /// </summary>
     public const string OverlongHistoryTable = "__DokaOverlongIndexHistory";
+
+    /// <summary>
+    /// The boundary history table used by this migration fixture.
+    /// </summary>
     public const string BoundaryHistoryTable = "__DokaBoundaryIndexHistory";
+
+    /// <summary>
+    /// The evolution history table used by this migration fixture.
+    /// </summary>
     public const string EvolutionHistoryTable = "__DokaIndexEvolutionHistory";
+
+    /// <summary>
+    /// The overlong table used by this migration fixture.
+    /// </summary>
     public const string OverlongTable = "DokaOverlongIndexProbe";
+
+    /// <summary>
+    /// The boundary table used by this migration fixture.
+    /// </summary>
     public const string BoundaryTable = "DokaBoundaryIndexProbe";
+
+    /// <summary>
+    /// The evolution table used by this migration fixture.
+    /// </summary>
     public const string EvolutionTable = "DokaIndexEvolutionProbe";
+
+    /// <summary>
+    /// The overlong index used by this migration fixture.
+    /// </summary>
     public const string OverlongIndex = "IX_DokaOverlongIndexProbe_Value";
+
+    /// <summary>
+    /// The boundary index used by this migration fixture.
+    /// </summary>
     public const string BoundaryIndex = "IX_DokaBoundaryIndexProbe_Value";
+
+    /// <summary>
+    /// The evolution index used by this migration fixture.
+    /// </summary>
     public const string EvolutionIndex = "IX_DokaIndexEvolutionProbe_TenantId_Code";
 }
 
 internal sealed class OverlongIndexMigrationContext : DbContext
 {
+    /// <summary>
+    /// Initializes the OverlongIndexMigrationContext fixture.
+    /// </summary>
     public OverlongIndexMigrationContext(
         DbContextOptions<OverlongIndexMigrationContext> options
     ) : base(options) { }
@@ -324,6 +446,9 @@ internal sealed class OverlongIndexMigrationContext : DbContext
 
 internal sealed class BoundaryIndexMigrationContext : DbContext
 {
+    /// <summary>
+    /// Initializes the BoundaryIndexMigrationContext fixture.
+    /// </summary>
     public BoundaryIndexMigrationContext(
         DbContextOptions<BoundaryIndexMigrationContext> options
     ) : base(options) { }
@@ -331,10 +456,14 @@ internal sealed class BoundaryIndexMigrationContext : DbContext
 
 internal sealed class SourceIndexPrefixIntegrationContext : DbContext
 {
+    /// <summary>
+    /// Initializes the SourceIndexPrefixIntegrationContext fixture.
+    /// </summary>
     public SourceIndexPrefixIntegrationContext(
         DbContextOptions<SourceIndexPrefixIntegrationContext> options
     ) : base(options) { }
 
+    /// <inheritdoc />
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
     ) => ConfigureIndex(modelBuilder, 24);
@@ -365,10 +494,14 @@ internal sealed class SourceIndexPrefixIntegrationContext : DbContext
 
 internal sealed class TargetIndexPrefixIntegrationContext : DbContext
 {
+    /// <summary>
+    /// Initializes the TargetIndexPrefixIntegrationContext fixture.
+    /// </summary>
     public TargetIndexPrefixIntegrationContext(
         DbContextOptions<TargetIndexPrefixIntegrationContext> options
     ) : base(options) { }
 
+    /// <inheritdoc />
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
     ) => SourceIndexPrefixIntegrationContext.ConfigureIndex(modelBuilder, 48);
@@ -376,10 +509,19 @@ internal sealed class TargetIndexPrefixIntegrationContext : DbContext
 
 internal sealed class IndexPrefixIntegrationRecord
 {
+    /// <summary>
+    /// Gets or sets the id.
+    /// </summary>
     public int Id { get; set; }
 
+    /// <summary>
+    /// Gets or sets the tenant id.
+    /// </summary>
     public int TenantId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the code.
+    /// </summary>
     public string Code { get; set; } = string.Empty;
 }
 
@@ -387,6 +529,7 @@ internal sealed class IndexPrefixIntegrationRecord
 [Migration(IndexKeyMigrationContract.OverlongMigration)]
 internal sealed class OverlongIndexMigration : Migration
 {
+    /// <inheritdoc />
     protected override void Up(
         MigrationBuilder migrationBuilder
     )
@@ -408,6 +551,7 @@ internal sealed class OverlongIndexMigration : Migration
             column: "Value");
     }
 
+    /// <inheritdoc />
     protected override void Down(
         MigrationBuilder migrationBuilder
     ) => migrationBuilder.DropTable(IndexKeyMigrationContract.OverlongTable);
@@ -417,6 +561,7 @@ internal sealed class OverlongIndexMigration : Migration
 [Migration(IndexKeyMigrationContract.BoundaryMigration)]
 internal sealed class BoundaryIndexMigration : Migration
 {
+    /// <inheritdoc />
     protected override void Up(
         MigrationBuilder migrationBuilder
     )
@@ -438,6 +583,7 @@ internal sealed class BoundaryIndexMigration : Migration
             column: "Value");
     }
 
+    /// <inheritdoc />
     protected override void Down(
         MigrationBuilder migrationBuilder
     ) => migrationBuilder.DropTable(IndexKeyMigrationContract.BoundaryTable);

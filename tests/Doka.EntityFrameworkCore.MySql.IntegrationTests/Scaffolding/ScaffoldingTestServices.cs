@@ -9,13 +9,16 @@ internal static class ScaffoldingTestServices
     /// <summary>
     /// Creates an isolated provider service graph for a live scaffolding pass.
     /// </summary>
+    /// <param name="includeSpatialServices">Whether the model requires spatial design-time services.</param>
+    /// <param name="configure">Optional public reverse-engineering policy configuration.</param>
     public static ServiceProvider CreateDesignTimeServiceProvider(
-        bool includeSpatialServices = false
+        bool includeSpatialServices = false,
+        Action<MySqlReverseEngineeringOptionsBuilder>? configure = null
     )
     {
         var services = new ServiceCollection();
 
-        services.AddEntityFrameworkDokaMySqlDesignTime();
+        services.AddEntityFrameworkDokaMySqlDesignTime(configure);
 
         if (includeSpatialServices)
         {

@@ -18,12 +18,52 @@ public sealed class MySqlDiagnosticsGovernanceTests
         "Doka.EntityFrameworkCore.MySql.Spatial",
     ];
 
+    private static readonly Dictionary<string, (int Start, int End)> s_eventRanges = new(StringComparer.Ordinal)
+    {
+        [nameof(MySqlEventId.ServerVersionResolved)] = (1000, 1099),
+        [nameof(MySqlEventId.InvalidConfiguration)] = (1000, 1099),
+        [nameof(MySqlEventId.UnsupportedServerVersion)] = (1000, 1099),
+        [nameof(MySqlEventId.SchemaUnsupported)] = (1000, 1099),
+        [nameof(MySqlEventId.KeyOrIndexMaxLengthRequired)] = (1000, 1099),
+        [nameof(MySqlEventId.ImplicitDecimalPrecisionDefaulted)] = (1000, 1099),
+        [nameof(MySqlEventId.RetryAttempt)] = (1500, 1599),
+        [nameof(MySqlEventId.RetryLimitExceeded)] = (1500, 1599),
+        [nameof(MySqlEventId.SoftCancellation)] = (1500, 1599),
+        [nameof(MySqlEventId.HardCancellation)] = (1500, 1599),
+        [nameof(MySqlEventId.CommandTimeoutExhausted)] = (1500, 1599),
+        [nameof(MySqlEventId.CommitUnknown)] = (1500, 1599),
+        [nameof(MySqlEventId.ForeignKeyPrincipalTableNotScaffolded)] = (1400, 1499),
+        [nameof(MySqlEventId.MissingSpatialPackageDuringScaffolding)] = (1600, 1699),
+        [nameof(MySqlEventId.InvalidSpatialIndexConfiguration)] = (1600, 1699),
+        [nameof(MySqlEventId.MissingSpatialTranslation)] = (1600, 1699),
+        [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
+        [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
+        [nameof(MySqlEventId.LockReleaseFailed)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationLockAcquired)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationLockTimeout)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationLockAcquireFailed)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationOperationHandlerSelected)] = (1100, 1199),
+        [nameof(MySqlEventId.InvalidMigrationOperationHandlerRegistration)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationOperationHandlerFailed)] = (1100, 1199),
+        [nameof(MySqlEventId.MigrationOperationHandlerContractViolation)] = (1100, 1199),
+        [nameof(MySqlEventId.UnknownMigrationOperation)] = (1100, 1199),
+        [nameof(MySqlEventId.SpatialSridMismatchDetected)] = (1600, 1699),
+    };
+
+    /// <summary>Returns every governed event and subsystem boundary as an independent case.</summary>
+    public static IEnumerable<object[]> EventRangeCases => s_eventRanges.Select(
+        item => new object[] { item.Key, item.Value.Start, item.Value.End });
+
     /// <summary>
     /// Verifies that the stable provider logging categories match the documented taxonomy.
     /// </summary>
     [Fact]
     public void Logger_categories_match_the_documented_phase4_taxonomy()
     {
+        // Arrange
+        var expectedCategories = s_expectedCategories;
+
+        // Act
         var categories = new[]
         {
             MySqlLoggerCategory.Configuration,
@@ -35,8 +75,8 @@ public sealed class MySqlDiagnosticsGovernanceTests
             MySqlLoggerCategory.Spatial,
         };
 
-        Assert.Equal(s_expectedCategories, categories);
-
+        // Assert
+        Assert.Equal(expectedCategories, categories);
         Assert.Equal(
             categories.Length,
             categories
@@ -50,11 +90,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
     [Fact]
     public void Provider_event_ids_match_the_documented_phase4_contract()
     {
-        var actualEventIds = typeof(MySqlEventId)
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Where(field => field.FieldType == typeof(EventId))
-            .ToDictionary(field => field.Name, field => ((EventId)field.GetValue(null)!).Id, StringComparer.Ordinal);
-
+        // Arrange
         var expectedEventIds = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             [nameof(MySqlEventId.ServerVersionResolved)] = 1000,
@@ -87,8 +123,14 @@ public sealed class MySqlDiagnosticsGovernanceTests
             [nameof(MySqlEventId.SpatialSridMismatchDetected)] = 1603,
         };
 
-        Assert.Equal(expectedEventIds.Count, actualEventIds.Count);
+        // Act
+        var actualEventIds = typeof(MySqlEventId)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(EventId))
+            .ToDictionary(field => field.Name, field => ((EventId)field.GetValue(null)!).Id, StringComparer.Ordinal);
 
+        // Assert
+        Assert.Equal(expectedEventIds.Count, actualEventIds.Count);
         foreach (var expectedEventId in expectedEventIds)
         {
             Assert.True(
@@ -117,6 +159,7 @@ public sealed class MySqlDiagnosticsGovernanceTests
     [Fact]
     public void Every_event_id_has_a_matching_logger_message_emitter()
     {
+        // Arrange
         var eventIdNames = typeof(MySqlEventId)
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(field => field.FieldType == typeof(EventId))
@@ -133,67 +176,58 @@ public sealed class MySqlDiagnosticsGovernanceTests
             .Select(method => method.Name)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Act
         var unconsumed = eventIdNames
             .Except(emitterMethodNames, StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
+        // Assert
         Assert.True(
             unconsumed.Count == 0,
             $"Every MySqlEventId field must have a same-named MySqlLoggerMessages emitter. Unconsumed event IDs: {string.Join(", ", unconsumed)}.");
     }
 
-    /// <summary>
-    /// Verifies that the current provider event catalog remains inside the approved subsystem ranges.
-    /// </summary>
+    /// <summary>Verifies every public event has a range mapping before individual range checks run.</summary>
     [Fact]
-    public void Provider_event_ids_stay_inside_the_approved_subsystem_ranges()
+    public void Every_provider_event_has_a_governed_subsystem_range()
     {
-        var eventRanges = new Dictionary<string, (int Start, int End)>(StringComparer.Ordinal)
-        {
-            [nameof(MySqlEventId.ServerVersionResolved)] = (1000, 1099),
-            [nameof(MySqlEventId.InvalidConfiguration)] = (1000, 1099),
-            [nameof(MySqlEventId.UnsupportedServerVersion)] = (1000, 1099),
-            [nameof(MySqlEventId.SchemaUnsupported)] = (1000, 1099),
-            [nameof(MySqlEventId.KeyOrIndexMaxLengthRequired)] = (1000, 1099),
-            [nameof(MySqlEventId.ImplicitDecimalPrecisionDefaulted)] = (1000, 1099),
-            [nameof(MySqlEventId.RetryAttempt)] = (1500, 1599),
-            [nameof(MySqlEventId.RetryLimitExceeded)] = (1500, 1599),
-            [nameof(MySqlEventId.SoftCancellation)] = (1500, 1599),
-            [nameof(MySqlEventId.HardCancellation)] = (1500, 1599),
-            [nameof(MySqlEventId.CommandTimeoutExhausted)] = (1500, 1599),
-            [nameof(MySqlEventId.CommitUnknown)] = (1500, 1599),
-            [nameof(MySqlEventId.ForeignKeyPrincipalTableNotScaffolded)] = (1400, 1499),
-            [nameof(MySqlEventId.MissingSpatialPackageDuringScaffolding)] = (1600, 1699),
-            [nameof(MySqlEventId.InvalidSpatialIndexConfiguration)] = (1600, 1699),
-            [nameof(MySqlEventId.MissingSpatialTranslation)] = (1600, 1699),
-            [nameof(MySqlEventId.BulkInsertParameterCountCapped)] = (1700, 1799),
-            [nameof(MySqlEventId.BulkInsertPacketSizeCapped)] = (1700, 1799),
-            [nameof(MySqlEventId.LockReleaseFailed)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationLockAcquired)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationLockTimeout)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationLockAcquireFailed)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationOperationHandlerSelected)] = (1100, 1199),
-            [nameof(MySqlEventId.InvalidMigrationOperationHandlerRegistration)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationOperationHandlerFailed)] = (1100, 1199),
-            [nameof(MySqlEventId.MigrationOperationHandlerContractViolation)] = (1100, 1199),
-            [nameof(MySqlEventId.UnknownMigrationOperation)] = (1100, 1199),
-            [nameof(MySqlEventId.SpatialSridMismatchDetected)] = (1600, 1699),
-        };
+        // Arrange
+        var mappedNames = s_eventRanges.Keys.ToHashSet(StringComparer.Ordinal);
 
-        foreach (var field in typeof(MySqlEventId).GetFields(BindingFlags.Public | BindingFlags.Static))
-        {
-            if (field.FieldType != typeof(EventId))
-            {
-                continue;
-            }
+        // Act
+        var publicNames = typeof(MySqlEventId)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(EventId))
+            .Select(field => field.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
-            var eventId = (EventId)field.GetValue(null)!;
+        // Assert
+        Assert.True(mappedNames.SetEquals(publicNames));
+    }
 
-            Assert.True(
-                eventRanges.TryGetValue(field.Name, out var range),
-                $"Missing diagnostics-governance range mapping for event '{field.Name}'.");
-            Assert.InRange(eventId.Id, range.Start, range.End);
-        }
+    /// <summary>Verifies one provider event remains inside its approved subsystem range.</summary>
+    /// <param name="fieldName">The independently reported event field.</param>
+    /// <param name="minimum">The inclusive subsystem range start.</param>
+    /// <param name="maximum">The inclusive subsystem range end.</param>
+    [Theory]
+    [MemberData(nameof(EventRangeCases))]
+    public void Provider_event_ids_stay_inside_the_approved_subsystem_ranges(
+        string fieldName,
+        int minimum,
+        int maximum
+    )
+    {
+        // Arrange
+        var field = typeof(MySqlEventId).GetField(fieldName, BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"The governed event field '{fieldName}' is missing.");
+
+        // Act
+        var eventId = field.GetValue(null) is EventId value
+            ? value.Id
+            : throw new InvalidOperationException($"The governed field '{fieldName}' is not an EventId.");
+
+        // Assert
+        Assert.InRange(eventId, minimum, maximum);
     }
 }

@@ -15,11 +15,15 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Model_defaults_integer_keys_to_autoincrement_and_guid_keys_to_client_generation()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
         var intKeyProperty = context.Model.FindEntityType(typeof(IntKeyEntity))!.FindProperty(nameof(IntKeyEntity.Id))!;
+
+        // Act
         var guidKeyProperty =
             context.Model.FindEntityType(typeof(GuidKeyEntity))!.FindProperty(nameof(GuidKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(MySqlValueGenerationStrategy.AutoIncrement, intKeyProperty.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAdd, intKeyProperty.ValueGenerated);
         Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, guidKeyProperty.GetMySqlValueGenerationStrategy());
@@ -32,10 +36,14 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Default_guid_format_char36_applies_char36_store_type()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
+
+        // Act
         var guidKeyProperty =
             context.Model.FindEntityType(typeof(GuidKeyEntity))!.FindProperty(nameof(GuidKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(MySqlGuidFormat.Char36, guidKeyProperty.GetMySqlGuidFormat());
         Assert.Equal("char(36)", guidKeyProperty.GetColumnType());
         Assert.Equal(36, guidKeyProperty.GetMaxLength());
@@ -50,7 +58,10 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Default_char36_reader_accepts_guid_and_string_but_rejects_binary_values()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(GuidKeyEntity))!
             .FindProperty(nameof(GuidKeyEntity.Id))!;
@@ -58,6 +69,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         var mapping = property.GetRelationalTypeMapping();
         var value = Guid.Parse("9d54ead7-e69c-4939-9290-8e95586996de");
 
+        // Assert
         Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(mapping, value));
         Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(
             mapping,
@@ -73,13 +85,16 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_client_guid_generation_assigns_values_when_entities_are_tracked()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
         var generatedEntity = new GeneratedGuidEntity();
         var nonGeneratedEntity = new GuidKeyEntity();
 
+        // Act
         context.Add(generatedEntity);
         context.Add(nonGeneratedEntity);
 
+        // Assert
         Assert.NotEqual(Guid.Empty, generatedEntity.Id);
         Assert.NotEqual(Guid.Empty, nonGeneratedEntity.Id);
         Assert.Equal(7, nonGeneratedEntity.Id.Version);
@@ -93,14 +108,18 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_OnAdd_guid_generation_uses_client_generator()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
         var entity = new ExplicitGeneratedGuidEntity();
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(ExplicitGeneratedGuidEntity))!
             .FindProperty(nameof(ExplicitGeneratedGuidEntity.Id))!;
 
         context.Add(entity);
 
+        // Assert
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
             property.GetMySqlValueGenerationStrategy());
@@ -113,10 +132,14 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_property_level_char36_configuration_remains_available()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
+
+        // Act
         var property =
             context.Model.FindEntityType(typeof(ExplicitChar36Entity))!.FindProperty(nameof(ExplicitChar36Entity.Id))!;
 
+        // Assert
         Assert.Equal(MySqlGuidFormat.Char36, property.GetMySqlGuidFormat());
         Assert.Equal("char(36)", property.GetColumnType());
         Assert.Null(property.GetValueConverter());
@@ -133,13 +156,18 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_binary16_override_remains_native_and_converter_free()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions(MySqlGuidFormat.Char36));
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(ExplicitBinary16Entity))!
             .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
 
         var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
+        var literal = property.GetRelationalTypeMapping().GenerateSqlLiteral(value);
 
+        // Assert
         Assert.Null(property.GetValueConverter());
         Assert.Null(property.GetProviderClrType());
         Assert.Equal("binary(16)", property.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
@@ -147,7 +175,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.IsType<MySqlGuidBinaryTypeMapping>(property.GetRelationalTypeMapping());
         Assert.Equal(
             "X'00112233445566778899AABBCCDDEEFF'",
-            property.GetRelationalTypeMapping().GenerateSqlLiteral(value));
+            literal);
     }
 
     /// <summary>
@@ -156,11 +184,15 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Default_binary16_mapping_remains_native_and_converter_free()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(GuidKeyEntity))!
             .FindProperty(nameof(GuidKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(MySqlGuidFormat.Binary16, property.GetMySqlGuidFormat());
         Assert.Equal("binary(16)", property.GetColumnType());
         Assert.Null(property.GetProviderClrType());
@@ -175,11 +207,15 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_binary16_matching_context_default_remains_native_and_converter_free()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(ExplicitBinary16Entity))!
             .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
 
+        // Assert
         Assert.Equal(MySqlGuidFormat.Binary16, property.GetMySqlGuidFormat());
         Assert.Equal("binary(16)", property.GetColumnType());
         Assert.Null(property.GetProviderClrType());
@@ -194,11 +230,15 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_guid_to_string_converter_is_preserved()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(ConvertedGuidEntity))!
             .FindProperty(nameof(ConvertedGuidEntity.Id))!;
 
+        // Assert
         Assert.Equal(typeof(string), property.GetProviderClrType());
         Assert.Equal("varchar(36)", property.GetColumnType());
         Assert.Null(property.GetMySqlGuidFormat());
@@ -211,11 +251,15 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Explicit_guid_to_bytes_converter_uses_driver_safe_store_type()
     {
+        // Arrange
         using var context = new ValueGenerationContext(CreateOptions());
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(ConvertedGuidBytesEntity))!
             .FindProperty(nameof(ConvertedGuidBytesEntity.Id))!;
 
+        // Assert
         Assert.Equal(typeof(byte[]), property.GetProviderClrType());
         Assert.Equal("varbinary(17)", property.GetColumnType());
         Assert.Null(property.GetMySqlGuidFormat());
@@ -227,10 +271,13 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
     [Fact]
     public void Invalid_guid_format_throws_with_the_format_parameter_name()
     {
+        // Arrange
         using var context = new InvalidGuidFormatContext(CreateOptions<InvalidGuidFormatContext>());
 
+        // Act
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => _ = context.Model);
 
+        // Assert
         Assert.Equal("format", exception.ParamName);
         Assert.Contains("Unsupported MySqlGuidFormat value", exception.Message, StringComparison.Ordinal);
     }

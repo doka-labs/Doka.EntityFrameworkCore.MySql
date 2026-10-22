@@ -12,11 +12,14 @@ public sealed class MySqlShapedQueryTraversingExpressionVisitorTests
     [Fact]
     public void Visit_traverses_query_and_shaper_branches()
     {
+        // Arrange
         var visitor = new RecordingExpressionVisitor();
         var shapedQuery = new ShapedQueryExpression(Expression.Constant("query"), Expression.Constant("shaper"));
 
+        // Act
         visitor.Visit(shapedQuery);
 
+        // Assert
         Assert.Equal(
             [
                 "query",

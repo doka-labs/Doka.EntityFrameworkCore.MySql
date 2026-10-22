@@ -6,7 +6,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
             .WithMaterializedSource(source => source.Select(parent => new
             {
@@ -17,6 +20,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(1, actual.Id);
         Assert.Equal(1, actual.ChildId);
         Assert.Equal("historical-child", actual.ChildName);
@@ -27,7 +31,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
             .Select(parent => parent.Child)
             .WithMaterializedSource(source => source.Select(child => new
@@ -39,6 +46,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(1, actual.Id);
         Assert.Equal(3, actual.NextId);
         Assert.Equal("historical-next", actual.NextName);
@@ -49,14 +57,18 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target);
         var context = fixture.Context;
         var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
         var second = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
+
+        // Act
         var query = first.Concat(second);
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 1], actual.Select(parent => parent.Id));
         Assert.Equal([1, 1], actual.Select(parent => parent.ChildId));
         Assert.Equal(1, fixture.Probe.Count);
@@ -66,15 +78,19 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target);
         var context = fixture.Context;
         var historical = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
         var current = context.Parents.WithMaterializedSource(source => source);
+
+        // Act
         var query = historical.Concat(current);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => query.ToArrayAsync(CancellationToken.None));
 
+        // Assert
         Assert.Contains("matching temporal operators", exception.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, fixture.Probe.Count);
     }
@@ -83,17 +99,20 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target);
         var context = fixture.Context;
         var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
         var second = context.Parents.TemporalAsOf(fixture.Instant.AddDays(1))
             .WithMaterializedSource(source => source);
 
+        // Act
         var query = first.Concat(second);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => query.ToArrayAsync(CancellationToken.None));
 
+        // Assert
         Assert.Contains("identical UTC boundaries", exception.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, fixture.Probe.Count);
     }

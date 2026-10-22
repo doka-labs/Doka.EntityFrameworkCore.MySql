@@ -110,6 +110,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
         bool useAsync
     )
     {
+        // Arrange
         await using var store = await CacheIntegrationStore
             .CreateAsync(target)
             .ConfigureAwait(false);
@@ -155,9 +156,12 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         var time = new CacheManualTimeProvider();
         var logger = new CacheRecordingLogger();
+
+        // Act
         await using var cache = store.CreateCache(time, logger);
         time.Advance(TimeSpan.FromMinutes(5));
 
+        // Assert
         Assert.Null(
             await RunCleanupAsync(cache, useAsync, CancellationToken.None)
                 .ConfigureAwait(false));
@@ -198,6 +202,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var store = await CacheIntegrationStore
             .CreateAsync(target)
             .ConfigureAwait(false);
@@ -227,6 +232,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
         });
 
         await using var provider = services.BuildServiceProvider();
+
+        // Act
         var cache = provider.GetRequiredService<IBufferDistributedCache>();
 
         await cache
@@ -245,6 +252,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 CancellationToken.None)
             .ConfigureAwait(false);
 
+        // Assert
         Assert.Equal(
             1005L,
             await store
@@ -294,6 +302,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
         bool overlappingCleanup
     )
     {
+        // Arrange
         await using var store = await CacheIntegrationStore
             .CreateAsync(target)
             .ConfigureAwait(false);
@@ -355,6 +364,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         time.Advance(TimeSpan.FromMinutes(5));
         using var cancellation = new CancellationTokenSource();
+
+        // Act
         Task pending = otherCache is null
             ? RunCleanupAsync(cache, useAsync, cancellation.Token)
             : Task.WhenAll(
@@ -379,6 +390,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 new MySqlCacheSql(store.QualifiedTableName).Set,
                 writer,
                 transaction);
+
             upsert.Parameters.AddWithValue("@key", key);
             upsert.Parameters.Add("@value", MySqlDbType.LongBlob).Value = new byte[] { 2 };
             upsert.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime).Value = DBNull.Value;
@@ -422,6 +434,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
             }
         }
 
+        // Assert
         Assert.Empty(logger.Entries);
         Assert.Empty(otherLogger.Entries);
 
@@ -470,6 +483,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
     {
         // WHY: MySQL exposes live lock relationships in Performance Schema;
         // MariaDB uses the INNODB_TRX view for this test contract.
+
+        // Arrange
         var lockProbe = target is IntegrationDatabaseTarget.MySql84 or IntegrationDatabaseTarget.MySql97
             ? """
               SELECT COUNT(DISTINCT waits.REQUESTING_THREAD_ID)
@@ -531,10 +546,12 @@ public sealed class MySqlCacheCleanupIntegrationTests
                                   AND LOCATE(@tableName, COALESCE(CONVERT(CAST(p.INFO AS BINARY) USING latin1), '')) > 0;
                               """;
 
+        // Act
         var diagnostics = await command
             .ExecuteScalarAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
+        // Assert
         Assert.Fail($"Cleanup did not enter a row-lock wait within the test deadline. Active statements: {diagnostics}");
     }
 

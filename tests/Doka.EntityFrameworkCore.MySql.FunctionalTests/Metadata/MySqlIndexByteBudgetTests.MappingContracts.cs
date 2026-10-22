@@ -9,10 +9,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Converter_size_hints_are_preserved_without_introducing_a_core_length_facet()
     {
+        // Arrange
         using var context = CreateContext("converter-hint");
 
+        // Act
         var property = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!.FindProperty("B")!;
 
+        // Assert
         Assert.Null(property.GetMaxLength());
         Assert.Equal(32, property.GetValueConverter()!.MappingHints!.Size);
         Assert.Equal("varchar(32)", property.GetRelationalTypeMapping().StoreType);
@@ -25,10 +28,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Repeated_finalization_keeps_the_same_safe_convention_lengths()
     {
+        // Arrange
         using var context = CreateContext("twice");
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
 
+        // Assert
         Assert.Equal(254, entity.FindProperty("Id")!.GetMaxLength());
         Assert.Equal(254, entity.FindProperty("Scope")!.GetMaxLength());
         Assert.Equal(254, entity.FindProperty("Tree")!.GetMaxLength());
@@ -44,15 +50,19 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Tpc_indexes_use_the_concrete_physical_table_character_set()
     {
+        // Arrange
         using var context = CreateContext("tpc");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var entity = model.FindEntityType(typeof(BudgetTpcRow))!;
+        var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(254, entity.FindProperty(nameof(BudgetTpcBase.Code))!.GetMaxLength());
         Assert.Equal(254, entity.FindProperty(nameof(BudgetTpcBase.Scope))!.GetMaxLength());
         Assert.Equal(254, entity.FindProperty(nameof(BudgetTpcBase.Tree))!.GetMaxLength());
-        Assert.Contains("varchar(254)", context.Database.GenerateCreateScript(), StringComparison.Ordinal);
+        Assert.Contains("varchar(254)", ddl, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -69,12 +79,15 @@ public sealed partial class MySqlIndexByteBudgetTests
         int spareLength
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var owner = model.FindEntityType(typeof(BudgetOwner))!;
         var detail = model.FindEntityType(typeof(BudgetDetail))!;
 
+        // Assert
         Assert.Equal(length, owner.FindProperty(nameof(BudgetOwner.Code))!.GetMaxLength());
         Assert.Equal(storeType, owner.FindProperty(nameof(BudgetOwner.Code))!.GetRelationalTypeMapping().StoreType);
         Assert.Equal(storeType, detail.FindProperty(nameof(BudgetDetail.Code))!.GetRelationalTypeMapping().StoreType);
@@ -91,12 +104,15 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Split_table_fragments_participate_in_physical_alias_allocation()
     {
+        // Arrange
         using var context = CreateContext("shared-split");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var owner = model.FindEntityType(typeof(BudgetOwner))!;
         var detail = model.FindEntityType(typeof(BudgetDetail))!;
 
+        // Assert
         Assert.Equal(68, owner.FindProperty(nameof(BudgetOwner.Code))!.GetMaxLength());
         Assert.Equal(68, detail.FindProperty(nameof(BudgetDetail.Code))!.GetMaxLength());
     }
@@ -113,10 +129,13 @@ public sealed partial class MySqlIndexByteBudgetTests
         int length
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var property = context.Model.FindEntityType("Budget")!.FindProperty("B")!;
 
+        // Assert
         Assert.Equal(length, property.GetMaxLength());
     }
 
@@ -127,12 +146,15 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Shared_binary_aliases_retain_the_explicit_conceptual_length()
     {
+        // Arrange
         using var context = CreateContext("shared-binary");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var owner = model.FindEntityType(typeof(BudgetBinaryOwner))!;
         var detail = model.FindEntityType(typeof(BudgetBinaryDetail))!;
 
+        // Assert
         Assert.Equal(16, owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetMaxLength());
         Assert.Equal(16, detail.FindProperty(nameof(BudgetBinaryDetail.Code))!.GetMaxLength());
         Assert.Equal(
@@ -147,13 +169,16 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Explicit_conceptual_shared_length_takes_priority_over_physical_store_length()
     {
+        // Arrange
         using var context = CreateContext("shared-binary-mixed");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var owner = model.FindEntityType(typeof(BudgetBinaryOwner))!;
         var detail = model.FindEntityType(typeof(BudgetBinaryDetail))!;
         var storeDetail = model.FindEntityType(typeof(BudgetBinaryStoreDetail))!;
 
+        // Assert
         Assert.Equal(16, owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetMaxLength());
         Assert.Equal(16, detail.FindProperty(nameof(BudgetBinaryDetail.Code))!.GetMaxLength());
         Assert.Null(storeDetail.FindProperty(nameof(BudgetBinaryStoreDetail.Code))!.GetMaxLength());
@@ -190,13 +215,16 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Owned_indexes_use_the_owner_configured_physical_table_character_set()
     {
+        // Arrange
         using var context = CreateContext("owned-table-charset");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var entity = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var length = entity.FindProperty(nameof(BudgetDefaultDetail.B))!.GetMaxLength();
         var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.True(length == 68, $"Expected B length68; actual={length}. Physical DDL: {ddl}");
         Assert.Contains("CHARACTER SET utf8mb4", ddl, StringComparison.Ordinal);
         Assert.Equal(700, entity.FindProperty(nameof(BudgetDefaultDetail.A))!.GetMaxLength());
@@ -215,13 +243,16 @@ public sealed partial class MySqlIndexByteBudgetTests
         string tableCharSet
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var entity = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var length = entity.FindProperty(nameof(BudgetDefaultDetail.B))!.GetMaxLength();
         var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(255, length);
         Assert.Contains("CHARACTER SET " + tableCharSet, ddl, StringComparison.Ordinal);
         Assert.Equal(700, entity.FindProperty(nameof(BudgetDefaultDetail.A))!.GetMaxLength());
@@ -234,10 +265,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Owned_explicit_indexes_reject_the_owner_table_byte_overflow()
     {
+        // Arrange
         using var context = CreateContext("owned-table-overlong");
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
         Assert.Contains("3072-byte", exception.Message, StringComparison.Ordinal);
     }

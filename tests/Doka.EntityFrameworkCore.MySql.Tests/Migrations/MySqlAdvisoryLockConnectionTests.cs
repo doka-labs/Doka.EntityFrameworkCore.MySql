@@ -14,12 +14,16 @@ public sealed class MySqlAdvisoryLockConnectionTests
     [Fact]
     public void Dedicated_connection_string_disables_pooling()
     {
+        // Arrange
         var baseConnectionString = "Server=127.0.0.1;Port=33068;Database=doka;User ID=root;Password=x;";
+
+        // Act
         var builder = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Pooling = false,
         };
 
+        // Assert
         Assert.False(builder.Pooling);
         Assert.Contains("Pooling=False", builder.ConnectionString, StringComparison.OrdinalIgnoreCase);
     }
@@ -30,12 +34,16 @@ public sealed class MySqlAdvisoryLockConnectionTests
     [Fact]
     public void Dedicated_connection_string_preserves_credentials()
     {
+        // Arrange
         var baseConnectionString = "Server=127.0.0.1;Port=33068;Database=doka;User ID=root;Password=secret;";
+
+        // Act
         var builder = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Pooling = false,
         };
 
+        // Assert
         Assert.Equal("root", builder.UserID);
         Assert.Equal("doka", builder.Database);
         Assert.Equal("127.0.0.1", builder.Server);
@@ -54,9 +62,13 @@ public sealed class MySqlAdvisoryLockConnectionTests
         object result
     )
     {
-        // When GET_LOCK returns 0 (timeout), ToBoolean must return false so the
-        // AcquireLock method enters its TimeoutException branch.
-        Assert.False(MySqlScalarConvert.ToBoolean(result));
+        // Arrange: The theory supplies result.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(result);
+
+        // Assert
+        Assert.False(actual);
     }
 
     /// <summary>
@@ -70,7 +82,13 @@ public sealed class MySqlAdvisoryLockConnectionTests
         object result
     )
     {
-        Assert.True(MySqlScalarConvert.ToBoolean(result));
+        // Arrange: The theory supplies result.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(result);
+
+        // Assert
+        Assert.True(actual);
     }
 
     /// <summary>
@@ -80,6 +98,13 @@ public sealed class MySqlAdvisoryLockConnectionTests
     [Fact]
     public void GetLock_null_result_evaluates_to_false()
     {
-        Assert.False(MySqlScalarConvert.ToBoolean(null));
+        // Arrange
+        object? input = null;
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.False(actual);
     }
 }

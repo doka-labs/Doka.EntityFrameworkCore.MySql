@@ -1,9 +1,17 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
+/// <summary>
+/// Verifies engineering scripts preserve their SDK, benchmark selection, and vulnerability-audit contracts.
+/// </summary>
 public sealed class EngineeringToolContractTests
 {
     private static readonly string[] s_auditSources = ["https://api.nuget.org/v3/index.json"];
 
+    /// <summary>
+    /// Verifies benchmark soak selection preserves an explicit false result without aborting the runner.
+    /// </summary>
+    /// <param name="profile">The benchmark profile to inspect.</param>
+    /// <param name="expected">The expected shell boolean value.</param>
     [Theory]
     [InlineData("smoke", "false")]
     [InlineData("scorecard", "true")]
@@ -13,11 +21,13 @@ public sealed class EngineeringToolContractTests
         string expected
     )
     {
+        // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var assignment = File
             .ReadLines(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"))
             .Single(static line => line.StartsWith("soak_required=", StringComparison.Ordinal));
 
+        // Act
         var result = Run(
             repositoryRoot,
             "-c",
@@ -27,13 +37,23 @@ public sealed class EngineeringToolContractTests
             Path.Combine(repositoryRoot, "benchmarks/performance-contract.json"),
             profile);
 
+        // Assert
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.StandardOutput.Trim());
     }
 
-    [Fact]
-    public void Dotnet_guard_accepts_only_the_exact_repository_SDK()
+    /// <summary>
+    /// Verifies SDK validation accepts the exact repository version and rejects a different version.
+    /// </summary>
+    /// <param name="exactVersion">Whether the test executable reports the repository SDK version.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Dotnet_guard_accepts_only_the_exact_repository_SDK(
+        bool exactVersion
+    )
     {
+        // Arrange
         if (OperatingSystem.IsWindows())
         {
             return;
@@ -41,7 +61,7 @@ public sealed class EngineeringToolContractTests
 
         var repositoryRoot = FindRepositoryRoot();
         using var directory = new TemporaryDirectory();
-        var globalJson = JsonDocument.Parse(File.ReadAllText(Path.Combine(repositoryRoot, "global.json")));
+        using var globalJson = JsonDocument.Parse(File.ReadAllText(Path.Combine(repositoryRoot, "global.json")));
         var requiredVersion = globalJson
             .RootElement
             .GetProperty("sdk")
@@ -49,74 +69,87 @@ public sealed class EngineeringToolContractTests
             .GetString();
 
         var fakeDotnet = Path.Combine(directory.Path, "dotnet");
-        WriteExecutable(fakeDotnet, $"#!/usr/bin/env bash\nprintf '%s\\n' '{requiredVersion}'\n");
-        var accepted = Run(
+        var reportedVersion = exactVersion ? requiredVersion : "10.0.999";
+        WriteExecutable(fakeDotnet, $"#!/usr/bin/env bash\nprintf '%s\\n' '{reportedVersion}'\n");
+
+        // Act
+        var result = Run(
             repositoryRoot,
             Path.Combine(repositoryRoot, "eng/common/verify-dotnet.sh"),
             ("PATH", directory.Path + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH")));
 
-        WriteExecutable(fakeDotnet, "#!/usr/bin/env bash\nprintf '%s\\n' '10.0.999'\n");
-        var rejected = Run(
-            repositoryRoot,
-            Path.Combine(repositoryRoot, "eng/common/verify-dotnet.sh"),
-            ("PATH", directory.Path + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH")));
-
-        Assert.Equal(0, accepted.ExitCode);
-        Assert.Contains($"Using .NET SDK {requiredVersion}", accepted.StandardOutput, StringComparison.Ordinal);
-        Assert.NotEqual(0, rejected.ExitCode);
-        Assert.Contains(
-            $"requires the exact .NET SDK {requiredVersion}",
-            rejected.StandardError,
-            StringComparison.Ordinal);
+        // Assert
+        if (exactVersion)
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains($"Using .NET SDK {requiredVersion}", result.StandardOutput, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains(
+                $"requires the exact .NET SDK {requiredVersion}",
+                result.StandardError,
+                StringComparison.Ordinal);
+        }
     }
 
+    /// <summary>
+    /// Verifies a complete vulnerability audit without findings passes the gate.
+    /// </summary>
     [Fact]
     public void Vulnerability_gate_accepts_a_complete_clean_audit()
     {
-        var result = RunVulnerabilityGate(
-            new
-            {
-                version = 1,
-                parameters = "--vulnerable --include-transitive",
-                sources = s_auditSources,
-                projects = new[] { new { path = "/repo/src/Provider/Provider.csproj" } },
-            });
+        // Arrange
+        var document = new
+        {
+            version = 1,
+            parameters = "--vulnerable --include-transitive",
+            sources = s_auditSources,
+            projects = new[] { new { path = "/repo/src/Provider/Provider.csproj" } },
+        };
 
+        // Act
+        var result = RunVulnerabilityGate(document);
+
+        // Assert
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("0", result.StandardOutput.Trim());
     }
 
+    /// <summary>
+    /// Verifies transitive package vulnerabilities fail the audit gate.
+    /// </summary>
     [Fact]
-    public void Vulnerability_gate_rejects_findings_and_incomplete_audits()
+    public void Vulnerability_gate_rejects_findings()
     {
-        var vulnerable = RunVulnerabilityGate(
-            new
+        // Arrange
+        var document = new
+        {
+            version = 1,
+            parameters = "--vulnerable --include-transitive",
+            projects = new[]
             {
-                version = 1,
-                parameters = "--vulnerable --include-transitive",
-                projects = new[]
+                new
                 {
-                    new
+                    path = "/repo/src/Provider/Provider.csproj",
+                    frameworks = new[]
                     {
-                        path = "/repo/src/Provider/Provider.csproj",
-                        frameworks = new[]
+                        new
                         {
-                            new
+                            framework = "net10.0",
+                            transitivePackages = new[]
                             {
-                                framework = "net10.0",
-                                transitivePackages = new[]
+                                new
                                 {
-                                    new
+                                    id = "Vulnerable.Package",
+                                    resolvedVersion = "1.0.0",
+                                    vulnerabilities = new[]
                                     {
-                                        id = "Vulnerable.Package",
-                                        resolvedVersion = "1.0.0",
-                                        vulnerabilities = new[]
+                                        new
                                         {
-                                            new
-                                            {
-                                                severity = "High",
-                                                advisoryurl = "https://example.invalid/a",
-                                            },
+                                            severity = "High",
+                                            advisoryurl = "https://example.invalid/a",
                                         },
                                     },
                                 },
@@ -124,17 +157,35 @@ public sealed class EngineeringToolContractTests
                         },
                     },
                 },
-            });
-        var incomplete = RunVulnerabilityGate(
-            new
-            {
-                version = 1,
-                parameters = "--vulnerable",
-                projects = new[] { new { path = "/repo/src/Provider/Provider.csproj" } },
-            });
+            },
+        };
 
+        // Act
+        var vulnerable = RunVulnerabilityGate(document);
+
+        // Assert
         Assert.NotEqual(0, vulnerable.ExitCode);
         Assert.Contains("vulnerable package entries", vulnerable.StandardError, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies an audit that omits transitive dependencies fails the completeness contract.
+    /// </summary>
+    [Fact]
+    public void Vulnerability_gate_rejects_incomplete_audits()
+    {
+        // Arrange
+        var document = new
+        {
+            version = 1,
+            parameters = "--vulnerable",
+            projects = new[] { new { path = "/repo/src/Provider/Provider.csproj" } },
+        };
+
+        // Act
+        var incomplete = RunVulnerabilityGate(document);
+
+        // Assert
         Assert.NotEqual(0, incomplete.ExitCode);
         Assert.Contains("--include-transitive", incomplete.StandardError, StringComparison.Ordinal);
     }
@@ -147,6 +198,7 @@ public sealed class EngineeringToolContractTests
         using var directory = new TemporaryDirectory();
         var audit = Path.Combine(directory.Path, "audit.json");
         File.WriteAllText(audit, JsonSerializer.Serialize(document));
+
         return Run(
             repositoryRoot,
             Path.Combine(repositoryRoot, "eng/quality/check-vulnerability-audit.sh"),
@@ -169,6 +221,7 @@ public sealed class EngineeringToolContractTests
             RedirectStandardOutput = true,
             UseShellExecute = false,
         };
+
         startInfo.ArgumentList.Add(script);
         foreach (var argument in arguments)
         {
@@ -185,6 +238,7 @@ public sealed class EngineeringToolContractTests
         var standardOutput = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
+
         return new ProcessResult(process.ExitCode, standardOutput, standardError);
     }
 

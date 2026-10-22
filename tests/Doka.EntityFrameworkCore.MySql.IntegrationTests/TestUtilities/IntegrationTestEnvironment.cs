@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
+/// <summary>Resolves selected engines and source-owned schemas for live test fixtures.</summary>
 internal static class IntegrationTestEnvironment
 {
     private const string TargetSelectionVariable = "DOKA_INTEGRATION_TARGETS";
@@ -21,6 +22,13 @@ internal static class IntegrationTestEnvironment
         s_scopedConnections = new();
     private static string? s_runId;
 
+    /// <summary>Returns the connection string for one engine and fixture owner.</summary>
+    /// <param name="target">The engine provisioned for this run.</param>
+    /// <param name="ownerFilePath">The stable source identity that owns the schema.</param>
+    /// <remarks>
+    /// Topic partials must share a connection factory or explicitly forward the
+    /// same owner. Moving only one call site changes its default caller identity.
+    /// </remarks>
     public static string GetConnectionString(
         IntegrationDatabaseTarget target,
         [CallerFilePath] string ownerFilePath = ""
@@ -77,6 +85,7 @@ internal static class IntegrationTestEnvironment
             $"Unsupported integration target: {target}"),
     };
 
+    /// <summary>Reports whether a data case belongs to the current engine selection.</summary>
     public static bool IsTargetSelected(
         IntegrationDatabaseTarget target
     ) => GetSelectedTargets().Contains(target);
@@ -123,6 +132,7 @@ internal static class IntegrationTestEnvironment
             + $"({string.Join(", ", requestedTargetIds)}).";
     }
 
+    /// <summary>Returns the validated explicit selection or the supported engine matrix.</summary>
     public static IReadOnlyList<IntegrationDatabaseTarget> GetSelectedTargets()
     {
         var configuredTargets = Environment.GetEnvironmentVariable(TargetSelectionVariable);

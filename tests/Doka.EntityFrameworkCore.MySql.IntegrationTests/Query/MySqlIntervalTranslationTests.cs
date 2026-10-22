@@ -180,6 +180,7 @@ public sealed class MySqlIntervalTranslationTests
 
         var builder = IntegrationTestDbContextOptions.Create<IntervalContext>();
         builder.UseMySql(connectionString, serverVersion);
+
         return builder.Options;
     }
 

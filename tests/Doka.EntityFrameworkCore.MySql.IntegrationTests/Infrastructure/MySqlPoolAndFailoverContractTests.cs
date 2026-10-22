@@ -108,6 +108,7 @@ public sealed class MySqlPoolAndFailoverContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = CreateIsolatedPoolConnectionString(
             baseConnectionString,
             maximumPoolSize: 2,
@@ -128,10 +129,15 @@ public sealed class MySqlPoolAndFailoverContractTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
+            // Act
+            // WHY: Saturation, lease release and recovery must share one pool
+            // to prove that a timeout does not prevent the next lease.
+            Exception? timeoutFailure;
+
             await using (var timedOutConnection = new MySqlConnection(connectionString))
             {
-                _ = await Assert
-                    .ThrowsAsync<MySqlException>(() => timedOutConnection.OpenAsync())
+                timeoutFailure = await Record
+                    .ExceptionAsync(timedOutConnection.OpenAsync)
                     .ConfigureAwait(false);
             }
 
@@ -145,18 +151,17 @@ public sealed class MySqlPoolAndFailoverContractTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
-            Assert.Equal(releasedServerThread, recoveredConnection.ServerThread);
-
             await using var context = new PoolContractContext(
                 IntegrationTestDbContextOptions.Create<PoolContractContext>().UseMySql(recoveredConnection, serverVersion)
                     .Options);
 
-            Assert.Equal(
-                1,
-                await context
-                    .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-                    .SingleAsync()
-                    .ConfigureAwait(false));
+            var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+                .SingleAsync().ConfigureAwait(false);
+
+            // Assert
+            Assert.IsType<MySqlException>(timeoutFailure);
+            Assert.Equal(releasedServerThread, recoveredConnection.ServerThread);
+            Assert.Equal(1, scalar);
         }
         finally
         {
@@ -173,6 +178,8 @@ public sealed class MySqlPoolAndFailoverContractTests
         // Keep the connection timeout well outside the cancellation path. A
         // timer race between both outcomes made scheduler load decide which
         // exception the contract observed.
+
+        // Arrange
         var connectionString = CreateIsolatedPoolConnectionString(
             baseConnectionString,
             maximumPoolSize: 1,
@@ -191,16 +198,23 @@ public sealed class MySqlPoolAndFailoverContractTests
 
             await using var cancelledConnection = new MySqlConnection(connectionString);
             using var cancellation = new CancellationTokenSource();
+
+            // Act
             var pendingOpen = cancelledConnection.OpenAsync(cancellation.Token);
 
-            Assert.False(pendingOpen.IsCompleted);
+            var completedBeforeCancellation = pendingOpen.IsCompleted;
+
             await cancellation
                 .CancelAsync()
                 .ConfigureAwait(false);
 
-            _ = await Assert
-                .ThrowsAnyAsync<OperationCanceledException>(() => pendingOpen)
+            var exception = await Record
+                .ExceptionAsync(() => pendingOpen)
                 .ConfigureAwait(false);
+
+            // Assert
+            Assert.False(completedBeforeCancellation);
+            Assert.IsAssignableFrom<OperationCanceledException>(exception);
         }
         finally
         {
@@ -214,6 +228,7 @@ public sealed class MySqlPoolAndFailoverContractTests
         string baseConnectionString
     )
     {
+        // Arrange
         var connectionString = CreateIsolatedPoolConnectionString(
             baseConnectionString,
             maximumPoolSize: 1,
@@ -230,6 +245,8 @@ public sealed class MySqlPoolAndFailoverContractTests
                 .OpenAsync()
                 .ConfigureAwait(false);
             var initialServerThread = initialConnection.ServerThread;
+
+            // Act
             var initialSqlMode = await ReadSessionSqlModeAsync(initialConnection)
                 .ConfigureAwait(false);
 
@@ -255,27 +272,22 @@ public sealed class MySqlPoolAndFailoverContractTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
-            Assert.Equal(initialServerThread, reusedConnection.ServerThread);
-
             await using var markerCommand = reusedConnection.CreateCommand();
             markerCommand.CommandText = "SELECT @doka_session_marker;";
 
-            Assert.Equal(
-                DBNull.Value,
-                await markerCommand
-                    .ExecuteScalarAsync()
-                    .ConfigureAwait(false));
-
-            Assert.Equal(
-                initialSqlMode,
-                await ReadSessionSqlModeAsync(reusedConnection)
-                    .ConfigureAwait(false));
-
-            _ = await Assert
-                .ThrowsAsync<MySqlException>(() => ExecuteScalarAsync(
+            var marker = await markerCommand.ExecuteScalarAsync().ConfigureAwait(false);
+            var restoredSqlMode = await ReadSessionSqlModeAsync(reusedConnection).ConfigureAwait(false);
+            var missingTable = await Record
+                .ExceptionAsync(() => ExecuteScalarAsync(
                     reusedConnection,
                     "SELECT COUNT(*) FROM `DokaPoolResetMarker`;"))
                 .ConfigureAwait(false);
+
+            // Assert
+            Assert.Equal(initialServerThread, reusedConnection.ServerThread);
+            Assert.Equal(DBNull.Value, marker);
+            Assert.Equal(initialSqlMode, restoredSqlMode);
+            Assert.IsType<MySqlException>(missingTable);
         }
         finally
         {
@@ -289,6 +301,7 @@ public sealed class MySqlPoolAndFailoverContractTests
         string directConnectionString
     )
     {
+        // Arrange
         var directBuilder = new MySqlConnectionStringBuilder(directConnectionString);
         await using var proxy = new TcpFaultProxy(directBuilder.Server, checked((int)directBuilder.Port));
         var proxiedBuilder = new MySqlConnectionStringBuilder(proxy.BuildConnectionString(directConnectionString))
@@ -310,16 +323,14 @@ public sealed class MySqlPoolAndFailoverContractTests
             await faultedConnection
                 .OpenAsync()
                 .ConfigureAwait(false);
+
+            // Act
             var faultedServerThread = faultedConnection.ServerThread;
 
-            Assert.True(proxy.DropActiveConnections() > 0);
+            var droppedConnectionCount = proxy.DropActiveConnections();
             var fault = await Record
                 .ExceptionAsync(() => ExecuteScalarAsync(faultedConnection, "SELECT 1"))
                 .ConfigureAwait(false);
-
-            Assert.True(
-                fault is MySqlException or SocketException,
-                $"Expected a provider or socket failure, but observed {fault?.GetType().FullName ?? "no failure"}.");
 
             await faultedConnection
                 .CloseAsync()
@@ -330,13 +341,17 @@ public sealed class MySqlPoolAndFailoverContractTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
+            var scalar = Convert.ToInt64(
+                await ExecuteScalarAsync(replacementConnection, "SELECT 1").ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
+
+            // Assert
+            Assert.True(droppedConnectionCount > 0);
+            Assert.True(
+                fault is MySqlException or SocketException,
+                $"Expected a provider or socket failure, but observed {fault?.GetType().FullName ?? "no failure"}.");
             Assert.NotEqual(faultedServerThread, replacementConnection.ServerThread);
-            Assert.Equal(
-                1L,
-                Convert.ToInt64(
-                    await ExecuteScalarAsync(replacementConnection, "SELECT 1")
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture));
+            Assert.Equal(1L, scalar);
         }
         finally
         {
@@ -351,6 +366,7 @@ public sealed class MySqlPoolAndFailoverContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var directBuilder = new MySqlConnectionStringBuilder(directConnectionString);
         var healthyHost = IPAddress.IPv6Loopback;
         await using var proxy = new TcpFaultProxy(
@@ -381,16 +397,16 @@ public sealed class MySqlPoolAndFailoverContractTests
             SslMode = MySqlSslMode.Disabled,
         }.ConnectionString;
 
+        // Act
         await using var context = new PoolContractContext(
             IntegrationTestDbContextOptions.Create<PoolContractContext>().UseMySql(failoverConnectionString, serverVersion)
                 .Options);
 
-        Assert.Equal(
-            1,
-            await context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-                .SingleAsync()
-                .ConfigureAwait(false));
+        var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync().ConfigureAwait(false);
+
+        // Assert
+        Assert.Equal(1, scalar);
         Assert.Contains(proxy.GetObservedQueries(), query => query.Contains("SELECT 1", StringComparison.Ordinal));
     }
 

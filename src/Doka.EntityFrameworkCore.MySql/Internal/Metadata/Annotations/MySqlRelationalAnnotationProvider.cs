@@ -119,7 +119,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
         }
 
         if (FindColumnAnnotation(column, MySqlAnnotationNames.ValueGenerationStrategy) is { } valueGenerationAnnotation
-            && MySqlColumnAnnotationPolicy.ShouldEmitValueGeneration(column, valueGenerationAnnotation))
+            && MySqlColumnAnnotationPolicy.ShouldEmitValueGeneration(column, valueGenerationAnnotation)
+            && !IsExpressionColumnRuntimeStrategy(column, valueGenerationAnnotation))
         {
             yield return valueGenerationAnnotation;
         }
@@ -189,9 +190,22 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
                     column,
                     MySqlAnnotationNames.ApplicationTimePeriodEndColumn,
                     value: true);
+
                 yield break;
             }
         }
+    }
+
+    private static bool IsExpressionColumnRuntimeStrategy(
+        IColumn column,
+        IAnnotation annotation
+    )
+    {
+        // Legacy snapshots retain explicit runtime generation choices. They do not
+        // change an expression-bearing column's physical schema, so EF must not
+        // compare them as DDL metadata. The differ restores public operation metadata.
+        return annotation.Value is MySqlValueGenerationStrategy.ClientGuid or MySqlValueGenerationStrategy.None
+            && (column.DefaultValueSql is not null || column.ComputedColumnSql is not null);
     }
 
     public override IEnumerable<IAnnotation> For(

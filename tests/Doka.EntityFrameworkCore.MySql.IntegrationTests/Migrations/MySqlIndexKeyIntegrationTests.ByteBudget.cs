@@ -60,10 +60,12 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new ImplicitBudgetContext(
             IntegrationTestDbContextOptions.Create<ImplicitBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
+
         var value = string.Concat(Enumerable.Repeat(char.ConvertFromUtf32(0x1F642), 254));
         var row = new Dictionary<string, object>
         {
@@ -78,6 +80,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
         try
         {
+            // Act
             await using var create = connection.CreateCommand();
             create.CommandText = context.Database.GenerateCreateScript();
             _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
@@ -88,11 +91,13 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 .AsNoTracking()
                 .SingleAsync(CancellationToken.None)
                 .ConfigureAwait(false);
+
             var indexedColumns = await ReadBudgetIndexAsync(connection, ImplicitBudgetTable, ImplicitBudgetIndex)
                 .ConfigureAwait(false);
 
             var model = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
 
+            // Assert
             Assert.Equal(value, persisted["Id"]);
             Assert.Equal(value, persisted["Scope"]);
             Assert.Equal(value, persisted["Tree"]);
@@ -151,10 +156,12 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new OwnedBudgetContext(
             IntegrationTestDbContextOptions.Create<OwnedBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
+
         var character = char.ConvertFromUtf32(0x1F642);
         var row = new OwnedBudgetOwner
         {
@@ -166,6 +173,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             },
         };
 
+        // Act
         await using var create = connection.CreateCommand();
         create.CommandText = context.Database.GenerateCreateScript();
         _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
@@ -176,6 +184,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             .AsNoTracking()
             .SingleAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         var indexedColumns = await ReadBudgetIndexAsync(connection, OwnedBudgetTable, OwnedBudgetIndex)
             .ConfigureAwait(false);
 
@@ -184,6 +193,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             + "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table "
             + "AND COLUMN_NAME IN ('Detail_A', 'Detail_B') ORDER BY COLUMN_NAME;";
         schema.Parameters.AddWithValue("@table", OwnedBudgetTable);
+
         await using var reader = await schema.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
         var columns = new List<(string Name, long Length, string CharSet)>();
 
@@ -192,6 +202,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             columns.Add((reader.GetString(0), reader.GetInt64(1), reader.GetString(2)));
         }
 
+        // Assert
         Assert.Equal(row.Detail.A, persisted.Detail.A);
         Assert.Equal(row.Detail.B, persisted.Detail.B);
         Assert.Equal(["Detail_A", "Detail_B"], indexedColumns.Select(column => column.Name));
@@ -204,10 +215,12 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new DecimalBudgetContext(
             IntegrationTestDbContextOptions.Create<DecimalBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
+
         var character = char.ConvertFromUtf32(0x1F642);
         var row = new Dictionary<string, object>
         {
@@ -219,6 +232,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             ["E"] = character,
         };
 
+        // Act
         await using var create = connection.CreateCommand();
         create.CommandText = context.Database.GenerateCreateScript();
         _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
@@ -229,9 +243,11 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             .AsNoTracking()
             .SingleAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         var indexedColumns = await ReadBudgetIndexAsync(connection, DecimalBudgetTable, DecimalBudgetIndex)
             .ConfigureAwait(false);
 
+        // Assert
         Assert.Equal(row["A"], persisted["A"]);
         Assert.Equal(row["B"], persisted["B"]);
         Assert.Equal(row["C"], persisted["C"]);
@@ -281,15 +297,27 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
     private sealed class OwnedBudgetOwner
     {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
         public int Id { get; set; }
 
+        /// <summary>
+        /// Verifies new.
+        /// </summary>
         public OwnedBudgetDetail Detail { get; set; } = new();
     }
 
     private sealed class OwnedBudgetDetail
     {
+        /// <summary>
+        /// Gets or sets the a.
+        /// </summary>
         public string A { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Gets or sets the b.
+        /// </summary>
         public string B { get; set; } = string.Empty;
     }
 
@@ -297,6 +325,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         DbContextOptions<OwnedBudgetContext> options
     ) : DbContext(options)
     {
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -320,6 +349,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         DbContextOptions<ImplicitBudgetContext> options
     ) : DbContext(options)
     {
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -348,6 +378,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         DbContextOptions<DecimalBudgetContext> options
     ) : DbContext(options)
     {
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )

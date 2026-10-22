@@ -8,6 +8,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task InFlightReadbackCancellationDiscardsPartialGeneratedValues()
     {
+        // Arrange
         using var cancellation = new CancellationTokenSource();
         CancellableReadbackReader? observedReader = null;
         var secondReadStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -32,9 +33,11 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         AddRows(context, rows);
         capture.Enabled = true;
 
-        var save = context.SaveChangesAsync(cancellation.Token);
         bool firstRowConsumed;
         bool saveWasPending;
+
+        // Act
+        var save = context.SaveChangesAsync(cancellation.Token);
 
         try
         {
@@ -54,13 +57,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var exception = await Record.ExceptionAsync(() => save);
 
         capture.Enabled = false;
+        var persistedCount = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
+
+        // Assert
         Assert.True(firstRowConsumed);
         Assert.True(saveWasPending);
         Assert.IsAssignableFrom<OperationCanceledException>(exception);
         Assert.NotNull(observedReader);
         Assert.True(observedReader.PendingReadObserved);
         Assert.True(observedReader.CompletedReads >= 1);
-        Assert.Equal(0, await context.Rows.AsNoTracking().CountAsync(CancellationToken.None));
+        Assert.Equal(0, persistedCount);
         Assert.All(rows, row => Assert.Equal(0, row.Stamp));
         Assert.All(rows, row => Assert.Equal(EntityState.Added, context.Entry(row).State));
     }

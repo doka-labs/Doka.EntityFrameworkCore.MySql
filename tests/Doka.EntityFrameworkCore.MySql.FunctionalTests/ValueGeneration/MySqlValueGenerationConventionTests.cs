@@ -20,10 +20,14 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Default_integer_primary_key_is_marked_for_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(DefaultKeyEntity))!;
         var idProperty = entityType.FindProperty(nameof(DefaultKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(ValueGenerated.OnAdd, idProperty.ValueGenerated);
         Assert.Equal(MySqlValueGenerationStrategy.AutoIncrement, idProperty.GetMySqlValueGenerationStrategy());
     }
@@ -37,10 +41,14 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void ValueGeneratedNever_integer_primary_key_does_not_emit_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(ExplicitKeyEntity))!;
         var idProperty = entityType.FindProperty(nameof(ExplicitKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
         Assert.Equal(MySqlValueGenerationStrategy.None, idProperty.GetMySqlValueGenerationStrategy());
     }
@@ -52,11 +60,15 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Convention_non_generated_property_retains_none_strategy()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(DefaultKeyEntity))!
             .FindProperty(nameof(DefaultKeyEntity.Name))!;
 
+        // Assert
         Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
         Assert.Equal(MySqlValueGenerationStrategy.None, property.GetMySqlValueGenerationStrategy());
     }
@@ -68,7 +80,10 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Integer_key_converted_to_text_does_not_emit_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var entityType = context.Model
             .FindEntityType(typeof(ConvertedKeyEntity))!;
 
@@ -77,6 +92,7 @@ public sealed class MySqlValueGenerationConventionTests
 
         var script = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal("varchar(64)", idProperty.GetColumnType());
         Assert.Null(idProperty.GetMySqlValueGenerationStrategy());
         Assert.DoesNotContain(
@@ -92,15 +108,18 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Integer_store_representations_use_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
         var convertedProperty = context.Model
             .FindEntityType(typeof(LongToIntKeyEntity))!
             .FindProperty(nameof(LongToIntKeyEntity.Id))!;
 
+        // Act
         var enumProperty = context.Model
             .FindEntityType(typeof(EnumKeyEntity))!
             .FindProperty(nameof(EnumKeyEntity.Id))!;
 
+        // Assert
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             convertedProperty.GetMySqlValueGenerationStrategy());
@@ -117,15 +136,21 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Defaulted_composite_key_member_does_not_use_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var property = context.Model
             .FindEntityType(typeof(DefaultedCompositeKeyEntity))!
             .FindProperty(nameof(DefaultedCompositeKeyEntity.PrimaryGroup))!;
 
+        var ddl = context.Database.GenerateCreateScript();
+
+        // Assert
         Assert.Null(property.GetMySqlValueGenerationStrategy());
         Assert.DoesNotContain(
             "`PrimaryGroup` int NOT NULL AUTO_INCREMENT",
-            context.Database.GenerateCreateScript(),
+            ddl,
             StringComparison.Ordinal);
     }
 
@@ -139,7 +164,10 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Owned_collection_shadow_key_uses_AUTO_INCREMENT()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var property = context.Model
             .GetEntityTypes()
             .Single(entityType => entityType.ClrType == typeof(OwnedCollectionElement))
@@ -147,6 +175,7 @@ public sealed class MySqlValueGenerationConventionTests
 
         var script = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             property.GetMySqlValueGenerationStrategy());
@@ -164,9 +193,13 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Composite_owned_collection_key_gets_supporting_index()
     {
+        // Arrange
         using var context = new ConventionContext();
+
+        // Act
         var script = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Contains(
             "INDEX (`Id`)",
             script,
@@ -180,15 +213,18 @@ public sealed class MySqlValueGenerationConventionTests
     [Fact]
     public void Guid_to_string_foreign_key_uses_one_compatible_store_type()
     {
+        // Arrange
         using var context = new ConventionContext();
         var principalProperty = context.Model
             .FindEntityType(typeof(GuidStringPrincipal))!
             .FindProperty(nameof(GuidStringPrincipal.Id))!;
 
+        // Act
         var dependentProperty = context.Model
             .FindEntityType(typeof(GuidStringDependent))!
             .FindProperty(nameof(GuidStringDependent.PrincipalId))!;
 
+        // Assert
         Assert.Equal("varchar(36)", principalProperty.GetColumnType());
         Assert.Equal(principalProperty.GetColumnType(), dependentProperty.GetColumnType());
         Assert.NotNull(principalProperty.GetTypeMapping().Converter);

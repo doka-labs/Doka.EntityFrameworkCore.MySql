@@ -11,13 +11,17 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void UseMySql_stores_connection_string_and_server_version()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
 
-        var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
 
+        // Assert
+        var extension = Assert.IsType<MySqlOptionsExtension>(actual);
         Assert.Equal("Server=localhost;Database=doka;User ID=root;Password=password;", extension.ConnectionString);
         Assert.Equal(serverVersion, extension.ServerVersion);
         Assert.Null(extension.RetryOptions);
@@ -32,8 +36,12 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void UseMySql_defaults_parameterized_collections_to_multiple_parameters()
     {
+        // Arrange: The factory supplies the default provider configuration.
+
+        // Act
         var extension = BuildExtension(_ => { });
 
+        // Assert
         Assert.Equal(ParameterTranslationMode.MultipleParameters, extension.ParameterizedCollectionMode);
     }
 
@@ -49,8 +57,12 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         ParameterTranslationMode mode
     )
     {
+        // Arrange: The theory supplies mode.
+
+        // Act
         var extension = BuildExtension(options => options.UseParameterizedCollectionMode(mode));
 
+        // Assert
         Assert.Equal(mode, extension.ParameterizedCollectionMode);
     }
 
@@ -61,11 +73,16 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void Explicit_parameterized_collection_mode_rejects_undefined_value()
     {
+        // Arrange
         const ParameterTranslationMode invalidMode = (ParameterTranslationMode)99;
+        Action act = () =>
+            BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode));
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode)));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("Parameterized collection mode '99' is not defined.", exception.Message);
     }
 
@@ -76,18 +93,22 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void Later_undefined_parameterized_collection_mode_is_rejected()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
         new MySqlDbContextOptionsBuilder(builder)
             .UseParameterizedCollectionMode((ParameterTranslationMode)99);
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
         var extension = Assert.IsType<MySqlOptionsExtension>(
-            builder.Options.FindExtension<MySqlOptionsExtension>());
+            actual);
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            extension.Validate(builder.Options));
+        // Act
+        var recordedException = Record.Exception(() => extension.Validate(builder.Options));
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("Parameterized collection mode '99' is not defined.", exception.Message);
     }
 
@@ -97,9 +118,11 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void Approved_provider_options_update_the_existing_extension()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
@@ -107,8 +130,10 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(12))
                 .DefaultGuidFormat(MySqlGuidFormat.Char36));
 
-        var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
 
+        // Assert
+        var extension = Assert.IsType<MySqlOptionsExtension>(actual);
         Assert.NotNull(extension.RetryOptions);
         Assert.Equal(3, extension.RetryOptions.MaxRetryCount);
         Assert.Equal(TimeSpan.FromSeconds(12), extension.RetryOptions.MaxRetryDelay);
@@ -121,8 +146,13 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void RequireUserVariables_stores_the_requirement()
     {
-        var extension = BuildExtension(options => options.RequireUserVariables());
+        // Arrange
+        Action<MySqlDbContextOptionsBuilder> configure = options => options.RequireUserVariables();
 
+        // Act
+        var extension = BuildExtension(configure);
+
+        // Assert
         Assert.True(extension.UserVariablesRequired);
     }
 
@@ -133,15 +163,20 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void RequireUserVariables_before_UseMySql_is_preserved()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
-
         new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
+
+        // Act
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
+
+        // Assert
         var extension = Assert.IsType<MySqlOptionsExtension>(
-            builder.Options.FindExtension<MySqlOptionsExtension>());
+            actual);
 
         Assert.True(extension.UserVariablesRequired);
     }
@@ -152,13 +187,18 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void RequireUserVariables_is_idempotent()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var providerBuilder = new MySqlDbContextOptionsBuilder(builder);
-
         var first = providerBuilder.RequireUserVariables();
         var second = providerBuilder.RequireUserVariables();
+
+        // Act
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
+
+        // Assert
         var extension = Assert.IsType<MySqlOptionsExtension>(
-            builder.Options.FindExtension<MySqlOptionsExtension>());
+            actual);
 
         Assert.Same(providerBuilder, first);
         Assert.Same(providerBuilder, second);
@@ -172,17 +212,22 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void RequireUserVariables_before_borrowed_connection_validates_the_later_input()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;GuidFormat=Binary16;AllowUserVariables=true;");
 
+        // Act
         builder.UseMySql(
             connection,
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
+
+        // Assert
         var extension = Assert.IsType<MySqlOptionsExtension>(
-            builder.Options.FindExtension<MySqlOptionsExtension>());
+            actual);
 
         Assert.True(extension.UserVariablesRequired);
         Assert.Same(connection, extension.Connection);
@@ -196,16 +241,22 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void RequireUserVariables_before_borrowed_connection_rejects_missing_capability()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         new MySqlDbContextOptionsBuilder(builder).RequireUserVariables();
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;GuidFormat=Binary16;");
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        Action act = () =>
             builder.UseMySql(
                 connection,
-                MySqlServerVersion.MySql(new Version(8, 4, 0))));
+                MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         Assert.Equal(MySqlConfigurationFailureReason.UserVariablesUnavailable, exception.Reason);
     }
 
@@ -215,19 +266,23 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void UseMySql_stores_data_source_and_server_version()
     {
+        // Arrange
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         builder.UseMySql(
             dataSource,
             serverVersion,
             options => options.UseParameterizedCollectionMode(ParameterTranslationMode.MultipleParameters));
 
-        var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
+        var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
 
+        // Assert
+        var extension = Assert.IsType<MySqlOptionsExtension>(actual);
         Assert.Same(dataSource, extension.DataSource);
         Assert.Null(extension.ConnectionString);
         Assert.Null(extension.Connection);
@@ -241,14 +296,19 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void EnableRetryOnFailure_rejects_invalid_arguments()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
-
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => builder.UseMySql(
+        Action act = () => builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
-            options => options.EnableRetryOnFailure(maxRetryCount: 0)));
+            options => options.EnableRetryOnFailure(maxRetryCount: 0));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentOutOfRangeException>(recordedException);
         Assert.Equal("maxRetryCount", exception.ParamName);
     }
 
@@ -258,9 +318,14 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void CommandTimeout_stores_value_on_extension()
     {
-        var extension = BuildExtension(options => options.CommandTimeout(45));
+        // Arrange
+        const int timeout = 45;
 
-        Assert.Equal(45, extension.CommandTimeout);
+        // Act
+        var extension = BuildExtension(options => options.CommandTimeout(timeout));
+
+        // Assert
+        Assert.Equal(timeout, extension.CommandTimeout);
     }
 
     /// <summary>
@@ -273,9 +338,15 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         int commandTimeout
     )
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BuildExtension(options => options.CommandTimeout(commandTimeout)));
+        // Arrange
+        Action act = () =>
+            BuildExtension(options => options.CommandTimeout(commandTimeout));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentOutOfRangeException>(recordedException);
         Assert.Equal(nameof(commandTimeout), exception.ParamName);
     }
 
@@ -285,9 +356,14 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void MaxBatchSize_stores_value_on_extension()
     {
-        var extension = BuildExtension(options => options.MaxBatchSize(128));
+        // Arrange
+        const int batchSize = 128;
 
-        Assert.Equal(128, extension.MaxBatchSize);
+        // Act
+        var extension = BuildExtension(options => options.MaxBatchSize(batchSize));
+
+        // Assert
+        Assert.Equal(batchSize, extension.MaxBatchSize);
     }
 
     /// <summary>
@@ -300,9 +376,15 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         int maxBatchSize
     )
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BuildExtension(options => options.MaxBatchSize(maxBatchSize)));
+        // Arrange
+        Action act = () =>
+            BuildExtension(options => options.MaxBatchSize(maxBatchSize));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentOutOfRangeException>(recordedException);
         Assert.Equal(nameof(maxBatchSize), exception.ParamName);
     }
 
@@ -312,9 +394,14 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void MinBatchSize_stores_value_on_extension()
     {
-        var extension = BuildExtension(options => options.MinBatchSize(2));
+        // Arrange
+        const int batchSize = 2;
 
-        Assert.Equal(2, extension.MinBatchSize);
+        // Act
+        var extension = BuildExtension(options => options.MinBatchSize(batchSize));
+
+        // Assert
+        Assert.Equal(batchSize, extension.MinBatchSize);
     }
 
     /// <summary>
@@ -327,9 +414,15 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         int minBatchSize
     )
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BuildExtension(options => options.MinBatchSize(minBatchSize)));
+        // Arrange
+        Action act = () =>
+            BuildExtension(options => options.MinBatchSize(minBatchSize));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentOutOfRangeException>(recordedException);
         Assert.Equal(nameof(minBatchSize), exception.ParamName);
     }
 
@@ -345,9 +438,13 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         string schema
     )
     {
+        // Arrange: The theory supplies schema.
+
+        // Act
         var extension = BuildExtension(options =>
             options.MigrationsHistoryTable("__custom_history", schema));
 
+        // Assert
         Assert.Equal("__custom_history", extension.MigrationsHistoryTableName);
         Assert.Equal(schema, extension.MigrationsHistoryTableSchema);
     }
@@ -358,9 +455,14 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void MigrationsHistoryTable_omits_schema_when_not_supplied()
     {
-        var extension = BuildExtension(options => options.MigrationsHistoryTable("__custom_history"));
+        // Arrange
+        const string tableName = "__custom_history";
 
-        Assert.Equal("__custom_history", extension.MigrationsHistoryTableName);
+        // Act
+        var extension = BuildExtension(options => options.MigrationsHistoryTable(tableName));
+
+        // Assert
+        Assert.Equal(tableName, extension.MigrationsHistoryTableName);
         Assert.Null(extension.MigrationsHistoryTableSchema);
     }
 
@@ -374,7 +476,14 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         string tableName
     )
     {
-        Assert.Throws<ArgumentException>(() => BuildExtension(options => options.MigrationsHistoryTable(tableName)));
+        // Arrange
+        Action act = () => BuildExtension(options => options.MigrationsHistoryTable(tableName));
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentException>(recordedException);
     }
 
     /// <summary>
@@ -387,8 +496,12 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         QuerySplittingBehavior behavior
     )
     {
+        // Arrange: The theory supplies behavior.
+
+        // Act
         var extension = BuildExtension(options => options.UseQuerySplittingBehavior(behavior));
 
+        // Assert
         Assert.Equal(behavior, extension.QuerySplittingBehavior);
     }
 
@@ -398,11 +511,16 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     [Fact]
     public void UseQuerySplittingBehavior_rejects_undefined_enum_value()
     {
+        // Arrange
         const QuerySplittingBehavior invalidValue = (QuerySplittingBehavior)99;
+        Action act = () =>
+            BuildExtension(options => options.UseQuerySplittingBehavior(invalidValue));
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BuildExtension(options => options.UseQuerySplittingBehavior(invalidValue)));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<ArgumentOutOfRangeException>(recordedException);
         Assert.Equal("querySplittingBehavior", exception.ParamName);
     }
 

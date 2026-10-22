@@ -12,6 +12,11 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlSequenceIdentifierEscapeTests
 {
+    /// <summary>
+    /// Verifies sequence identifier escaping doubles embedded backticks and wraps the complete name.
+    /// </summary>
+    /// <param name="sequenceName">The unescaped sequence identifier.</param>
+    /// <param name="expected">The expected delimited SQL identifier.</param>
     [Theory]
     [InlineData("OrderSeq", "`OrderSeq`")]
     [InlineData("orders_seq", "`orders_seq`")]
@@ -25,13 +30,37 @@ public sealed class MySqlSequenceIdentifierEscapeTests
     public void DelimitIdentifier_doubles_embedded_backticks_and_wraps(
         string sequenceName,
         string expected
-    ) => Assert.Equal(expected, MySqlIdentifierEscaping.DelimitIdentifier(sequenceName));
+    )
+    {
+        // Arrange
+        var identifier = sequenceName;
 
+        // Act
+        var actual = MySqlIdentifierEscaping.DelimitIdentifier(identifier);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// Verifies a missing or blank sequence identifier is rejected before SQL interpolation.
+    /// </summary>
+    /// <param name="identifier">The missing or blank identifier.</param>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     public void DelimitIdentifier_rejects_null_or_whitespace(
         string? identifier
-    ) => Assert.ThrowsAny<ArgumentException>(() => MySqlIdentifierEscaping.DelimitIdentifier(identifier!));
+    )
+    {
+        // Arrange
+        var sequenceName = identifier;
+
+        // Act
+        var recordedException = Record.Exception(() => MySqlIdentifierEscaping.DelimitIdentifier(sequenceName!));
+
+        // Assert
+        Assert.IsAssignableFrom<ArgumentException>(recordedException);
+    }
 }

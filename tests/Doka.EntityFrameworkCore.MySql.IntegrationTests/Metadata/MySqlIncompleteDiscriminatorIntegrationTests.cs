@@ -192,7 +192,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             // Act
             var exception = probe switch
             {
-                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
@@ -295,7 +295,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             // Act
             var exception = probe switch
             {
-                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
@@ -401,7 +401,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             // Act
             var exception = probe switch
             {
-                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(() => query.ToList()),
+                DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
                         .ToListAsync(CancellationToken.None)
@@ -794,6 +794,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             var member = typeof(TEnum)
                 .GetMember(value.ToString())
                 .Single();
+
             var jsonName = member.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name;
             var enumMemberName = member.GetCustomAttribute<EnumMemberAttribute>()?.Value;
 

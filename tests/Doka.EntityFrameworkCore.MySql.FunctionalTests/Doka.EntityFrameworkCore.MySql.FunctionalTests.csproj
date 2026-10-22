@@ -33,4 +33,59 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Capabilities/MySqlNewFeatureTests.*.cs">
+      <DependentUpon>MySqlNewFeatureTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Metadata/MySqlIndexByteBudgetTests.*.cs">
+      <DependentUpon>MySqlIndexByteBudgetTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Metadata/MySqlModelValidatorAndDdlTests.*.cs">
+      <DependentUpon>MySqlModelValidatorAndDdlTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Metadata/MySqlModelingBaselineTests.*.cs">
+      <DependentUpon>MySqlModelingBaselineTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlDesignTimeRoundTripTests.*.cs">
+      <DependentUpon>MySqlDesignTimeRoundTripTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlGuidMigrationTests.*.cs">
+      <DependentUpon>MySqlGuidMigrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlMigrationDdlCoverageTests.*.cs">
+      <DependentUpon>MySqlMigrationDdlCoverageTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlMigrationDslTests.*.cs">
+      <DependentUpon>MySqlMigrationDslTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlMigrationOperationHandlerTests.*.cs">
+      <DependentUpon>MySqlMigrationOperationHandlerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlMaterializedSourceLineageTests.*.cs">
+      <DependentUpon>MySqlMaterializedSourceLineageTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlMaterializedSourceTranslationTests.*.cs">
+      <DependentUpon>MySqlMaterializedSourceTranslationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlPrimitiveCollectionParameterTests.*.cs">
+      <DependentUpon>MySqlPrimitiveCollectionParameterTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlQueryTranslationCoverageTests.*.cs">
+      <DependentUpon>MySqlQueryTranslationCoverageTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlQueryTranslationExtendedTests.*.cs">
+      <DependentUpon>MySqlQueryTranslationExtendedTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Scaffolding/MySqlReverseEngineeringBaselineTests.*.cs">
+      <DependentUpon>MySqlReverseEngineeringBaselineTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Storage/MySqlTypeMappingBaselineTests.*.cs">
+      <DependentUpon>MySqlTypeMappingBaselineTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ValueGeneration/MySqlGuidStoreGenerationTests.*.cs">
+      <DependentUpon>MySqlGuidStoreGenerationTests.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

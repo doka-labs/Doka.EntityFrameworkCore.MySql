@@ -11,9 +11,13 @@ namespace Doka.EntityFrameworkCore.MySql.Tests.Scaffolding;
 /// </summary>
 public sealed class IndexLoaderTests
 {
+    /// <summary>
+    /// Verifies index with sub part annotates indexprefixlength array.
+    /// </summary>
     [Fact]
     public void Index_with_sub_part_annotates_IndexPrefixLength_array()
     {
+        // Arrange
         var context = BuildContext(
             new IndexRow(
                 "prefixed_index_table",
@@ -36,20 +40,25 @@ public sealed class IndexLoaderTests
                 128,
                 null));
 
+        // Act
         IndexLoader.Load(context);
 
+        // Assert
         var table = Assert.Single(context.DatabaseModel.Tables);
         var index = Assert.Single(table.Indexes);
         var annotation = index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength);
-
         Assert.NotNull(annotation);
         var lengths = Assert.IsType<int[]>(annotation!.Value);
         Assert.Equal([64, 128], lengths);
     }
 
+    /// <summary>
+    /// Verifies index without sub part does not annotate indexprefixlength.
+    /// </summary>
     [Fact]
     public void Index_without_sub_part_does_not_annotate_IndexPrefixLength()
     {
+        // Arrange
         var context = BuildContext(
             new IndexRow(
                 "plain_index_table",
@@ -62,17 +71,22 @@ public sealed class IndexLoaderTests
                 null,
                 null));
 
+        // Act
         IndexLoader.Load(context);
 
+        // Assert
         var table = Assert.Single(context.DatabaseModel.Tables);
         var index = Assert.Single(table.Indexes);
-
         Assert.Null(index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
     }
 
+    /// <summary>
+    /// Verifies mixed sub part index records zero for null positions.
+    /// </summary>
     [Fact]
     public void Mixed_sub_part_index_records_zero_for_null_positions()
     {
+        // Arrange
         var context = BuildContext(
             new IndexRow(
                 "mixed_index_table",
@@ -95,19 +109,24 @@ public sealed class IndexLoaderTests
                 null,
                 null));
 
+        // Act
         IndexLoader.Load(context);
 
+        // Assert
         var table = Assert.Single(context.DatabaseModel.Tables);
         var index = Assert.Single(table.Indexes);
         var annotation = index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength);
-
         Assert.NotNull(annotation);
         Assert.Equal([32, 0], (int[])annotation!.Value!);
     }
 
+    /// <summary>
+    /// Verifies index type and direction metadata are preserved.
+    /// </summary>
     [Fact]
     public void Index_type_and_direction_metadata_are_preserved()
     {
+        // Arrange
         var context = BuildContext(
             new IndexRow(
                 "index_type_table",
@@ -140,13 +159,14 @@ public sealed class IndexLoaderTests
                 null,
                 null));
 
+        // Act
         IndexLoader.Load(context);
 
+        // Assert
         var table = Assert.Single(context.DatabaseModel.Tables);
         var fullTextIndex = table.Indexes.Single(index => index.Name == "IX_FullText");
         var spatialIndex = table.Indexes.Single(index => index.Name == "IX_Spatial");
         var uniqueIndex = table.Indexes.Single(index => index.Name == "IX_Unique");
-
         Assert.True(fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?);
         Assert.True(spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?);
         Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
@@ -155,9 +175,13 @@ public sealed class IndexLoaderTests
         Assert.Equal([true], uniqueIndex.IsDescending);
     }
 
+    /// <summary>
+    /// Verifies functional key part remains visible without an invented column.
+    /// </summary>
     [Fact]
     public void Functional_key_part_remains_visible_without_an_invented_column()
     {
+        // Arrange
         var context = BuildContext(
             new IndexRow(
                 "functional_index_table",
@@ -170,15 +194,16 @@ public sealed class IndexLoaderTests
                 null,
                 "lower(`Name`)"));
 
+        // Act
         IndexLoader.Load(context);
 
+        // Assert
         var table = Assert.Single(context.DatabaseModel.Tables);
         var index = Assert.Single(table.Indexes);
         var parts = Assert.IsType<MySqlScaffoldedIndexPart[]>(
             index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)?.Value);
 
         var part = Assert.Single(parts);
-
         Assert.Empty(index.Columns);
         Assert.Null(part.ColumnName);
         Assert.Equal("lower(`Name`)", part.Expression);
@@ -391,6 +416,7 @@ public sealed class IndexLoaderTests
         )
         {
             _items.Add((DbParameter)value);
+
             return _items.Count - 1;
         }
 

@@ -44,7 +44,7 @@ grammar-token smuggling, and accidental client evaluation of a predicate.
 [SQL token tests](../../tests/Doka.EntityFrameworkCore.MySql.Tests/Storage/MySqlSqlTokenValidatorTests.cs),
 [defensive validation tests](../../tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Infrastructure/MySqlDefensiveValidationTests.cs),
 [query translation tests](../../tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlQueryTranslationCoverageTests.cs),
-and [live query tests](../../tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Query/MySqlQueryTranslationIntegrationTests.cs)
+and [live query tests](../../tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Query/MySqlQueryTranslationIntegrationTests.Strings.cs)
 exercise accepted and rejected inputs. `CONTRIBUTING.md` owns the `EF1002`
 enforcement and raw-SQL test convention; `docs/query-functions.md` owns the
 public translation contract.

@@ -11,6 +11,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task ExistingRepeatableReadSnapshotStillReadsOwnGeneratedValues()
     {
+        // Arrange
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
         await RecreateTableAsync(context);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -21,29 +22,37 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         await using var seed = other.CreateCommand();
         seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `Input`) VALUES (9000, 9000);";
         _ = await seed.ExecuteNonQueryAsync(CancellationToken.None);
+
         var rows = CreateIntegerRows(64);
         AddRows(context, rows);
 
+        // Act
         await context.SaveChangesAsync(CancellationToken.None);
+        var visibleCount = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
 
+        // Assert
         Assert.All(rows, AssertGenerated);
-        Assert.Equal(64, await context.Rows.AsNoTracking().CountAsync(CancellationToken.None));
+        Assert.Equal(64, visibleCount);
     }
 
     /// <summary>Retains generated readback inside an ambient caller transaction.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task NeverWithAmbientTransactionCanBatchReadback()
     {
+        // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
         await RecreateTableAsync(context);
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+
         var rows = CreateIntegerRows(8);
         AddRows(context, rows);
         capture.Enabled = true;
 
+        // Act
         await SaveInAmbientTransactionAsync(context);
 
+        // Assert
         Assert.All(rows, AssertGenerated);
         Assert.Equal(7, capture.Commands.Sum(sql => CountOccurrences(sql, "UNION ALL")));
     }
@@ -52,6 +61,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task NeverWithEnlistedTransactionCanBatchReadback()
     {
+        // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
         await RecreateTableAsync(context);
@@ -59,12 +69,15 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         using var transaction = new CommittableTransaction();
         await context.Database.OpenConnectionAsync(CancellationToken.None);
         context.Database.EnlistTransaction(transaction);
+
         var rows = CreateIntegerRows(8);
         AddRows(context, rows);
         capture.Enabled = true;
 
+        // Act
         await context.SaveChangesAsync(CancellationToken.None);
 
+        // Assert
         Assert.All(rows, AssertGenerated);
         Assert.Equal(7, capture.Commands.Sum(sql => CountOccurrences(sql, "UNION ALL")));
     }
@@ -81,6 +94,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
     private static async Task AssertConcurrentWriterWaitsAsync(bool delete)
     {
+        // Arrange
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var capture = new ReadbackCapture
@@ -113,6 +127,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var completedBeforeRelease = false;
         Task<int>? competingWrite = null;
 
+        // Act
         var save = context.SaveChangesAsync(CancellationToken.None);
 
         try
@@ -130,6 +145,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         }
 
         var competingRows = await competingWrite;
+
+        // Assert
         Assert.True(observedWait, "The competing native transaction never entered LOCK WAIT.");
         Assert.False(completedBeforeRelease);
         Assert.Equal(1, competingRows);

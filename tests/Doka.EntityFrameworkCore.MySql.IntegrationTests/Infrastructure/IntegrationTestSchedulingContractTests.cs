@@ -34,6 +34,7 @@ public sealed class IntegrationTestSchedulingContractTests
         Assert.Contains(target, IntegrationTestEnvironment.GetSupportedTargets());
     }
 
+    /// <summary>Verifies database classes run in bounded parallel collections.</summary>
     [Fact]
     public void Database_classes_run_in_bounded_parallel_collections()
     {
@@ -52,6 +53,7 @@ public sealed class IntegrationTestSchedulingContractTests
         Assert.Null(ordinaryCollection);
     }
 
+    /// <summary>Verifies process wide pool reset is exclusive.</summary>
     [Fact]
     public void Process_wide_pool_reset_is_exclusive()
     {

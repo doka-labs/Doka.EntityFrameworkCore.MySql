@@ -14,11 +14,17 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Application_time_mapping_preserves_typed_configuration()
     {
+        // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mariaDb114);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(ApplicationTimeRecord))!;
         var table = StoreObjectIdentifier.Table("BusinessRecords", null);
 
-        Assert.True(entityType.IsMySqlApplicationTime());
+        var actual = entityType.IsMySqlApplicationTime();
+
+        // Assert
+        Assert.True(actual);
         Assert.Equal("BusinessValidity", entityType.GetMySqlApplicationTimePeriodName());
         Assert.Equal(nameof(ApplicationTimeRecord.ValidFrom),
             entityType.GetMySqlApplicationTimePeriodStartPropertyName());
@@ -45,10 +51,16 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Bitemporal_mapping_preserves_both_period_contracts()
     {
+        // Arrange
         using var context = CreateContext<BitemporalConfiguration>(s_mariaDb114);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(ApplicationTimeRecord))!;
 
-        Assert.True(entityType.IsMySqlTemporal());
+        var actual = entityType.IsMySqlTemporal();
+
+        // Assert
+        Assert.True(actual);
         Assert.Equal("SystemFrom", entityType.GetMySqlTemporalPeriodStartPropertyName());
         Assert.Equal("SystemTo", entityType.GetMySqlTemporalPeriodEndPropertyName());
         Assert.True(entityType.IsMySqlApplicationTime());
@@ -66,12 +78,18 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Typed_action_with_explicit_properties_does_not_create_default_properties()
     {
+        // Arrange
         using var context = CreateCustomContext<TypedCustomEndpointConfiguration>();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
 
+        var actual = entityType.GetMySqlApplicationTimePeriodStartPropertyName();
+
+        // Assert
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
-            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+            actual);
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
@@ -86,14 +104,19 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void String_action_with_explicit_properties_does_not_create_default_properties()
     {
+        // Arrange
         using var context = new StringApplicationTimeContext(
             CreateOptions<StringApplicationTimeContext>(s_mariaDb114));
 
+        // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
 
+        var actual = entityType.GetMySqlApplicationTimePeriodStartPropertyName();
+
+        // Assert
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
-            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+            actual);
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
@@ -108,12 +131,18 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Action_with_one_explicit_endpoint_adds_only_the_missing_default()
     {
+        // Arrange
         using var context = CreateCustomContext<SingleCustomEndpointConfiguration>();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
 
+        var actual = entityType.GetMySqlApplicationTimePeriodStartPropertyName();
+
+        // Assert
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
-            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+            actual);
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
@@ -127,12 +156,18 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Parameterless_overload_creates_both_default_properties()
     {
+        // Arrange
         using var context = CreateCustomContext<DefaultEndpointConfiguration>();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
 
+        var actual = entityType.GetMySqlApplicationTimePeriodStartPropertyName();
+
+        // Assert
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName,
-            entityType.GetMySqlApplicationTimePeriodStartPropertyName());
+            actual);
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
@@ -147,12 +182,18 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Explicit_endpoint_does_not_remove_independently_configured_default_property()
     {
+        // Arrange
         using var context = CreateCustomContext<CallerOwnedDefaultPropertyConfiguration>();
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
         var callerOwnedProperty = entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!;
         var table = StoreObjectIdentifier.Table("CustomApplicationTimeRecords", null);
 
-        Assert.True(callerOwnedProperty.IsShadowProperty());
+        var actual = callerOwnedProperty.IsShadowProperty();
+
+        // Assert
+        Assert.True(actual);
         Assert.Equal(typeof(DateTime), callerOwnedProperty.ClrType);
         Assert.Equal("AuditValidFrom", callerOwnedProperty.GetColumnName(table));
         Assert.Equal(
@@ -166,10 +207,15 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Application_time_mapping_rejects_mysql()
     {
+        // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mySql84);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("does not support application-time periods", exception.Message, StringComparison.Ordinal);
     }
 
@@ -180,10 +226,15 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Without_overlaps_rejects_unsupported_mariadb_version()
     {
+        // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mariaDb1043);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("does not support WITHOUT OVERLAPS", exception.Message, StringComparison.Ordinal);
     }
 
@@ -193,10 +244,15 @@ public sealed class MySqlApplicationTimeMetadataTests
     [Fact]
     public void Without_overlaps_rejects_non_unique_index()
     {
+        // Arrange
         using var context = CreateContext<NonUniqueIndexConfiguration>(s_mariaDb114);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("must be unique before WITHOUT OVERLAPS can be used", exception.Message,
             StringComparison.Ordinal);
     }

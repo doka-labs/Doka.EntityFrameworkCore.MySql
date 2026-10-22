@@ -11,8 +11,21 @@ public sealed class MySqlSpecTestAnchorTests
     /// against the supported MySQL 8.4 baseline independently of the broader functional suite.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Migration_infrastructure_spec_anchor_executes_against_mysql84()
+    public Task Migration_infrastructure_spec_anchor_executes_against_mysql84()
+        => AssertMigrationInfrastructureAnchorAsync(activeProvider: false);
+
+    /// <summary>
+    /// Verifies the official active-provider specification independently of migration scripting.
+    /// </summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
+    public Task Active_provider_spec_anchor_executes_against_mysql84()
+        => AssertMigrationInfrastructureAnchorAsync(activeProvider: true);
+
+    private static async Task AssertMigrationInfrastructureAnchorAsync(
+        bool activeProvider
+    )
     {
+        // Arrange
         await IntegrationDatabaseUtilities
             .EnsureDatabaseExistsAsync(
                 IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84))
@@ -28,10 +41,13 @@ public sealed class MySqlSpecTestAnchorTests
         {
             var anchor = new MySqlMigrationsInfrastructureAnchor(fixture);
 
-            anchor.Can_get_active_provider();
-            await anchor
-                .Can_generate_no_migration_script()
-                .ConfigureAwait(false);
+            // Act: Each wrapper selects one inherited specification, including its own assertions.
+            var failure = activeProvider
+                ? Record.Exception(anchor.Can_get_active_provider)
+                : await Record.ExceptionAsync(anchor.Can_generate_no_migration_script).ConfigureAwait(false);
+
+            // Assert
+            Assert.Null(failure);
         }
         finally
         {

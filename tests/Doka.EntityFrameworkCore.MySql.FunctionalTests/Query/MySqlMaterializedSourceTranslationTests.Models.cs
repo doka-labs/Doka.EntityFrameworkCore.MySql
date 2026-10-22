@@ -5,7 +5,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>
     /// Creates an offline translation context with an explicitly configured database family.
     /// </summary>
-    private static BindingContext CreateContext(bool mariaDb, bool splitQueryDefault = false)
+    private static BindingContext CreateContext(
+        bool mariaDb,
+        bool splitQueryDefault = false
+    )
     {
         var options = MySqlFunctionalTestOptions.CreateTransientBuilder<BindingContext>()
             .UseMySql(
@@ -26,7 +29,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>
     /// Creates an isolated model whose collection navigation is automatically included.
     /// </summary>
-    private static AutoIncludeContext CreateAutoIncludeContext(bool mariaDb)
+    private static AutoIncludeContext CreateAutoIncludeContext(
+        bool mariaDb
+    )
     {
         var options = MySqlFunctionalTestOptions.CreateTransientBuilder<AutoIncludeContext>()
             .UseMySql(
@@ -38,7 +43,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     }
 
     /// <summary>Gets the explicitly configured family used by both translation contexts.</summary>
-    private static MySqlServerVersion CreateServerVersion(bool mariaDb)
+    private static MySqlServerVersion CreateServerVersion(
+        bool mariaDb
+    )
         => mariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
@@ -55,7 +62,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         public DbSet<BindingNode> Nodes => Set<BindingNode>();
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<BindingNode>(entity =>
             {
@@ -85,7 +94,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         public DbSet<CollisionRecord> Collisions => Set<CollisionRecord>();
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<BindingNode>(entity =>
             {
@@ -335,7 +346,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     private sealed class ConvertedIdentifier
     {
         /// <summary>Initializes the mapped value.</summary>
-        public ConvertedIdentifier(Guid value) => Value = value;
+        public ConvertedIdentifier(Guid value)
+        {
+            Value = value;
+        }
 
         /// <summary>Gets the native GUID consumed by the converter.</summary>
         public Guid Value { get; }

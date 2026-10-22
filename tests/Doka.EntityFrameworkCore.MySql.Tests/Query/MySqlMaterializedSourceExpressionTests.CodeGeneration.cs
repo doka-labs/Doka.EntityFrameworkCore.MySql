@@ -18,11 +18,14 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Actual_csharp_translation_keeps_definition_locals_inside_the_delegate()
     {
+        // Arrange
         using var context = CreateContext();
         var expression = CreateNestedSource();
 
+        // Act
         var translation = TranslateConstantToCSharp(expression, context);
 
+        // Assert
         Assert.Contains("sourceDefinition", translation.Code, StringComparison.Ordinal);
         Assert.Contains(".Invoke()", translation.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("QuotedReference", translation.Code, StringComparison.Ordinal);
@@ -44,6 +47,7 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Actual_csharp_translation_preserves_linear_definition_growth(int depth, bool commandSelect)
     {
+        // Arrange
         using var context = CreateContext();
         var warmup = CreateGraph(2);
         // WHY: Source references and their owning SELECT enter different late-quotation paths.
@@ -51,12 +55,16 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         var expression = CreateGraph(depth);
         object constant = commandSelect ? expression.Source : expression;
         var expectedDefinitions = commandSelect ? depth * 2 : depth + 1;
-        var before = GC.GetAllocatedBytesForCurrentThread();
 
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var translation = TranslateConstantToCSharp(constant, context);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        Assert.Equal(expectedDefinitions, CountDefinitionConstructions(translation.Code));
+        var actual = CountDefinitionConstructions(translation.Code);
+
+        // Assert
+        Assert.Equal(expectedDefinitions, actual);
         // WHY: Structural budgets detect path duplication without depending on runner CPU speed.
         Assert.InRange(translation.Code.Length, 0, expectedDefinitions * 6_000);
         Assert.InRange(allocated, 0, expectedDefinitions * 500_000L);
@@ -70,14 +78,19 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Actual_csharp_translation_rejects_a_cyclic_source_graph()
     {
+        // Arrange
         using var context = CreateContext();
         var tables = new List<TableExpressionBase>();
         var source = CreateSource("cyclic_seed", tables, []);
         var expression = new MySqlMaterializedSourceExpression("cycle", 41, source);
         tables.Add(expression);
+        Action act = () => TranslateConstantToCSharp(expression, context);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => TranslateConstantToCSharp(expression, context));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("acyclic", exception.Message, StringComparison.Ordinal);
     }
 

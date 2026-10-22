@@ -1,11 +1,9 @@
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// Verifies the runtime baseline for connection and transaction behavior.
 /// </summary>
-public sealed class MySqlRuntimeBaselineTests
+public sealed partial class MySqlRuntimeBaselineTests
 {
     /// <summary>
     /// Verifies that the runtime relational connection uses the configured external connection instance.
@@ -13,11 +11,14 @@ public sealed class MySqlRuntimeBaselineTests
     [Fact]
     public void Relational_connection_uses_the_configured_db_connection_instance()
     {
+        // Arrange
         using var connection = new RecordingDbConnection();
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
 
+        // Act
         var relationalConnection = context.GetService<IRelationalConnection>();
 
+        // Assert
         Assert.Same(connection, relationalConnection.DbConnection);
     }
 
@@ -25,21 +26,50 @@ public sealed class MySqlRuntimeBaselineTests
     /// Verifies that lifecycle operations borrow a custom connection instead
     /// of silently replacing its runtime behavior with a provider connection.
     /// </summary>
-    [Fact]
-    public void Database_creator_preserves_a_custom_db_connection_instance()
+    [Theory]
+    [InlineData("exists", true)]
+    [InlineData("create", null)]
+    [InlineData("delete", null)]
+    [InlineData("has_tables", true)]
+    public void Database_creator_preserves_a_custom_db_connection_instance(
+        string operation,
+        bool? expected
+    )
     {
+        // Arrange
         using var connection = new RecordingDbConnection();
         var originalConnectionString = connection.ConnectionString;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
         var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
 
-        Assert.True(databaseCreator.Exists());
-        databaseCreator.Create();
-        databaseCreator.Delete();
+        // Act
+        bool? actual = null;
 
-        Assert.True(databaseCreator.HasTables());
+        switch (operation)
+        {
+            case "exists":
+                actual = databaseCreator.Exists();
+                break;
 
-        Assert.Equal(4, connection.Commands.Count);
+            case "create":
+                databaseCreator.Create();
+                break;
+
+            case "delete":
+                databaseCreator.Delete();
+                break;
+
+            case "has_tables":
+                actual = databaseCreator.HasTables();
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation));
+        }
+
+        // Assert
+        Assert.Equal(expected, actual);
+        Assert.Single(connection.Commands);
         Assert.Equal(originalConnectionString, connection.ConnectionString);
         Assert.Equal(ConnectionState.Closed, connection.State);
         Assert.False(connection.IsDisposed);
@@ -52,33 +82,32 @@ public sealed class MySqlRuntimeBaselineTests
     [Fact]
     public void Lifecycle_connection_preserves_mysql_connection_callbacks()
     {
+        // Arrange
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;");
 
         Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
-
         Func<MySqlProvidePasswordContext, string> password = _ => "rotated-password";
         System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
             (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
-
         connection.ProvideClientCertificatesCallback = clientCertificates;
         connection.ProvidePasswordCallback = password;
         connection.RemoteCertificateValidationCallback = remoteCertificate;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
 
-        var relationalConnection = Assert.IsType<MySqlRelationalConnection>(
-            context.GetService<IRelationalConnection>());
+        var relationalConnection = (MySqlRelationalConnection)context.GetService<IRelationalConnection>();
 
         var serverConnectionString = new MySqlConnectionStringBuilder(connection.ConnectionString)
         {
             Database = string.Empty,
         }.ConnectionString;
 
+        // Act
         using var lease = relationalConnection.CreateLifecycleConnection(serverConnectionString);
 
+        // Assert
         var lifecycleConnection = Assert.IsType<MySqlConnection>(lease.Connection);
-
         Assert.NotSame(connection, lifecycleConnection);
         Assert.Same(clientCertificates, lifecycleConnection.ProvideClientCertificatesCallback);
         Assert.Same(password, lifecycleConnection.ProvidePasswordCallback);
@@ -94,12 +123,11 @@ public sealed class MySqlRuntimeBaselineTests
     [Fact]
     public void Lifecycle_connection_preserves_mysql_data_source_callbacks()
     {
+        // Arrange
         Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
-
         System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
             (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
-
         using var dataSource = new MySqlDataSourceBuilder(
                 "Server=localhost;Database=doka;User ID=root;GuidFormat=Binary16;")
             .UseClientCertificatesCallback(clientCertificates)
@@ -116,18 +144,18 @@ public sealed class MySqlRuntimeBaselineTests
 
         using var context = new RuntimeBaselineContext(options);
 
-        var relationalConnection = Assert.IsType<MySqlRelationalConnection>(
-            context.GetService<IRelationalConnection>());
+        var relationalConnection = (MySqlRelationalConnection)context.GetService<IRelationalConnection>();
 
         var serverConnectionString = new MySqlConnectionStringBuilder(dataSource.ConnectionString)
         {
             Database = string.Empty,
         }.ConnectionString;
 
+        // Act
         using var lease = relationalConnection.CreateLifecycleConnection(serverConnectionString);
 
+        // Assert
         var lifecycleConnection = Assert.IsType<MySqlConnection>(lease.Connection);
-
         Assert.Same(clientCertificates, lifecycleConnection.ProvideClientCertificatesCallback);
         Assert.NotNull(lifecycleConnection.ProvidePasswordCallback);
         Assert.Same(remoteCertificate, lifecycleConnection.RemoteCertificateValidationCallback);
@@ -140,15 +168,17 @@ public sealed class MySqlRuntimeBaselineTests
     [Fact]
     public void History_repository_commands_use_the_current_transaction_when_present()
     {
+        // Arrange
         using var connection = new RecordingDbConnection();
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
         using var transaction = context.Database.BeginTransaction();
         var historyRepository = context.GetService<IHistoryRepository>();
 
+        // Act
         historyRepository.Create();
 
+        // Assert
         var command = Assert.Single(connection.Commands);
-
         Assert.NotNull(command.RecordedTransaction);
         Assert.Same(connection.LastTransaction, command.RecordedTransaction);
     }
@@ -156,1029 +186,67 @@ public sealed class MySqlRuntimeBaselineTests
     /// <summary>
     /// Verifies that database-creator async methods stay on the async connection and command paths.
     /// </summary>
-    [Fact]
-    public async Task Database_creator_async_methods_use_async_connection_and_command_paths()
+    [Theory]
+    [InlineData("create")]
+    [InlineData("delete")]
+    [InlineData("has_tables")]
+    public async Task Database_creator_async_methods_use_async_connection_and_command_paths(
+        string operation
+    )
     {
+        // Arrange
         var driverFacade = new AsyncAwareDriverFacade();
         var services = new ServiceCollection();
-
         services.AddEntityFrameworkDokaMySql();
         services.AddSingleton<IMySqlDriverFacade>(driverFacade);
-
         await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         await using var context =
             new RuntimeBaselineContext(CreateOptions("Server=localhost;Database=doka;", serviceProvider));
-
         var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
 
-        await databaseCreator.CreateAsync();
-        await databaseCreator.DeleteAsync();
+        // Act
+        bool? hasTables = null;
 
-        var hasTables = await databaseCreator.HasTablesAsync();
-
-        Assert.True(hasTables);
-        Assert.Equal(2, driverFacade.ServerConnections.Count);
-        Assert.All(
-            driverFacade.ServerConnections,
-            connection =>
-            {
-                Assert.True(connection.OpenAsyncCalled);
-                Assert.False(connection.OpenCalled);
-
-                var command = Assert.Single(connection.Commands);
-
-                Assert.True(command.ExecuteNonQueryAsyncCalled);
-                Assert.False(command.ExecuteNonQueryCalled);
-            });
-
-        var databaseConnection = Assert.Single(
-            driverFacade.DatabaseConnections,
-            connection => connection.Commands.Count > 0);
-
-        Assert.True(databaseConnection.OpenAsyncCalled);
-        Assert.False(databaseConnection.OpenCalled);
-
-        var databaseCommand = Assert.Single(databaseConnection.Commands);
-
-        Assert.True(databaseCommand.ExecuteScalarAsyncCalled);
-        Assert.False(databaseCommand.ExecuteScalarCalled);
-    }
-
-    /// <summary>
-    /// Verifies that provider-created connections use one connector transport
-    /// format independently of the provider's column-level GUID default.
-    /// </summary>
-    [Theory]
-    [InlineData(MySqlGuidFormat.Binary16)]
-    [InlineData(MySqlGuidFormat.Char36)]
-    public void Relational_connection_uses_binary16_connector_transport(
-        MySqlGuidFormat providerFormat
-    )
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        optionsBuilder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.DefaultGuidFormat(providerFormat));
-
-        using var context = new RuntimeBaselineContext(optionsBuilder.Options);
-        var relationalConnection = context.GetService<IRelationalConnection>();
-        var builder = new MySqlConnectionStringBuilder(relationalConnection.DbConnection.ConnectionString);
-
-        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, builder.GuidFormat);
-    }
-
-    /// <summary>
-    /// Verifies that EF runtime string replacement retains EF's raw public
-    /// value while the physical provider connection receives every invariant.
-    /// </summary>
-    [Fact]
-    public void Runtime_connection_string_replacement_is_normalized_before_connection_use()
-    {
-        const string replacement =
-            "Server=replacement;Database=runtime;User ID=provider;Password=secret;";
-
-        using var context = new RuntimeBaselineContext(
-            CreateOptions(
-                "Server=initial;Database=doka;User ID=provider;Password=secret;",
-                options => options.RequireUserVariables()));
-
-        context.Database.SetConnectionString(replacement);
-
-        var physical = new MySqlConnectionStringBuilder(
-            context.Database.GetDbConnection().ConnectionString);
-
-        Assert.Equal(replacement, context.Database.GetConnectionString());
-        Assert.Equal("replacement", physical.Server);
-        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, physical.GuidFormat);
-        Assert.False(physical.UseAffectedRows);
-        Assert.True(physical.AllowUserVariables);
-    }
-
-    /// <summary>
-    /// Verifies that a rejected runtime string leaves the active connection
-    /// configuration unchanged.
-    /// </summary>
-    [Theory]
-    [InlineData("UseAffectedRows=true")]
-    [InlineData("GuidFormat=Char36")]
-    [InlineData("AllowUserVariables=false")]
-    public void Runtime_connection_string_replacement_rejects_incompatible_configuration_atomically(
-        string incompatibleOption
-    )
-    {
-        using var context = new RuntimeBaselineContext(
-            CreateOptions(
-                "Server=initial;Database=doka;User ID=provider;Password=secret;",
-                options => options.RequireUserVariables()));
-
-        var originalConnection = context.Database.GetDbConnection();
-        var originalConnectionString = originalConnection.ConnectionString;
-
-        Assert.Throws<MySqlConnectionContractException>(() =>
-            context.Database.SetConnectionString(
-                $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};"));
-
-        Assert.Same(originalConnection, context.Database.GetDbConnection());
-        Assert.Equal(originalConnectionString, originalConnection.ConnectionString);
-    }
-
-    /// <summary>
-    /// Verifies that runtime borrowed connections are validated before EF
-    /// replaces the active provider-owned connection.
-    /// </summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void Runtime_db_connection_replacement_accepts_the_exact_compatible_instance(
-        bool open,
-        bool contextOwnsConnection
-    )
-    {
-        using var context = new RuntimeBaselineContext(
-            CreateOptions(
-                "Server=initial;Database=doka;User ID=provider;Password=secret;",
-                options => options.RequireUserVariables()));
-
-        var replacement = new RecordingDbConnection
+        switch (operation)
         {
-            ConnectionString =
-                "Server=replacement;Database=doka;GuidFormat=Binary16;AllowUserVariables=true;",
-        };
+            case "create":
+                await databaseCreator.CreateAsync();
+                break;
 
-        if (open)
-        {
-            replacement.Open();
+            case "delete":
+                await databaseCreator.DeleteAsync();
+                break;
+
+            case "has_tables":
+                hasTables = await databaseCreator.HasTablesAsync();
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation));
         }
 
-        context.Database.SetDbConnection(replacement, contextOwnsConnection);
-
-        Assert.Same(replacement, context.Database.GetDbConnection());
-        Assert.Equal(
-            open ? ConnectionState.Open : ConnectionState.Closed,
-            replacement.State);
-
-        if (!contextOwnsConnection)
+        // Assert
+        if (operation == "has_tables")
         {
-            replacement.Dispose();
+            Assert.True(hasTables);
+            var databaseConnection = Assert.Single(
+                driverFacade.DatabaseConnections,
+                connection => connection.Commands.Count > 0);
+
+            Assert.True(databaseConnection.OpenAsyncCalled);
+            Assert.False(databaseConnection.OpenCalled);
+            var databaseCommand = Assert.Single(databaseConnection.Commands);
+            Assert.True(databaseCommand.ExecuteScalarAsyncCalled);
+            Assert.False(databaseCommand.ExecuteScalarCalled);
         }
-    }
-
-    /// <summary>
-    /// Verifies that a successful transition to a borrowed connection prevents
-    /// a later string replacement from mutating that object indirectly.
-    /// </summary>
-    [Fact]
-    public void Runtime_db_connection_transition_marks_the_active_path_as_borrowed()
-    {
-        using var context = new RuntimeBaselineContext(
-            CreateOptions("Server=initial;Database=doka;User ID=provider;Password=secret;"));
-        using var replacement = new RecordingDbConnection();
-
-        context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            context.Database.SetConnectionString(
-                "Server=second;Database=runtime;GuidFormat=Binary16;"));
-
-        Assert.Same(replacement, context.Database.GetDbConnection());
-        Assert.Equal(
-            "Server=localhost;Database=doka;GuidFormat=Binary16;",
-            replacement.ConnectionString);
-        Assert.Equal(ConnectionState.Closed, replacement.State);
-        Assert.False(replacement.IsDisposed);
-    }
-
-    /// <summary>
-    /// Verifies that an incompatible runtime borrowed connection is rejected
-    /// before it replaces or changes the current connection.
-    /// </summary>
-    [Theory]
-    [InlineData("GuidFormat=Default;")]
-    [InlineData("GuidFormat=Char36;")]
-    [InlineData("GuidFormat=LittleEndianBinary16;")]
-    [InlineData("GuidFormat=TimeSwapBinary16;")]
-    [InlineData("GuidFormat=None;")]
-    [InlineData("GuidFormat=Binary16;UseAffectedRows=true;")]
-    [InlineData("GuidFormat=Binary16;AllowUserVariables=false;")]
-    public void Runtime_db_connection_replacement_rejects_incompatible_input_atomically(
-        string options
-    )
-    {
-        using var context = new RuntimeBaselineContext(
-            CreateOptions(
-                "Server=initial;Database=doka;User ID=provider;Password=secret;",
-                providerOptions => providerOptions.RequireUserVariables()));
-
-        var originalConnection = context.Database.GetDbConnection();
-        using var replacement = new RecordingDbConnection
+        else
         {
-            ConnectionString =
-                $"Server=replacement;Database=doka;Password=secret-canary;{options}",
-        };
-
-        Assert.Throws<MySqlConnectionContractException>(() =>
-            context.Database.SetDbConnection(replacement, contextOwnsConnection: false));
-
-        Assert.Same(originalConnection, context.Database.GetDbConnection());
-        Assert.Equal(ConnectionState.Closed, replacement.State);
-        Assert.False(replacement.IsDisposed);
-    }
-
-    /// <summary>
-    /// Verifies that validation failure is independent of connection state and
-    /// EF disposal ownership and leaves the supplied object untouched.
-    /// </summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void Runtime_db_connection_rejection_preserves_state_and_ownership(
-        bool open,
-        bool contextOwnsConnection
-    )
-    {
-        using var context = new RuntimeBaselineContext(
-            CreateOptions("Server=initial;Database=doka;User ID=provider;Password=secret;"));
-        using var replacement = new RecordingDbConnection
-        {
-            ConnectionString =
-                "Server=replacement;Database=doka;GuidFormat=Char36;",
-        };
-
-        if (open)
-        {
-            replacement.Open();
-        }
-
-        var originalConnectionString = replacement.ConnectionString;
-        var originalConnection = context.Database.GetDbConnection();
-
-        Assert.Throws<MySqlConnectionContractException>(() =>
-            context.Database.SetDbConnection(replacement, contextOwnsConnection));
-
-        Assert.Same(originalConnection, context.Database.GetDbConnection());
-        Assert.Equal(originalConnectionString, replacement.ConnectionString);
-        Assert.Equal(
-            open ? ConnectionState.Open : ConnectionState.Closed,
-            replacement.State);
-        Assert.False(replacement.IsDisposed);
-    }
-
-    /// <summary>
-    /// Verifies that EF string replacement cannot mutate a borrowed connection
-    /// path behind its owner's back.
-    /// </summary>
-    [Fact]
-    public void Runtime_connection_string_replacement_is_rejected_for_borrowed_connection()
-    {
-        using var connection = new RecordingDbConnection();
-        var originalConnectionString = connection.ConnectionString;
-        using var context = new RuntimeBaselineContext(CreateOptions(connection));
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            context.Database.SetConnectionString(
-                "Server=replacement;Database=runtime;GuidFormat=Binary16;"));
-
-        Assert.Equal(
-            "Database.SetConnectionString cannot replace caller-owned MySQL connection configuration.",
-            exception.Message);
-        Assert.Same(connection, context.Database.GetDbConnection());
-        Assert.Equal(originalConnectionString, connection.ConnectionString);
-        Assert.Equal(ConnectionState.Closed, connection.State);
-    }
-
-    /// <summary>
-    /// Verifies that EF string replacement cannot bypass a caller-owned data
-    /// source or reconstruct it from serializable options.
-    /// </summary>
-    [Fact]
-    public void Runtime_connection_string_replacement_is_rejected_for_borrowed_data_source()
-    {
-        using var dataSource = new MySqlDataSourceBuilder(
-            "Server=localhost;Database=doka;GuidFormat=Binary16;").Build();
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-        builder.UseMySql(
-            dataSource,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        using var context = new RuntimeBaselineContext(builder.Options);
-        var originalConnection = context.Database.GetDbConnection();
-
-        Assert.Throws<InvalidOperationException>(() =>
-            context.Database.SetConnectionString(
-                "Server=replacement;Database=runtime;GuidFormat=Binary16;"));
-
-        Assert.Same(originalConnection, context.Database.GetDbConnection());
-        Assert.Equal(ConnectionState.Closed, originalConnection.State);
-        Assert.Equal(
-            MySqlConnector.MySqlGuidFormat.Binary16,
-            new MySqlConnectionStringBuilder(dataSource.ConnectionString).GuidFormat);
-    }
-
-    /// <summary>
-    /// Verifies that EF resolves a named token before Doka parses and
-    /// normalizes the resulting provider connection string.
-    /// </summary>
-    [Fact]
-    public void Named_connection_string_is_resolved_before_provider_normalization()
-    {
-        const string token = "Name=ConnectionStrings:Main";
-        const string resolved =
-            "Server=resolved;Database=doka;User ID=provider;Password=secret;";
-
-        var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
-        var services = new ServiceCollection();
-        services.AddEntityFrameworkDokaMySql();
-#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
-        services.Replace(ServiceDescriptor.Singleton<
-            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
-#pragma warning restore EF1001
-
-        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        builder.UseInternalServiceProvider(serviceProvider);
-        builder.UseMySql(
-            token,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.RequireUserVariables());
-
-        var extension = Assert.IsType<MySqlOptionsExtension>(
-            builder.Options.FindExtension<MySqlOptionsExtension>());
-
-        Assert.Equal(token, extension.ConnectionString);
-
-        using var context = new RuntimeBaselineContext(builder.Options);
-        var physical = new MySqlConnectionStringBuilder(
-            context.Database.GetDbConnection().ConnectionString);
-
-        Assert.Equal(token, resolver.LastInput);
-        Assert.Equal("resolved", physical.Server);
-        Assert.Equal(MySqlConnector.MySqlGuidFormat.Binary16, physical.GuidFormat);
-        Assert.True(physical.AllowUserVariables);
-    }
-
-    /// <summary>
-    /// Verifies that named-string resolution cannot bypass any provider-owned
-    /// connection invariant.
-    /// </summary>
-    [Theory]
-    [InlineData(
-        "UseAffectedRows=true",
-        nameof(MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported))]
-    [InlineData(
-        "GuidFormat=Char36",
-        nameof(MySqlConfigurationFailureReason.GuidTransportIncompatible))]
-    [InlineData(
-        "AllowUserVariables=false",
-        nameof(MySqlConfigurationFailureReason.UserVariablesUnavailable))]
-    public void Named_connection_string_rejects_incompatible_resolved_configuration(
-        string incompatibleOption,
-        string expectedReason
-    )
-    {
-        const string token = "Name=ConnectionStrings:Main";
-        var resolved =
-            $"Server=resolved;Database=doka;Password=secret-canary;{incompatibleOption};";
-        var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
-        var services = new ServiceCollection();
-        services.AddEntityFrameworkDokaMySql();
-#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
-        services.Replace(ServiceDescriptor.Singleton<
-            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
-#pragma warning restore EF1001
-
-        using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        builder.UseInternalServiceProvider(serviceProvider);
-        builder.UseMySql(
-            token,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.RequireUserVariables());
-
-        using var context = new RuntimeBaselineContext(builder.Options);
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            _ = context.Database.GetDbConnection());
-
-        Assert.Equal(
-            Enum.Parse<MySqlConfigurationFailureReason>(expectedReason),
-            exception.Reason);
-        Assert.Equal(token, resolver.LastInput);
-        Assert.DoesNotContain("secret-canary", exception.ToString(), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Verifies that provider defaults do not erase driver-owned TLS, pool, or
-    /// multi-host settings from a provider-created physical connection.
-    /// </summary>
-    [Fact]
-    public void Relational_connection_preserves_advanced_connector_options()
-    {
-        var configured = new MySqlConnectionStringBuilder
-        {
-            Server = "primary,secondary",
-            Port = 3307,
-            Database = "doka",
-            UserID = "provider",
-            Password = "secret",
-            ApplicationName = "custom-pool",
-            SslMode = MySqlSslMode.VerifyFull,
-            SslCa = "/certificates/ca.pem",
-            SslCert = "/certificates/client.pem",
-            SslKey = "/certificates/client-key.pem",
-            LoadBalance = MySqlLoadBalance.FailOver,
-            Pooling = true,
-            MinimumPoolSize = 2,
-            MaximumPoolSize = 16,
-            ConnectionReset = true,
-            ConnectionTimeout = 9,
-            AllowUserVariables = true,
-        };
-
-        var optionsBuilder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-        optionsBuilder.UseMySql(
-            configured.ConnectionString,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        using var context = new RuntimeBaselineContext(optionsBuilder.Options);
-        var actual = new MySqlConnectionStringBuilder(
-            context.GetService<IRelationalConnection>().DbConnection.ConnectionString);
-
-        Assert.Equal(configured.Server, actual.Server);
-        Assert.Equal(configured.Port, actual.Port);
-        Assert.Equal(configured.ApplicationName, actual.ApplicationName);
-        Assert.Equal(configured.SslMode, actual.SslMode);
-        Assert.Equal(configured.SslCa, actual.SslCa);
-        Assert.Equal(configured.SslCert, actual.SslCert);
-        Assert.Equal(configured.SslKey, actual.SslKey);
-        Assert.Equal(configured.LoadBalance, actual.LoadBalance);
-        Assert.Equal(configured.MinimumPoolSize, actual.MinimumPoolSize);
-        Assert.Equal(configured.MaximumPoolSize, actual.MaximumPoolSize);
-        Assert.Equal(configured.ConnectionReset, actual.ConnectionReset);
-        Assert.Equal(configured.ConnectionTimeout, actual.ConnectionTimeout);
-        Assert.Equal(configured.AllowUserVariables, actual.AllowUserVariables);
-    }
-
-    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
-        DbConnection connection
-    )
-    {
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        return builder.Options;
-    }
-
-    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
-        string connectionString,
-        Action<MySqlDbContextOptionsBuilder>? configure = null
-    )
-    {
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        builder.UseMySql(
-            connectionString,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            configure);
-
-        return builder.Options;
-    }
-
-    private static DbContextOptions<RuntimeBaselineContext> CreateOptions(
-        string connectionString,
-        IServiceProvider internalServiceProvider
-    )
-    {
-        var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
-
-        builder.UseInternalServiceProvider(internalServiceProvider);
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        return builder.Options;
-    }
-
-    private sealed class RuntimeBaselineContext : DbContext
-    {
-        public RuntimeBaselineContext(
-            DbContextOptions<RuntimeBaselineContext> options
-        ) : base(options) { }
-    }
-
-#pragma warning disable EF1001 // Test double for EF's named-connection-string resolution boundary.
-    private sealed class RecordingNamedConnectionStringResolver
-        : Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver
-    {
-        private readonly string _expectedInput;
-        private readonly string _resolvedConnectionString;
-
-        public RecordingNamedConnectionStringResolver(
-            string expectedInput,
-            string resolvedConnectionString
-        )
-        {
-            _expectedInput = expectedInput;
-            _resolvedConnectionString = resolvedConnectionString;
-        }
-
-        public string? LastInput { get; private set; }
-
-        public string ResolveConnectionString(
-            string connectionString
-        )
-        {
-            Assert.Equal(_expectedInput, connectionString);
-            LastInput = connectionString;
-            return _resolvedConnectionString;
-        }
-    }
-#pragma warning restore EF1001
-
-    private sealed class RecordingDbConnection : DbConnection
-    {
-        private ConnectionState _state = ConnectionState.Closed;
-
-        public List<RecordingDbCommand> Commands { get; } = new();
-
-        public RecordingDbTransaction? LastTransaction { get; private set; }
-
-        [AllowNull]
-        public override string ConnectionString { get; set; } =
-            "Server=localhost;Database=doka;GuidFormat=Binary16;";
-
-        public override string Database => "doka";
-
-        public override string DataSource => "recording";
-
-        public bool IsDisposed { get; private set; }
-
-        public override string ServerVersion => "8.4.0";
-
-        public override ConnectionState State => _state;
-
-        public override void ChangeDatabase(
-            string databaseName
-        ) => ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-        public override void Close() => _state = ConnectionState.Closed;
-
-        public override void Open() => _state = ConnectionState.Open;
-
-        protected override DbTransaction BeginDbTransaction(
-            IsolationLevel isolationLevel
-        )
-        {
-            if (_state != ConnectionState.Open)
-            {
-                Open();
-            }
-
-            LastTransaction = new RecordingDbTransaction(this, isolationLevel);
-
-            return LastTransaction;
-        }
-
-        protected override DbCommand CreateDbCommand()
-        {
-            var command = new RecordingDbCommand(this);
-
-            Commands.Add(command);
-
-            return command;
-        }
-
-        protected override void Dispose(
-            bool disposing
-        )
-        {
-            IsDisposed = true;
-            base.Dispose(disposing);
-        }
-    }
-
-    private sealed class AsyncAwareDriverFacade : IMySqlDriverFacade
-    {
-        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = new();
-
-        public string DriverName => "AsyncAware";
-
-        public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
-
-        public DbConnection CreateConnection(
-            string connectionString
-        )
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-            var isServerConnection = !connectionString.Contains("Database=", StringComparison.OrdinalIgnoreCase)
-                && !connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase);
-
-            var connection = new AsyncAwareDbConnection(connectionString);
-
-            if (isServerConnection)
-            {
-                ServerConnections.Add(connection);
-            }
-            else
-            {
-                DatabaseConnections.Add(connection);
-            }
-
-            return connection;
-        }
-    }
-
-    private sealed class AsyncAwareDbConnection : DbConnection
-    {
-        private ConnectionState _state = ConnectionState.Closed;
-
-        public AsyncAwareDbConnection(
-            string connectionString
-        )
-        {
-            ConnectionString = connectionString;
-        }
-
-        public List<AsyncAwareDbCommand> Commands { get; } = new();
-
-        [AllowNull]
-        public override string ConnectionString { get; set; }
-
-        public override string Database => "doka";
-
-        public override string DataSource => "async-aware";
-
-        public bool OpenAsyncCalled { get; private set; }
-
-        public bool OpenCalled { get; private set; }
-
-        public override string ServerVersion => "8.4.0";
-
-        public override ConnectionState State => _state;
-
-        public override void ChangeDatabase(
-            string databaseName
-        ) => ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-        public override void Close() => _state = ConnectionState.Closed;
-
-        public override void Open()
-        {
-            OpenCalled = true;
-            _state = ConnectionState.Open;
-        }
-
-        public override Task OpenAsync(
-            CancellationToken cancellationToken
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            OpenAsyncCalled = true;
-            _state = ConnectionState.Open;
-
-            return Task.CompletedTask;
-        }
-
-        protected override DbTransaction BeginDbTransaction(
-            IsolationLevel isolationLevel
-        ) => throw new NotSupportedException();
-
-        protected override DbCommand CreateDbCommand()
-        {
-            var command = new AsyncAwareDbCommand(this);
-
-            Commands.Add(command);
-
-            return command;
-        }
-    }
-
-    private sealed class RecordingDbTransaction : DbTransaction
-    {
-        private readonly RecordingDbConnection _connection;
-
-        public RecordingDbTransaction(
-            RecordingDbConnection connection,
-            IsolationLevel isolationLevel
-        )
-        {
-            _connection = connection;
-            IsolationLevel = isolationLevel;
-        }
-
-        public override IsolationLevel IsolationLevel { get; }
-
-        protected override DbConnection DbConnection => _connection;
-
-        public override void Commit() { }
-
-        public override void Rollback() { }
-    }
-
-    private sealed class RecordingDbCommand : DbCommand
-    {
-        private readonly RecordingDbConnection _connection;
-        private readonly RecordingDbParameterCollection _parameters = new();
-
-        public RecordingDbCommand(
-            RecordingDbConnection connection
-        )
-        {
-            _connection = connection;
-        }
-
-        [AllowNull]
-        public override string CommandText { get; set; } = string.Empty;
-
-        public override int CommandTimeout { get; set; }
-
-        public override CommandType CommandType { get; set; } = CommandType.Text;
-
-        public override bool DesignTimeVisible { get; set; }
-
-        public override UpdateRowSource UpdatedRowSource { get; set; }
-
-        protected override DbConnection? DbConnection
-        {
-            get => _connection;
-            set => throw new NotSupportedException();
-        }
-
-        protected override DbParameterCollection DbParameterCollection => _parameters;
-
-        protected override DbTransaction? DbTransaction { get; set; }
-
-        public DbTransaction? RecordedTransaction => DbTransaction;
-
-        public override void Cancel() { }
-
-        public override int ExecuteNonQuery() => 1;
-
-        public override object ExecuteScalar() => 1;
-
-        public override void Prepare() { }
-
-        protected override DbParameter CreateDbParameter() => new RecordingDbParameter();
-
-        protected override DbDataReader ExecuteDbDataReader(
-            CommandBehavior behavior
-        ) => new DataTable().CreateDataReader();
-    }
-
-    private sealed class AsyncAwareDbCommand : DbCommand
-    {
-        private readonly AsyncAwareDbConnection _connection;
-        private readonly RecordingDbParameterCollection _parameters = new();
-
-        public AsyncAwareDbCommand(
-            AsyncAwareDbConnection connection
-        )
-        {
-            _connection = connection;
-        }
-
-        [AllowNull]
-        public override string CommandText { get; set; } = string.Empty;
-
-        public override int CommandTimeout { get; set; }
-
-        public override CommandType CommandType { get; set; } = CommandType.Text;
-
-        public override bool DesignTimeVisible { get; set; }
-
-        public bool ExecuteNonQueryAsyncCalled { get; private set; }
-
-        public bool ExecuteNonQueryCalled { get; private set; }
-
-        public bool ExecuteScalarAsyncCalled { get; private set; }
-
-        public bool ExecuteScalarCalled { get; private set; }
-
-        public override UpdateRowSource UpdatedRowSource { get; set; }
-
-        protected override DbConnection? DbConnection
-        {
-            get => _connection;
-            set => throw new NotSupportedException();
-        }
-
-        protected override DbParameterCollection DbParameterCollection => _parameters;
-
-        protected override DbTransaction? DbTransaction { get; set; }
-
-        public override void Cancel() { }
-
-        public override int ExecuteNonQuery()
-        {
-            ExecuteNonQueryCalled = true;
-
-            return 1;
-        }
-
-        public override Task<int> ExecuteNonQueryAsync(
-            CancellationToken cancellationToken
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ExecuteNonQueryAsyncCalled = true;
-
-            return Task.FromResult(1);
-        }
-
-        public override object ExecuteScalar()
-        {
-            ExecuteScalarCalled = true;
-
-            return 1;
-        }
-
-        public override Task<object?> ExecuteScalarAsync(
-            CancellationToken cancellationToken
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ExecuteScalarAsyncCalled = true;
-
-            return Task.FromResult<object?>(1);
-        }
-
-        public override void Prepare() { }
-
-        protected override DbParameter CreateDbParameter() => new RecordingDbParameter();
-
-        protected override DbDataReader ExecuteDbDataReader(
-            CommandBehavior behavior
-        ) => new DataTable().CreateDataReader();
-    }
-
-    private sealed class RecordingDbParameter : DbParameter
-    {
-        public override DbType DbType { get; set; }
-
-        public override ParameterDirection Direction { get; set; } = ParameterDirection.Input;
-
-        public override bool IsNullable { get; set; }
-
-        [AllowNull]
-        public override string ParameterName { get; set; } = string.Empty;
-
-        [AllowNull]
-        public override string SourceColumn { get; set; } = string.Empty;
-
-        public override object? Value { get; set; }
-
-        public override bool SourceColumnNullMapping { get; set; }
-
-        public override int Size { get; set; }
-
-        public override void ResetDbType() { }
-    }
-
-    private sealed class RecordingDbParameterCollection : DbParameterCollection
-    {
-        private readonly List<DbParameter> _parameters = new();
-
-        public override int Count => _parameters.Count;
-
-        public override object SyncRoot => ((ICollection)_parameters).SyncRoot;
-
-        public override int Add(
-            object value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            _parameters.Add((DbParameter)value);
-
-            return _parameters.Count - 1;
-        }
-
-        public override void AddRange(
-            Array values
-        )
-        {
-            ArgumentNullException.ThrowIfNull(values);
-
-            foreach (var value in values)
-            {
-                Add(value!);
-            }
-        }
-
-        public override void Clear() => _parameters.Clear();
-
-        public override bool Contains(
-            object value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            return _parameters.Contains((DbParameter)value);
-        }
-
-        public override bool Contains(
-            string value
-        ) => _parameters.Any(parameter => parameter.ParameterName == value);
-
-        public override void CopyTo(
-            Array array,
-            int index
-        ) => ((ICollection)_parameters).CopyTo(array, index);
-
-        public override IEnumerator GetEnumerator() => _parameters.GetEnumerator();
-
-        public override int IndexOf(
-            object value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            return _parameters.IndexOf((DbParameter)value);
-        }
-
-        public override int IndexOf(
-            string parameterName
-        ) => _parameters.FindIndex(parameter => parameter.ParameterName == parameterName);
-
-        public override void Insert(
-            int index,
-            object value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            _parameters.Insert(index, (DbParameter)value);
-        }
-
-        public override void Remove(
-            object value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            _parameters.Remove((DbParameter)value);
-        }
-
-        public override void RemoveAt(
-            int index
-        ) => _parameters.RemoveAt(index);
-
-        public override void RemoveAt(
-            string parameterName
-        )
-        {
-            var index = IndexOf(parameterName);
-
-            if (index >= 0)
-            {
-                RemoveAt(index);
-            }
-        }
-
-        protected override DbParameter GetParameter(
-            int index
-        ) => _parameters[index];
-
-        protected override DbParameter GetParameter(
-            string parameterName
-        )
-        {
-            var index = IndexOf(parameterName);
-
-            return index < 0
-                ? throw new InvalidOperationException($"Parameter '{parameterName}' was not found.")
-                : _parameters[index];
-        }
-
-        protected override void SetParameter(
-            int index,
-            DbParameter value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            _parameters[index] = value;
-        }
-
-        protected override void SetParameter(
-            string parameterName,
-            DbParameter value
-        )
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            var index = IndexOf(parameterName);
-
-            if (index < 0)
-            {
-                _parameters.Add(value);
-
-                return;
-            }
-
-            _parameters[index] = value;
+            var serverConnection = Assert.Single(driverFacade.ServerConnections);
+            Assert.True(serverConnection.OpenAsyncCalled);
+            Assert.False(serverConnection.OpenCalled);
+            var command = Assert.Single(serverConnection.Commands);
+            Assert.True(command.ExecuteNonQueryAsyncCalled);
+            Assert.False(command.ExecuteNonQueryCalled);
         }
     }
 }

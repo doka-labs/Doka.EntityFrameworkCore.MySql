@@ -7,5 +7,6 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class MySqlDiagnosticsTestGroup
 {
+    /// <summary>The collection owning process-wide provider telemetry listeners.</summary>
     public const string Name = "MySQL diagnostics contract";
 }

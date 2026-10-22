@@ -95,6 +95,36 @@ expressions and are therefore emitted as parenthesized column defaults. The
 same policy covers expression-default forms for text, binary, JSON, and every
 spatial store type, including store types with modifiers.
 
+### GUID SQL defaults
+
+`HasDefaultValueSql("UUID()")`, `AddColumn<Guid>(..., defaultValueSql: "UUID()")`,
+and `table.Column<Guid>(..., defaultValueSql: "UUID()")` preserve the SQL
+expression through migration source, snapshot/designer compilation, and DDL.
+Use `char(36)` or MariaDB's native `uuid` for this expression; a `binary(16)`
+column instead requires `UNHEX(REPLACE(UUID(), '-', ''))` for Doka's byte layout.
+`UUID()` alone does not fit that binary column. The provider does not reinterpret
+an application-supplied expression as a literal or rewrite it for another format.
+
+`CREATE TABLE` with these defaults works on the supported matrix. MariaDB also
+backfills populated tables when adding a required column with a UUID expression.
+MySQL 8.4 and 9.7 reject nondeterministic expression defaults in `ALTER TABLE ADD
+COLUMN` with error 1674 in the qualified configuration, even for an empty table.
+This is a server restriction, not a lost Guid mapping. For existing MySQL tables,
+use a reviewed staged migration: add a nullable column without the default,
+explicitly populate it, and then apply the required/default contract after
+checking the live engine's DDL rules. Do not disable replication safeguards to
+make the one-step operation succeed. See the
+[MySQL ALTER TABLE rules](https://dev.mysql.com/doc/refman/8.4/en/alter-table.html).
+
+Live scaffolding preserves the SQL default and store-generation facets.
+`char(36)` remains `string` unless `ScaffoldTextGuidsAsGuids()` is enabled;
+MariaDB `uuid` scaffolds as `Guid` without that opt-in. Binary columns do not
+intrinsically identify a Guid or its byte layout, so no new Binary16 inference
+is introduced. Runtime key generation and explicit override precedence are
+documented in [provider configuration](../provider-configuration.md#guid-sql-defaults-and-computed-values).
+
+### Temporal literal precision
+
 DateTime, TimeOnly, and TimeSpan precision is limited to the engine range of
 zero through six before migration SQL is generated. Explicit `datetime(...)`,
 `timestamp(...)`, and `time(...)` metadata is parsed strictly; malformed or

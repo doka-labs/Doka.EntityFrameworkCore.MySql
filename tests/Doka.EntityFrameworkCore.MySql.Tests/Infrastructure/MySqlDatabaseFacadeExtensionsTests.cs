@@ -31,7 +31,6 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
 
         var options = new DbContextOptionsBuilder<FamilyContext>();
         var version = TargetVersion(mariaDb);
-
         switch (input)
         {
             case "ConnectionString":
@@ -59,7 +58,6 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         Assert.Equal(0, boundary.ConnectionStarts);
         Assert.Equal(0, boundary.Commands.Created);
         Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
-
         if (connection is not null)
         {
             Assert.Equal(ConnectionState.Closed, connection.State);
@@ -91,7 +89,6 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         };
 
         IModel supplied;
-
         if (runtime)
         {
             // WHY: Obtain the runtime representation through EF's public model lifecycle rather than
@@ -118,7 +115,6 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         Assert.Equal(0, context.ModelBuilds);
         Assert.Equal(0, boundary.ConnectionStarts);
         Assert.Equal(0, boundary.Commands.Created);
-
         if (runtime)
         {
             Assert.IsAssignableFrom<RuntimeModel>(supplied);
@@ -143,20 +139,18 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
             .UseMySql(ConnectionString, TargetVersion(mariaDb))
             .AddInterceptors(boundary, boundary.Commands)
             .UseInternalServiceProvider(internalServices), poolSize: 1);
-
         await using var application = registrations.BuildServiceProvider();
         FamilyContext first;
         FamilyContext second;
         bool firstFamily;
         bool secondFamily;
-
-        // Act
         await using (var lease = application.CreateAsyncScope())
         {
             first = lease.ServiceProvider.GetRequiredService<FamilyContext>();
             firstFamily = first.Database.IsMariaDb();
         }
 
+        // Act
         await using (var lease = application.CreateAsyncScope())
         {
             second = lease.ServiceProvider.GetRequiredService<FamilyContext>();
@@ -205,11 +199,13 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     {
         // Arrange
         DatabaseFacade database = null!;
+        Action act = () => database.IsMariaDb();
 
         // Act
-        var error = Assert.Throws<ArgumentNullException>(() => database.IsMariaDb());
+        var recordedException = Record.Exception(act);
 
         // Assert
+        var error = Assert.IsType<ArgumentNullException>(recordedException);
         Assert.Equal("database", error.ParamName);
     }
 
@@ -224,7 +220,6 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     {
         // Arrange
         var options = new DbContextOptionsBuilder();
-
         if (dokaOptions)
         {
             ((IDbContextOptionsBuilderInfrastructure)options).AddOrUpdateExtension(new MySqlOptionsExtension());
@@ -235,15 +230,16 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         await using var services = registrations.BuildServiceProvider();
         await using var context = new DbContext(new DbContextOptionsBuilder()
             .UseInternalServiceProvider(services).Options);
-
         // WHY: This public infrastructure seam isolates the option guard from EF's earlier provider validation;
         // no additional foreign database-provider dependency is needed to represent options without Doka.
         var database = new OptionsOnlyFacade(context, services);
+        Action act = () => database.IsMariaDb();
 
         // Act
-        var error = Assert.Throws<InvalidOperationException>(() => database.IsMariaDb());
+        var recordedException = Record.Exception(act);
 
         // Assert
+        var error = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(dokaOptions
             ? "A MySQL server version must be configured."
             : "Database.IsMariaDb requires the Doka MySQL provider configured with UseMySql.", error.Message);

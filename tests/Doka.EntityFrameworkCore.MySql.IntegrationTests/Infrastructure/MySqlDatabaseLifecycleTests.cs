@@ -7,6 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 public sealed class MySqlDatabaseLifecycleTests
 {
+    /// <summary>Verifies database exists returns true for existing database.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Database_exists_returns_true_for_existing_database()
     {
@@ -16,6 +17,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies database exists returns true on mysql97.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task Database_exists_returns_true_on_mysql97()
     {
@@ -25,6 +27,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies database exists returns true on mariadb1011.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Database_exists_returns_true_on_mariadb1011()
     {
@@ -34,6 +37,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies database exists returns true on mariadb114.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Database_exists_returns_true_on_mariadb114()
     {
@@ -43,6 +47,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies database exists returns true on mariadb118.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Database_exists_returns_true_on_mariadb118()
     {
@@ -52,6 +57,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies database exists returns true on mariadb123.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Database_exists_returns_true_on_mariadb123()
     {
@@ -61,6 +67,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mysql84.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Advisory_lock_contract_holds_on_mysql84()
     {
@@ -70,6 +77,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mysql97.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task Advisory_lock_contract_holds_on_mysql97()
     {
@@ -79,6 +87,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mariadb1011.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Advisory_lock_contract_holds_on_mariadb1011()
     {
@@ -88,6 +97,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mariadb114.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Advisory_lock_contract_holds_on_mariadb114()
     {
@@ -97,6 +107,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mariadb118.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Advisory_lock_contract_holds_on_mariadb118()
     {
@@ -106,6 +117,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies advisory lock contract holds on mariadb123.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Advisory_lock_contract_holds_on_mariadb123()
     {
@@ -115,6 +127,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies guid binary16 and char36 roundtrip on mariadb1011.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb1011()
     {
@@ -124,6 +137,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies guid binary16 and char36 roundtrip on mariadb114.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb114()
     {
@@ -133,6 +147,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies guid binary16 and char36 roundtrip on mariadb118.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb118()
     {
@@ -142,6 +157,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies guid binary16 and char36 roundtrip on mariadb123.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Guid_binary16_and_char36_roundtrip_on_mariadb123()
     {
@@ -156,15 +172,18 @@ public sealed class MySqlDatabaseLifecycleTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await using var context = new LifecycleContext(CreateOptions(connectionString, serverVersion));
+
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
-        Assert.True(
-            await creator
-                .ExistsAsync()
-                .ConfigureAwait(false));
+        // Act
+        var exists = await creator.ExistsAsync().ConfigureAwait(false);
+
+        // Assert
+        Assert.True(exists);
     }
 
     private static async Task AssertAdvisoryLockContractAsync(
@@ -172,6 +191,7 @@ public sealed class MySqlDatabaseLifecycleTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new LifecycleContext(CreateOptions(connectionString, serverVersion));
         var historyRepository = context.GetService<IHistoryRepository>();
@@ -201,10 +221,12 @@ public sealed class MySqlDatabaseLifecycleTests
         contentionCommand.CommandText = "SELECT GET_LOCK(@name, 0);";
         contentionCommand.Parameters.AddWithValue("@name", lockName);
 
+        // Act
         var result = await contentionCommand
             .ExecuteScalarAsync()
             .ConfigureAwait(false);
 
+        // Assert
         Assert.Equal(0L, Convert.ToInt64(result, CultureInfo.InvariantCulture));
     }
 
@@ -213,6 +235,7 @@ public sealed class MySqlDatabaseLifecycleTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new GuidContext(CreateGuidOptions(connectionString, serverVersion));
 
@@ -227,6 +250,7 @@ public sealed class MySqlDatabaseLifecycleTests
         {
             var binId = Guid.NewGuid();
             var charId = Guid.NewGuid();
+
             context.BinItems.Add(
                 new GuidBinEntity
                 {
@@ -239,11 +263,16 @@ public sealed class MySqlDatabaseLifecycleTests
                     Id = charId,
                     Name = "CharTest"
                 });
+
+            // Act
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
+            var loadedBinary = await context.BinItems.FirstAsync();
+            var loadedChar = await context.CharItems.FirstAsync();
 
-            Assert.Equal(binId, (await context.BinItems.FirstAsync()).Id);
-            Assert.Equal(charId, (await context.CharItems.FirstAsync()).Id);
+            // Assert
+            Assert.Equal(binId, loadedBinary.Id);
+            Assert.Equal(charId, loadedChar.Id);
         }
         finally
         {
@@ -259,10 +288,8 @@ public sealed class MySqlDatabaseLifecycleTests
     /// increment, and singleton-row contracts.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public void Sequence_table_emulation_sync_fetch_returns_start_then_increment()
-    {
+    public void Sequence_table_emulation_sync_fetch_returns_start_then_increment() =>
         AssertTableSequenceSync(IntegrationDatabaseTarget.MySql84);
-    }
 
     /// <summary>
     /// Verifies that the asynchronous table-emulation API returns the same first
@@ -291,6 +318,7 @@ public sealed class MySqlDatabaseLifecycleTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var sequenceName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
@@ -305,6 +333,8 @@ public sealed class MySqlDatabaseLifecycleTests
                 createCommand.ExecuteNonQuery();
             }
 
+            // Act
+            // WHY: Consecutive allocations qualify one sequence's state transition.
             var firstValue = MySqlSequenceValueGenerator.GetNextValue(
                 connection,
                 sequenceName,
@@ -317,15 +347,17 @@ public sealed class MySqlDatabaseLifecycleTests
                 7,
                 supportsNativeSequences: false);
 
-            Assert.Equal(42, firstValue);
-            Assert.Equal(49, secondValue);
-            Assert.True(secondValue > firstValue);
-
             using var duplicateRowCommand = connection.CreateCommand();
             duplicateRowCommand.CommandText =
                 $"INSERT INTO `__efsequence_{sequenceName}` (`id`, `value`, `is_called`) VALUES (2, 100, FALSE);";
 
-            Assert.Throws<MySqlException>(() => duplicateRowCommand.ExecuteNonQuery());
+            var duplicateRowFailure = Record.Exception(() => duplicateRowCommand.ExecuteNonQuery());
+
+            // Assert
+            Assert.Equal(42, firstValue);
+            Assert.Equal(49, secondValue);
+            Assert.True(secondValue > firstValue);
+            Assert.IsType<MySqlException>(duplicateRowFailure);
         }
         finally
         {
@@ -339,6 +371,7 @@ public sealed class MySqlDatabaseLifecycleTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var sequenceName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
@@ -357,6 +390,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     .ConfigureAwait(false);
             }
 
+            // Act
             var firstValue = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,
@@ -373,6 +407,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     supportsNativeSequences: false)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.Equal(42, firstValue);
             Assert.Equal(49, secondValue);
             Assert.True(secondValue > firstValue);
@@ -400,30 +435,27 @@ public sealed class MySqlDatabaseLifecycleTests
 
     // -- MariaDB Native Sequence --
 
+    /// <summary>Verifies mariadb114 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public void Mariadb114_native_sequence_sync_fetch_returns_start_then_increment()
-    {
+    public void Mariadb114_native_sequence_sync_fetch_returns_start_then_increment() =>
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb114);
-    }
 
+    /// <summary>Verifies mariadb1011 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public void Mariadb1011_native_sequence_sync_fetch_returns_start_then_increment()
-    {
+    public void Mariadb1011_native_sequence_sync_fetch_returns_start_then_increment() =>
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb1011);
-    }
 
+    /// <summary>Verifies mariadb118 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment()
-    {
+    public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment() =>
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb118);
-    }
 
+    /// <summary>Verifies mariadb123 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public void Mariadb123_native_sequence_sync_fetch_returns_start_then_increment()
-    {
+    public void Mariadb123_native_sequence_sync_fetch_returns_start_then_increment() =>
         AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb123);
-    }
 
+    /// <summary>Verifies mariadb114 native sequence async fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Mariadb114_native_sequence_async_fetch_returns_start_then_increment()
     {
@@ -431,6 +463,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb1011 native sequence async fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Mariadb1011_native_sequence_async_fetch_returns_start_then_increment()
     {
@@ -438,6 +471,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb118 native sequence async fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Mariadb118_native_sequence_async_fetch_returns_start_then_increment()
     {
@@ -445,6 +479,7 @@ public sealed class MySqlDatabaseLifecycleTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb123 native sequence async fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Mariadb123_native_sequence_async_fetch_returns_start_then_increment()
     {
@@ -456,6 +491,7 @@ public sealed class MySqlDatabaseLifecycleTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
@@ -470,6 +506,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 createCmd.ExecuteNonQuery();
             }
 
+            // Act
             var value1 = MySqlSequenceValueGenerator.GetNextValue(
                 connection,
                 seqName,
@@ -482,6 +519,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 1,
                 supportsNativeSequences: true);
 
+            // Assert
             Assert.Equal(1, value1);
             Assert.Equal(2, value2);
         }
@@ -497,6 +535,7 @@ public sealed class MySqlDatabaseLifecycleTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var seqName = $"test_seq_{Guid.NewGuid():N}"[..30];
 
@@ -515,6 +554,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     .ConfigureAwait(false);
             }
 
+            // Act
             var value1 = await MySqlSequenceValueGenerator
                 .GetNextValueAsync(
                     connection,
@@ -531,6 +571,7 @@ public sealed class MySqlDatabaseLifecycleTests
                     supportsNativeSequences: true)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.Equal(1, value1);
             Assert.Equal(2, value2);
         }
@@ -555,6 +596,7 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         var builder = IntegrationTestDbContextOptions.Create<LifecycleContext>();
         builder.UseMySql(connectionString, serverVersion);
+
         return builder.Options;
     }
 

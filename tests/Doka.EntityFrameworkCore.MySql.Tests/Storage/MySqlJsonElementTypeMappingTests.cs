@@ -12,16 +12,28 @@ public sealed class MySqlJsonElementTypeMappingTests
     private static readonly ValueConverter s_converter =
         MySqlJsonTypeMapping.CreateJsonElementMapping().Converter!;
 
+    /// <summary>
+    /// Verifies converter returns an independently owned element.
+    /// </summary>
     [Fact]
     public void Converter_returns_an_independently_owned_element()
     {
+        // Arrange: The class-level converter is the test subject.
+
+        // Act
+        var actual = s_converter.ConvertFromProviderExpression.Body;
+
+        // Assert
         var parseCall = Assert.IsAssignableFrom<MethodCallExpression>(
-            s_converter.ConvertFromProviderExpression.Body);
+            actual);
 
         Assert.Equal(typeof(JsonElement), parseCall.Method.DeclaringType);
         Assert.Equal(nameof(JsonElement.Parse), parseCall.Method.Name);
     }
 
+    /// <summary>
+    /// Verifies converter materializes valid json.
+    /// </summary>
     [Theory]
     [InlineData("null", JsonValueKind.Null)]
     [InlineData("42", JsonValueKind.Number)]
@@ -32,79 +44,106 @@ public sealed class MySqlJsonElementTypeMappingTests
         JsonValueKind expectedValueKind
     )
     {
-        var element = Assert.IsType<JsonElement>(s_converter.ConvertFromProvider(json));
+        // Arrange: The theory supplies json, expectedValueKind.
 
+        // Act
+        var actual = s_converter.ConvertFromProvider(json);
+
+        // Assert
+        var element = Assert.IsType<JsonElement>(actual);
         Assert.Equal(expectedValueKind, element.ValueKind);
         Assert.Equal(json, element.GetRawText());
     }
 
+    /// <summary>
+    /// Verifies converter rejects malformed json.
+    /// </summary>
     [Theory]
     [InlineData("")]
     [InlineData("{")]
     [InlineData("{\"key\":1} trailing")]
     public void Converter_rejects_malformed_json(
         string json
-    ) => Assert.ThrowsAny<JsonException>(() => s_converter.ConvertFromProvider(json));
-
-    [Fact]
-    public void Native_json_mappings_generate_executable_model_value_literals()
+    )
     {
-        using var sourceDocument = JsonDocument.Parse("""{"kind":"document"}""");
-        var cases = new (MySqlJsonTypeMapping Mapping, object Value, Type ExpectedType)[]
-        {
-            (
-                MySqlJsonTypeMapping.CreateJsonElementMapping(),
-                JsonElement.Parse("""{"kind":"element"}"""),
-                typeof(JsonElement)),
-            (
-                MySqlJsonTypeMapping.CreateJsonDocumentMapping(),
-                sourceDocument,
-                typeof(JsonDocument)),
-            (
-                MySqlJsonTypeMapping.CreateJsonNodeMapping(),
-                JsonNode.Parse("""{"kind":"node"}""")!,
-                typeof(JsonNode)),
-            (
-                MySqlJsonTypeMapping.CreateJsonObjectMapping(),
-                (JsonObject)JsonNode.Parse("""{"kind":"object"}""")!,
-                typeof(JsonObject)),
-            (
-                MySqlJsonTypeMapping.CreateJsonArrayMapping(),
-                (JsonArray)JsonNode.Parse("""["array"]""")!,
-                typeof(JsonArray)),
-        };
+        // Arrange
+        Action act = () => s_converter.ConvertFromProvider(json);
 
-        foreach (var (mapping, value, expectedType) in cases)
-        {
-            var generatedValue = Expression
-                .Lambda(mapping.GenerateCodeLiteral(value))
-                .Compile()
-                .DynamicInvoke();
+        // Act
+        var recordedException = Record.Exception(act);
 
-            Assert.NotNull(generatedValue);
-            Assert.True(expectedType.IsAssignableFrom(generatedValue.GetType()));
-
-            if (generatedValue is JsonDocument generatedDocument)
-            {
-                generatedDocument.Dispose();
-            }
-        }
+        // Assert
+        Assert.IsAssignableFrom<JsonException>(recordedException);
     }
 
-    [Fact]
-    public void Native_json_mappings_reject_non_json_code_literal_values()
+    /// <summary>
+    /// Verifies native json mappings generate executable model value literals.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(JsonElement))]
+    [InlineData(typeof(JsonDocument))]
+    [InlineData(typeof(JsonNode))]
+    [InlineData(typeof(JsonObject))]
+    [InlineData(typeof(JsonArray))]
+    public void Native_json_mappings_generate_executable_model_value_literals(
+        Type jsonType
+    )
     {
-        var mappings = new[]
-        {
-            MySqlJsonTypeMapping.CreateJsonElementMapping(),
-            MySqlJsonTypeMapping.CreateJsonDocumentMapping(),
-            MySqlJsonTypeMapping.CreateJsonNodeMapping(),
-            MySqlJsonTypeMapping.CreateJsonObjectMapping(),
-            MySqlJsonTypeMapping.CreateJsonArrayMapping(),
-        };
+        // Arrange
+        var mapping = CreateMapping(jsonType);
+        var json = jsonType == typeof(JsonArray) ? """["array"]""" : """{"kind":"literal"}""";
+        var value = jsonType == typeof(JsonElement)
+            ? (object)JsonElement.Parse(json)
+            : jsonType == typeof(JsonDocument)
+                ? JsonDocument.Parse(json)
+                : JsonNode.Parse(json)!;
 
-        Assert.All(
-            mappings,
-            mapping => Assert.Throws<InvalidOperationException>(() => mapping.GenerateCodeLiteral(42)));
+        using var sourceDocument = value as IDisposable;
+
+        // Act
+        var generatedValue = Expression
+            .Lambda(mapping.GenerateCodeLiteral(value))
+            .Compile()
+            .DynamicInvoke();
+
+        using var generatedDocument = generatedValue as IDisposable;
+
+        // Assert
+        Assert.NotNull(generatedValue);
+        Assert.True(jsonType.IsAssignableFrom(generatedValue.GetType()));
     }
+
+    /// <summary>
+    /// Verifies native json mappings reject non json code literal values.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(JsonElement))]
+    [InlineData(typeof(JsonDocument))]
+    [InlineData(typeof(JsonNode))]
+    [InlineData(typeof(JsonObject))]
+    [InlineData(typeof(JsonArray))]
+    public void Native_json_mappings_reject_non_json_code_literal_values(
+        Type jsonType
+    )
+    {
+        // Arrange
+        var mapping = CreateMapping(jsonType);
+
+        // Act
+        var exception = Record.Exception(() => mapping.GenerateCodeLiteral(42));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
+    }
+
+    /// <summary>Creates the provider mapping matching one supported JSON model type.</summary>
+    private static MySqlJsonTypeMapping CreateMapping(Type jsonType) => jsonType switch
+    {
+        _ when jsonType == typeof(JsonElement) => MySqlJsonTypeMapping.CreateJsonElementMapping(),
+        _ when jsonType == typeof(JsonDocument) => MySqlJsonTypeMapping.CreateJsonDocumentMapping(),
+        _ when jsonType == typeof(JsonNode) => MySqlJsonTypeMapping.CreateJsonNodeMapping(),
+        _ when jsonType == typeof(JsonObject) => MySqlJsonTypeMapping.CreateJsonObjectMapping(),
+        _ when jsonType == typeof(JsonArray) => MySqlJsonTypeMapping.CreateJsonArrayMapping(),
+        _ => throw new ArgumentOutOfRangeException(nameof(jsonType)),
+    };
 }

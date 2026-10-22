@@ -9,32 +9,91 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>Verifies the actual immutable SQL node and EF quotation/rewrite boundaries.</summary>
 public sealed class MySqlStraightJoinExpressionTests
 {
-    /// <summary>Cloning, alias replacement and TRUE simplification retain the exact directed-edge node.</summary>
+    /// <summary>Cloning replaces the candidate source while retaining direction and annotations.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Actual_clone_and_updates_preserve_direction_and_annotations(bool prunable)
+    public void Actual_clone_preserves_direction_and_annotations(bool prunable)
     {
+        // Arrange
         using var context = CreateContext();
         var factory = context.GetService<ISqlExpressionFactory>();
         var source = Source("inner");
         var edge = new MySqlStraightJoinExpression(source, factory.Constant(false), prunable,
             new Dictionary<string, IAnnotation> { ["Doka:Optional"] = new Annotation("Doka:Optional", null) });
+
         var replacement = source.WithAlias("replacement");
 
+        // Act
         var clone = edge.Clone(null, new ReplaceSource(source, replacement));
-        var updated = edge.Update(replacement, factory.Constant(true));
-        var annotated = edge.AddAnnotation("Doka:Value", "kept");
 
+        // Assert
         var clonedEdge = Assert.IsType<MySqlStraightJoinExpression>(clone);
         Assert.Same(replacement, clonedEdge.Table);
-        Assert.IsType<MySqlStraightJoinExpression>(updated);
-        Assert.IsType<MySqlStraightJoinExpression>(annotated);
         Assert.Equal(prunable, clonedEdge.IsPrunable);
-        Assert.Equal(prunable, updated.IsPrunable);
         Assert.NotNull(clonedEdge.FindAnnotation("Doka:Optional"));
+    }
+
+    /// <summary>Updating a directed edge retains its exact node and pruning contract.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_update_preserves_direction_and_pruning(bool prunable)
+    {
+        // Arrange
+        using var context = CreateContext();
+        var factory = context.GetService<ISqlExpressionFactory>();
+        var source = Source("inner");
+        var edge = new MySqlStraightJoinExpression(source, factory.Constant(false), prunable,
+            new Dictionary<string, IAnnotation> { ["Doka:Optional"] = new Annotation("Doka:Optional", null) });
+
+        var replacement = source.WithAlias("replacement");
+
+        // Act
+        var updated = edge.Update(replacement, factory.Constant(true));
+
+        // Assert
+        Assert.IsType<MySqlStraightJoinExpression>(updated);
+        Assert.Same(replacement, updated.Table);
+        Assert.Equal(prunable, updated.IsPrunable);
+    }
+
+    /// <summary>Adding annotations preserves the exact directed-edge type and caller value.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_annotation_preserves_the_directed_edge(bool prunable)
+    {
+        // Arrange
+        using var context = CreateContext();
+        var edge = new MySqlStraightJoinExpression(Source("inner"), context.GetService<ISqlExpressionFactory>().Constant(false), prunable,
+            new Dictionary<string, IAnnotation> { ["Doka:Optional"] = new Annotation("Doka:Optional", null) });
+
+        // Act
+        var annotated = edge.AddAnnotation("Doka:Value", "kept");
+
+        // Assert
+        Assert.IsType<MySqlStraightJoinExpression>(annotated);
+        Assert.NotNull(annotated.FindAnnotation("Doka:Optional"));
         Assert.Equal("kept", annotated.FindAnnotation("Doka:Value")?.Value);
-        Assert.Throws<InvalidOperationException>(() => edge.WithAlias("invalid"));
+    }
+
+    /// <summary>Rejects assigning an alias to a directed edge rather than its candidate table.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_edge_rejects_an_alias(bool prunable)
+    {
+        // Arrange
+        using var context = CreateContext();
+        var edge = new MySqlStraightJoinExpression(Source("inner"), context.GetService<ISqlExpressionFactory>().Constant(false), prunable,
+            new Dictionary<string, IAnnotation> { ["Doka:Optional"] = new Annotation("Doka:Optional", null) });
+
+        // Act
+        var exception = Record.Exception(() => edge.WithAlias("invalid"));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
     }
 
     /// <summary>Actual Quote reconstruction preserves the edge, predicate, pruning and nullable annotation values.</summary>
@@ -44,6 +103,7 @@ public sealed class MySqlStraightJoinExpressionTests
     [Experimental("EF9100")]
     public void Actual_quote_round_trip_preserves_the_directed_edge(bool prunable)
     {
+        // Arrange
         using var context = CreateContext();
         var edge = new MySqlStraightJoinExpression(Source("inner"), context.GetService<ISqlExpressionFactory>().Constant(true),
             prunable, new Dictionary<string, IAnnotation>
@@ -51,10 +111,13 @@ public sealed class MySqlStraightJoinExpressionTests
                 ["Doka:Value"] = new Annotation("Doka:Value", 23),
                 ["Doka:Optional"] = new Annotation("Doka:Optional", null),
             });
+
         var quoted = new BindMappings(context.GetService<IRelationalTypeMappingSource>()).Visit(edge.Quote());
 
+        // Act
         var rebuilt = Expression.Lambda<Func<MySqlStraightJoinExpression>>(quoted).Compile()();
 
+        // Assert
         Assert.Equal("inner", rebuilt.Table.Alias);
         Assert.Equal(prunable, rebuilt.IsPrunable);
         Assert.Equal(23, rebuilt.FindAnnotation("Doka:Value")?.Value);
@@ -64,10 +127,15 @@ public sealed class MySqlStraightJoinExpressionTests
     }
 
     /// <summary>One quoted DAG retains a shared completed source inside and outside the directed candidate edge.</summary>
-    [Fact]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     [Experimental("EF9100")]
-    public void Actual_quote_and_csharp_generator_preserve_the_dependent_source_dag()
+    public void Actual_quote_and_csharp_generator_preserve_the_dependent_source_dag(
+        bool generateCSharp
+    )
     {
+        // Arrange
         using var context = CreateContext();
         var factory = context.GetService<ISqlExpressionFactory>();
         var selected = new MySqlMaterializedSourceExpression("selected", 41, Source("selected_seed"));
@@ -76,41 +144,59 @@ public sealed class MySqlStraightJoinExpressionTests
         var candidates = new MySqlMaterializedSourceExpression("candidates", 42, candidateBody);
         var edge = new MySqlStraightJoinExpression(candidates, factory.Constant(true, context.GetService<IRelationalTypeMappingSource>().FindMapping(typeof(bool))), annotations:
             new Dictionary<string, IAnnotation> { ["Doka:Edge"] = new Annotation("Doka:Edge", "kept") });
+
         var root = new MySqlMaterializedSourceExpression("result", 43, Source("result_seed", [selected, edge]));
         var generator = context.GetService<IQuerySqlGeneratorFactory>();
         var expectedSql = generator.Create().GetCommand(root.Source).CommandText;
-        var quote = new BindMappings(context.GetService<IRelationalTypeMappingSource>()).Visit(root.Quote());
-
-        var rebuilt = Expression.Lambda<Func<MySqlMaterializedSourceExpression>>(quote).Compile()();
         var accessors = new HashSet<string>();
-#pragma warning disable EF1001 // Exercise EF's actual late Constant-to-Quote design-time boundary.
         var namespaces = new HashSet<string>();
-        var csharp = new CSharpHelper(context.GetService<ITypeMappingSource>()).Expression(Expression.Constant(root),
-            namespaces, accessors, null, null);
-#pragma warning restore EF1001
 
+        // Act
+        MySqlMaterializedSourceExpression rebuilt;
+        string? csharp = null;
+        SyntaxTree? syntax = null;
+
+        if (generateCSharp)
+        {
+            #pragma warning disable EF1001 // Exercise EF's actual late Constant-to-Quote design-time boundary.
+            csharp = new CSharpHelper(context.GetService<ITypeMappingSource>()).Expression(Expression.Constant(root),
+                namespaces, accessors, null, null);
+            #pragma warning restore EF1001
+
+            namespaces.Add("Microsoft.EntityFrameworkCore.Storage");
+            var generated = string.Join(Environment.NewLine, namespaces.Select(value => "using " + value + ";"))
+                + " static class Generated { public static object Read(IRelationalTypeMappingSource relationalTypeMappingSource) => " + csharp + "; "
+                + string.Join(Environment.NewLine, accessors) + " }";
+
+            syntax = CSharpSyntaxTree.ParseText(generated);
+            rebuilt = CompileAndReconstruct(syntax, context.GetService<IRelationalTypeMappingSource>());
+        }
+        else
+        {
+            var quote = new BindMappings(context.GetService<IRelationalTypeMappingSource>()).Visit(root.Quote());
+            rebuilt = Expression.Lambda<Func<MySqlMaterializedSourceExpression>>(quote).Compile()();
+        }
+
+        var actualSql = generator.Create().GetCommand(rebuilt.Source).CommandText;
+
+        // Assert
         var rebuiltSelected = Assert.IsType<MySqlMaterializedSourceExpression>(rebuilt.Source.Tables[0]);
         var rebuiltEdge = Assert.IsType<MySqlStraightJoinExpression>(rebuilt.Source.Tables[1]);
         var rebuiltCandidate = Assert.IsType<MySqlMaterializedSourceExpression>(rebuiltEdge.Table);
         var rebuiltDependency = Assert.IsType<MySqlMaterializedSourceExpression>(rebuiltCandidate.Source.Tables[0]);
         Assert.Same(rebuiltSelected.Definition, rebuiltDependency.Definition);
-        Assert.Equal(expectedSql, generator.Create().GetCommand(rebuilt.Source).CommandText);
+        Assert.Equal(expectedSql, actualSql);
         Assert.Contains("STRAIGHT_JOIN", expectedSql, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Count(csharp, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\("));
-        Assert.Contains(nameof(MySqlStraightJoinExpression), csharp, StringComparison.Ordinal);
-        namespaces.Add("Microsoft.EntityFrameworkCore.Storage");
-        var generated = string.Join(Environment.NewLine, namespaces.Select(value => "using " + value + ";"))
-            + " static class Generated { public static object Read(IRelationalTypeMappingSource relationalTypeMappingSource) => " + csharp + "; "
-            + string.Join(Environment.NewLine, accessors) + " }";
-        var syntax = CSharpSyntaxTree.ParseText(generated);
-        Assert.DoesNotContain(syntax.GetDiagnostics(), value => value.Severity == DiagnosticSeverity.Error);
-        var generatedRoot = CompileAndReconstruct(syntax, context.GetService<IRelationalTypeMappingSource>());
-        var generatedEdge = Assert.IsType<MySqlStraightJoinExpression>(generatedRoot.Source.Tables[1]);
-        var generatedCandidate = Assert.IsType<MySqlMaterializedSourceExpression>(generatedEdge.Table);
-        Assert.Same(Assert.IsType<MySqlMaterializedSourceExpression>(generatedRoot.Source.Tables[0]).Definition,
-            Assert.IsType<MySqlMaterializedSourceExpression>(generatedCandidate.Source.Tables[0]).Definition);
-        Assert.Equal("kept", generatedEdge.FindAnnotation("Doka:Edge")?.Value);
-        Assert.Equal(expectedSql, generator.Create().GetCommand(generatedRoot.Source).CommandText);
+        Assert.Equal("kept", rebuiltEdge.FindAnnotation("Doka:Edge")?.Value);
+
+        if (generateCSharp)
+        {
+            Assert.NotNull(csharp);
+            Assert.NotNull(syntax);
+            Assert.Equal(3, Regex.Count(csharp, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\("));
+            Assert.Contains(nameof(MySqlStraightJoinExpression), csharp, StringComparison.Ordinal);
+            Assert.DoesNotContain(syntax.GetDiagnostics(), value => value.Severity == DiagnosticSeverity.Error);
+        }
     }
 
     /// <summary>Existing completed-source annotations also survive the actual generated-C# path.</summary>
@@ -120,16 +206,19 @@ public sealed class MySqlStraightJoinExpressionTests
     [Experimental("EF9100")]
     public void Completed_source_annotations_survive_actual_csharp_reconstruction(bool nullValue)
     {
+        // Arrange
         using var context = CreateContext();
         object? value = nullValue ? null : "kept";
         var original = new MySqlMaterializedSourceExpression("source", 51, Source("source_seed"));
-        var expression = Assert.IsType<MySqlMaterializedSourceExpression>(original.AddAnnotation("Doka:Optional", value));
+        var expression = (MySqlMaterializedSourceExpression)original.AddAnnotation("Doka:Optional", value);
         var accessors = new HashSet<string>();
         var namespaces = new HashSet<string> { "Microsoft.EntityFrameworkCore.Storage" };
-#pragma warning disable EF1001 // Exercise the actual existing Constant-to-Quote consumer, without a directed join.
+
+        // Act
+        #pragma warning disable EF1001 // Exercise the actual existing Constant-to-Quote consumer, without a directed join.
         var csharp = new CSharpHelper(context.GetService<ITypeMappingSource>()).Expression(Expression.Constant(expression),
             namespaces, accessors, null, null);
-#pragma warning restore EF1001
+        #pragma warning restore EF1001
         var generated = string.Join(Environment.NewLine, namespaces.Select(name => "using " + name + ";"))
             + " static class Generated { public static object Read(IRelationalTypeMappingSource relationalTypeMappingSource) => "
             + csharp + "; " + string.Join(Environment.NewLine, accessors) + " }";
@@ -137,10 +226,13 @@ public sealed class MySqlStraightJoinExpressionTests
         var reconstructed = CompileAndReconstruct(CSharpSyntaxTree.ParseText(generated),
             context.GetService<IRelationalTypeMappingSource>());
 
+        var expectedSql = context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(expression.Source).CommandText;
+        var actualSql = context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(reconstructed.Source).CommandText;
+
+        // Assert
         Assert.NotNull(reconstructed.FindAnnotation("Doka:Optional"));
         Assert.Equal(value, reconstructed.FindAnnotation("Doka:Optional")!.Value);
-        Assert.Equal(context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(expression.Source).CommandText,
-            context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(reconstructed.Source).CommandText);
+        Assert.Equal(expectedSql, actualSql);
     }
 
     /// <summary>Semantically compiles and executes the actual generated expression and unsafe accessors.</summary>
@@ -153,8 +245,10 @@ public sealed class MySqlStraightJoinExpressionTests
             .Select(assembly => assembly.Location)
             .Distinct(StringComparer.Ordinal)
             .Select(location => MetadataReference.CreateFromFile(location));
+
         var compilation = CSharpCompilation.Create("Doka.EntityFrameworkCore.MySql.Tests", [syntax], references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
+
         using var binary = new MemoryStream();
         var emitted = compilation.Emit(binary);
         Assert.True(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));

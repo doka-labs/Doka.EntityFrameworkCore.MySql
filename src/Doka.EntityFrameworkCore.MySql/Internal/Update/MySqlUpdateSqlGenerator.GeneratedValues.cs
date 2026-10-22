@@ -6,6 +6,60 @@ internal sealed partial class MySqlUpdateSqlGenerator
     // commands. Weak keys avoid retaining contexts/models through this singleton service.
     private static readonly ConditionalWeakTable<ITable, KeyedReadbackTable> s_keyedReadbackTables = new();
 
+    /// <summary>Rejects unknown keys that the non-RETURNING insert protocol cannot correlate safely.</summary>
+    private static void ValidateGeneratedKeyReadback(
+        IReadOnlyModificationCommand command
+    )
+    {
+        foreach (var modification in command.ColumnModifications)
+        {
+            // LAST_INSERT_ID() retrieves AUTO_INCREMENT values, not arbitrary defaults.
+            // Omitting an unknown key from EF's fallback predicate could select an unrelated row.
+            if (modification is { IsKey: true, IsRead: true, IsWrite: false, }
+                && !IsIdentityColumn(modification)
+                && !TryGetLiteralGeneratedKeyValue(modification, out _))
+            {
+                throw new InvalidOperationException(
+                    $"The configured server cannot retrieve the database-generated key "
+                    + $"'{command.TableName}.{modification.ColumnName}' without INSERT ... RETURNING. "
+                    + "Assign the key explicitly or configure client-side value generation. "
+                    + "LAST_INSERT_ID() only retrieves AUTO_INCREMENT values.");
+            }
+        }
+    }
+
+    /// <summary>Recognizes an omitted key whose configured literal default is known before the insert.</summary>
+    private static bool TryGetLiteralGeneratedKeyValue(
+        IColumnModification modification,
+        [NotNullWhen(true)] out object? value
+    )
+    {
+        value = null;
+
+        if (modification is not { IsKey: true, IsRead: true, IsWrite: false, Property: { } property, })
+        {
+            return false;
+        }
+
+        // A literal is a known key component; arbitrary SQL and computed expressions
+        // are not. Never infer their result from a temporary tracking value.
+        if (modification.Column is IColumn column)
+        {
+            // A shared column can inherit its default from another mapped property.
+            var table = StoreObjectIdentifier.Table(column.Table.Name, column.Table.Schema);
+
+            return property.GetDefaultValueSql(table) is null
+                && property.GetComputedColumnSql(table) is null
+                && property.TryGetDefaultValue(table, out value)
+                && value is not null and not DBNull;
+        }
+
+        return property.GetDefaultValueSql() is null
+            && property.GetComputedColumnSql() is null
+            && property.TryGetDefaultValue(out value)
+            && value is not null and not DBNull;
+    }
+
     /// <summary>
     /// Accounts for the extra SQL and repeated key values without allocating a key array per row.
     /// </summary>

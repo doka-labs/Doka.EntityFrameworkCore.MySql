@@ -1,30 +1,27 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
+/// <summary>Verifies candidate package symbols remain bound to their assembly checksums.</summary>
 public sealed class SymbolReadbackManifestBuilderTests
 {
     private const string Version = "10.0.0-test";
 
+    /// <summary>
+    /// Verifies candidate assemblies produce checksum bound public symbol probes.
+    /// </summary>
     [Fact]
     public void Candidate_assemblies_produce_checksum_bound_public_symbol_probes()
     {
+        // Arrange
         var candidateRoot = CreateCandidateRoot();
+
         try
         {
-            WritePackagePair(
-                candidateRoot,
-                "Doka.EntityFrameworkCore.MySql",
-                typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location);
-            WritePackagePair(
-                candidateRoot,
-                "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
-                typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location);
-            WritePackagePair(
-                candidateRoot,
-                "Doka.Caching.MySql",
-                typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location);
+            WriteCandidatePackages(candidateRoot);
 
+            // Act
             var manifest = NuGetSymbolReadbackManifestBuilder.Build(candidateRoot, Version);
 
+            // Assert
             Assert.Equal(3, manifest.Symbols.Count);
             Assert.Contains(manifest.Symbols, symbol => symbol.PackageId == "Doka.Caching.MySql");
             Assert.All(
@@ -46,51 +43,35 @@ public sealed class SymbolReadbackManifestBuilderTests
         }
     }
 
-    [Fact]
-    public void Cache_symbols_must_match_the_cache_assembly_checksum()
+    /// <summary>
+    /// Verifies each candidate symbol package must match its own assembly checksum.
+    /// </summary>
+    /// <param name="packageId">The package whose PDB bytes are deliberately corrupted.</param>
+    [Theory]
+    [InlineData("Doka.Caching.MySql")]
+    [InlineData("Doka.EntityFrameworkCore.MySql")]
+    [InlineData("Doka.EntityFrameworkCore.MySql.NetTopologySuite")]
+    public void Candidate_symbols_must_match_the_checksum_sealed_into_the_assembly(
+        string packageId
+    )
     {
+        // Arrange
         var candidateRoot = CreateCandidateRoot();
+
         try
         {
-            WritePackagePair(candidateRoot, "Doka.EntityFrameworkCore.MySql",
-                typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location);
-            WritePackagePair(candidateRoot, "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
-                typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location);
-            WritePackagePair(candidateRoot, "Doka.Caching.MySql",
-                typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location, corruptSymbols: true);
+            // WHY: Every other package stays valid, so this case cannot pass by
+            // rejecting an incomplete candidate before checking the corrupted PDB.
+            WriteCandidatePackages(candidateRoot, corruptPackageId: packageId);
 
-            var exception = Assert.Throws<InvalidDataException>(() =>
+            // Act
+            var caught = Record.Exception(() =>
                 NuGetSymbolReadbackManifestBuilder.Build(candidateRoot, Version));
-            Assert.Contains("Doka.Caching.MySql.pdb", exception.Message, StringComparison.Ordinal);
-            Assert.Contains("does not match the checksum sealed into its assembly", exception.Message,
-                StringComparison.Ordinal);
-        }
-        finally
-        {
-            Directory.Delete(candidateRoot, recursive: true);
-        }
-    }
 
-    [Fact]
-    public void Candidate_symbols_must_match_the_checksum_sealed_into_the_assembly()
-    {
-        var candidateRoot = CreateCandidateRoot();
-        try
-        {
-            WritePackagePair(
-                candidateRoot,
-                "Doka.EntityFrameworkCore.MySql",
-                typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location,
-                corruptSymbols: true);
-            WritePackagePair(
-                candidateRoot,
-                "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
-                typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location);
+            // Assert
+            var exception = Assert.IsType<InvalidDataException>(caught);
 
-            var exception =
-                Assert.Throws<InvalidDataException>(() =>
-                    NuGetSymbolReadbackManifestBuilder.Build(candidateRoot, Version));
-
+            Assert.Contains(packageId + ".pdb", exception.Message, StringComparison.Ordinal);
             Assert.Contains(
                 "does not match the checksum sealed into its assembly",
                 exception.Message,
@@ -102,10 +83,33 @@ public sealed class SymbolReadbackManifestBuilderTests
         }
     }
 
+    private static void WriteCandidatePackages(
+        string candidateRoot,
+        string? corruptPackageId = null
+    )
+    {
+        WritePackagePair(
+            candidateRoot,
+            "Doka.EntityFrameworkCore.MySql",
+            typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location,
+            corruptSymbols: corruptPackageId == "Doka.EntityFrameworkCore.MySql");
+        WritePackagePair(
+            candidateRoot,
+            "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+            typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location,
+            corruptSymbols: corruptPackageId == "Doka.EntityFrameworkCore.MySql.NetTopologySuite");
+        WritePackagePair(
+            candidateRoot,
+            "Doka.Caching.MySql",
+            typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location,
+            corruptSymbols: corruptPackageId == "Doka.Caching.MySql");
+    }
+
     private static string CreateCandidateRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), $"doka-symbol-readback-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "packages"));
+
         return root;
     }
 
@@ -129,6 +133,7 @@ public sealed class SymbolReadbackManifestBuilderTests
         }
 
         var pdb = File.ReadAllBytes(pdbPath);
+
         if (corruptSymbols)
         {
             pdb[^1] ^= 0xff;

@@ -52,11 +52,18 @@ internal sealed partial class MySqlMigrationsModelDiffer
     }
 
     private static void NormalizeProviderColumnOperations(
-        IEnumerable<MigrationOperation> operations,
+        IReadOnlyList<MigrationOperation> operations,
         IRelationalModel? source,
         IRelationalModel? target
     )
     {
+        // Most diffs contain no renames. Avoid rescanning every operation for
+        // each expression-bearing old column in that common migration path.
+        var renameOperations =
+            operations.Any(static operation => operation is RenameTableOperation or RenameColumnOperation)
+                ? operations
+                : null;
+
         foreach (var operation in operations)
         {
             switch (operation)
@@ -64,23 +71,116 @@ internal sealed partial class MySqlMigrationsModelDiffer
                 case CreateTableOperation createTable:
                     foreach (var column in createTable.Columns)
                     {
+                        RestoreExpressionColumnGenerationStrategy(column, target);
                         NormalizeProviderGuidColumnOperation(column);
                         NormalizeProviderOwnedConverterColumnOperation(column, target);
                     }
 
                     break;
                 case AlterColumnOperation alterColumn:
+                    RestoreExpressionColumnGenerationStrategy(alterColumn, target);
                     NormalizeProviderGuidColumnOperation(alterColumn);
                     NormalizeProviderOwnedConverterColumnOperation(alterColumn, target);
+                    RestoreExpressionColumnGenerationStrategy(
+                        alterColumn.OldColumn,
+                        source,
+                        alterColumn,
+                        renameOperations);
                     NormalizeProviderGuidColumnOperation(alterColumn.OldColumn);
                     NormalizeProviderOwnedConverterColumnOperation(alterColumn.OldColumn, source);
                     break;
                 case ColumnOperation column:
+                    RestoreExpressionColumnGenerationStrategy(column, target);
                     NormalizeProviderGuidColumnOperation(column);
                     NormalizeProviderOwnedConverterColumnOperation(column, target);
                     break;
             }
         }
+    }
+
+    private static void RestoreExpressionColumnGenerationStrategy(
+        ColumnOperation operation,
+        IRelationalModel? relationalModel,
+        ColumnOperation? identity = null,
+        IReadOnlyList<MigrationOperation>? renameOperations = null
+    )
+    {
+        if (operation.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy) is not null
+            || (operation.DefaultValueSql is null && operation.ComputedColumnSql is null))
+        {
+            return;
+        }
+
+        // Runtime-only annotations are excluded from relational comparison, not
+        // from the public migration-operation contract. OldColumn can omit its
+        // identity, while a combined rename and alteration uses target names.
+        // Invert EF's explicit rename operations before reading source metadata.
+        var columnIdentity = identity ?? operation;
+        var column = renameOperations is null
+            ? relationalModel
+                ?.FindTable(columnIdentity.Table, columnIdentity.Schema)
+                ?.FindColumn(columnIdentity.Name)
+            : FindSourceExpressionColumn(relationalModel, columnIdentity, renameOperations);
+
+        if (column is null)
+        {
+            return;
+        }
+
+        foreach (var mapping in column.PropertyMappings)
+        {
+            var strategy = mapping.Property.GetMySqlValueGenerationStrategy();
+
+            if (strategy is MySqlValueGenerationStrategy.ClientGuid or MySqlValueGenerationStrategy.None)
+            {
+                operation.SetAnnotation(MySqlAnnotationNames.ValueGenerationStrategy, strategy.Value);
+                return;
+            }
+        }
+    }
+
+    private static IColumn? FindSourceExpressionColumn(
+        IRelationalModel? source,
+        ColumnOperation targetIdentity,
+        IReadOnlyList<MigrationOperation> operations
+    )
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        var sourceTable = targetIdentity.Table;
+        var sourceSchema = targetIdentity.Schema;
+        var sourceColumn = targetIdentity.Name;
+
+        foreach (var operation in operations)
+        {
+            if (operation is RenameTableOperation rename
+                && string.Equals(rename.NewName ?? rename.Name, targetIdentity.Table, StringComparison.Ordinal)
+                && string.Equals(rename.NewSchema, targetIdentity.Schema, StringComparison.Ordinal))
+            {
+                sourceTable = rename.Name;
+                sourceSchema = rename.Schema;
+                break;
+            }
+        }
+
+        foreach (var operation in operations)
+        {
+            if (operation is RenameColumnOperation rename
+                && string.Equals(rename.NewName, targetIdentity.Name, StringComparison.Ordinal)
+                && string.Equals(rename.Table, targetIdentity.Table, StringComparison.Ordinal)
+                && string.Equals(rename.Schema, targetIdentity.Schema, StringComparison.Ordinal))
+            {
+                sourceColumn = rename.Name;
+                break;
+            }
+        }
+
+        return source
+            .FindTable(sourceTable, sourceSchema)
+            ?.FindColumn(sourceColumn);
     }
 
     private static void NormalizeProviderOwnedConverterColumnOperation(

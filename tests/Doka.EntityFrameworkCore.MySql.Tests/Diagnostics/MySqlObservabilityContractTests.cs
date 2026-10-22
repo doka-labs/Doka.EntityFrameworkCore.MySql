@@ -8,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// privacy rules, alerts, and runbook ownership.
 /// </summary>
 [Collection(MySqlDiagnosticsTestGroup.Name)]
-public sealed class MySqlObservabilityContractTests
+public sealed partial class MySqlObservabilityContractTests
 {
     private static readonly string[] s_alertSeverities =
     [
@@ -16,9 +16,13 @@ public sealed class MySqlObservabilityContractTests
         "warning"
     ];
 
+    /// <summary>
+    /// Verifies machine readable contract matches the public diagnostic surface.
+    /// </summary>
     [Fact]
     public void Machine_readable_contract_matches_the_public_diagnostic_surface()
     {
+        // Arrange
         using var contract = LoadContract();
         var root = contract.RootElement;
         var operations = root
@@ -36,6 +40,7 @@ public sealed class MySqlObservabilityContractTests
             .SelectMany(MetricNames)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Act
         var publicConstants = typeof(MySqlDiagnostics)
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(field => field.IsLiteral && field.FieldType == typeof(string))
@@ -51,12 +56,15 @@ public sealed class MySqlObservabilityContractTests
             .Select(pair => pair.Value)
             .ToHashSet(StringComparer.Ordinal);
 
+        var actual = operations
+            .Select(OperationId)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        // Assert
         Assert.Equal(
             operations.Count,
-            operations
-                .Select(OperationId)
-                .Distinct(StringComparer.Ordinal)
-                .Count());
+            actual);
         Assert.Equal(operations.Count, contractSpans.Count);
         Assert.Equal(
             operations.Sum(operation => MetricNames(operation).Count),
@@ -87,14 +95,11 @@ public sealed class MySqlObservabilityContractTests
                 .GetProperty("privacy")
                 .GetProperty("defaultDriverPoolName")
                 .GetString());
-
         var privacy = root.GetProperty("privacy");
-
         AssertDomain(
             privacy.GetProperty("boundedLogFieldDomains"),
             "configurationFailureReason",
             Enum.GetNames<MySqlConfigurationFailureReason>());
-
         Assert.Equal(
             "SHA-256",
             privacy
@@ -109,20 +114,17 @@ public sealed class MySqlObservabilityContractTests
                 .GetInt32());
     }
 
+    /// <summary>
+    /// Verifies every operational event has exactly one log trace metric owner.
+    /// </summary>
     [Fact]
     public void Every_operational_event_has_exactly_one_log_trace_metric_owner()
     {
+        // Arrange
         using var contract = LoadContract();
         var operations = contract
             .RootElement.GetProperty("operations")
             .EnumerateArray()
-            .ToList();
-
-        var contractEventIds = operations
-            .SelectMany(operation => operation
-                .GetProperty("eventIds")
-                .EnumerateArray())
-            .Select(value => value.GetInt32())
             .ToList();
 
         var expectedOperationalEventIds = typeof(MySqlEventId)
@@ -133,17 +135,29 @@ public sealed class MySqlObservabilityContractTests
             .Order()
             .ToList();
 
+        // Act
+        var contractEventIds = operations
+            .SelectMany(operation => operation
+                .GetProperty("eventIds")
+                .EnumerateArray())
+            .Select(value => value.GetInt32())
+            .ToList();
+
+        var actual = contractEventIds
+            .Distinct()
+            .Count();
+
+        // Assert
         Assert.Equal(
             contractEventIds.Count,
-            contractEventIds
-                .Distinct()
-                .Count());
+            actual);
         Assert.Equal(
             expectedOperationalEventIds,
             contractEventIds
                 .Order()
                 .ToList());
-
+        // WHY: ownership is a global invariant; checking every row here detects
+        // duplicate or missing owners across the entire diagnostic catalog.
         foreach (var operation in operations)
         {
             Assert.False(
@@ -160,9 +174,13 @@ public sealed class MySqlObservabilityContractTests
         }
     }
 
+    /// <summary>
+    /// Verifies alerts resolve to contract signals and runbook anchors.
+    /// </summary>
     [Fact]
     public void Alerts_resolve_to_contract_signals_and_runbook_anchors()
     {
+        // Arrange
         using var contract = LoadContract();
         var root = contract.RootElement;
         var operations = root
@@ -186,6 +204,7 @@ public sealed class MySqlObservabilityContractTests
             "docs",
             "operations");
 
+        // Act
         var runbooks = string.Join(
             Environment.NewLine,
             Directory
@@ -193,8 +212,11 @@ public sealed class MySqlObservabilityContractTests
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .Select(File.ReadAllText));
 
+        // Assert
         Assert.Equal(alerts.Count, alertIds.Count);
 
+        // WHY: resolving alert references is a catalog integrity check. The
+        // same snapshot must prove both anchor existence and matching ownership.
         foreach (var alert in alerts)
         {
             var anchor = alert
@@ -238,101 +260,90 @@ public sealed class MySqlObservabilityContractTests
         }
     }
 
-    [Fact]
-    public void Metric_tag_domains_are_finite_and_match_runtime_enums()
+    /// <summary>
+    /// Verifies metric tag domains are finite and match runtime enums.
+    /// </summary>
+    /// <param name="operationId">The operation owning the bounded metric tag.</param>
+    /// <param name="tagName">The independently verified metric tag.</param>
+    /// <param name="expectedValues">The complete finite runtime domain.</param>
+    [Theory]
+    [MemberData(nameof(MetricTagDomainCases))]
+    public void Metric_tag_domains_are_finite_and_match_runtime_enums(
+        string operationId,
+        string tagName,
+        string[] expectedValues
+    )
     {
+        // Arrange
         using var contract = LoadContract();
-        var operations = contract
+        var domains = contract
             .RootElement.GetProperty("operations")
             .EnumerateArray()
-            .ToList();
-
-        var serverDomains = operations
-            .Single(operation => OperationId(operation) == "server-version-resolution")
+            .Single(operation => OperationId(operation) == operationId)
             .GetProperty("metricTagDomains");
 
-        var lockDomains = operations
-            .Single(operation => OperationId(operation) == "migration-lock-acquire")
-            .GetProperty("metricTagDomains");
+        // Act
+        var actual = domains
+            .GetProperty(tagName)
+            .EnumerateArray()
+            .Select(value => value.GetString())
+            .ToHashSet(StringComparer.Ordinal);
 
-        var retryDomains = operations
-            .Single(operation => OperationId(operation) == "retry-attempt")
-            .GetProperty("metricTagDomains");
-
-        var cancellationDomains = operations
-            .Single(operation => OperationId(operation) == "command-cancellation")
-            .GetProperty("metricTagDomains");
-
-        foreach (var operation in operations)
-        {
-            AssertDomain(
-                operation.GetProperty("metricTagDomains"),
-                MySqlDiagnosticTags.Engine,
-                MySqlDiagnosticTags.MariaDb,
-                MySqlDiagnosticTags.MySql);
-        }
-
-        var handlerOperation = operations
-            .Single(operation => OperationId(operation) == "migration-operation-handler");
-
-        var handlerBounds = handlerOperation.GetProperty("metricTagBounds");
-
-        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationHandlerId, out _));
-        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationHandlerOutcome, out _));
-        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.MigrationOperationType, out _));
-        Assert.True(handlerBounds.TryGetProperty(MySqlDiagnosticTags.ErrorType, out _));
-
-        AssertDomain(serverDomains, "support_status", Enum.GetNames<MySqlServerVersionSupportStatus>());
-        AssertDomain(serverDomains, "compatibility_mode", Enum.GetNames<MySqlServerVersionCompatibilityMode>());
-        AssertDomain(
-            lockDomains,
-            "outcome",
-            MySqlDiagnosticTags.Acquired,
-            MySqlDiagnosticTags.Failed,
-            MySqlDiagnosticTags.Timeout);
-        AssertDomain(retryDomains, "outcome", MySqlDiagnosticTags.Attempt);
-        AssertDomain(cancellationDomains, "path", MySqlDiagnosticTags.Hard, MySqlDiagnosticTags.Soft);
+        // Assert
+        Assert.True(actual.SetEquals(expectedValues));
     }
 
-    [Fact]
-    public void Provider_spans_obey_the_bounded_privacy_safe_tag_contract()
+    /// <summary>Verifies one handler metric field has an explicit finite bound.</summary>
+    /// <param name="tagName">The handler metric tag requiring a contract bound.</param>
+    [Theory]
+    [InlineData(MySqlDiagnosticTags.MigrationHandlerId)]
+    [InlineData(MySqlDiagnosticTags.MigrationHandlerOutcome)]
+    [InlineData(MySqlDiagnosticTags.MigrationOperationType)]
+    [InlineData(MySqlDiagnosticTags.ErrorType)]
+    public void Migration_handler_metric_tag_has_an_explicit_bound(
+        string tagName
+    )
     {
+        // Arrange
+        using var contract = LoadContract();
+        var handlerBounds = contract.RootElement
+            .GetProperty("operations")
+            .EnumerateArray()
+            .Single(operation => OperationId(operation) == "migration-operation-handler")
+            .GetProperty("metricTagBounds");
+
+        // Act
+        var hasBound = handlerBounds.TryGetProperty(tagName, out _);
+
+        // Assert
+        Assert.True(hasBound);
+    }
+
+    /// <summary>
+    /// Verifies provider spans obey the bounded privacy safe tag contract.
+    /// </summary>
+    /// <param name="operation">The independently exercised span helper.</param>
+    [Theory]
+    [InlineData("migration_lock")]
+    [InlineData("lock_release_failure")]
+    [InlineData("retry_attempt")]
+    [InlineData("retry_exhausted")]
+    [InlineData("cancellation")]
+    [InlineData("command_timeout")]
+    [InlineData("commit_unknown")]
+    [InlineData("server_version")]
+    [InlineData("migration_handler")]
+    public void Provider_spans_obey_the_bounded_privacy_safe_tag_contract(
+        string operation
+    )
+    {
+        // Arrange
         using var contract = LoadContract();
         using var sink = new ActivitySink();
         using var rootActivity = new Activity("observability-tag-contract").Start();
         var secret = "password=secret;database=tenant-42;SELECT secret_column";
         var privateData = "tenant=private_tenant";
         var exception = new InvalidOperationException(secret) { Data = { ["private-context"] = privateData } };
-
-        using (MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql)) { }
-
-        using (MySqlActivitySource.StartMigrationLockReleaseFailed(EngineFamily.MySql, exception)) { }
-
-        using (MySqlActivitySource.StartRetryAttempt(2, EngineFamily.MySql)) { }
-
-        using (MySqlActivitySource.StartRetryLimitExceeded(EngineFamily.MySql, exception)) { }
-
-        using (MySqlActivitySource.StartCancellation(
-                   MySqlDiagnosticTags.Hard,
-                   "Broken",
-                   EngineFamily.MySql,
-                   exception)) { }
-
-        using (MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception)) { }
-
-        using (MySqlActivitySource.StartCommitUnknown("Closed", EngineFamily.MySql, exception)) { }
-
-        using (MySqlActivitySource.StartServerVersionResolve(EngineFamily.MariaDb)) { }
-
-        using (var handlerActivity = MySqlActivitySource.StartMigrationOperationHandler(
-                   "tests.handler",
-                   "Tests.CustomOperation",
-                   "default",
-                   EngineFamily.MySql))
-        {
-            handlerActivity?.SetTag(MySqlDiagnosticTags.MigrationHandlerOutcome, "generated");
-        }
-
         var tagContract = contract.RootElement.GetProperty("spanTagContract");
         var required = tagContract
             .GetProperty("required")
@@ -354,55 +365,76 @@ public sealed class MySqlObservabilityContractTests
             .Select(value => value.GetString()!)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Act
+        using (var activity = operation switch
+        {
+            "migration_lock" => MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql),
+            "lock_release_failure" => MySqlActivitySource.StartMigrationLockReleaseFailed(EngineFamily.MySql, exception),
+            "retry_attempt" => MySqlActivitySource.StartRetryAttempt(2, EngineFamily.MySql),
+            "retry_exhausted" => MySqlActivitySource.StartRetryLimitExceeded(EngineFamily.MySql, exception),
+            "cancellation" => MySqlActivitySource.StartCancellation(
+                MySqlDiagnosticTags.Hard, "Broken", EngineFamily.MySql, exception),
+            "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
+            "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Closed", EngineFamily.MySql, exception),
+            "server_version" => MySqlActivitySource.StartServerVersionResolve(EngineFamily.MariaDb),
+            "migration_handler" => MySqlActivitySource.StartMigrationOperationHandler(
+                "tests.handler", "Tests.CustomOperation", "default", EngineFamily.MySql),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        })
+        {
+            if (operation == "migration_handler")
+            {
+                activity?.SetTag(MySqlDiagnosticTags.MigrationHandlerOutcome, "generated");
+            }
+        }
+
         var activities = sink
             .Activities.Where(activity => activity.TraceId == rootActivity.TraceId)
             .ToList();
 
-        Assert.Equal(9, activities.Count);
+        // Assert
+        var captured = Assert.Single(activities);
+        var tags = captured.TagObjects.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
-        foreach (var activity in activities)
-        {
-            var tags = activity.TagObjects.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-
-            Assert.Empty(tags.Keys.Except(allowed, StringComparer.Ordinal));
-            Assert.Empty(tags.Keys.Intersect(forbidden, StringComparer.Ordinal));
-            Assert.All(
-                required,
-                tag => Assert.True(tags.ContainsKey(tag), $"Span '{activity.OperationName}' misses '{tag}'."));
-            Assert.DoesNotContain(
-                tags.Values,
-                value => value
-                        ?.ToString()
-                        ?.Contains(secret, StringComparison.Ordinal)
-                    == true);
-            Assert.DoesNotContain(
-                tags.Values,
-                value => value
-                        ?.ToString()
-                        ?.Contains(privateData, StringComparison.Ordinal)
-                    == true);
-        }
-
-        Assert.Contains(
-            activities,
-            activity => Equals(activity.GetTagItem(MySqlDiagnosticTags.DatabaseSystem), MySqlDiagnosticTags.MariaDb));
+        Assert.Empty(tags.Keys.Except(allowed, StringComparer.Ordinal));
+        Assert.Empty(tags.Keys.Intersect(forbidden, StringComparer.Ordinal));
+        Assert.All(
+            required,
+            tag => Assert.True(tags.ContainsKey(tag), $"Span '{captured.OperationName}' misses '{tag}'."));
+        Assert.DoesNotContain(
+            tags.Values,
+            value => value?.ToString()?.Contains(secret, StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(
+            tags.Values,
+            value => value?.ToString()?.Contains(privateData, StringComparison.Ordinal) == true);
+        Assert.Equal(
+            operation == "server_version" ? MySqlDiagnosticTags.MariaDb : MySqlDiagnosticTags.MySql,
+            captured.GetTagItem(MySqlDiagnosticTags.DatabaseSystem));
     }
 
+    /// <summary>
+    /// Verifies failure log is correlated without serializing the exception.
+    /// </summary>
     [Fact]
     public void Failure_log_is_correlated_without_serializing_the_exception()
     {
+        // Arrange
         using var sink = new ActivitySink();
         using var rootActivity = new Activity("observability-log-contract").Start();
         var logSink = new TestLogSink();
         var logger = new TestLogger(MySqlLoggerCategory.Resilience, logSink);
         var exception = new InvalidOperationException("password=secret;SELECT private_data");
+        Activity? providerSpan;
 
+        // Act
         using (var activity = MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception))
         {
-            Assert.NotNull(activity);
+            providerSpan = activity;
             MySqlLoggerMessages.CommitUnknown(logger, Guid.NewGuid(), "Broken", exception);
         }
 
+        // Assert
+        Assert.NotNull(providerSpan);
         var logEntry = Assert.Single(logSink.Entries);
         var providerActivity = Assert.Single(
             sink.Activities,

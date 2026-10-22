@@ -10,46 +10,95 @@ namespace Doka.EntityFrameworkCore.MySql.Tests.Scaffolding;
 /// </summary>
 public sealed class TableFilterTests
 {
+    /// <summary>
+    /// Verifies empty input collapses to match all.
+    /// </summary>
     [Fact]
     public void Empty_input_collapses_to_match_all()
     {
-        var filter = TableFilter.For(Array.Empty<string>());
+        // Arrange
+        var input = Array.Empty<string>();
 
+        // Act
+        var filter = TableFilter.For(input);
+
+        // Assert
         Assert.Null(filter.Tables);
         Assert.True(filter.Matches("any_table"));
     }
 
+    /// <summary>
+    /// Verifies non empty input carries a case sensitive set.
+    /// </summary>
     [Fact]
     public void Non_empty_input_carries_a_case_sensitive_set()
     {
-        var filter = TableFilter.For(["Orders", "Products"]);
+        // Arrange
+        string[] names = ["Orders", "Products"];
 
+        // Act
+        var filter = TableFilter.For(names);
+
+        // Assert
         Assert.NotNull(filter.Tables);
         Assert.Equal(2, filter.Tables!.Count);
-        Assert.True(filter.Matches("Orders"));
-        Assert.True(filter.Matches("Products"));
-        Assert.False(filter.Matches("Customers"));
-        Assert.False(filter.Matches("orders"));
+        Assert.Contains("Orders", filter.Tables);
+        Assert.Contains("Products", filter.Tables);
     }
 
+    /// <summary>Verifies selected table names match ordinally without admitting unselected names.</summary>
+    [Theory]
+    [InlineData("Orders", true)]
+    [InlineData("Products", true)]
+    [InlineData("Customers", false)]
+    [InlineData("orders", false)]
+    public void Non_empty_filter_matches_only_exact_selected_names(
+        string tableName,
+        bool expected
+    )
+    {
+        // Arrange
+        var filter = TableFilter.For(["Orders", "Products"]);
+
+        // Act
+        var matches = filter.Matches(tableName);
+
+        // Assert
+        Assert.Equal(expected, matches);
+    }
+
+    /// <summary>
+    /// Verifies match all singleton short circuits the filter.
+    /// </summary>
     [Fact]
     public void Match_all_singleton_short_circuits_the_filter()
     {
+        // Arrange
         var matchAll = TableFilter.MatchAll;
 
+        // Act
+        var matches = matchAll.Matches("anything");
+
+        // Assert
         Assert.Null(matchAll.Tables);
-        Assert.True(matchAll.Matches("anything"));
+        Assert.True(matches);
     }
 
+    /// <summary>
+    /// Verifies <c>AppendTableNameFilter</c> writes parametrized in clause.
+    /// </summary>
     [Fact]
     public void AppendTableNameFilter_writes_parametrized_in_clause()
     {
+        // Arrange
         var filter = TableFilter.For(["Orders", "Products"]);
         var sql = new StringBuilder("WHERE TABLE_SCHEMA = DATABASE()");
         using var command = new ScaffoldingTestCommand();
 
+        // Act
         var bound = ScaffoldingHelpers.AppendTableNameFilter(sql, command, filter);
 
+        // Assert
         Assert.Equal(2, bound);
         Assert.Contains("TABLE_NAME IN (@t0, @t1)", sql.ToString(), StringComparison.Ordinal);
         Assert.Equal(2, command.Parameters.Count);
@@ -57,29 +106,42 @@ public sealed class TableFilterTests
         Assert.Equal("@t1", command.Parameters[1]!.ParameterName);
     }
 
+    /// <summary>
+    /// Verifies <c>AppendTableNameFilter</c> is a noop on match all.
+    /// </summary>
     [Fact]
     public void AppendTableNameFilter_is_a_noop_on_match_all()
     {
+        // Arrange
         var sql = new StringBuilder("WHERE TABLE_SCHEMA = DATABASE()");
         using var command = new ScaffoldingTestCommand();
 
+        // Act
         var bound = ScaffoldingHelpers.AppendTableNameFilter(sql, command, TableFilter.MatchAll);
 
+        // Assert
         Assert.Equal(0, bound);
         Assert.Equal("WHERE TABLE_SCHEMA = DATABASE()", sql.ToString());
         Assert.Empty(command.Parameters);
     }
 
+    /// <summary>
+    /// Verifies <c>AppendTableNameFilter</c> honors custom column reference.
+    /// </summary>
     [Fact]
     public void AppendTableNameFilter_honors_custom_column_reference()
     {
+        // Arrange
         var filter = TableFilter.For(["Orders"]);
         var sql = new StringBuilder("WHERE ");
         using var command = new ScaffoldingTestCommand();
 
+        // Act
         ScaffoldingHelpers.AppendTableNameFilter(sql, command, filter, "source.TABLE_NAME");
+        var actual = sql.ToString();
 
-        Assert.Contains("source.TABLE_NAME IN (@t0)", sql.ToString(), StringComparison.Ordinal);
+        // Assert
+        Assert.Contains("source.TABLE_NAME IN (@t0)", actual, StringComparison.Ordinal);
     }
 
     private sealed class ScaffoldingTestCommand : DbCommand
@@ -155,6 +217,7 @@ public sealed class TableFilterTests
         {
             ArgumentNullException.ThrowIfNull(value);
             _items.Add((DbParameter)value);
+
             return _items.Count - 1;
         }
 

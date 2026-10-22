@@ -11,6 +11,7 @@ public sealed class ArchitectureConformanceTests
     [Fact]
     public void Raw_query_sentinels_exist_only_in_the_exhaustive_contract()
     {
+        // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var contractPath = Path.Combine(
             repositoryRoot,
@@ -21,6 +22,7 @@ public sealed class ArchitectureConformanceTests
             "Expressions",
             "MySqlSentinelContract.cs");
 
+        // Act
         var violations = EnumerateProductSources(repositoryRoot)
             .Where(path => !string.Equals(path, contractPath, StringComparison.Ordinal))
             .Where(path => File
@@ -29,6 +31,7 @@ public sealed class ArchitectureConformanceTests
             .Select(path => Path.GetRelativePath(repositoryRoot, path))
             .ToArray();
 
+        // Assert
         Assert.Empty(violations);
     }
 
@@ -39,6 +42,7 @@ public sealed class ArchitectureConformanceTests
     [Fact]
     public void Runtime_behavior_does_not_branch_on_engine_family_identity()
     {
+        // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var behaviorRoots = new[]
         {
@@ -56,6 +60,7 @@ public sealed class ArchitectureConformanceTests
             "EngineFamily.",
         };
 
+        // Act
         var violations = behaviorRoots
             .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
             .SelectMany(path => File
@@ -69,6 +74,7 @@ public sealed class ArchitectureConformanceTests
             .Select(candidate => $"{Path.GetRelativePath(repositoryRoot, candidate.Path)}:{candidate.Number}")
             .ToArray();
 
+        // Assert
         Assert.Empty(violations);
     }
 
@@ -79,6 +85,7 @@ public sealed class ArchitectureConformanceTests
     [Fact]
     public void Every_engine_capability_has_an_active_consumer_or_provider_mapping()
     {
+        // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var excludedFiles = new[]
         {
@@ -91,6 +98,7 @@ public sealed class ArchitectureConformanceTests
             .Select(path => (Path: path, Content: File.ReadAllText(path)))
             .ToArray();
 
+        // Act
         var violations = Enum
             .GetValues<EngineCapability>()
             .Where(capability => !sources.Any(source => source.Content.Contains(
@@ -98,6 +106,7 @@ public sealed class ArchitectureConformanceTests
                 StringComparison.Ordinal)))
             .ToArray();
 
+        // Assert
         Assert.Empty(violations);
     }
 
@@ -108,6 +117,7 @@ public sealed class ArchitectureConformanceTests
     [Fact]
     public void Every_provider_capability_has_an_active_behavior_consumer()
     {
+        // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var excludedFiles = new[]
         {
@@ -121,6 +131,7 @@ public sealed class ArchitectureConformanceTests
             .Select(path => (Path: path, Content: File.ReadAllText(path)))
             .ToArray();
 
+        // Act
         var violations = Enum
             .GetValues<ProviderCapability>()
             .Where(capability => !sources.Any(source => source.Content.Contains(
@@ -128,6 +139,7 @@ public sealed class ArchitectureConformanceTests
                 StringComparison.Ordinal)))
             .ToArray();
 
+        // Assert
         Assert.Empty(violations);
     }
 
@@ -138,13 +150,19 @@ public sealed class ArchitectureConformanceTests
     [Fact]
     public void Provider_support_statuses_never_blame_the_provider()
     {
+        // Arrange: The public support-status enum defines the complete input.
+
+        // Act
+        var actual = Enum.GetValues<ProviderSupportStatus>();
+
+        // Assert
         Assert.Equal(
             [
                 ProviderSupportStatus.Native,
                 ProviderSupportStatus.Emulated,
                 ProviderSupportStatus.UnsupportedByEngine,
             ],
-            Enum.GetValues<ProviderSupportStatus>());
+            actual);
     }
 
     private static IEnumerable<string> EnumerateProductSources(

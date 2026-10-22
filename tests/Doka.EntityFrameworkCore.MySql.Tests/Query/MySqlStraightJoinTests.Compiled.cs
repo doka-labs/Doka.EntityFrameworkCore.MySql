@@ -8,14 +8,20 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(true)]
     public void Compiled_query_retains_the_public_join_operator(bool mariaDb)
     {
+        // Arrange
         var commands = new List<string>();
         using var services = CreateRecordingServices(commands);
         using var context = CreateContext(mariaDb, services: services);
         var query = EF.CompileQuery((JoinContext db, int minimum) => db.Nodes.Where(value => value.Id >= minimum)
             .StraightJoin(db.Nodes, left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }));
 
-        var error = Assert.Throws<ConnectionBlockedException>(() => query(context, 17).ToArray());
+        Action act = () => _ = query(context, 17).ToArray();
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var error = Assert.IsType<ConnectionBlockedException>(recordedException);
         Assert.NotNull(error);
         Assert.Equal(1, context.Blocker.Openings);
         Assert.Single(Regex.Matches(Assert.Single(commands), @"\bSTRAIGHT_JOIN\b"));
@@ -27,20 +33,26 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(true)]
     public async Task Compiled_async_query_retains_the_public_join_operator(bool mariaDb)
     {
+        // Arrange
         var commands = new List<string>();
         await using var services = CreateRecordingServices(commands);
         await using var context = CreateContext(mariaDb, services: services);
         var query = EF.CompileAsyncQuery((JoinContext db, int minimum) => db.Nodes.Where(value => value.Id >= minimum)
             .StraightJoin(db.Nodes, left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }));
 
-        var error = await Assert.ThrowsAsync<ConnectionBlockedException>(async () =>
+        Func<Task> act = async () =>
         {
             await foreach (var unused in query(context, 17).WithCancellation(CancellationToken.None))
             {
                 _ = unused;
             }
-        });
+        };
 
+        // Act
+        var recordedException = await Record.ExceptionAsync(act);
+
+        // Assert
+        var error = Assert.IsType<ConnectionBlockedException>(recordedException);
         Assert.NotNull(error);
         Assert.Equal(1, context.Blocker.Openings);
         Assert.Single(Regex.Matches(Assert.Single(commands), @"\bSTRAIGHT_JOIN\b"));
@@ -52,6 +64,7 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(true)]
     public async Task Directed_join_composes_with_dependent_materialized_sources(bool mariaDb)
     {
+        // Arrange
         await using var context = CreateContext(mariaDb);
         var source = context.Nodes.Select(value => new { value.Id, value.TenantId, value.OptionalKey });
         var query = source.WithMaterializedSource(selected =>
@@ -69,10 +82,15 @@ public sealed partial class MySqlStraightJoinTests
                             Tags = owner.Tags.Select(tag => tag.Text).ToArray(),
                             Items = owner.Items.Select(item => item.Text).ToArray(),
                         })));
+
         var sql = query.ToQueryString();
+        Func<Task> act = () => query.ToArrayAsync(CancellationToken.None);
 
-        var error = await Assert.ThrowsAsync<ConnectionBlockedException>(() => query.ToArrayAsync(CancellationToken.None));
+        // Act
+        var recordedException = await Record.ExceptionAsync(act);
 
+        // Assert
+        var error = Assert.IsType<ConnectionBlockedException>(recordedException);
         Assert.NotNull(error);
         Assert.Single(Regex.Matches(sql, @"\bSTRAIGHT_JOIN\b"));
         Assert.Contains("INNER JOIN", sql, StringComparison.Ordinal);

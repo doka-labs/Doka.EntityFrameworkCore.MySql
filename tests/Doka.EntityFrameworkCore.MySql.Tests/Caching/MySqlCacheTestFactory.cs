@@ -22,6 +22,7 @@ internal static class MySqlCacheTestFactory
     {
         var options = new MySqlCacheOptions();
         ConfigureValidOptions(options);
+
         return options;
     }
 

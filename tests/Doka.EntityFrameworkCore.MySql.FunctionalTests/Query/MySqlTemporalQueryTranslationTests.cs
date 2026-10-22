@@ -24,12 +24,15 @@ public sealed class MySqlTemporalQueryTranslationTests
         string expectedClause
     )
     {
+        // Arrange
         using var context = CreateContext<MariaDbConfiguration>(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Records, operation)
             .Where(record => record.Id > 0)
             .ToQueryString();
 
+        // Assert
         Assert.Contains(expectedClause, sql, StringComparison.Ordinal);
         Assert.DoesNotContain("UNION ALL", sql, StringComparison.Ordinal);
     }
@@ -40,12 +43,15 @@ public sealed class MySqlTemporalQueryTranslationTests
     [Fact]
     public void MariaDb_contained_in_uses_native_history_with_explicit_boundaries()
     {
+        // Arrange
         using var context = CreateContext<MariaDbConfiguration>(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
 
+        // Act
         var sql = context
             .Records.TemporalContainedIn(s_from, s_to)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FOR SYSTEM_TIME ALL", sql, StringComparison.Ordinal);
         Assert.Contains("`PeriodStart` >= '2026-01-02 03:04:05.000000'", sql, StringComparison.Ordinal);
         Assert.Contains("`PeriodEnd` <= '2026-02-03 04:05:06.000000'", sql, StringComparison.Ordinal);
@@ -64,11 +70,14 @@ public sealed class MySqlTemporalQueryTranslationTests
         string operation
     )
     {
+        // Arrange
         using var context = CreateContext<MySqlConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Records, operation)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `TemporalRecords`", sql, StringComparison.Ordinal);
         Assert.Contains("FROM `TemporalRecordsHistory`", sql, StringComparison.Ordinal);
         Assert.Contains("UNION ALL", sql, StringComparison.Ordinal);
@@ -81,13 +90,16 @@ public sealed class MySqlTemporalQueryTranslationTests
     [Fact]
     public void MySql_temporal_queries_qualify_configured_history_schema()
     {
+        // Arrange
         using var context = CreateContext<MySqlCrossSchemaConfiguration>(
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var sql = context
             .Records.TemporalAll()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `TemporalRecords`", sql, StringComparison.Ordinal);
         Assert.Contains("FROM `audit`.`TemporalRecordsHistory`", sql, StringComparison.Ordinal);
     }
@@ -106,11 +118,14 @@ public sealed class MySqlTemporalQueryTranslationTests
         string expectedEndPredicate
     )
     {
+        // Arrange
         using var context = CreateContext<MySqlConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Records, operation)
             .ToQueryString();
 
+        // Assert
         Assert.Equal(2, CountOccurrences(sql, expectedStartPredicate));
         Assert.Equal(2, CountOccurrences(sql, expectedEndPredicate));
     }
@@ -128,12 +143,15 @@ public sealed class MySqlTemporalQueryTranslationTests
         string operation
     )
     {
+        // Arrange
         using var context = CreateTptContext(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Animals, operation)
             .OfType<TptTemporalDog>()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("`TemporalAnimals` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
         Assert.Contains("`TemporalDogs` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
     }
@@ -151,12 +169,15 @@ public sealed class MySqlTemporalQueryTranslationTests
         string operation
     )
     {
+        // Arrange
         using var context = CreateTptContext(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Animals, operation)
             .OfType<TptTemporalDog>()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `TemporalAnimalsHistory`", sql, StringComparison.Ordinal);
         Assert.Contains("FROM `TemporalDogsHistory`", sql, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(sql, "UNION ALL"));
@@ -175,11 +196,14 @@ public sealed class MySqlTemporalQueryTranslationTests
         string operation
     )
     {
+        // Arrange
         using var context = CreateTpcContext(MySqlServerVersion.MariaDb(new Version(11, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Animals, operation)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("`TemporalDogs` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
         Assert.Contains("`TemporalCats` FOR SYSTEM_TIME", sql, StringComparison.Ordinal);
     }
@@ -197,11 +221,14 @@ public sealed class MySqlTemporalQueryTranslationTests
         string operation
     )
     {
+        // Arrange
         using var context = CreateTpcContext(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var sql = CreateTemporalQuery(context.Animals, operation)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FROM `TemporalDogsHistory`", sql, StringComparison.Ordinal);
         Assert.Contains("FROM `TemporalCatsHistory`", sql, StringComparison.Ordinal);
     }
@@ -212,10 +239,13 @@ public sealed class MySqlTemporalQueryTranslationTests
     [Fact]
     public void Temporal_queries_are_always_no_tracking()
     {
+        // Arrange
         using var context = CreateContext<MySqlConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var query = context.Records.TemporalAll();
 
+        // Assert
         Assert.Contains("AsNoTracking", query.Expression.ToString(), StringComparison.Ordinal);
     }
 
@@ -229,11 +259,14 @@ public sealed class MySqlTemporalQueryTranslationTests
         DateTimeKind kind
     )
     {
+        // Arrange
         using var context = CreateContext<MySqlConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
         var boundary = DateTime.SpecifyKind(s_from, kind);
 
+        // Act
         var exception = Assert.Throws<ArgumentException>(() => context.Records.TemporalAsOf(boundary));
 
+        // Assert
         Assert.Equal("utcPointInTime", exception.ParamName);
     }
 
@@ -243,10 +276,13 @@ public sealed class MySqlTemporalQueryTranslationTests
     [Fact]
     public void Temporal_queries_reject_inverted_ranges()
     {
+        // Arrange
         using var context = CreateContext<MySqlConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => context.Records.TemporalFromTo(s_to, s_from));
 
+        // Assert
         Assert.Equal("utcTo", exception.ParamName);
     }
 
@@ -256,12 +292,15 @@ public sealed class MySqlTemporalQueryTranslationTests
     [Fact]
     public void Temporal_query_rejects_non_temporal_entity()
     {
+        // Arrange
         using var context = CreateContext<NonTemporalConfiguration>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Records.TemporalAll()
             .ToQueryString());
 
+        // Assert
         Assert.Contains("non-temporal entity type", exception.Message, StringComparison.Ordinal);
     }
 

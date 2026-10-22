@@ -11,35 +11,63 @@ public sealed class MySqlInfrastructureTests
     [Fact]
     public void UpdateSqlGenerator_resolves_as_MySql_type()
     {
+        // Arrange
         using var context = CreateContext();
-        var generator = context.GetService<IUpdateSqlGenerator>();
 
+        // Act
+        var generator = context.GetService<IUpdateSqlGenerator>();
+        var actual = generator.GetType()
+                .Name;
+
+        // Assert
         Assert.Equal(
             "MySqlUpdateSqlGenerator",
-            generator.GetType()
-                .Name);
+            actual);
     }
 
     /// <summary>NTS Point is recognized as spatial CLR type.</summary>
     [Fact]
     public void IsSpatialClrType_returns_true_for_nts_point()
     {
-        Assert.True(MySqlSpatialTypeSupport.IsSpatialClrType(typeof(NetTopologySuite.Geometries.Point)));
+        // Arrange
+        var type = typeof(NetTopologySuite.Geometries.Point);
+
+        // Act
+        var actual = MySqlSpatialTypeSupport.IsSpatialClrType(type);
+
+        // Assert
+        Assert.True(actual);
     }
 
     /// <summary>NTS Geometry base class is recognized as spatial CLR type.</summary>
     [Fact]
     public void IsSpatialClrType_returns_true_for_nts_geometry()
     {
-        Assert.True(MySqlSpatialTypeSupport.IsSpatialClrType(typeof(NetTopologySuite.Geometries.Geometry)));
+        // Arrange
+        var type = typeof(NetTopologySuite.Geometries.Geometry);
+
+        // Act
+        var actual = MySqlSpatialTypeSupport.IsSpatialClrType(type);
+
+        // Assert
+        Assert.True(actual);
     }
 
     /// <summary>Non-spatial type is not recognized.</summary>
-    [Fact]
-    public void IsSpatialClrType_returns_false_for_non_spatial()
+    [Theory]
+    [InlineData(typeof(string))]
+    [InlineData(typeof(int))]
+    public void IsSpatialClrType_returns_false_for_non_spatial(
+        Type type
+    )
     {
-        Assert.False(MySqlSpatialTypeSupport.IsSpatialClrType(typeof(string)));
-        Assert.False(MySqlSpatialTypeSupport.IsSpatialClrType(typeof(int)));
+        // Arrange: The theory supplies type.
+
+        // Act
+        var actual = MySqlSpatialTypeSupport.IsSpatialClrType(type);
+
+        // Assert
+        Assert.False(actual);
     }
 
     /// <summary>Known MySQL spatial store types are recognized.</summary>
@@ -62,7 +90,13 @@ public sealed class MySqlInfrastructureTests
         bool expected
     )
     {
-        Assert.Equal(expected, MySqlSpatialTypeSupport.IsSpatialStoreType(storeType));
+        // Arrange: The theory supplies storeType, expected.
+
+        // Act
+        var actual = MySqlSpatialTypeSupport.IsSpatialStoreType(storeType);
+
+        // Assert
+        Assert.Equal(expected, actual);
     }
 
     /// <summary>NormalizeStoreTypeName strips parentheses and whitespace.</summary>
@@ -76,7 +110,13 @@ public sealed class MySqlInfrastructureTests
         string expected
     )
     {
-        Assert.Equal(expected, MySqlSpatialTypeSupport.NormalizeStoreTypeName(input));
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlSpatialTypeSupport.NormalizeStoreTypeName(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
     }
 
     // ======================================================================
@@ -89,6 +129,7 @@ public sealed class MySqlInfrastructureTests
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         return new InfraContext(builder.Options);
     }
 

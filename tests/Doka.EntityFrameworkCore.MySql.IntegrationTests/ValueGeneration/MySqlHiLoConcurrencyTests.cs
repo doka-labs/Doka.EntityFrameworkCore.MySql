@@ -17,10 +17,15 @@ public sealed class MySqlHiLoConcurrencyTests
     private const int ContextCount = 10;
     private const int InsertsPerContext = 25;
 
+    /// <summary>
+    /// Parallel contexts consume shared Hi/Lo blocks without issuing duplicate keys.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_inserts_across_parallel_contexts_yield_unique_ids()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        var expectedCount = ContextCount * InsertsPerContext;
 
         await PrepareSchemaAsync(connectionString)
             .ConfigureAwait(false);
@@ -30,6 +35,7 @@ public sealed class MySqlHiLoConcurrencyTests
         {
             var seenIds = new ConcurrentBag<int>();
 
+            // Act
             await Parallel
                 .ForEachAsync(
                     Enumerable.Range(0, ContextCount),
@@ -49,8 +55,7 @@ public sealed class MySqlHiLoConcurrencyTests
                     })
                 .ConfigureAwait(false);
 
-            var expectedCount = ContextCount * InsertsPerContext;
-
+            // Assert
             Assert.Equal(expectedCount, seenIds.Count);
             Assert.Equal(expectedCount, seenIds.Distinct().Count());
         }
@@ -74,6 +79,7 @@ public sealed class MySqlHiLoConcurrencyTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Fifty_parallel_savechanges_use_block_caching_to_minimize_sequence_roundtrips()
     {
+        // Arrange
         const int totalInserts = 50;
         const int defaultBlockSize = 10;
         const int expectedRoundtrips = totalInserts / defaultBlockSize;
@@ -90,6 +96,7 @@ public sealed class MySqlHiLoConcurrencyTests
         {
             var seenIds = new ConcurrentBag<int>();
 
+            // Act
             await Parallel
                 .ForEachAsync(
                     Enumerable.Range(0, totalInserts),
@@ -108,6 +115,7 @@ public sealed class MySqlHiLoConcurrencyTests
             var roundtripCount = await ReadSequenceAuditCountAsync(connectionString)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.Equal(totalInserts, seenIds.Count);
             Assert.Equal(totalInserts, seenIds.Distinct().Count());
             Assert.Equal(expectedRoundtrips, roundtripCount);
@@ -122,9 +130,13 @@ public sealed class MySqlHiLoConcurrencyTests
         }
     }
 
+    /// <summary>
+    /// Hi/Lo saves leave the caller-owned data source usable after disposing the context.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_uses_configured_data_source_and_leaves_it_usable()
     {
+        // Arrange
         var connectionString = CreateBorrowedConnectionString(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
@@ -135,21 +147,24 @@ public sealed class MySqlHiLoConcurrencyTests
         try
         {
             await using var dataSource = new MySqlDataSourceBuilder(connectionString).Build();
+            var entity = new HiLoEntity { Name = "data-source" };
+
+            // WHY: Context disposal and subsequent reuse are one borrowed-resource lifecycle.
+            // Act
             await using (var context = new HiLoContext(BuildOptions(dataSource)))
             {
-                var entity = new HiLoEntity { Name = "data-source" };
                 context.Items.Add(entity);
                 await context
                     .SaveChangesAsync()
                     .ConfigureAwait(false);
-
-                Assert.Equal(1, entity.Id);
             }
 
             await using var verificationConnection = await dataSource
                 .OpenConnectionAsync()
                 .ConfigureAwait(false);
 
+            // Assert
+            Assert.Equal(1, entity.Id);
             Assert.Equal(ConnectionState.Open, verificationConnection.State);
         }
         finally
@@ -160,9 +175,13 @@ public sealed class MySqlHiLoConcurrencyTests
         }
     }
 
+    /// <summary>
+    /// Hi/Lo saves preserve the caller-owned connection and its persisted row after context disposal.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_uses_external_connection_without_taking_ownership()
     {
+        // Arrange
         var connectionString = CreateBorrowedConnectionString(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
@@ -177,28 +196,32 @@ public sealed class MySqlHiLoConcurrencyTests
                 .OpenAsync()
                 .ConfigureAwait(false);
 
+            var entity = new HiLoEntity { Name = "external-connection" };
+
+            // WHY: Saving, disposing the context and reusing its connection form one ownership contract.
+            // Act
             await using (var context = new HiLoContext(BuildOptions(connection)))
             {
-                var entity = new HiLoEntity { Name = "external-connection" };
                 context.Items.Add(entity);
                 await context
                     .SaveChangesAsync()
                     .ConfigureAwait(false);
-
-                Assert.Equal(1, entity.Id);
             }
 
-            Assert.Equal(ConnectionState.Open, connection.State);
+            var stateAfterContextDisposal = connection.State;
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT COUNT(*) FROM `{TableName}`;";
 
+            var persistedCount = Convert.ToInt64(
+                await command.ExecuteScalarAsync().ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
+
+            // Assert
+            Assert.Equal(1, entity.Id);
+            Assert.Equal(ConnectionState.Open, stateAfterContextDisposal);
             Assert.Equal(
                 1L,
-                Convert.ToInt64(
-                    await command
-                        .ExecuteScalarAsync()
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture));
+                persistedCount);
         }
         finally
         {
@@ -214,6 +237,7 @@ public sealed class MySqlHiLoConcurrencyTests
     {
         var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         return builder.Options;
     }
 
@@ -223,6 +247,7 @@ public sealed class MySqlHiLoConcurrencyTests
     {
         var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(dataSource, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         return builder.Options;
     }
 
@@ -232,6 +257,7 @@ public sealed class MySqlHiLoConcurrencyTests
     {
         var builder = IntegrationTestDbContextOptions.Create<HiLoContext>();
         builder.UseMySql(connection, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         return builder.Options;
     }
 
@@ -348,18 +374,32 @@ public sealed class MySqlHiLoConcurrencyTests
 
     private sealed class HiLoEntity
     {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
         public int Id { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name.
+        /// </summary>
         public string Name { get; set; } = string.Empty;
     }
 
     private sealed class HiLoContext : DbContext
     {
+        /// <summary>
+        /// Initializes the HiLoContext fixture.
+        /// </summary>
         public HiLoContext(
             DbContextOptions<HiLoContext> options
         ) : base(options) { }
 
+        /// <summary>
+        /// Verifies set.
+        /// </summary>
         public DbSet<HiLoEntity> Items => Set<HiLoEntity>();
 
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )

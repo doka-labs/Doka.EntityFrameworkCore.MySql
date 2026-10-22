@@ -11,9 +11,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void GetCreateScript_produces_valid_create_table_sql()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var sql = repo.GetCreateScript();
 
+        // Assert
         Assert.Contains("CREATE TABLE", sql, StringComparison.Ordinal);
         Assert.Contains("`__EFMigrationsHistory`", sql, StringComparison.Ordinal);
         Assert.Contains("`MigrationId` varchar(150) NOT NULL", sql, StringComparison.Ordinal);
@@ -27,9 +31,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void GetCreateIfNotExistsScript_contains_if_not_exists()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var sql = repo.GetCreateIfNotExistsScript();
 
+        // Assert
         Assert.Contains("CREATE TABLE IF NOT EXISTS", sql, StringComparison.Ordinal);
         Assert.Contains("`__EFMigrationsHistory`", sql, StringComparison.Ordinal);
     }
@@ -39,9 +47,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void GetBeginIfNotExistsScript_wraps_in_stored_procedure()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var sql = repo.GetBeginIfNotExistsScript("20260410_InitialCreate");
 
+        // Assert
         Assert.Contains("DROP PROCEDURE IF EXISTS", sql, StringComparison.Ordinal);
         Assert.Contains("DELIMITER //", sql, StringComparison.Ordinal);
         Assert.Contains("`__ef_apply_migration`", sql, StringComparison.Ordinal);
@@ -54,9 +66,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void GetBeginIfExistsScript_wraps_in_stored_procedure_with_exists()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var sql = repo.GetBeginIfExistsScript("20260410_AddColumn");
 
+        // Assert
         Assert.Contains("DROP PROCEDURE IF EXISTS", sql, StringComparison.Ordinal);
         Assert.Contains("`__ef_apply_migration`", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE PROCEDURE", sql, StringComparison.Ordinal);
@@ -68,9 +84,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void GetEndIfScript_calls_and_drops_procedure()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var sql = repo.GetEndIfScript();
 
+        // Assert
         Assert.Contains("END IF", sql, StringComparison.Ordinal);
         Assert.Contains("END //", sql, StringComparison.Ordinal);
         Assert.Contains("DELIMITER ;", sql, StringComparison.Ordinal);
@@ -81,11 +101,15 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void Idempotent_script_round_trip_produces_executable_structure()
     {
+        // Arrange
         var repo = CreateRepository();
         var begin = repo.GetBeginIfNotExistsScript("20260410_Test");
+
+        // Act
         var end = repo.GetEndIfScript();
         var full = begin + "        -- migration body\n" + end;
 
+        // Assert
         Assert.Contains("DROP PROCEDURE IF EXISTS", full, StringComparison.Ordinal);
         Assert.Contains("CREATE PROCEDURE", full, StringComparison.Ordinal);
         Assert.Contains("IF NOT EXISTS", full, StringComparison.Ordinal);
@@ -102,9 +126,13 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void ExistsSql_queries_information_schema()
     {
+        // Arrange
         var repo = CreateRepository();
+
+        // Act
         var existsSql = GetExistsSql(repo);
 
+        // Assert
         Assert.Contains("information_schema.tables", existsSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("table_schema = DATABASE()", existsSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("__EFMigrationsHistory", existsSql, StringComparison.Ordinal);
@@ -116,9 +144,14 @@ public sealed class MySqlHistoryRepositoryTests
     [Fact]
     public void LockReleaseBehavior_is_explicit()
     {
+        // Arrange
         var repo = CreateRepository();
 
-        Assert.Equal(LockReleaseBehavior.Explicit, repo.LockReleaseBehavior);
+        // Act
+        var behavior = repo.LockReleaseBehavior;
+
+        // Assert
+        Assert.Equal(LockReleaseBehavior.Explicit, behavior);
     }
 
     // -- Helpers --
@@ -131,6 +164,7 @@ public sealed class MySqlHistoryRepositoryTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         using var context = new HistoryTestContext(builder.Options);
+
         return context.GetService<IHistoryRepository>();
     }
 

@@ -80,6 +80,7 @@ public sealed class TemporalTableIntegrationTests
         AssertScaffoldingContract(connection.ConnectionString, target);
         await WriteVersionsAsync(temporalContext);
         await AssertTemporalQueriesAsync(target);
+        await AssertCancellationContractAsync(target);
 
         await ExecuteOperationsAsync(emptyContext, connection, GetDifferences(temporalContext, emptyContext));
         await AssertRemovedAsync(connection);
@@ -179,6 +180,7 @@ public sealed class TemporalTableIntegrationTests
         await AssertPhysicalContractAsync(connection, target);
         await WriteVersionsAsync(temporalContext);
         await AssertTemporalQueriesAsync(target);
+        await AssertCancellationContractAsync(target);
 
         await ExecuteOperationsAsync(
             nonTemporalContext,
@@ -214,7 +216,15 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var context = CreateTemporalContext(target);
+        var expectedVersions = new[]
+        {
+            "version-1",
+            "version-2",
+        };
+
+        // Act
         var versions = await context
             .Items.TemporalAll()
             .Select(item => new
@@ -226,74 +236,78 @@ public sealed class TemporalTableIntegrationTests
             .OrderBy(version => version.ValidFrom)
             .ToListAsync();
 
-        Assert.Collection(
-            versions,
-            version => Assert.Equal("version-1", version.Name),
-            version => Assert.Equal("version-2", version.Name));
-
         var firstFrom = AsUtc(versions[0].ValidFrom);
         var firstTo = AsUtc(versions[0].ValidTo);
         var secondFrom = AsUtc(versions[1].ValidFrom);
         var secondTo = AsUtc(versions[1].ValidTo);
+        var firstBoundary = await ReadNamesAsync(context.Items.TemporalAsOf(firstFrom));
+        var firstMidpoint = await ReadNamesAsync(context.Items.TemporalAsOf(GetMidpoint(firstFrom, firstTo)));
+        var secondBoundary = await ReadNamesAsync(context.Items.TemporalAsOf(firstTo));
+        var secondMidpoint = await ReadNamesAsync(context.Items.TemporalAsOf(GetMidpoint(secondFrom, secondTo)));
+        var afterDeletion = await ReadNamesAsync(context.Items.TemporalAsOf(secondTo));
+        var emptyRange = await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, firstFrom));
+        var firstRange = await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, firstTo));
+        var secondRange = await ReadNamesAsync(context.Items.TemporalFromTo(firstTo, secondTo));
+        var entireRange = await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, secondTo));
+        var inclusiveFirstBoundary = await ReadNamesAsync(context.Items.TemporalBetween(firstFrom, firstFrom));
+        var inclusiveSecondRange = await ReadNamesAsync(context.Items.TemporalBetween(firstTo, secondTo));
+        var inclusiveEntireRange = await ReadNamesAsync(context.Items.TemporalBetween(firstFrom, secondTo));
+        var containedFirstRange = await ReadNamesAsync(context.Items.TemporalContainedIn(firstFrom, firstTo));
+        var containedSecondRange = await ReadNamesAsync(context.Items.TemporalContainedIn(secondFrom, secondTo));
+        var containedEntireRange = await ReadNamesAsync(context.Items.TemporalContainedIn(firstFrom, secondTo));
+        var allVersions = await ReadNamesAsync(context.Items.TemporalAll());
+        var versionCount = await context.Items.TemporalAll().CountAsync();
+        var secondVersionExists = await context.Items.TemporalAll().AnyAsync(item => item.Name == "version-2");
+        var currentItems = await context.Items.ToListAsync();
 
+        // Assert
+        Assert.Collection(
+            versions,
+            version => Assert.Equal("version-1", version.Name),
+            version => Assert.Equal("version-2", version.Name));
         Assert.True(firstFrom < firstTo);
         Assert.Equal(firstTo, secondFrom);
         Assert.True(secondFrom < secondTo);
 
-        Assert.Equal(["version-1"], await ReadNamesAsync(context.Items.TemporalAsOf(firstFrom)));
-        Assert.Equal(["version-1"], await ReadNamesAsync(context.Items.TemporalAsOf(GetMidpoint(firstFrom, firstTo))));
-        Assert.Equal(["version-2"], await ReadNamesAsync(context.Items.TemporalAsOf(firstTo)));
-        Assert.Equal(
-            ["version-2"],
-            await ReadNamesAsync(context.Items.TemporalAsOf(GetMidpoint(secondFrom, secondTo))));
-        Assert.Empty(await ReadNamesAsync(context.Items.TemporalAsOf(secondTo)));
-
-        var expectedVersions = new[]
-        {
-            "version-1",
-            "version-2",
-        };
-
-        Assert.Empty(await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, firstFrom)));
-        Assert.Equal(["version-1"], await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, firstTo)));
-        Assert.Equal(["version-2"], await ReadNamesAsync(context.Items.TemporalFromTo(firstTo, secondTo)));
-        Assert.Equal(expectedVersions, await ReadNamesAsync(context.Items.TemporalFromTo(firstFrom, secondTo)));
-        Assert.Equal(["version-1"], await ReadNamesAsync(context.Items.TemporalBetween(firstFrom, firstFrom)));
-        Assert.Equal(["version-2"], await ReadNamesAsync(context.Items.TemporalBetween(firstTo, secondTo)));
-        Assert.Equal(expectedVersions, await ReadNamesAsync(context.Items.TemporalBetween(firstFrom, secondTo)));
-        Assert.Equal(["version-1"], await ReadNamesAsync(context.Items.TemporalContainedIn(firstFrom, firstTo)));
-        Assert.Equal(["version-2"], await ReadNamesAsync(context.Items.TemporalContainedIn(secondFrom, secondTo)));
-        Assert.Equal(expectedVersions, await ReadNamesAsync(context.Items.TemporalContainedIn(firstFrom, secondTo)));
-        Assert.Equal(expectedVersions, await ReadNamesAsync(context.Items.TemporalAll()));
-        Assert.Equal(
-            2,
-            await context
-                .Items.TemporalAll()
-                .CountAsync());
-        Assert.True(
-            await context
-                .Items.TemporalAll()
-                .AnyAsync(item => item.Name == "version-2"));
-        Assert.Empty(await context.Items.ToListAsync());
+        Assert.Equal(["version-1"], firstBoundary);
+        Assert.Equal(["version-1"], firstMidpoint);
+        Assert.Equal(["version-2"], secondBoundary);
+        Assert.Equal(["version-2"], secondMidpoint);
+        Assert.Empty(afterDeletion);
+        Assert.Empty(emptyRange);
+        Assert.Equal(["version-1"], firstRange);
+        Assert.Equal(["version-2"], secondRange);
+        Assert.Equal(expectedVersions, entireRange);
+        Assert.Equal(["version-1"], inclusiveFirstBoundary);
+        Assert.Equal(["version-2"], inclusiveSecondRange);
+        Assert.Equal(expectedVersions, inclusiveEntireRange);
+        Assert.Equal(["version-1"], containedFirstRange);
+        Assert.Equal(["version-2"], containedSecondRange);
+        Assert.Equal(expectedVersions, containedEntireRange);
+        Assert.Equal(expectedVersions, allVersions);
+        Assert.Equal(2, versionCount);
+        Assert.True(secondVersionExists);
+        Assert.Empty(currentItems);
         Assert.Empty(context.ChangeTracker.Entries());
-
-        await AssertCancellationContractAsync(target);
     }
 
     private static async Task AssertCancellationContractAsync(
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var interceptor = new CommandCancellationProbeInterceptor();
 
         await using var context = CreateTemporalContext(target, interceptor);
         using var cancellationSource = new CancellationTokenSource();
         var cancellationToken = cancellationSource.Token;
 
+        // Act
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => context
             .Items.TemporalAll()
             .CountAsync(cancellationToken));
 
+        // Assert
         Assert.Equal(cancellationToken, exception.CancellationToken);
         Assert.Equal(cancellationToken, interceptor.ReceivedCancellationToken);
         Assert.Equal(1, interceptor.InvocationCount);
@@ -304,6 +318,7 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         using var serviceProvider = ScaffoldingTestServices.CreateDesignTimeServiceProvider();
         using var scope = serviceProvider.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -318,8 +333,10 @@ public sealed class TemporalTableIntegrationTests
             .GetRequiredService<IDatabaseModelFactory>()
             .Create(connectionString, databaseOptions);
 
+        // Act
         var sourceTable = Assert.Single(databaseModel.Tables);
 
+        // Assert
         Assert.Equal(TableName, sourceTable.Name);
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
@@ -438,6 +455,7 @@ public sealed class TemporalTableIntegrationTests
                       AND EVENT_MANIPULATION IN ('INSERT', 'UPDATE', 'DELETE');
                     """,
                     ("@tableName", TableName)));
+
             return;
         }
 

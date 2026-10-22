@@ -11,8 +11,10 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void String_and_temporal_members_translate_server_side()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
 
+        // Act
         var sql = context
             .Entities.Select(entity => new
             {
@@ -24,6 +26,7 @@ public sealed class MySqlQueryTranslationBaselineTests
             })
             .ToQueryString();
 
+        // Assert
         MySqlSqlAssert.ContainsFunction(sql, "CHAR_LENGTH");
 
         Assert.Contains("`Name`", sql, StringComparison.Ordinal);
@@ -39,8 +42,10 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void Null_and_math_methods_translate_server_side()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
 
+        // Act
         var sql = context
             .Entities.Where(entity =>
                 !string.IsNullOrEmpty(entity.OptionalName)
@@ -51,6 +56,7 @@ public sealed class MySqlQueryTranslationBaselineTests
                 && Math.Truncate(entity.Score) > 0)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("`OptionalName`", sql, StringComparison.Ordinal);
         MySqlSqlAssert.ContainsFunction(sql, "ABS");
         MySqlSqlAssert.ContainsFunction(sql, "CEILING");
@@ -65,14 +71,17 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void Variable_query_inputs_stay_parameterized()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
         var requiredName = "alpha";
         var minimumScore = 2.5;
 
+        // Act
         var sql = context
             .Entities.Where(entity => entity.Name == requiredName && entity.Score > minimumScore)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("@requiredName", sql, StringComparison.Ordinal);
         Assert.Contains("@minimumScore", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("= 'alpha'", sql, StringComparison.Ordinal);
@@ -88,13 +97,16 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void Collection_constant_contains_translates_to_inline_in_constants()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
         var names = new List<string> { "alpha", "beta", "gamma" };
 
+        // Act
         var sql = context
             .Entities.Where(entity => EF.Constant(names).Contains(entity.Name))
             .ToQueryString();
 
+        // Assert
         Assert.Contains("IN (", sql, StringComparison.Ordinal);
         Assert.Contains("'alpha'", sql, StringComparison.Ordinal);
         Assert.Contains("'beta'", sql, StringComparison.Ordinal);
@@ -108,13 +120,16 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void Collection_parameter_contains_translates_to_json_table()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
         var names = new List<string> { "alpha", "beta", "gamma" };
 
+        // Act
         var sql = context
             .Entities.Where(entity => EF.Parameter(names).Contains(entity.Name))
             .ToQueryString();
 
+        // Assert
         Assert.Contains("@names", sql, StringComparison.Ordinal);
         Assert.Contains("JSON_TABLE", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("'alpha'", sql, StringComparison.Ordinal);
@@ -133,12 +148,15 @@ public sealed class MySqlQueryTranslationBaselineTests
     [Fact]
     public void Unstored_datetime_kind_fails_explicitly()
     {
+        // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Entities.Where(entity => entity.CreatedAt.Kind == DateTimeKind.Utc)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 

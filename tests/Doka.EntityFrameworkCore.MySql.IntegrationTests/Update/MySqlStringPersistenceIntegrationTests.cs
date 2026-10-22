@@ -249,7 +249,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
-    private static async Task CreateTemporaryTableAsync(MySqlConnection connection)
+    private static async Task CreateTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         // A session-local table avoids permanent schema changes and keeps
         // concurrent test processes independent.
@@ -259,7 +261,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
         _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
-    private static async Task DropTemporaryTableAsync(MySqlConnection connection)
+    private static async Task DropTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TEMPORARY TABLE `{TableName}`;";
@@ -273,8 +277,15 @@ public sealed class MySqlStringPersistenceIntegrationTests
     {
         // Read database bytes without EF materialization so a read converter
         // cannot hide write-side changes to quotation or special characters.
+
+        // Arrange
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT HEX(`Value`) FROM `{TableName}` ORDER BY `Id`;";
+        var expectedHex = expectedValues
+            .Select(value => Convert.ToHexString(Encoding.UTF8.GetBytes(value)))
+            .ToArray();
+
+        // Act
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         var actualHex = new List<string>();
 
@@ -283,10 +294,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
             actualHex.Add(reader.GetString(0));
         }
 
-        var expectedHex = expectedValues
-            .Select(value => Convert.ToHexString(Encoding.UTF8.GetBytes(value)))
-            .ToArray();
-
+        // Assert
         Assert.Equal(expectedHex, actualHex);
     }
 
@@ -298,7 +306,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
-    private static TheoryData<string, bool, string> CreateCases(params string[] values)
+    private static TheoryData<string, bool, string> CreateCases(
+        params string[] values
+    )
     {
         var cases = new TheoryData<string, bool, string>();
 
@@ -342,7 +352,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
 
         public DbSet<StringValue> Items => Set<StringValue>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<StringValue>(entity =>
             {

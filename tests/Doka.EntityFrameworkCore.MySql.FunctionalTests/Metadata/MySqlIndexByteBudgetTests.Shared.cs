@@ -9,12 +9,15 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Shared_table_column_aliases_share_the_strictest_implicit_length()
     {
+        // Arrange
         using var context = CreateContext("shared-table");
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var ownerProperty = model.FindEntityType(typeof(BudgetOwner))!.FindProperty(nameof(BudgetOwner.Code))!;
         var detailProperty = model.FindEntityType(typeof(BudgetDetail))!.FindProperty(nameof(BudgetDetail.Code))!;
 
+        // Assert
         Assert.Equal(68, ownerProperty.GetMaxLength());
         Assert.Equal(68, detailProperty.GetMaxLength());
         Assert.Equal(
@@ -37,10 +40,13 @@ public sealed partial class MySqlIndexByteBudgetTests
         int expectedLength
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var entity = context.Model.FindEntityType("Budget")!;
 
+        // Assert
         Assert.Equal(expectedLength, entity.FindProperty("B")!.GetMaxLength());
         Assert.Equal([700, 0], Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
     }
@@ -52,10 +58,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Oversized_large_object_prefix_fails_closed()
     {
+        // Arrange
         using var context = CreateContext("text-prefix-overlong");
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("minimum implicit lengths", exception.Message, StringComparison.Ordinal);
     }
 

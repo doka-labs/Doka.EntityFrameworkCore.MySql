@@ -8,6 +8,7 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_preserves_binding_source_schema_and_annotations()
     {
+        // Arrange
         using var context = CreateContext();
         var source = CreateLeafSource();
         var expression = new MySqlMaterializedSourceExpression("rows", 17, source,
@@ -18,8 +19,10 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
                 ["Doka:Optional"] = new Annotation("Doka:Optional", null),
             });
 
+        // Act
         var reconstructed = RoundTrip(expression, context);
 
+        // Assert
         Assert.Equal("rows", reconstructed.Alias);
         Assert.Equal(17, reconstructed.BindingId);
         Assert.Equal("leaf_seed", reconstructed.Source.Alias);
@@ -51,12 +54,15 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_of_an_aliased_reference_preserves_the_completed_source()
     {
+        // Arrange
         using var context = CreateContext();
         var original = new MySqlMaterializedSourceExpression("first", 23, CreateLeafSource());
         var aliased = (MySqlMaterializedSourceExpression)original.WithAlias("second");
 
+        // Act
         var reconstructed = RoundTrip(aliased, context);
 
+        // Assert
         Assert.Equal("second", reconstructed.Alias);
         Assert.Equal(original.BindingId, reconstructed.BindingId);
         Assert.Same(original.Source, aliased.Source);
@@ -70,11 +76,14 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_preserves_nested_source_references_and_projection_links()
     {
+        // Arrange
         using var context = CreateContext();
         var expression = CreateNestedSource();
 
+        // Act
         var reconstructed = RoundTrip(expression, context);
 
+        // Assert
         Assert.Equal(32, reconstructed.BindingId);
         Assert.Equal("pair_seed", reconstructed.Source.Alias);
         Assert.Collection(reconstructed.Source.Tables,
@@ -108,13 +117,16 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_reconstruction_preserves_generated_sql()
     {
+        // Arrange
         using var context = CreateContext();
         var expression = CreateNestedSource();
         var generators = context.GetService<IQuerySqlGeneratorFactory>();
         var expected = generators.Create().GetCommand(expression.Source).CommandText;
 
+        // Act
         var actual = generators.Create().GetCommand(RoundTrip(expression, context).Source).CommandText;
 
+        // Assert
         Assert.Equal(expected, actual);
     }
 
@@ -123,17 +135,22 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_of_the_command_select_preserves_aliases_binding_ids_and_generated_sql()
     {
+        // Arrange
         using var context = CreateContext();
         var source = CreateNestedSource().Source;
         var generators = context.GetService<IQuerySqlGeneratorFactory>();
         var expected = generators.Create().GetCommand(source).CommandText;
 
+        // Act
         var quoted = source.Quote();
         var bound = new TypeMappingSourceBindingExpressionVisitor(context.GetService<IRelationalTypeMappingSource>())
             .Visit(quoted);
+
         var reconstructed = Expression.Lambda<Func<SelectExpression>>(bound).Compile()();
+
         var actual = generators.Create().GetCommand(reconstructed).CommandText;
 
+        // Assert
         Assert.Equal(expected, actual);
         Assert.Collection(reconstructed.Tables,
             table => AssertNestedReference(table, "first", 31),
@@ -145,13 +162,18 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [Experimental("EF9100")]
     public void Quote_rejects_a_cyclic_source_graph()
     {
+        // Arrange
         var tables = new List<TableExpressionBase>();
         var source = CreateSource("cyclic_seed", tables, []);
         var expression = new MySqlMaterializedSourceExpression("cycle", 41, source);
         tables.Add(expression);
+        Action act = () => expression.Quote();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => expression.Quote());
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("acyclic", exception.Message, StringComparison.Ordinal);
     }
 

@@ -8,6 +8,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Maps shuffled rows to their original commands rather than their arrival order.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -15,13 +16,18 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [3],
             [new ResultRows([[303, 2], [101, 0], [202, 1]])]);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        Assert.Equal([101, 202, 303], scenario.Commands.Select(command => command.GeneratedValue));
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
+        Assert.Equal([101, 202, 303], actual);
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
         Assert.Equal(4, scenario.Reader.ReadCount);
     }
@@ -29,6 +35,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Correlates every slot across bitmap-word boundaries and the provider's maximum group size.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
+    /// <param name="count">The number of commands or rows used to exercise the boundary.</param>
     [Theory]
     [InlineData(false, 65)]
     [InlineData(true, 65)]
@@ -39,6 +47,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         int count
     )
     {
+        // Arrange
         var rows = Enumerable.Range(0, count)
             .Reverse()
             .Select(slot => new object?[] { slot + 100, slot })
@@ -46,11 +55,15 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         using var scenario = Scenario.Create([count], [new ResultRows(rows)]);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
         Assert.Equal(
             Enumerable.Range(100, count).Cast<object>(),
-            scenario.Commands.Select(command => command.GeneratedValue));
+            actual);
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
         Assert.Equal(count + 1, scenario.Reader.ReadCount);
     }
@@ -58,6 +71,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Rejects duplicate slots in additional bitmap words, including the last supported slot.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
+    /// <param name="count">The number of commands or rows used to exercise the boundary.</param>
+    /// <param name="repeatedSlot">The command slot duplicated in the result set.</param>
     [Theory]
     [InlineData(false, 65, 64)]
     [InlineData(true, 65, 64)]
@@ -69,6 +85,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         int repeatedSlot
     )
     {
+        // Arrange
         var rows = Enumerable.Range(0, count)
             .Reverse()
             .Select(slot => new object?[] { slot + 100, slot })
@@ -77,8 +94,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         rows[^1][1] = repeatedSlot;
         using var scenario = Scenario.Create([count], [new ResultRows(rows)]);
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.IsType<InvalidOperationException>(updateException.InnerException);
         Assert.Contains("more than once", updateException.InnerException.Message, StringComparison.Ordinal);
@@ -88,6 +107,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Accepts an integral provider ordinal representation without boxing generated output.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -95,17 +115,23 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create([2], [new ResultRows([[202, 1L], [101, 0L]], typeof(long))]);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        Assert.Equal([101, 202], scenario.Commands.Select(command => command.GeneratedValue));
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
+        Assert.Equal([101, 202], actual);
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
     }
 
     /// <summary>
     /// Keeps relative slots inside their own result set after an ordinary prefix command.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -113,14 +139,19 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [2, 2],
             [new ResultRows([[102, 1], [101, 0]]), new ResultRows([[202, 1], [201, 0]])],
             prefixCommands: 1);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        Assert.Equal([null, 101, 102, 201, 202], scenario.Commands.Select(command => command.GeneratedValue));
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
+        Assert.Equal([null, 101, 102, 201, 202], actual);
         Assert.Equal(0, scenario.Commands[0].PropagationCount);
         Assert.All(scenario.Commands.Skip(1), command => Assert.Equal(1, command.PropagationCount));
     }
@@ -128,6 +159,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Leaves ordinary sequential result sets on EF's existing consumption path.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -135,20 +167,27 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [2],
             [new ResultRows([[101], [202]], ordinalType: null)],
             positional: false);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        Assert.Equal([101, 202], scenario.Commands.Select(command => command.GeneratedValue));
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
+        Assert.Equal([101, 202], actual);
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
     }
 
     /// <summary>
     /// Rejects every malformed result shape instead of silently accepting partial output.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
+    /// <param name="failure">The malformed result or unsafe command shape.</param>
     [Theory]
     [MemberData(nameof(MalformedResults))]
     public async Task MalformedPositionalResultsFailClosed(
@@ -156,10 +195,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         string failure
     )
     {
+        // Arrange
         using var scenario = Scenario.Create([3], [MalformedRows(failure)]);
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.IsNotType<DbUpdateConcurrencyException>(updateException);
         Assert.IsType<InvalidOperationException>(updateException.InnerException);
@@ -169,6 +211,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Attributes a malformed row to its entire command group while excluding preceding commands.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -176,6 +219,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [3],
             [new ResultRows([[101, 0], [202, 0], [303, 2]])],
@@ -187,8 +231,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             .Select(entry => entry.ToEntityEntry().Entity)
             .ToArray();
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.Equal(expected, updateException.Entries.Select(entry => entry.Entity));
         Assert.DoesNotContain(
@@ -199,6 +245,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Reports the whole affected group when its entire result set is missing after another completed group.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -206,17 +253,21 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [2, 3],
             [new ResultRows([[101, 0], [202, 1]])],
             trackEntries: true);
+
         var expected = scenario.Commands.Skip(2)
             .SelectMany(command => command.Entries)
             .Select(entry => entry.ToEntityEntry().Entity)
             .ToArray();
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.IsType<InvalidOperationException>(updateException.InnerException);
         Assert.Equal(expected, updateException.Entries.Select(entry => entry.Entity));
@@ -227,6 +278,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Lists a shared table entry once even when it participates in multiple commands in the rejected group.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -234,14 +286,17 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create(
             [3],
             [new ResultRows([[101, 0], [202, 0], [303, 2]])],
             trackEntries: true,
             shareEntry: true);
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.Single(updateException.Entries);
         Assert.Same(scenario.Commands[0].Entries[0].ToEntityEntry().Entity, updateException.Entries[0].Entity);
@@ -250,6 +305,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Treats missing generated output as a broken readback contract even when concurrency errors are suppressed.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -257,11 +313,14 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         var interceptor = new ConcurrencySuppressor();
         using var scenario = Scenario.Create([3], [new ResultRows([[101, 0], [303, 2]])], interceptor: interceptor);
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(asynchronous, CancellationToken.None));
 
+        // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.IsType<InvalidOperationException>(updateException.InnerException);
         Assert.Equal(0, interceptor.Calls);
@@ -270,6 +329,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Cancels before the first row, between rows, and during the mandatory final EOF read.
     /// </summary>
+    /// <param name="cancelOnRead">The read at which cancellation is requested.</param>
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
@@ -278,6 +338,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         int cancelOnRead
     )
     {
+        // Arrange
         using var stop = new CancellationTokenSource();
         using var scenario = Scenario.Create([3], [new ResultRows([[101, 0], [202, 1], [303, 2]])]);
         scenario.Reader.BeforeRead = count =>
@@ -288,8 +349,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             }
         };
 
+        // Act
         var exception = await Record.ExceptionAsync(() => scenario.ConsumeAsync(true, stop.Token));
 
+        // Assert
         Assert.IsAssignableFrom<OperationCanceledException>(exception);
         Assert.Equal(cancelOnRead, scenario.Reader.ReadCount);
         Assert.All(scenario.Reader.ObservedTokens, token => Assert.Equal(stop.Token, token));
@@ -298,6 +361,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>
     /// Preserves nullable generated values without confusing them with a missing slot.
     /// </summary>
+    /// <param name="asynchronous">Whether to consume results through the asynchronous reader path.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -305,11 +369,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         bool asynchronous
     )
     {
+        // Arrange
         using var scenario = Scenario.Create([2], [new ResultRows([[null, 1], [101, 0]])]);
 
+        // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        Assert.Equal([101, null], scenario.Commands.Select(command => command.GeneratedValue));
+        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+
+        // Assert
+        Assert.Equal([101, null], actual);
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
     }
 

@@ -16,12 +16,16 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         string path
     )
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 11)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operations = CreateTemporalDefaultOperations(path);
 
         var sql = JoinSql(generator.Generate(operations, context.Model));
 
+        // Assert
         Assert.Contains("DEFAULT (DATE '2026-08-17')", sql, StringComparison.Ordinal);
         Assert.Contains("DEFAULT (TIME '12:34:56.123456')", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("DEFAULT DATE '", sql, StringComparison.Ordinal);
@@ -35,6 +39,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
     [Fact]
     public void Default_policy_handles_inferred_and_modifier_bearing_store_types()
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 11)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         MigrationOperation[] operations =
@@ -58,8 +63,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
             },
         ];
 
+        // Act
         var sql = JoinSql(generator.Generate(operations, context.Model));
 
+        // Assert
         Assert.Contains("DEFAULT (DATE '2026-08-17')", sql, StringComparison.Ordinal);
         Assert.Contains("DEFAULT ('{}')", sql, StringComparison.Ordinal);
     }
@@ -71,6 +78,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
     [Fact]
     public void MariaDb_json_alias_preserves_default_comment_and_invisible_metadata()
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 8)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -86,8 +94,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
 
         operation.SetAnnotation(MySqlAnnotationNames.Invisible, true);
 
+        // Act
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("`Payload` longtext COLLATE utf8mb4_bin NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("DEFAULT ('{}')", sql, StringComparison.Ordinal);
         Assert.Contains("CHECK (JSON_VALID(`Payload`))", sql, StringComparison.Ordinal);
@@ -101,6 +111,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
     [Fact]
     public void Spatial_column_preserves_default_comment_and_invisible_metadata()
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 8)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -117,8 +128,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         operation.SetAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId, 4326);
         operation.SetAnnotation(MySqlAnnotationNames.Invisible, true);
 
+        // Act
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("`Location` point NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("DEFAULT (ST_GeomFromText('POINT(1 2)', 4326))", sql, StringComparison.Ordinal);
         Assert.Contains("CHECK (ST_SRID(`Location`) = 4326)", sql, StringComparison.Ordinal);
@@ -137,6 +150,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         string computedColumnSql
     )
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 8)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -151,8 +165,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
             Comment = "computed metadata",
         };
 
+        // Act
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains($"GENERATED ALWAYS AS ({computedColumnSql}) STORED", sql, StringComparison.Ordinal);
         Assert.Contains("COMMENT 'computed metadata'", sql, StringComparison.Ordinal);
     }
@@ -164,6 +180,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
     [Fact]
     public void MariaDb_json_alias_preserves_default_sql()
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MariaDb(new Version(11, 8, 8)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -176,8 +193,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
             DefaultValueSql = "JSON_OBJECT('state', 'ready')",
         };
 
+        // Act
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("DEFAULT (JSON_OBJECT('state', 'ready'))", sql, StringComparison.Ordinal);
         Assert.Contains("CHECK (JSON_VALID(`Payload`))", sql, StringComparison.Ordinal);
     }
@@ -188,6 +207,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
     [Fact]
     public void MySql_places_invisible_before_comment()
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 11)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -202,8 +222,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
 
         operation.SetAnnotation(MySqlAnnotationNames.Invisible, true);
 
+        // Act
         var sql = JoinSql(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("INVISIBLE COMMENT 'metadata'", sql, StringComparison.Ordinal);
     }
 
@@ -218,6 +240,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         bool useComputedSql
     )
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 11)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new AddColumnOperation
@@ -232,8 +255,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
             DefaultValueSql = useComputedSql ? null : @"'path\\segment'",
         };
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("NO_BACKSLASH_ESCAPES", exception.Message, StringComparison.Ordinal);
     }
 
@@ -250,6 +275,7 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         string source
     )
     {
+        // Arrange
         using var context = CreateContext(MySqlServerVersion.MySql(new Version(8, 4, 11)));
         var generator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new CreateTableOperation
@@ -291,8 +317,10 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
                 });
         }
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("backslash", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -87,13 +87,16 @@ public sealed class IntegrationConnectionStringTests
         string? connectionString
     )
     {
+        // Arrange
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             return;
         }
 
+        // Act
         var builder = new MySqlConnectionStringBuilder(connectionString);
 
+        // Assert
         Assert.False(string.IsNullOrWhiteSpace(builder.Server));
         Assert.False(string.IsNullOrWhiteSpace(builder.Database));
         Assert.False(string.IsNullOrWhiteSpace(builder.UserID));

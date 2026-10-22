@@ -9,13 +9,17 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateOptionalOwnedFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Owners.WithMaterializedSource(source => source
             .Where(owner => owner.Id <= 2)
             .OrderBy(owner => owner.Id));
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 2], actual.Select(owner => owner.Id));
         Assert.Equal(["owner-1", "owner-2"], actual.Select(owner => owner.Label));
         var profile = Assert.IsType<OptionalOwnedProfile>(actual[0].Profile);

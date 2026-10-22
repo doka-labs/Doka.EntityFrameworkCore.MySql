@@ -18,25 +18,35 @@ public sealed class MariaDbFeatureIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_database_exists_returns_true()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
-        Assert.True(await creator.ExistsAsync());
+        // Act
+        var exists = await creator.ExistsAsync();
+
+        // Assert
+        Assert.True(exists);
     }
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_database_exists_returns_true()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
 
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
-        Assert.True(await creator.ExistsAsync());
+        // Act
+        var exists = await creator.ExistsAsync();
+
+        // Assert
+        Assert.True(exists);
     }
 
     // -- EnsureCreated + HasTables on MariaDB --
@@ -44,18 +54,28 @@ public sealed class MariaDbFeatureIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_ensure_created_and_has_tables()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
 
-        await context.Database.EnsureCreatedAsync();
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
-        Assert.True(await creator.HasTablesAsync());
+        try
+        {
+            // Act
+            await context.Database.EnsureCreatedAsync();
+            var hasTables = await creator.HasTablesAsync();
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
+            // Assert
+            Assert.True(hasTables);
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
+        }
     }
 
     // -- MariaDB JSON Alias (longtext + CHECK) CRUD --
@@ -80,6 +100,7 @@ public sealed class MariaDbFeatureIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = GetServerVersion(target);
         await using var context = new JsonContext(CreateOptions<JsonContext>(connectionString, serverVersion));
@@ -91,14 +112,15 @@ public sealed class MariaDbFeatureIntegrationTests
 
         try
         {
-            // Insert.
             var jsonValue = """{"name":"MariaDB","version":11}""";
+
+            // Act
             await context.Database.ExecuteSqlRawAsync("INSERT INTO `MdbJsonItems` (`Data`) VALUES ({0});", jsonValue);
 
             // Read back.
             var item = await context.Items.FirstAsync();
 
-            Assert.Contains("MariaDB", item.Data, StringComparison.Ordinal);
+            var insertedData = item.Data;
 
             // Update.
             item.Data = """{"name":"MariaDB","version":12}""";
@@ -107,6 +129,8 @@ public sealed class MariaDbFeatureIntegrationTests
 
             var updated = await context.Items.FirstAsync();
 
+            // Assert
+            Assert.Contains("MariaDB", insertedData, StringComparison.Ordinal);
             Assert.Contains("12", updated.Data, StringComparison.Ordinal);
         }
         finally
@@ -120,6 +144,7 @@ public sealed class MariaDbFeatureIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_native_sequence_ddl_creates_and_drops()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new SimpleContext(CreateOptions<SimpleContext>(connectionString, serverVersion));
@@ -130,7 +155,7 @@ public sealed class MariaDbFeatureIntegrationTests
         // produce backticks today; escaping keeps the pattern safe-by-construction.
         var quotedSeqName = seqName.Replace("`", "``", StringComparison.Ordinal);
 
-        // Generate CREATE SEQUENCE DDL.
+        // Act: Creation, allocation, and removal form one native sequence lifecycle.
         var createOps = generator.Generate(
             [
                 new CreateSequenceOperation
@@ -157,11 +182,10 @@ public sealed class MariaDbFeatureIntegrationTests
             await conn.OpenAsync();
             await using var fetchCmd = conn.CreateCommand();
             fetchCmd.CommandText = $"SELECT NEXT VALUE FOR `{quotedSeqName}`;";
+
             var value = Convert.ToInt64(
                 await fetchCmd.ExecuteScalarAsync(),
                 System.Globalization.CultureInfo.InvariantCulture);
-
-            Assert.Equal(100, value);
 
             // Generate DROP SEQUENCE DDL.
             var dropOps = generator.Generate([new DropSequenceOperation { Name = seqName }], context.Model);
@@ -170,6 +194,9 @@ public sealed class MariaDbFeatureIntegrationTests
                 // Safe: SQL emitted by IMigrationsSqlGenerator from a fixture-controlled DropSequenceOperation.
                 await context.Database.ExecuteSqlRawAsync(cmd.CommandText);
             }
+
+            // Assert
+            Assert.Equal(100, value);
         }
         catch
         {
@@ -184,6 +211,7 @@ public sealed class MariaDbFeatureIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_crud_baseline()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         await using var context = new CrudContext(CreateOptions<CrudContext>(connectionString, serverVersion));
@@ -194,7 +222,7 @@ public sealed class MariaDbFeatureIntegrationTests
 
         try
         {
-            // Create.
+            // Act: Every later operation depends on this row's preceding persisted state.
             context.Items.Add(
                 new CrudItem
                 {
@@ -209,14 +237,14 @@ public sealed class MariaDbFeatureIntegrationTests
                 });
             await context.SaveChangesAsync();
 
-            Assert.Equal(2, await context.Items.CountAsync());
+            var insertedCount = await context.Items.CountAsync();
 
             // Read.
             var first = await context
                 .Items.Where(e => e.Name == "First")
                 .FirstAsync();
 
-            Assert.Equal(1.5, first.Score, 1);
+            var insertedScore = first.Score;
 
             // Update.
             first.Score = 99.9;
@@ -224,13 +252,19 @@ public sealed class MariaDbFeatureIntegrationTests
             context.ChangeTracker.Clear();
             var updated = await context.Items.FindAsync(first.Id);
 
-            Assert.Equal(99.9, updated!.Score, 1);
+            var updatedScore = updated!.Score;
 
             // Delete.
             context.Items.Remove(updated);
             await context.SaveChangesAsync();
 
-            Assert.Equal(1, await context.Items.CountAsync());
+            var remainingCount = await context.Items.CountAsync();
+
+            // Assert
+            Assert.Equal(2, insertedCount);
+            Assert.Equal(1.5, insertedScore, 1);
+            Assert.Equal(99.9, updatedScore, 1);
+            Assert.Equal(1, remainingCount);
         }
         finally
         {
@@ -243,6 +277,7 @@ public sealed class MariaDbFeatureIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_crud_baseline()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new CrudContext(CreateOptions<CrudContext>(connectionString, serverVersion));
@@ -273,19 +308,21 @@ public sealed class MariaDbFeatureIntegrationTests
                 });
             await context.SaveChangesAsync();
 
+            // Act
             var filtered = await context
                 .Items.Where(e => e.Score > 15)
                 .OrderBy(e => e.Name)
                 .ToListAsync();
 
+            context.Items.RemoveRange(filtered);
+            await context.SaveChangesAsync();
+            var remainingCount = await context.Items.CountAsync();
+
+            // Assert
             Assert.Equal(2, filtered.Count);
             Assert.Equal("Beta", filtered[0].Name);
             Assert.Equal("Gamma", filtered[1].Name);
-
-            context.Items.RemoveRange(filtered);
-            await context.SaveChangesAsync();
-
-            Assert.Equal(1, await context.Items.CountAsync());
+            Assert.Equal(1, remainingCount);
         }
         finally
         {
@@ -296,8 +333,17 @@ public sealed class MariaDbFeatureIntegrationTests
     // -- MariaDB DateTime/DateOnly Arithmetic --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_datetime_arithmetic_executes_correctly()
+    public Task MariaDb118_datetime_arithmetic_executes_correctly() => AssertDateTimeArithmeticAsync(addMonths: false);
+
+    /// <summary>Verifies calendar-month arithmetic independently from DateTime day arithmetic.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
+    public Task MariaDb118_dateonly_month_arithmetic_executes_correctly() => AssertDateTimeArithmeticAsync(addMonths: true);
+
+    private static async Task AssertDateTimeArithmeticAsync(
+        bool addMonths
+    )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new TemporalContext(CreateOptions<TemporalContext>(connectionString, serverVersion));
@@ -317,17 +363,13 @@ public sealed class MariaDbFeatureIntegrationTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
-            var addedDays = await context
-                .Items.Select(e => e.Created.AddDays(10))
-                .FirstAsync();
+            // Act
+            var actual = addMonths
+                ? (await context.Items.Select(e => e.BirthDate.AddMonths(6)).FirstAsync()).Month
+                : (await context.Items.Select(e => e.Created.AddDays(10)).FirstAsync()).Day;
 
-            Assert.Equal(25, addedDays.Day);
-
-            var addedMonths = await context
-                .Items.Select(e => e.BirthDate.AddMonths(6))
-                .FirstAsync();
-
-            Assert.Equal(12, addedMonths.Month);
+            // Assert
+            Assert.Equal(addMonths ? 12 : 25, actual);
         }
         finally
         {
@@ -345,6 +387,7 @@ public sealed class MariaDbFeatureIntegrationTests
     {
         var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, sv);
+
         return b.Options;
     }
 
@@ -365,6 +408,7 @@ public sealed class MariaDbFeatureIntegrationTests
     )
     {
         var csb = new MySqlConnectionStringBuilder(connectionString) { Database = newDatabase };
+
         return csb.ConnectionString;
     }
 

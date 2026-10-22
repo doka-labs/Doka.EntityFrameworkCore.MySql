@@ -11,12 +11,15 @@ public sealed class MySqlNetTopologySuitePackageBootstrapTests
     [Fact]
     public void Main_provider_runtime_graph_does_not_register_spatial_services_by_default()
     {
+        // Arrange
         var services = new ServiceCollection();
 
         services.AddEntityFrameworkDokaMySql();
 
+        // Act
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
 
+        // Assert
         Assert.Null(serviceProvider.GetService<IMySqlNetTopologySuiteMarker>());
     }
 
@@ -26,10 +29,14 @@ public sealed class MySqlNetTopologySuitePackageBootstrapTests
     [Fact]
     public void UseNetTopologySuite_adds_the_optional_spatial_services()
     {
+        // Arrange
         using var context = CreateContext(useNetTopologySuite: true);
         var serviceProvider = ((IInfrastructure<IServiceProvider>)context).Instance;
+
+        // Act
         var marker = serviceProvider.GetService<IMySqlNetTopologySuiteMarker>();
 
+        // Assert
         Assert.NotNull(marker);
         Assert.Equal("Geometry", marker.GeometryType.Name);
     }
@@ -40,9 +47,13 @@ public sealed class MySqlNetTopologySuitePackageBootstrapTests
     [Fact]
     public void Main_provider_context_resolves_without_the_optional_spatial_seam()
     {
+        // Arrange
         using var context = CreateContext(useNetTopologySuite: false);
+
+        // Act
         var serviceProvider = ((IInfrastructure<IServiceProvider>)context).Instance;
 
+        // Assert
         Assert.Null(serviceProvider.GetService<IMySqlNetTopologySuiteMarker>());
         Assert.NotNull(context.GetService<IRelationalConnection>());
     }

@@ -1,14 +1,21 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
+/// <summary>Verifies coverage evidence freshness, identity and aggregation contracts.</summary>
 public sealed class CoverageContractTests
 {
+    /// <summary>
+    /// Verifies coverage contract accepts fresh evidence at every floor.
+    /// </summary>
     [Fact]
     public void Coverage_contract_accepts_fresh_evidence_at_every_floor()
     {
+        // Arrange
         using var fixture = CoverageFixture.Create();
 
+        // Act
         var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
 
+        // Assert
         Assert.Empty(evaluation.Errors);
         Assert.Collection(
             evaluation.Results,
@@ -16,36 +23,60 @@ public sealed class CoverageContractTests
             result => Assert.Contains("critical class Provider.Critical", result, StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void Coverage_contract_rejects_stale_missing_and_below_floor_evidence()
+    /// <summary>
+    /// Verifies coverage contract rejects stale missing and below floor evidence.
+    /// </summary>
+    [Theory]
+    [InlineData("stale", "old")]
+    [InlineData("missing", "missing shipped assembly")]
+    [InlineData("line_floor", "line coverage")]
+    [InlineData("branch_floor", "branch coverage")]
+    public void Coverage_contract_rejects_stale_missing_and_below_floor_evidence(
+        string scenario,
+        string expectedError
+    )
     {
+        // Arrange
         using var fixture = CoverageFixture.Create(
-            assemblyName: "Other.Assembly",
-            className: "Other.Critical",
-            lineHits: (1, 0),
-            branchFraction: "0% (0/2)");
+            assemblyName: scenario == "missing" ? "Other.Assembly" : "Provider",
+            className: scenario == "missing" ? "Other.Critical" : "Provider.Critical",
+            lineHits: scenario == "line_floor" ? (1, 0) : (1, 1),
+            branchFraction: scenario == "branch_floor" ? "0% (0/2)" : "50% (1/2)");
 
-        var stale = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 2000);
-        var invalid = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
+        // Act
+        var invalid = CoverageContract.Evaluate(
+            fixture.ReportPath,
+            fixture.PolicyPath,
+            nowTimestamp: scenario == "stale" ? 2000 : 1001);
 
-        Assert.Contains(stale.Errors, error => error.Contains("old", StringComparison.Ordinal));
-        Assert.Contains(invalid.Errors, error => error.Contains("missing shipped assembly", StringComparison.Ordinal));
+        // Assert
+        Assert.Contains(invalid.Errors, error => error.Contains(expectedError, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies coverage contract rejects stale raw input before merge.
+    /// </summary>
     [Fact]
     public void Coverage_contract_rejects_stale_raw_input_before_merge()
     {
+        // Arrange
         using var fixture = CoverageFixture.Create();
 
+        // Act
         var errors = CoverageContract.EvaluateFreshness([fixture.ReportPath], fixture.PolicyPath, nowTimestamp: 2000);
 
+        // Assert
         Assert.Single(errors);
         Assert.Contains("old", errors[0], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies coverage contract aggregates distinct partial class sources.
+    /// </summary>
     [Fact]
     public void Coverage_contract_aggregates_distinct_partial_class_sources()
     {
+        // Arrange
         using var fixture = CoverageFixture.Create(
             classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\"><lines>"
             + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"50% (1/2)\" />"
@@ -54,16 +85,22 @@ public sealed class CoverageContractTests
             + "<line number=\"1\" hits=\"1\" />"
             + "</lines></class>");
 
+        // Act
         var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
 
+        // Assert
         Assert.Empty(evaluation.Errors);
         Assert.Contains("lines 2/2", evaluation.Results[1], StringComparison.Ordinal);
         Assert.Contains("branches 1/2", evaluation.Results[1], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies coverage contract rejects ambiguous partial class sources.
+    /// </summary>
     [Fact]
     public void Coverage_contract_rejects_ambiguous_partial_class_sources()
     {
+        // Arrange
         using var fixture = CoverageFixture.Create(
             classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\"><lines>"
             + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"50% (1/2)\" />"
@@ -72,16 +109,22 @@ public sealed class CoverageContractTests
             + "<line number=\"1\" hits=\"1\" />"
             + "</lines></class>");
 
+        // Act
         var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
 
+        // Assert
         Assert.Contains(
             evaluation.Errors,
             error => error.Contains("ambiguous source fragments", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies coverage contract accepts an explicitly branch free surface.
+    /// </summary>
     [Fact]
     public void Coverage_contract_accepts_an_explicitly_branch_free_surface()
     {
+        // Arrange
         using var fixture = CoverageFixture.Create(
             classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\"><lines>"
             + "<line number=\"1\" hits=\"1\" />"
@@ -92,13 +135,18 @@ public sealed class CoverageContractTests
             + "</lines></class>",
             criticalMinimumBranchPercent: null);
 
+        // Act
         var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
 
+        // Assert
         Assert.Empty(evaluation.Errors);
         Assert.Contains("branches 0/0", evaluation.Results[1], StringComparison.Ordinal);
         Assert.Contains("minimum N/A", evaluation.Results[1], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies coverage contract rejects missing or zero branch floors.
+    /// </summary>
     [Theory]
     [InlineData(null, "declares no branch floor")]
     [InlineData(0d, "greater than zero")]
@@ -107,10 +155,13 @@ public sealed class CoverageContractTests
         string expectedError
     )
     {
+        // Arrange
         using var fixture = CoverageFixture.Create(criticalMinimumBranchPercent: branchFloor);
 
+        // Act
         var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
 
+        // Assert
         Assert.Contains(evaluation.Errors, error => error.Contains(expectedError, StringComparison.Ordinal));
     }
 
@@ -141,6 +192,7 @@ public sealed class CoverageContractTests
             var path = System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(),
                 $"doka-coverage-contract-{Guid.NewGuid():N}");
+
             Directory.CreateDirectory(path);
             var fixture = new CoverageFixture(path);
             var hits = lineHits ?? (1, 1);
@@ -181,6 +233,7 @@ public sealed class CoverageContractTests
                             },
                         },
                     }));
+
             return fixture;
         }
 

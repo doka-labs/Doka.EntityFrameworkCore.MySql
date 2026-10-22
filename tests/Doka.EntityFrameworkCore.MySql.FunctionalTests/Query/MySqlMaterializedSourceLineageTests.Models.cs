@@ -3,7 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlMaterializedSourceLineageTests
 {
     /// <summary>Creates one offline model with explicit family configuration.</summary>
-    private static LineageContext CreateContext(bool mariaDb)
+    private static LineageContext CreateContext(
+        bool mariaDb
+    )
     {
         var version = mariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
@@ -38,7 +40,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         public DbSet<HistoricalParent> Parents => Set<HistoricalParent>();
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<HistoricalParent>(entity =>
             {
@@ -61,7 +65,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         public DbSet<HistoricalParent> Parents => Set<HistoricalParent>();
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.SharedTypeEntity<SharedNode>("First", entity =>
             {

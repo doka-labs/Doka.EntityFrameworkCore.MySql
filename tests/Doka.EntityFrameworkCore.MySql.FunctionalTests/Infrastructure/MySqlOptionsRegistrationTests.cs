@@ -11,10 +11,13 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void AddEntityFrameworkDokaMySql_registers_runtime_provider_services()
     {
+        // Arrange
         var services = new ServiceCollection();
 
+        // Act
         services.AddEntityFrameworkDokaMySql();
 
+        // Assert
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IDatabaseProvider));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMySqlDriverFacade));
     }
@@ -25,12 +28,15 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void AddEntityFrameworkDokaMySql_builds_a_resolvable_runtime_provider_graph()
     {
+        // Arrange
         var services = new ServiceCollection();
 
         services.AddEntityFrameworkDokaMySql();
 
+        // Act
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
 
+        // Assert
         Assert.IsType<DatabaseProvider<MySqlOptionsExtension>>(serviceProvider.GetRequiredService<IDatabaseProvider>());
         Assert.IsType<MySqlConnectorDriverFacade>(serviceProvider.GetRequiredService<IMySqlDriverFacade>());
         Assert.Single(
@@ -49,13 +55,16 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void Design_time_registration_uses_the_explicit_design_time_seam()
     {
+        // Arrange
 #pragma warning disable EF1001 // IModelCodeGenerator pre-population mirrors the dotnet-ef tooling sequence (ADR D-001).
         var services = new ServiceCollection();
         services.AddSingleton<IModelCodeGenerator, StubModelCodeGenerator>();
 
+        // Act
         new MySqlDesignTimeServices().ConfigureDesignTimeServices(services);
 #pragma warning restore EF1001
 
+        // Assert
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IDatabaseProvider));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IMySqlDriverFacade));
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IDatabaseModelFactory));
@@ -78,13 +87,16 @@ public sealed class MySqlOptionsRegistrationTests
     public void Design_time_registration_replaces_IModelCodeGenerator_with_the_doka_decorator()
     {
 #pragma warning disable EF1001 // see ADR D-001 for the wrap rationale.
+
+        // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IModelCodeGenerator, StubModelCodeGenerator>();
 
+        // Act
         new MySqlDesignTimeServices().ConfigureDesignTimeServices(services);
-
         var descriptor = services.Last(d => d.ServiceType == typeof(IModelCodeGenerator));
 
+        // Assert
         Assert.NotNull(descriptor.ImplementationFactory);
         Assert.Null(descriptor.ImplementationType);
         Assert.Null(descriptor.ImplementationInstance);
@@ -109,9 +121,11 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void Repeated_UseMySql_calls_keep_a_single_extension_instance()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
 
@@ -119,6 +133,7 @@ public sealed class MySqlOptionsRegistrationTests
             .Options.Extensions.OfType<MySqlOptionsExtension>()
             .ToArray();
 
+        // Assert
         Assert.Single(extensions);
     }
 
@@ -128,13 +143,16 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void Generic_builder_overload_returns_the_same_builder_instance()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
 
+        // Act
         var returned = builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion);
 
+        // Assert
         Assert.Same(builder, returned);
     }
 
@@ -144,14 +162,17 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void Generic_data_source_builder_overload_returns_the_same_builder_instance()
     {
+        // Arrange
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         var returned = builder.UseMySql(dataSource, serverVersion);
 
+        // Assert
         Assert.Same(builder, returned);
     }
 
@@ -161,20 +182,24 @@ public sealed class MySqlOptionsRegistrationTests
     [Fact]
     public void Repeated_UseMySql_calls_replace_the_connection_path_consistently()
     {
+        // Arrange
         using var dataSource = new MySqlDataSourceBuilder(
             "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;").Build();
 
         var builder = new DbContextOptionsBuilder<TestDbContext>();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
+        // Act
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
         builder.UseMySql(dataSource, serverVersion);
 
         var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
+
         var extensions = builder
             .Options.Extensions.OfType<MySqlOptionsExtension>()
             .ToArray();
 
+        // Assert
         Assert.Single(extensions);
         Assert.Same(dataSource, extension.DataSource);
         Assert.Null(extension.ConnectionString);

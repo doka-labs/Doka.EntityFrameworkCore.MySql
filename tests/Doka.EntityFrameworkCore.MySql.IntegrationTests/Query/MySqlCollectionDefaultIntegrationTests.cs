@@ -99,6 +99,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
         bool useJsonParameter = false
     )
     {
+        // Arrange
         var builder = IntegrationTestDbContextOptions.Create<CollectionDefaultContext>();
         builder.UseMySql(
             IntegrationTestEnvironment.GetConnectionString(target),
@@ -152,6 +153,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             context.ChangeTracker.Clear();
 
             var requestIds = new[] { includedRequestId, deletedRequestId };
+
+            // Act
             var query = context.Approvals
                 .AsNoTracking()
                 .Where(approval => !approval.IsDeleted)
@@ -165,6 +168,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
                 approval => approval.Responses,
                 CancellationToken.None);
 
+            // Assert
             Assert.Contains("@requestIds", sql, StringComparison.Ordinal);
 
             if (useJsonParameter)

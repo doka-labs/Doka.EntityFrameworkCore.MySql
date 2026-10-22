@@ -6,7 +6,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items
             .Where(item => item.Id <= 8)
             .Select(item => new BoundSample
@@ -31,6 +34,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(8, actual.Length);
         Assert.Equal(8, actual.Select(pair => pair.LeftStamp).Distinct().Count());
         Assert.All(actual, pair =>
@@ -47,10 +51,13 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         // WHY: The second join makes differing random pages or recomputed source values observable
         // even when the two UNION ALL arms select disjoint rows. Nine guaranteed candidates
         // keep the page size deterministic while the remaining eligibility is volatile.
+
+        // Act
         var query = fixture.Context.Items
             .Where(item => item.Id <= 9 || EF.Functions.Random() < 0.5)
             .OrderBy(_ => EF.Functions.Random())
@@ -80,6 +87,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(7, actual.Length);
         Assert.Equal(7, actual.Select(pair => pair.LeftId).Distinct().Count());
         Assert.All(actual, pair =>
@@ -94,13 +102,17 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var occurrence = fixture.Context.Items.Where(item => item.Id == 1).Select(_ => 7);
+
+        // Act
         var query = occurrence.Concat(occurrence)
             .WithMaterializedSource(source => source.Join(source, left => left, right => right, (left, _) => left));
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([7, 7, 7, 7], actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
@@ -109,7 +121,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id <= 4)
             .WithMaterializedSource(source => source.Where(left => left.Id <= 2)
                 .SelectMany(_ => source.Where(right => right.Id >= 2), (left, right) => new BoundPair
@@ -122,6 +137,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 1, 1, 2, 2, 2], actual.Select(pair => pair.LeftId));
         Assert.Equal([2, 3, 4, 2, 3, 4], actual.Select(pair => pair.RightId));
         Assert.Equal(1, fixture.Probe.Count);
@@ -131,8 +147,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var context = fixture.Context;
+
+        // Act
         var query = context.Items.Where(item => item.Id < 0)
             .WithMaterializedSource(source => context.Items.Where(item =>
                 item.Id >= source.Min(row => (int?)row.Id)
@@ -140,6 +159,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Empty(actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
@@ -148,8 +168,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var context = fixture.Context;
+
+        // Act
         var query = context.Items.Where(item => item.Id == 1)
             .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
             .WithMaterializedSource(left => context.Items.Where(item => item.Id == 1)
@@ -166,6 +189,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.NotEqual(Guid.Empty, actual.LeftStamp);
         Assert.NotEqual(Guid.Empty, actual.RightStamp);
         Assert.NotEqual(actual.LeftStamp, actual.RightStamp);
@@ -176,8 +200,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var expectedCode = new BoundCode("code-1");
+
+        // Act
         var query = fixture.Context.Items
             .Select(item => new
             {
@@ -195,6 +222,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(1, actual.Id);
         Assert.Equal("ALPHA", actual.Name);
         Assert.Equal(s_binaryToken, actual.Token);
@@ -208,7 +236,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id <= 4)
             .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
             .WithMaterializedSource(outer => outer.Where(item => item.Id <= 2)
@@ -227,6 +258,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 2], actual.Select(pair => pair.LeftId));
         Assert.All(actual, pair =>
         {

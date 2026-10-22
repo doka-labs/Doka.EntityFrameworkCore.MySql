@@ -10,10 +10,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Owns_one_same_table_produces_navigation_property_columns()
     {
+        // Arrange
         using var context = new OwnedContext(CreateOptions<OwnedContext>());
+
+        // Act
         var addressType = context.Model.FindEntityType(typeof(Address))!;
 
         // Address columns should be flattened into Customer table.
+
+        // Assert
         Assert.Equal("Customers", addressType.GetTableName());
         Assert.NotNull(addressType.FindProperty(nameof(Address.Street)));
         Assert.NotNull(addressType.FindProperty(nameof(Address.City)));
@@ -25,11 +30,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Owns_one_columns_are_mapped_to_owner_table()
     {
+        // Arrange
         using var context = new OwnedContext(CreateOptions<OwnedContext>());
         var addressType = context.Model.FindEntityType(typeof(Address))!;
+
+        // Act
         var streetProperty = addressType.FindProperty(nameof(Address.Street))!;
 
         // Same-table owned type columns should exist.
+
+        // Assert
         Assert.NotNull(streetProperty);
         Assert.Equal("Customers", addressType.GetTableName());
     }
@@ -40,10 +50,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Owns_many_produces_separate_collection_table()
     {
+        // Arrange
         using var context = new OwnedContext(CreateOptions<OwnedContext>());
+
+        // Act
         var phoneType = context.Model.FindEntityType(typeof(PhoneNumber))!;
 
         // OwnsMany always uses a separate table.
+
+        // Assert
         Assert.NotEqual("Customers", phoneType.GetTableName());
         Assert.NotNull(phoneType.GetTableName());
     }
@@ -53,12 +68,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Complex_type_columns_are_flattened_into_owner_table()
     {
+        // Arrange
         using var context = new ComplexTypeContext(CreateOptions<ComplexTypeContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(Order))!;
 
         // Complex type properties should exist on the entity type's table.
         var complexProperty = entityType.FindComplexProperty(nameof(Order.BillingAddress));
 
+        // Assert
         Assert.NotNull(complexProperty);
 
         var complexType = complexProperty.ComplexType;
@@ -73,11 +92,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Owns_one_custom_column_name_is_preserved()
     {
+        // Arrange
         using var context = new CustomColumnOwnedContext(CreateOptions<CustomColumnOwnedContext>());
         var addressType = context.Model.FindEntityType(typeof(CustomAddress))!;
         var streetProperty = addressType.FindProperty(nameof(CustomAddress.Street))!;
+
+        // Act
         var columnName = streetProperty.GetColumnName();
 
+        // Assert
         Assert.Equal("home_street", columnName);
     }
 
@@ -87,11 +110,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Table_splitting_shares_single_table()
     {
+        // Arrange
         using var context = new TableSplitContext(CreateOptions<TableSplitContext>());
+
+        // Act
         var model = context.Model;
         var headerType = model.FindEntityType(typeof(OrderHeader))!;
         var detailType = model.FindEntityType(typeof(OrderDetail))!;
 
+        // Assert
         Assert.Equal("SplitOrders", headerType.GetTableName());
         Assert.Equal("SplitOrders", detailType.GetTableName());
     }
@@ -180,7 +207,10 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Entity_splitting_maps_to_two_tables()
     {
+        // Arrange
         using var context = new EntitySplitContext(CreateOptions<EntitySplitContext>());
+
+        // Act
         var model = context.Model;
         var entityType = model.FindEntityType(typeof(SplitProduct))!;
 
@@ -189,6 +219,7 @@ public sealed partial class MySqlModelingBaselineTests
             .GetTableMappings()
             .ToList();
 
+        // Assert
         Assert.True(tableMappings.Count >= 2, $"Expected >= 2 table mappings but got {tableMappings.Count}");
     }
     // -- Entity Splitting ------------------------------------------------

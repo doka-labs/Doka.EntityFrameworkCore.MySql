@@ -13,14 +13,19 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// so the assertions stay deterministic and run in the unit-test suite.
 /// </summary>
 [Collection(MySqlDiagnosticsTestGroup.Name)]
-public sealed class MySqlActivityAndMeterSmokeTests
+public sealed partial class MySqlActivityAndMeterSmokeTests
 {
+    /// <summary>
+    /// Verifies retry attempt emits span and increments counter.
+    /// </summary>
     [Fact]
     public void Retry_attempt_emits_span_and_increments_counter()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.RetryAttemptsTotalMetricName);
 
+        // Act
         using (var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber: 3, EngineFamily.MySql))
         {
             activity?.Stop();
@@ -31,17 +36,23 @@ public sealed class MySqlActivityAndMeterSmokeTests
             new KeyValuePair<string, object?>(MySqlDiagnosticTags.Outcome, MySqlDiagnosticTags.Attempt),
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         Assert.Contains(activitySink.Activities, a => a.OperationName == MySqlDiagnostics.RetryAttemptSpanName);
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies migration lock acquire emits span and records histogram.
+    /// </summary>
     [Fact]
     public void Migration_lock_acquire_emits_span_and_records_histogram()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var histogramSink = new HistogramSink<double>(MySqlDiagnostics.MigrationLockAcquireDurationMetricName);
 
+        // Act
         using (var activity = MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql))
         {
             activity?.Stop();
@@ -52,14 +63,19 @@ public sealed class MySqlActivityAndMeterSmokeTests
             new KeyValuePair<string, object?>(MySqlDiagnosticTags.Outcome, MySqlDiagnosticTags.Acquired),
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         Assert.Contains(activitySink.Activities, a => a.OperationName == MySqlDiagnostics.MigrationLockSpanName);
         Assert.Contains(histogramSink.Measurements, m => Math.Abs(m - 0.42) < 0.0001);
         AssertEngineTags(histogramSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies migration operation handler emits the complete diagnostic surface.
+    /// </summary>
     [Fact]
     public void Migration_operation_handler_emits_the_complete_diagnostic_surface()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var calls = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName);
         using var failures = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerFailuresTotalMetricName);
@@ -76,6 +92,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             { MySqlDiagnosticTags.Engine, MySqlDiagnosticTags.MySql },
         };
 
+        // Act
         using (var activity = MySqlActivitySource.StartMigrationOperationHandler(
                    "tests.handler",
                    "Tests.CustomOperation",
@@ -88,8 +105,10 @@ public sealed class MySqlActivityAndMeterSmokeTests
         MySqlMeter.MigrationOperationHandlerCallsTotal.Add(1, tags);
         MySqlMeter.MigrationOperationHandlerFailuresTotal.Add(1, tags);
         MySqlMeter.MigrationOperationHandlerContractViolationsTotal.Add(1, tags);
+
         MySqlMeter.MigrationOperationHandlerDuration.Record(0.01, tags);
 
+        // Assert
         var recordedActivity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName);
@@ -104,6 +123,11 @@ public sealed class MySqlActivityAndMeterSmokeTests
         AssertEngineTags(calls.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies migration operation handler propagates generated and consumed outcomes to span and metrics.
+    /// </summary>
+    /// <param name="consumeOperation">Whether the handler consumes its operation without SQL.</param>
+    /// <param name="expectedOutcome">The bounded outcome emitted across telemetry surfaces.</param>
     [Theory]
     [InlineData(false, "generated")]
     [InlineData(true, "consumed")]
@@ -112,13 +136,13 @@ public sealed class MySqlActivityAndMeterSmokeTests
         string expectedOutcome
     )
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var calls = new CounterSink<long>(MySqlDiagnostics.MigrationOperationHandlerCallsTotalMetricName);
         using var duration = new HistogramSink<double>(MySqlDiagnostics.MigrationOperationHandlerDurationMetricName);
         var services = new ServiceCollection();
         services.AddScoped<IMySqlMigrationOperationHandler, OutcomeHandler>();
         services.AddEntityFrameworkDokaMySql();
-
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         var options = new DbContextOptionsBuilder<OutcomeContext>()
             .UseInternalServiceProvider(serviceProvider)
@@ -129,10 +153,12 @@ public sealed class MySqlActivityAndMeterSmokeTests
 
         using var context = new OutcomeContext(options);
 
+        // Act
         var commands = context
             .GetService<IMigrationsSqlGenerator>()
             .Generate([new OutcomeOperation(consumeOperation)], context.Model);
 
+        // Assert
         var activity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
@@ -152,9 +178,13 @@ public sealed class MySqlActivityAndMeterSmokeTests
                 && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], expectedOutcome));
     }
 
+    /// <summary>
+    /// Verifies migration operation handler failure keeps plugin payload out of integrated telemetry.
+    /// </summary>
     [Fact]
     public void Migration_operation_handler_failure_keeps_plugin_payload_out_of_integrated_telemetry()
     {
+        // Arrange
         const string sensitiveMessage = "password=secret;SELECT private_data";
         const string sensitiveData = "tenant=private_tenant";
         using var activitySink = new ActivitySink();
@@ -169,7 +199,6 @@ public sealed class MySqlActivityAndMeterSmokeTests
         services.AddSingleton<ILoggerFactory>(loggerFactory);
         services.AddScoped<IMySqlMigrationOperationHandler, FailureHandler>();
         services.AddEntityFrameworkDokaMySql();
-
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         var options = new DbContextOptionsBuilder<FailureContext>()
             .UseInternalServiceProvider(serviceProvider)
@@ -179,37 +208,35 @@ public sealed class MySqlActivityAndMeterSmokeTests
             .Options;
 
         using var context = new FailureContext(options);
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() => context
+        Action act = () => context
             .GetService<IMigrationsSqlGenerator>()
-            .Generate([new FailureOperation()], context.Model));
+            .Generate([new FailureOperation()], context.Model);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.HandlerFailed, exception.FailureCode);
         var pluginException = Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(sensitiveMessage, pluginException.Message);
         Assert.Equal(sensitiveData, pluginException.Data["private-context"]);
-
         var log = Assert.Single(
             logSink.Entries,
             entry => entry.EventId == MySqlEventId.MigrationOperationHandlerFailed);
-
         Assert.Null(log.ExceptionType);
         Assert.Contains(nameof(InvalidOperationException), log.Message, StringComparison.Ordinal);
-
         var activity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.failure"));
-
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
             activity.GetTagItem(MySqlDiagnosticTags.ErrorType));
-
         var failureTags = Assert.Single(
             failures.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure"));
-
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
             failureTags[MySqlDiagnosticTags.ErrorType]);
@@ -217,7 +244,6 @@ public sealed class MySqlActivityAndMeterSmokeTests
             duration.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure")
                 && Equals(tags[MySqlDiagnosticTags.ErrorType], nameof(MySqlMigrationHandlerFailureCode.HandlerFailed)));
-
         var serializedTelemetry = string.Join(
             Environment.NewLine,
             log.Message,
@@ -234,77 +260,107 @@ public sealed class MySqlActivityAndMeterSmokeTests
                     .TagSets.Concat(duration.TagSets)
                     .SelectMany(tags => tags)
                     .Select(tag => $"{tag.Key}={tag.Value}")));
-
         Assert.DoesNotContain(sensitiveMessage, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain(sensitiveData, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain("private-context", serializedTelemetry, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies server version resolve emits span.
+    /// </summary>
     [Fact]
     public void Server_version_resolve_emits_span()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
 
+        // Act
         using (var activity = MySqlActivitySource.StartServerVersionResolve(EngineFamily.MySql))
         {
             activity?.Stop();
         }
 
+        // Assert
         Assert.Contains(activitySink.Activities, a => a.OperationName == MySqlDiagnostics.ServerVersionResolveSpanName);
     }
 
-    [Fact]
-    public void Cancellation_counter_increments_with_path_tag()
+    /// <summary>
+    /// Verifies cancellation counter increments with path tag.
+    /// </summary>
+    /// <param name="path">The independently reported soft or hard cancellation path.</param>
+    [Theory]
+    [InlineData(MySqlDiagnosticTags.Soft)]
+    [InlineData(MySqlDiagnosticTags.Hard)]
+    public void Cancellation_counter_increments_with_path_tag(
+        string path
+    )
     {
+        // Arrange
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.CancellationTotalMetricName);
 
+        // Act
         MySqlMeter.CancellationTotal.Add(
             1,
-            new KeyValuePair<string, object?>(MySqlDiagnosticTags.Path, MySqlDiagnosticTags.Soft),
-            MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
-        MySqlMeter.CancellationTotal.Add(
-            1,
-            new KeyValuePair<string, object?>(MySqlDiagnosticTags.Path, MySqlDiagnosticTags.Hard),
+            new KeyValuePair<string, object?>(MySqlDiagnosticTags.Path, path),
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
-        Assert.True(meterSink.TotalDelta >= 2);
+        // Assert
+        Assert.True(meterSink.TotalDelta >= 1);
+        Assert.Contains(meterSink.TagSets, tags => Equals(tags[MySqlDiagnosticTags.Path], path));
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies command timeout counter increments.
+    /// </summary>
     [Fact]
     public void Command_timeout_counter_increments()
     {
+        // Arrange
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.CommandTimeoutTotalMetricName);
 
+        // Act
         MySqlMeter.CommandTimeoutTotal.Add(
             1,
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies commit unknown counter increments.
+    /// </summary>
     [Fact]
     public void Commit_unknown_counter_increments()
     {
+        // Arrange
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.CommitUnknownTotalMetricName);
 
+        // Act
         MySqlMeter.CommitUnknownTotal.Add(
             1,
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies retry exhaustion emits failure span and counter.
+    /// </summary>
     [Fact]
     public void Retry_exhaustion_emits_failure_span_and_counter()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.RetryLimitExceededTotalMetricName);
         using var rootActivity = new Activity("retry-exhaustion-smoke").Start();
         var exception = new InvalidOperationException("sensitive-message");
 
+        // Act
         using (var startedActivity = MySqlActivitySource.StartRetryLimitExceeded(EngineFamily.MySql, exception))
         {
             startedActivity?.Stop();
@@ -314,6 +370,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             1,
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         var recordedActivity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.TraceId == rootActivity.TraceId
@@ -327,13 +384,18 @@ public sealed class MySqlActivityAndMeterSmokeTests
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies migration lock release failure emits failure span and counter.
+    /// </summary>
     [Fact]
     public void Migration_lock_release_failure_emits_failure_span_and_counter()
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.MigrationLockReleaseFailedTotalMetricName);
         var exception = new IOException("sensitive-message");
 
+        // Act
         using (var activity = MySqlActivitySource.StartMigrationLockReleaseFailed(EngineFamily.MySql, exception))
         {
             activity?.Stop();
@@ -343,6 +405,7 @@ public sealed class MySqlActivityAndMeterSmokeTests
             1,
             MySqlDiagnosticTags.CreateEngineMetricTag(EngineFamily.MySql));
 
+        // Assert
         Assert.Contains(
             activitySink.Activities,
             activity => activity.OperationName == MySqlDiagnostics.MigrationLockReleaseFailedSpanName
@@ -351,36 +414,52 @@ public sealed class MySqlActivityAndMeterSmokeTests
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
-    [Fact]
-    public void Failure_operations_emit_their_named_spans()
+    /// <summary>
+    /// Verifies failure operations emit their named spans.
+    /// </summary>
+    /// <param name="operation">The independently exercised failure helper.</param>
+    /// <param name="expectedSpanName">The span name belonging to that helper.</param>
+    [Theory]
+    [InlineData("cancellation", MySqlDiagnostics.CancellationSpanName)]
+    [InlineData("command_timeout", MySqlDiagnostics.CommandTimeoutSpanName)]
+    [InlineData("commit_unknown", MySqlDiagnostics.CommitUnknownSpanName)]
+    public void Failure_operations_emit_their_named_spans(
+        string operation,
+        string expectedSpanName
+    )
     {
+        // Arrange
         using var activitySink = new ActivitySink();
         var exception = new InvalidOperationException("sensitive-message");
 
-        using (MySqlActivitySource.StartCancellation(
-            MySqlDiagnosticTags.Soft,
-            "Open",
-            EngineFamily.MySql,
-            exception)) { }
-
-        using (MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception)) { }
-
-        using (MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception)) { }
+        // Act
+        using (operation switch
+        {
+            "cancellation" => MySqlActivitySource.StartCancellation(
+                MySqlDiagnosticTags.Soft, "Open", EngineFamily.MySql, exception),
+            "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
+            "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        }) { }
 
         var operationNames = activitySink.Activities
             .Select(activity => activity.OperationName)
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Contains(MySqlDiagnostics.CancellationSpanName, operationNames);
-        Assert.Contains(MySqlDiagnostics.CommandTimeoutSpanName, operationNames);
-        Assert.Contains(MySqlDiagnostics.CommitUnknownSpanName, operationNames);
+        // Assert
+        Assert.Contains(expectedSpanName, operationNames);
     }
 
+    /// <summary>
+    /// Verifies server version resolution counter increments with bounded tags.
+    /// </summary>
     [Fact]
     public void Server_version_resolution_counter_increments_with_bounded_tags()
     {
+        // Arrange
         using var meterSink = new CounterSink<long>(MySqlDiagnostics.ServerVersionResolutionTotalMetricName);
 
+        // Act
         MySqlMeter.ServerVersionResolutionTotal.Add(
             1,
             new KeyValuePair<string, object?>(MySqlDiagnosticTags.Engine, MySqlDiagnosticTags.MySql),
@@ -391,221 +470,45 @@ public sealed class MySqlActivityAndMeterSmokeTests
                 MySqlDiagnosticTags.MetricCompatibilityMode,
                 MySqlServerVersionCompatibilityMode.SupportedOnly.ToString()));
 
+        // Assert
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
 
+    /// <summary>
+    /// Verifies source has no listeners when nothing subscribed keeps start helpers returning null.
+    /// </summary>
     [Fact]
     public void Source_has_no_listeners_when_nothing_subscribed_keeps_start_helpers_returning_null()
     {
-        var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber: 0, EngineFamily.MySql);
+        // Arrange
+        const int attemptNumber = 0;
 
+        // Act
+        var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber, EngineFamily.MySql);
+
+        // Assert
         Assert.Null(activity);
     }
 
+    /// <summary>
+    /// Verifies activity sink handles concurrent activity completion.
+    /// </summary>
     [Fact]
     public void Activity_sink_handles_concurrent_activity_completion()
     {
+        // Arrange
         const int activityCount = 256;
         using var activitySink = new ActivitySink();
 
+        // Act
         Parallel.For(0, activityCount, attemptNumber =>
         {
             using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber, EngineFamily.MySql);
             activity?.Stop();
         });
 
+        // Assert
         Assert.True(activitySink.Activities.Count >= activityCount);
     }
-
-    private static void AssertEngineTags(
-        IEnumerable<IReadOnlyDictionary<string, object?>> tagSets,
-        string expectedEngine,
-        string tagName = MySqlDiagnosticTags.Engine
-    )
-    {
-        Assert.NotEmpty(tagSets);
-        Assert.All(tagSets, tags => Assert.Equal(expectedEngine, tags[tagName]));
-    }
-
-    private sealed class OutcomeContext : DbContext
-    {
-        public OutcomeContext(
-            DbContextOptions<OutcomeContext> options
-        ) : base(options) { }
-    }
-
-    private sealed class OutcomeOperation(
-        bool consume
-    ) : MigrationOperation
-    {
-        public bool Consume { get; } = consume;
-    }
-
-    private sealed class OutcomeHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.outcome";
-
-        public Type OperationType => typeof(OutcomeOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var operation = (OutcomeOperation)context.Operation;
-
-            return operation.Consume
-                ? MySqlMigrationOperationResult.Consumed("consumed")
-                : MySqlMigrationOperationResult.Generated(
-                    [MySqlMigrationCommandSpec.Create("SELECT 1;")],
-                    "generated");
-        }
-    }
-
-    private sealed class FailureContext : DbContext
-    {
-        public FailureContext(
-            DbContextOptions<FailureContext> options
-        ) : base(options) { }
-    }
-
-    private sealed class FailureOperation : MigrationOperation;
-
-    private sealed class FailureHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.failure";
-
-        public Type OperationType => typeof(FailureOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var exception =
-                new InvalidOperationException("password=secret;SELECT private_data")
-                {
-                    Data =
-                    {
-                        ["private-context"] = "tenant=private_tenant",
-                    },
-                };
-
-            throw exception;
-        }
-    }
-
-    private sealed class ActivitySink : IDisposable
-    {
-        private readonly ActivityListener _listener;
-
-        public ActivitySink()
-        {
-            _listener = new ActivityListener
-            {
-                ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-                ActivityStopped = Activities.Enqueue,
-            };
-            ActivitySource.AddActivityListener(_listener);
-        }
-
-        // The source is process-wide, so callbacks can overlap with activities
-        // emitted by parallel test collections. Concurrent capture keeps both
-        // writes and assertion enumeration safe without disabling parallelism.
-        public ConcurrentQueue<Activity> Activities { get; } = new();
-
-        public void Dispose() => _listener.Dispose();
-    }
-
-    private sealed class CounterSink<T> : IDisposable
-        where T : struct
-    {
-        private readonly MeterListener _listener;
-        private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
-        private long _total;
-
-        public CounterSink(
-            string instrumentName
-        )
-        {
-            _listener = new MeterListener
-            {
-                InstrumentPublished = (instrument, listener) =>
-                {
-                    if (instrument.Meter.Name == MySqlDiagnostics.SourceName
-                        && instrument.Name == instrumentName)
-                    {
-                        listener.EnableMeasurementEvents(instrument);
-                    }
-                },
-            };
-            _listener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
-            {
-                Interlocked.Add(ref _total, measurement);
-                _tagSets.Enqueue(ToDictionary(tags));
-            });
-            _listener.Start();
-        }
-
-        public long TotalDelta => Interlocked.Read(ref _total);
-
-        public IReadOnlyCollection<IReadOnlyDictionary<string, object?>> TagSets => _tagSets;
-
-        public void Dispose() => _listener.Dispose();
-    }
-
-    private sealed class HistogramSink<T> : IDisposable
-        where T : struct
-    {
-        private readonly MeterListener _listener;
-        private readonly List<double> _measurements = new();
-        private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
-        private readonly Lock _lock = new();
-
-        public HistogramSink(
-            string instrumentName
-        )
-        {
-            _listener = new MeterListener
-            {
-                InstrumentPublished = (instrument, listener) =>
-                {
-                    if (instrument.Meter.Name == MySqlDiagnostics.SourceName
-                        && instrument.Name == instrumentName)
-                    {
-                        listener.EnableMeasurementEvents(instrument);
-                    }
-                },
-            };
-            _listener.SetMeasurementEventCallback<double>((_, measurement, tags, _) =>
-            {
-                lock (_lock)
-                {
-                    _measurements.Add(measurement);
-                }
-
-                _tagSets.Enqueue(ToDictionary(tags));
-            });
-            _listener.Start();
-        }
-
-        public IReadOnlyCollection<IReadOnlyDictionary<string, object?>> TagSets => _tagSets;
-
-        public IReadOnlyList<double> Measurements
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    return _measurements.ToList();
-                }
-            }
-        }
-
-        public void Dispose() => _listener.Dispose();
-    }
-
-    private static Dictionary<string, object?> ToDictionary(
-        ReadOnlySpan<KeyValuePair<string, object?>> tags
-    ) => tags.ToArray().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 }

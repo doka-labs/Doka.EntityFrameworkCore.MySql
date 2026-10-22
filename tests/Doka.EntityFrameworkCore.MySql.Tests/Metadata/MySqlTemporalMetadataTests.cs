@@ -13,10 +13,16 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MySql_temporal_mapping_uses_emulation_defaults()
     {
+        // Arrange
         using var context = CreateContext<MySqlDefaultConfiguration>(s_mySql84);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(TemporalRecord))!;
 
-        Assert.True(entityType.IsMySqlTemporal());
+        var actual = entityType.IsMySqlTemporal();
+
+        // Assert
+        Assert.True(actual);
         Assert.Equal("TemporalRecordsHistory", entityType.GetMySqlTemporalHistoryTableName());
         AssertPeriodProperty(entityType, "PeriodStart", "datetime(6)");
         AssertPeriodProperty(entityType, "PeriodEnd", "datetime(6)");
@@ -28,10 +34,16 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MariaDb_temporal_mapping_uses_native_defaults()
     {
+        // Arrange
         using var context = CreateContext<MariaDbDefaultConfiguration>(s_mariaDb114);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(TemporalRecord))!;
 
-        Assert.True(entityType.IsMySqlTemporal());
+        var actual = entityType.IsMySqlTemporal();
+
+        // Assert
+        Assert.True(actual);
         Assert.Null(entityType.GetMySqlTemporalHistoryTableName());
         AssertPeriodProperty(entityType, "PeriodStart", "timestamp(6)");
         AssertPeriodProperty(entityType, "PeriodEnd", "timestamp(6)");
@@ -43,10 +55,16 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MySql_temporal_mapping_preserves_explicit_names()
     {
+        // Arrange
         using var context = CreateContext<CustomNamesConfiguration>(s_mySql84);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(TemporalRecord))!;
 
-        Assert.Equal("TemporalRecordAudit", entityType.GetMySqlTemporalHistoryTableName());
+        var actual = entityType.GetMySqlTemporalHistoryTableName();
+
+        // Assert
+        Assert.Equal("TemporalRecordAudit", actual);
         Assert.Equal("audit", entityType.GetMySqlTemporalHistoryTableSchema());
         Assert.Equal("ValidFrom", entityType.GetMySqlTemporalPeriodStartPropertyName());
         Assert.Equal("ValidUntil", entityType.GetMySqlTemporalPeriodEndPropertyName());
@@ -60,12 +78,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Default_history_table_name_respects_engine_identifier_limit()
     {
+        // Arrange
         const string tableName =
             "TemporalRecordsWhoseNameIsDeliberatelyLongEnoughToRequireStableTruncation";
-
         var first = MySqlTemporalMetadata.CreateDefaultHistoryTableName(tableName);
+
+        // Act
         var second = MySqlTemporalMetadata.CreateDefaultHistoryTableName(tableName);
 
+        // Assert
         Assert.Equal(first, second);
         Assert.Equal(MySqlConventionSetBuilder.MaxIdentifierLength, first.Length);
         Assert.Matches("^[A-Za-z0-9]+_[0-9a-f]{16}$", first);
@@ -78,16 +99,19 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Emulation_marker_round_trips_temporal_identifiers()
     {
+        // Arrange
         var encodedMarker = MySqlTemporalMetadata.CreateEmulationMarker(
             "audit:schema",
             "Order History",
             "Valid:From",
             "Valid Until");
 
+        // Act
         var recognized = MySqlTemporalMetadata.TryParseEmulationMarker(
             $"BEGIN /* {encodedMarker} */ SET @ignored = 1; END",
             out var marker);
 
+        // Assert
         Assert.True(recognized);
         Assert.NotNull(marker);
         Assert.Equal("audit:schema", marker.HistorySchema);
@@ -110,10 +134,14 @@ public sealed class MySqlTemporalMetadataTests
         string actionStatement
     )
     {
+        // Arrange: The theory supplies actionStatement.
+
+        // Act
         var recognized = MySqlTemporalMetadata.TryParseEmulationMarker(
             actionStatement,
             out var marker);
 
+        // Assert
         Assert.False(recognized);
         Assert.Null(marker);
     }
@@ -125,10 +153,13 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MariaDb_native_mapping_retains_history_table_configuration_as_metadata()
     {
+        // Arrange
         using var context = CreateContext<NativeHistoryTableConfiguration>(s_mariaDb114);
 
+        // Act
         var entityType = context.Model.FindEntityType(typeof(TemporalRecord));
 
+        // Assert
         Assert.NotNull(entityType);
         Assert.Equal("TemporalRecordAudit", entityType.GetMySqlTemporalHistoryTableName());
     }
@@ -139,10 +170,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Temporal_mapping_rejects_identical_period_properties()
     {
+        // Arrange
         using var context = CreateContext<IdenticalPeriodsConfiguration>(s_mySql84);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("distinct temporal period properties", exception.Message, StringComparison.Ordinal);
     }
 
@@ -152,10 +188,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Temporal_mapping_rejects_invalid_period_property_type()
     {
+        // Arrange
         using var context = CreateContext<InvalidPeriodTypeConfiguration>(s_mySql84);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("must be a non-nullable DateTime property", exception.Message, StringComparison.Ordinal);
     }
 
@@ -165,10 +206,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Temporal_mapping_rejects_engine_without_temporal_support()
     {
+        // Arrange
         using var context = CreateContext<UnsupportedEngineConfiguration>(s_mariaDb1033);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("cannot supply temporal tables", exception.Message, StringComparison.Ordinal);
     }
 
@@ -178,10 +224,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MySql_temporal_mapping_rejects_non_transactional_storage_engine()
     {
+        // Arrange
         using var context = CreateContext<MyIsamConfiguration>(s_mySql84);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("must use InnoDB", exception.Message, StringComparison.Ordinal);
         Assert.Contains("one atomic transaction", exception.Message, StringComparison.Ordinal);
     }
@@ -192,10 +243,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MySql_temporal_mapping_rejects_database_cascade()
     {
+        // Arrange
         using var context = CreateContext<CascadeConfiguration>(s_mySql84);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("cascaded foreign-key actions do not activate triggers", exception.Message,
             StringComparison.Ordinal);
         Assert.Contains("without a corresponding history record", exception.Message, StringComparison.Ordinal);
@@ -207,10 +263,15 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void MariaDb_temporal_mapping_rejects_generated_columns()
     {
+        // Arrange
         using var context = CreateContext<NativeGeneratedColumnConfiguration>(s_mariaDb114);
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("generated columns cannot be system-versioned", exception.Message, StringComparison.Ordinal);
         Assert.Contains(nameof(TemporalRecord.NameLength), exception.Message, StringComparison.Ordinal);
     }
@@ -221,10 +282,16 @@ public sealed class MySqlTemporalMetadataTests
     [Fact]
     public void Disabled_temporal_mapping_does_not_add_temporal_metadata()
     {
+        // Arrange
         using var context = CreateContext<DisabledConfiguration>(s_mySql84);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(TemporalRecord))!;
 
-        Assert.False(entityType.IsMySqlTemporal());
+        var actual = entityType.IsMySqlTemporal();
+
+        // Assert
+        Assert.False(actual);
         Assert.Null(entityType.GetMySqlTemporalHistoryTableName());
         Assert.Null(entityType.GetMySqlTemporalPeriodStartPropertyName());
         Assert.Null(entityType.GetMySqlTemporalPeriodEndPropertyName());

@@ -269,7 +269,9 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
-    private static async Task CreateTemporaryTableAsync(MySqlConnection connection)
+    private static async Task CreateTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         // A session-local table isolates exact-byte assertions from other test processes.
         await using var command = connection.CreateCommand();
@@ -279,7 +281,9 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
-    private static async Task DropTemporaryTableAsync(MySqlConnection connection)
+    private static async Task DropTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TEMPORARY TABLE `{TableName}`;";
@@ -293,8 +297,12 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
     )
     {
         // Read raw bytes so an EF read conversion cannot conceal a write error.
+
+        // Arrange
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT HEX(`{columnName}`) FROM `{TableName}` ORDER BY `Id`;";
+
+        // Act
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         var actualHex = new List<string>();
 
@@ -303,6 +311,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             actualHex.Add(reader.GetString(0));
         }
 
+        // Assert
         Assert.Equal(expectedHex, actualHex);
     }
 
@@ -314,7 +323,9 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
-    private static TheoryData<string, bool, char> CreateCharacterCases(params char[] values)
+    private static TheoryData<string, bool, char> CreateCharacterCases(
+        params char[] values
+    )
     {
         var cases = new TheoryData<string, bool, char>();
 
@@ -360,7 +371,9 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
 
         public DbSet<NonStringValue> Items => Set<NonStringValue>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<NonStringValue>(entity =>
             {
