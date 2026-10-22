@@ -463,7 +463,9 @@ column metadata.
 
 ### GUID SQL defaults and computed values
 
-An explicit SQL default takes precedence over implicit client GUID generation:
+From 10.6.1, an explicit SQL default takes precedence over implicit client GUID
+generation. Earlier versions could generate and send a client GUID despite the
+SQL default:
 
 ```csharp
 modelBuilder.Entity<Order>()

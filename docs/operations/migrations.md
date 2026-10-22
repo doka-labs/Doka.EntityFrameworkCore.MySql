@@ -97,6 +97,23 @@ spatial store type, including store types with modifiers.
 
 ### GUID SQL defaults
 
+Version 10.6.1 corrects implicit client generation that could bypass a GUID SQL
+default. Before upgrading from 10.6.0 or earlier:
+
+1. Decide whether each affected property should use server or client generation.
+   Explicit client strategies and application generator factories are preserved;
+   do not remove them unless server generation is intended. A historical
+   `ClientGuid` snapshot annotation is also preserved, not silently reinterpreted.
+2. Exercise inserts with omitted and supplied keys, including dependent foreign
+   keys. MariaDB supports unknown UUID key readback through `RETURNING`; MySQL
+   now rejects unsupported generated-key inserts before execution. For MySQL,
+   supply the key or explicitly select client generation when that matches the
+   application contract.
+3. Review the next scaffolded migration and snapshot. Regenerate an unpublished
+   migration from the corrected application model when appropriate; keep already
+   deployed migration files and history unchanged. Changing only an implicit
+   generation annotation does not require a physical column change.
+
 `HasDefaultValueSql("UUID()")`, `AddColumn<Guid>(..., defaultValueSql: "UUID()")`,
 and `table.Column<Guid>(..., defaultValueSql: "UUID()")` preserve the SQL
 expression through migration source, snapshot/designer compilation, and DDL.

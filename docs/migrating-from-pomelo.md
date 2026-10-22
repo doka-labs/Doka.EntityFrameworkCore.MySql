@@ -21,7 +21,7 @@ Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 stable package explicitly so the migration uses the documented version:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.1
 ```
 
 Use:
@@ -174,6 +174,12 @@ transport value; `Default`, `Char36`, little-endian, time-swapped, `None`, and
 legacy `OldGuids` configurations are rejected. This transport prerequisite
 does not replace Doka's column-level `DefaultGuidFormat(...)` and
 `HasMySqlGuidFormat(...)` configuration.
+
+For a property with `HasDefaultValueSql("UUID()")`, use 10.6.1 or later and
+review [GUID SQL-default generation and upgrade behavior](operations/migrations.md#guid-sql-defaults).
+Do not add a client-generation strategy merely to preserve a historical
+snapshot annotation: choose server or client generation deliberately and test
+the supported readback path for the configured engine.
 
 Remove `UseAffectedRows=true` during migration. Doka requires the connector's
 matched-row behavior so an EF update that matches a row but stores an equal
