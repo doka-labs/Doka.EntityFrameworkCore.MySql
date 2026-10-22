@@ -29,7 +29,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
         private readonly Dictionary<(IntegrationDatabaseTarget Target, MySqlGuidFormat Format), Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>
         /// Seeds one selected engine/format pair once and returns a fresh context.
@@ -53,7 +53,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
         }
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

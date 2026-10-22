@@ -471,7 +471,7 @@ public sealed partial class AdrRepositoryValidatorTests
             releaseCandidate,
             StringComparison.Ordinal);
         Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", releaseCandidate, StringComparison.Ordinal);
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(SpecificationFilter, releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
             "run_integration_configuration_and_failure_gate",
             releaseCandidate,

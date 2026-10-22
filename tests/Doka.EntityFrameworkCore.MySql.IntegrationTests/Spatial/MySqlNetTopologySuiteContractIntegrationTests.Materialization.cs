@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 {
     /// <summary>Verifies the tracked write/read lifecycle independently of untracked reader paths.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb118)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb118 })]
     [MemberData(nameof(MaterializationTargetCases))]
     public async Task Geometry_types_round_trip_through_tracked_query(
         string target
@@ -43,7 +43,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     }
 
     /// <summary>Verifies one independently materialized geometry-row shape.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb118)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb118 })]
     [MemberData(nameof(MaterializationCases))]
     public async Task Geometry_types_materialize_through_query_shape(
         string target,

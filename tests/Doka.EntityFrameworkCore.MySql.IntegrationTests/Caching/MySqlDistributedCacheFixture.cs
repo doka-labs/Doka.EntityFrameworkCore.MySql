@@ -13,10 +13,10 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
     private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _expirationStores = new();
 
     /// <summary>Defers database setup until a selected target is actually exercised.</summary>
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     /// <summary>Disposes the target-owned tables after the test class has completed.</summary>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         List<Exception>? failures = null;
 

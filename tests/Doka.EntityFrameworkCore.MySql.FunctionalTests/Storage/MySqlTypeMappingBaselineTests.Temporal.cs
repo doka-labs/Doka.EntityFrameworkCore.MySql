@@ -560,4 +560,24 @@ public sealed partial class MySqlTypeMappingBaselineTests
         // Assert
         Assert.Equal("datetime(6)", columnType);
     }
+
+    /// <summary>Verifies each explicit temporal store type preserves fractional precision six.</summary>
+    /// <param name="storeType">The independently reported DateTime store representation.</param>
+    [Theory]
+    [InlineData("datetime(6)")]
+    [InlineData("timestamp(6)")]
+    public void DateTime_mappings_accept_explicit_fractional_precision_six(
+        string storeType
+    )
+    {
+        // Arrange
+        using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
+        var source = context.GetService<IRelationalTypeMappingSource>();
+
+        // Act
+        var mapping = source.FindMapping(typeof(DateTime), storeType);
+
+        // Assert
+        Assert.Equal(storeType, mapping!.StoreType);
+    }
 }

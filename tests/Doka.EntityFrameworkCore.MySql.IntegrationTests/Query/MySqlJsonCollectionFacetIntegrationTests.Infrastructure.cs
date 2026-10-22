@@ -43,7 +43,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
         private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = new();
 
         /// <summary>Defers database setup until a selected engine needs it.</summary>
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>Returns the original seed task, including any initialization failure.</summary>
         /// <param name="target">The selected database engine.</param>
@@ -64,7 +64,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
         }
 
         /// <summary>Drops each initialized table even if another engine's cleanup fails.</summary>
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Start the isolated 11.x provider line on `net11.0` with exact .NET SDK and
+  EF Core `11.0.0-rc.2.26504.105` pins. The stable 10.x line remains the .NET
+  10 maintenance line.
+- Move the test projects to xUnit.net v3 package version 4.0.0. Repository
+  automation uses the .NET 11 Microsoft Testing Platform runner, while the
+  xUnit IDE adapter keeps Rider and other supported IDE runners available.
+- Replace the stable-line EF Core floor/latest patch matrix with one exact
+  RC.2 dependency graph. Repository, specification, integration, runtime, and
+  publication gates qualify that graph without a second floating restore.
+- Consume the .NET 11 shared-framework caching, dependency-injection, logging,
+  and options abstractions instead of shipping redundant package references.
+- Update Testcontainers to 4.16.0 and retain the explicit test-only SSH.NET
+  2026.0.0 pin from the stable line.
+- Keep package validation enabled while resetting the incompatible 10.x
+  package baselines for the new `net11.0` major line. Public API analyzers
+  remain the source-level compatibility boundary until an 11.x baseline is
+  published.
+- Reject direct indexes over JSON complex values and JSON member paths during
+  model validation. Index an explicitly typed generated scalar column instead,
+  matching the portable MySQL and MariaDB JSON-index contract.
+
+### Fixed
+
+- Preserve EF Core 11 RC.1 string-collection membership semantics when its
+  JSON value projection is wrapped in `JSON_UNQUOTE(JSON_QUOTE(...))`. Direct
+  membership uses `JSON_CONTAINS`, while composed collection queries retain
+  their complete decoded projection instead of being reduced to a bare
+  `JSON_TABLE` value column.
+- Preserve nullable NetTopologySuite `IsSimple` semantics on every supported
+  MariaDB release. The explicit null guard now survives EF Core's relational
+  nullability processing instead of exposing MariaDB's `-1` sentinel for
+  `ST_IsSimple(NULL)` as `true`.
+
 ## [10.6.1] - 2026-10-22
 
 Stable patch release correcting GUID store-generation and shared-table default
@@ -1506,6 +1543,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.1...HEAD
 [10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1
 [10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
 [10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0

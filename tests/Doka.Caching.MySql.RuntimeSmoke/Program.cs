@@ -73,9 +73,9 @@ internal static class Program
     )
     {
         await using var services = CreateServices(connectionString);
-        services
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await services
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(CancellationToken.None);
         if (!ReferenceEquals(
                 services.GetRequiredService<IDistributedCache>(),
                 services.GetRequiredService<IBufferDistributedCache>()))
@@ -85,9 +85,9 @@ internal static class Program
 
         await using var dataSource = CreateDataSource(connectionString);
         await using var externalServices = CreateServices(connectionString, dataSource);
-        externalServices
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await externalServices
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(CancellationToken.None);
 
         Require(
             ReferenceEquals(
@@ -100,9 +100,9 @@ internal static class Program
         await using var invalidProvider = invalidServices.BuildServiceProvider();
         try
         {
-            invalidProvider
-                .GetRequiredService<IStartupValidator>()
-                .Validate();
+            await invalidProvider
+                .GetRequiredService<IAsyncStartupValidator>()
+                .ValidateAsync(CancellationToken.None);
         }
         catch (OptionsValidationException)
         {

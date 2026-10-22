@@ -279,7 +279,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 await cache
                     .SetAsync(
                         "cleanup-sequence",
-                        new ReadOnlySequence<byte>([3]),
+                        new ReadOnlySequence<byte>(new byte[] { 3 }),
                         new DistributedCacheEntryOptions(),
                         cancellationToken)
                     .ConfigureAwait(false);

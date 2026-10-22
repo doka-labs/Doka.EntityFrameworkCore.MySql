@@ -206,19 +206,20 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         // Act
         bool? hasTables = null;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         switch (operation)
         {
             case "create":
-                await databaseCreator.CreateAsync();
+                await databaseCreator.CreateAsync(cancellationToken);
                 break;
 
             case "delete":
-                await databaseCreator.DeleteAsync();
+                await databaseCreator.DeleteAsync(cancellationToken);
                 break;
 
             case "has_tables":
-                hasTables = await databaseCreator.HasTablesAsync();
+                hasTables = await databaseCreator.HasTablesAsync(cancellationToken);
                 break;
 
             default:

@@ -2,7 +2,6 @@ using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.EntityFrameworkCore.Design.Internal;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 

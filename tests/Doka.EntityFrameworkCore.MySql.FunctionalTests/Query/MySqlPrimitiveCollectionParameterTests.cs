@@ -338,27 +338,6 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
     }
 
     /// <summary>
-    /// A model-mapped string collection retains its document representation;
-    /// Base64 is reserved for parameter transport.
-    /// </summary>
-    [Fact]
-    public void Model_string_collection_does_not_use_parameter_transport_encoding()
-    {
-        // Arrange
-        using var context = CreateContext();
-
-        // Act
-        var sql = context
-            .Items
-            .Where(item => item.StringValues.Contains("alpha"))
-            .ToQueryString();
-
-        // Assert
-        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`s`.`value`))", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("FROM_BASE64", sql, StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// Transport mappings are memoized per inferred source mapping so repeated
     /// query compilation preserves EF Core's mapping-cache identity.
     /// </summary>

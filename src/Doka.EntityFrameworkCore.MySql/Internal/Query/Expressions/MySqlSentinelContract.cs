@@ -16,8 +16,14 @@ internal enum MySqlSentinelKind
     GuidToString,
     StringJsonDecode,
     TimeSpanJsonDecode,
+    IsNotTrue,
     DateTimeOffsetNow,
     DateTimeOffsetUtcNow,
+    DateTimeOffsetDateTime,
+    DateTimeOffsetUtcDateTime,
+    DateTimeOffsetLocalDateTime,
+    DateTimeOffsetConstruct,
+    DateTimeOffsetToOffset,
     DateTimeOffsetSubtractTimeSpan,
     DateTimeDifferenceTicks,
     TimeDifferenceTicks,
@@ -70,8 +76,14 @@ internal static class MySqlSentinelContract
     private const string GuidToStringName = Prefix + "guid_to_string";
     private const string StringJsonDecodeName = Prefix + "string_json_decode";
     private const string TimeSpanJsonDecodeName = Prefix + "timespan_json_decode";
+    private const string IsNotTrueName = Prefix + "is_not_true";
     private const string DateTimeOffsetNowName = Prefix + "datetimeoffset_now";
     private const string DateTimeOffsetUtcNowName = Prefix + "datetimeoffset_utc_now";
+    private const string DateTimeOffsetDateTimeName = Prefix + "datetimeoffset_datetime";
+    private const string DateTimeOffsetUtcDateTimeName = Prefix + "datetimeoffset_utc_datetime";
+    private const string DateTimeOffsetLocalDateTimeName = Prefix + "datetimeoffset_local_datetime";
+    private const string DateTimeOffsetConstructName = Prefix + "datetimeoffset_construct";
+    private const string DateTimeOffsetToOffsetName = Prefix + "datetimeoffset_to_offset";
     private const string DateTimeOffsetSubtractTimeSpanName = Prefix + "datetimeoffset_subtract_timespan";
     private const string DateTimeDifferenceTicksName = Prefix + "datetime_diff_ticks";
     private const string TimeDifferenceTicksName = Prefix + "time_diff_ticks";
@@ -97,8 +109,14 @@ internal static class MySqlSentinelContract
         MySqlSentinelKind.GuidToString => GuidToStringName,
         MySqlSentinelKind.StringJsonDecode => StringJsonDecodeName,
         MySqlSentinelKind.TimeSpanJsonDecode => TimeSpanJsonDecodeName,
+        MySqlSentinelKind.IsNotTrue => IsNotTrueName,
         MySqlSentinelKind.DateTimeOffsetNow => DateTimeOffsetNowName,
         MySqlSentinelKind.DateTimeOffsetUtcNow => DateTimeOffsetUtcNowName,
+        MySqlSentinelKind.DateTimeOffsetDateTime => DateTimeOffsetDateTimeName,
+        MySqlSentinelKind.DateTimeOffsetUtcDateTime => DateTimeOffsetUtcDateTimeName,
+        MySqlSentinelKind.DateTimeOffsetLocalDateTime => DateTimeOffsetLocalDateTimeName,
+        MySqlSentinelKind.DateTimeOffsetConstruct => DateTimeOffsetConstructName,
+        MySqlSentinelKind.DateTimeOffsetToOffset => DateTimeOffsetToOffsetName,
         MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan => DateTimeOffsetSubtractTimeSpanName,
         MySqlSentinelKind.DateTimeDifferenceTicks => DateTimeDifferenceTicksName,
         MySqlSentinelKind.TimeDifferenceTicks => TimeDifferenceTicksName,
@@ -167,8 +185,14 @@ internal static class MySqlSentinelContract
             GuidToStringName => new MySqlSentinel(MySqlSentinelKind.GuidToString),
             StringJsonDecodeName => new MySqlSentinel(MySqlSentinelKind.StringJsonDecode),
             TimeSpanJsonDecodeName => new MySqlSentinel(MySqlSentinelKind.TimeSpanJsonDecode),
+            IsNotTrueName => new MySqlSentinel(MySqlSentinelKind.IsNotTrue),
             DateTimeOffsetNowName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetNow),
             DateTimeOffsetUtcNowName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetUtcNow),
+            DateTimeOffsetDateTimeName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetDateTime),
+            DateTimeOffsetUtcDateTimeName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetUtcDateTime),
+            DateTimeOffsetLocalDateTimeName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetLocalDateTime),
+            DateTimeOffsetConstructName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetConstruct),
+            DateTimeOffsetToOffsetName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetToOffset),
             DateTimeOffsetSubtractTimeSpanName => new MySqlSentinel(MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan),
             DateTimeDifferenceTicksName => new MySqlSentinel(MySqlSentinelKind.DateTimeDifferenceTicks),
             TimeDifferenceTicksName => new MySqlSentinel(MySqlSentinelKind.TimeDifferenceTicks),
@@ -249,6 +273,10 @@ internal static class MySqlSentinelContract
             or MySqlSentinelKind.GuidToString
             or MySqlSentinelKind.StringJsonDecode
             or MySqlSentinelKind.TimeSpanJsonDecode
+            or MySqlSentinelKind.IsNotTrue
+            or MySqlSentinelKind.DateTimeOffsetDateTime
+            or MySqlSentinelKind.DateTimeOffsetUtcDateTime
+            or MySqlSentinelKind.DateTimeOffsetLocalDateTime
             or MySqlSentinelKind.TimeOfDayTicks
             or MySqlSentinelKind.OnesComplement => argumentCount == 1,
         MySqlSentinelKind.JsonSet => argumentCount == 3,
@@ -256,6 +284,8 @@ internal static class MySqlSentinelContract
         MySqlSentinelKind.RegularExpression
             or MySqlSentinelKind.Match
             or MySqlSentinelKind.MatchBoolean
+            or MySqlSentinelKind.DateTimeOffsetConstruct
+            or MySqlSentinelKind.DateTimeOffsetToOffset
             or MySqlSentinelKind.DateTimeOffsetSubtractTimeSpan
             or MySqlSentinelKind.DateTimeDifferenceTicks
             or MySqlSentinelKind.TimeDifferenceTicks

@@ -17,8 +17,9 @@ public sealed class ByteTypeMySqlFixture : RelationalTypeFixtureBase<byte>
 public sealed class ByteTypeMySqlTest : RelationalTypeTestBase<byte, ByteTypeMySqlFixture>
 {
     public ByteTypeMySqlTest(
-        ByteTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        ByteTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class ShortTypeMySqlFixture : RelationalTypeFixtureBase<short>
@@ -35,8 +36,9 @@ public sealed class ShortTypeMySqlFixture : RelationalTypeFixtureBase<short>
 public sealed class ShortTypeMySqlTest : RelationalTypeTestBase<short, ShortTypeMySqlFixture>
 {
     public ShortTypeMySqlTest(
-        ShortTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        ShortTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class IntTypeMySqlFixture : RelationalTypeFixtureBase<int>
@@ -53,8 +55,9 @@ public sealed class IntTypeMySqlFixture : RelationalTypeFixtureBase<int>
 public sealed class IntTypeMySqlTest : RelationalTypeTestBase<int, IntTypeMySqlFixture>
 {
     public IntTypeMySqlTest(
-        IntTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        IntTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class LongTypeMySqlFixture : RelationalTypeFixtureBase<long>
@@ -71,8 +74,9 @@ public sealed class LongTypeMySqlFixture : RelationalTypeFixtureBase<long>
 public sealed class LongTypeMySqlTest : RelationalTypeTestBase<long, LongTypeMySqlFixture>
 {
     public LongTypeMySqlTest(
-        LongTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        LongTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class DecimalTypeMySqlFixture : RelationalTypeFixtureBase<decimal>
@@ -89,8 +93,9 @@ public sealed class DecimalTypeMySqlFixture : RelationalTypeFixtureBase<decimal>
 public sealed class DecimalTypeMySqlTest : RelationalTypeTestBase<decimal, DecimalTypeMySqlFixture>
 {
     public DecimalTypeMySqlTest(
-        DecimalTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        DecimalTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class DoubleTypeMySqlFixture : RelationalTypeFixtureBase<double>
@@ -107,8 +112,9 @@ public sealed class DoubleTypeMySqlFixture : RelationalTypeFixtureBase<double>
 public sealed class DoubleTypeMySqlTest : RelationalTypeTestBase<double, DoubleTypeMySqlFixture>
 {
     public DoubleTypeMySqlTest(
-        DoubleTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        DoubleTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class FloatTypeMySqlFixture : RelationalTypeFixtureBase<float>
@@ -125,8 +131,9 @@ public sealed class FloatTypeMySqlFixture : RelationalTypeFixtureBase<float>
 public sealed class FloatTypeMySqlTest : RelationalTypeTestBase<float, FloatTypeMySqlFixture>
 {
     public FloatTypeMySqlTest(
-        FloatTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        FloatTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class BoolTypeMySqlFixture : RelationalTypeFixtureBase<bool>
@@ -143,8 +150,9 @@ public sealed class BoolTypeMySqlFixture : RelationalTypeFixtureBase<bool>
 public sealed class BoolTypeMySqlTest : RelationalTypeTestBase<bool, BoolTypeMySqlFixture>
 {
     public BoolTypeMySqlTest(
-        BoolTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        BoolTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class StringTypeMySqlFixture : RelationalTypeFixtureBase<string>
@@ -161,8 +169,9 @@ public sealed class StringTypeMySqlFixture : RelationalTypeFixtureBase<string>
 public sealed class StringTypeMySqlTest : RelationalTypeTestBase<string, StringTypeMySqlFixture>
 {
     public StringTypeMySqlTest(
-        StringTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        StringTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class GuidTypeMySqlFixture : RelationalTypeFixtureBase<Guid>
@@ -179,8 +188,9 @@ public sealed class GuidTypeMySqlFixture : RelationalTypeFixtureBase<Guid>
 public sealed class GuidTypeMySqlTest : RelationalTypeTestBase<Guid, GuidTypeMySqlFixture>
 {
     public GuidTypeMySqlTest(
-        GuidTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        GuidTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class ByteArrayTypeMySqlFixture : RelationalTypeFixtureBase<byte[]>
@@ -213,8 +223,9 @@ public sealed class ByteArrayTypeMySqlFixture : RelationalTypeFixtureBase<byte[]
 public sealed class ByteArrayTypeMySqlTest : RelationalTypeTestBase<byte[], ByteArrayTypeMySqlFixture>
 {
     public ByteArrayTypeMySqlTest(
-        ByteArrayTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        ByteArrayTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class DateTimeTypeMySqlFixture : RelationalTypeFixtureBase<DateTime>
@@ -245,8 +256,9 @@ public sealed class DateTimeTypeMySqlFixture : RelationalTypeFixtureBase<DateTim
 public sealed class DateTimeTypeMySqlTest : RelationalTypeTestBase<DateTime, DateTimeTypeMySqlFixture>
 {
     public DateTimeTypeMySqlTest(
-        DateTimeTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        DateTimeTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class DateTimeOffsetTypeMySqlFixture : RelationalTypeFixtureBase<DateTimeOffset>
@@ -277,8 +289,9 @@ public sealed class DateTimeOffsetTypeMySqlFixture : RelationalTypeFixtureBase<D
 public sealed class DateTimeOffsetTypeMySqlTest : RelationalTypeTestBase<DateTimeOffset, DateTimeOffsetTypeMySqlFixture>
 {
     public DateTimeOffsetTypeMySqlTest(
-        DateTimeOffsetTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        DateTimeOffsetTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class DateOnlyTypeMySqlFixture : RelationalTypeFixtureBase<DateOnly>
@@ -295,8 +308,9 @@ public sealed class DateOnlyTypeMySqlFixture : RelationalTypeFixtureBase<DateOnl
 public sealed class DateOnlyTypeMySqlTest : RelationalTypeTestBase<DateOnly, DateOnlyTypeMySqlFixture>
 {
     public DateOnlyTypeMySqlTest(
-        DateOnlyTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        DateOnlyTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class TimeOnlyTypeMySqlFixture : RelationalTypeFixtureBase<TimeOnly>
@@ -313,8 +327,9 @@ public sealed class TimeOnlyTypeMySqlFixture : RelationalTypeFixtureBase<TimeOnl
 public sealed class TimeOnlyTypeMySqlTest : RelationalTypeTestBase<TimeOnly, TimeOnlyTypeMySqlFixture>
 {
     public TimeOnlyTypeMySqlTest(
-        TimeOnlyTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        TimeOnlyTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }
 
 public sealed class TimeSpanTypeMySqlFixture : RelationalTypeFixtureBase<TimeSpan>
@@ -331,6 +346,7 @@ public sealed class TimeSpanTypeMySqlFixture : RelationalTypeFixtureBase<TimeSpa
 public sealed class TimeSpanTypeMySqlTest : RelationalTypeTestBase<TimeSpan, TimeSpanTypeMySqlFixture>
 {
     public TimeSpanTypeMySqlTest(
-        TimeSpanTypeMySqlFixture fixture
-    ) : base(fixture) { }
+        TimeSpanTypeMySqlFixture fixture,
+        ITestOutputHelper testOutputHelper
+    ) : base(fixture, testOutputHelper) { }
 }

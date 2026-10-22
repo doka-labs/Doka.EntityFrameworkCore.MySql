@@ -93,14 +93,14 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
             if (typeof(TMode) == typeof(CharacterGuidMode))
             {
-                entity.Property<Guid>(nameof(GeneratedRow<TKey>.Id))
+                entity.Property<Guid>(nameof(GeneratedRow<>.Id))
                     .HasConversion(value => value.ToString(), value => Guid.Parse(value))
                     .HasColumnType("char(36)");
             }
 
             if (typeof(TKey) == typeof(StoredKey))
             {
-                entity.Property<StoredKey>(nameof(GeneratedRow<TKey>.Id))
+                entity.Property<StoredKey>(nameof(GeneratedRow<>.Id))
                     .HasConversion(value => value.Value, value => new StoredKey(value));
             }
 

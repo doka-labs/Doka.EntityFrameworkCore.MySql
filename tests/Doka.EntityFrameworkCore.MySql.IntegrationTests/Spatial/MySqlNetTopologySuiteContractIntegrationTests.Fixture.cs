@@ -15,7 +15,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         private readonly Dictionary<(IntegrationDatabaseTarget Target, SpatialDataSet DataSet), Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>Creates a fresh context over the immutable geometry/child row.</summary>
         internal async Task<SpatialMaterializationContext> CreateMaterializationContextAsync(
@@ -49,7 +49,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         }
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

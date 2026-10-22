@@ -4,7 +4,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 {
     // WHY: A finalized table's trigger, engine and key contract does not change between
     // commands. Weak keys avoid retaining contexts/models through this singleton service.
-    private static readonly ConditionalWeakTable<ITable, KeyedReadbackTable> s_keyedReadbackTables = new();
+    private static readonly ConditionalWeakTable<ITable, KeyedReadbackTable> s_keyedReadbackTables = [];
 
     /// <summary>Rejects unknown keys that the non-RETURNING insert protocol cannot correlate safely.</summary>
     private static void ValidateGeneratedKeyReadback(

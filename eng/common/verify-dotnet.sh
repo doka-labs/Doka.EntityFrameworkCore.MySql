@@ -30,8 +30,8 @@ allow_prerelease="$(
         "${global_json}"
 )"
 
-if [[ ! "${required_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "global.json must declare one exact stable .NET SDK version." >&2
+if [[ ! "${required_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$ ]]; then
+    echo "global.json must declare one exact prerelease .NET SDK version." >&2
     exit 1
 fi
 
@@ -40,8 +40,8 @@ if [[ "${roll_forward}" != "disable" ]]; then
     exit 1
 fi
 
-if [[ "${allow_prerelease}" != "false" ]]; then
-    echo "global.json must reject prerelease .NET SDK selection." >&2
+if [[ "${allow_prerelease}" != "true" ]]; then
+    echo "global.json must permit the pinned prerelease .NET SDK." >&2
     exit 1
 fi
 

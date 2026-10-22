@@ -38,12 +38,12 @@ public sealed class MySqlScaffoldingClrTypeTests
     {
         foreach (var pair in SupportedTypes)
         {
-            yield return [pair[0]];
+            yield return [pair.Data.Item1];
         }
 
         foreach (var unsupported in UnsupportedValueTypes)
         {
-            yield return [unsupported];
+            yield return [unsupported.Data];
         }
     }
 
@@ -52,8 +52,8 @@ public sealed class MySqlScaffoldingClrTypeTests
     {
         foreach (var pair in SupportedTypes)
         {
-            yield return [pair[1], false];
-            yield return [pair[1], true];
+            yield return [pair.Data.Item2, false];
+            yield return [pair.Data.Item2, true];
         }
 
         foreach (var type in new[]
