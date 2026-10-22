@@ -31,8 +31,16 @@ internal sealed class MySqlModificationCommand : ModificationCommand
         ArgumentNullException.ThrowIfNull(reader);
 
         var readerIndex = 0;
-        foreach (var modification in ColumnModifications)
+        var modifications = ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Index EF's stable output descriptors without an interface enumerator or a buffered copy.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             if (modification.Column is not IStoreStoredProcedureParameter
                 {
                     Direction: ParameterDirection.Output or ParameterDirection.InputOutput,

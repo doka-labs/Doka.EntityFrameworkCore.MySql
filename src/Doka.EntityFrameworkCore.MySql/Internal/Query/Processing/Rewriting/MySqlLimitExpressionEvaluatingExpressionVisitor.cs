@@ -112,8 +112,16 @@ internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor
                 {
                     var minimum = decimal.MaxValue;
 
-                    foreach (var argument in least.Arguments)
+                    var arguments = least.Arguments;
+                    var argumentCount = arguments.Count;
+
+                    // WHY: Reduce nested LEAST on each execution without enumerators over stable arguments.
+                    // ReSharper disable once ForCanBeConvertedToForeach
+                    // ReSharper disable once LoopCanBeConvertedToQuery
+                    for (var argumentIndex = 0; argumentIndex < argumentCount; argumentIndex++)
                     {
+                        var argument = arguments[argumentIndex];
+
                         if (!TryEvaluateLimitValue(argument, parameterValues, out var argumentValue))
                         {
                             value = 0;

@@ -22,6 +22,7 @@ candidate neither invokes benchmarks nor consumes their artifacts.
 | Interpret profiles, raw evidence, gate results, or soak | [Performance Evidence Reference](performance-evidence-reference.md) |
 | Understand why paired comparisons were retired | [Paired Performance Methodology](paired-performance-methodology.md) |
 | Review image and budget changes | [Performance Baseline Operations](performance-baseline-operations.md) |
+| Investigate enumeration costs with complete offline methods | [Enumeration Performance Measurements](enumeration-performance.md) |
 
 ## Prerequisites
 
