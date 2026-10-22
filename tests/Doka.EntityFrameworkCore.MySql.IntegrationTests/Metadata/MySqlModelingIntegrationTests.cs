@@ -15,6 +15,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Tph_crud_roundtrip_on_mysql84()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TphCrudContext(CreateOptions<TphCrudContext>(connectionString));
 
@@ -48,15 +49,15 @@ public sealed class MySqlModelingIntegrationTests
                 });
             await context.SaveChangesAsync();
 
+            // Act
             var dogs = await context
                 .Animals.OfType<TphDog>()
                 .ToListAsync();
-
-            Assert.Single(dogs);
-            Assert.Equal("Shepherd", dogs[0].Breed);
-
             var allAnimals = await context.Animals.ToListAsync();
 
+            // Assert
+            Assert.Single(dogs);
+            Assert.Equal("Shepherd", dogs[0].Breed);
             Assert.Equal(2, allAnimals.Count);
         }
         finally
@@ -71,6 +72,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Owns_one_same_table_crud_on_mysql84()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new OwnedCrudContext(CreateOptions<OwnedCrudContext>(connectionString));
 
@@ -101,8 +103,10 @@ public sealed class MySqlModelingIntegrationTests
                 });
             await context.SaveChangesAsync();
 
+            // Act
             var customer = await context.Customers.FirstAsync();
 
+            // Assert
             Assert.Equal("Alice", customer.Name);
             Assert.NotNull(customer.Address);
             Assert.Equal("Berlin", customer.Address!.City);
@@ -119,6 +123,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Many_to_many_crud_on_mysql84()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new M2MCrudContext(CreateOptions<M2MCrudContext>(connectionString));
 
@@ -159,10 +164,12 @@ public sealed class MySqlModelingIntegrationTests
             context.Students.Add(student);
             await context.SaveChangesAsync();
 
+            // Act
             var loaded = await context
                 .Students.Include(s => s.Courses)
                 .FirstAsync();
 
+            // Assert
             Assert.Single(loaded.Courses);
             Assert.Equal("Databases", loaded.Courses[0].Title);
         }
@@ -175,6 +182,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Tpt_insert_creates_rows_in_both_tables()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TptCrudContext(CreateOptions<TptCrudContext>(connectionString));
 
@@ -208,8 +216,10 @@ public sealed class MySqlModelingIntegrationTests
                 });
             await context.SaveChangesAsync();
 
+            // Act
             var vehicle = await context.Vehicles.FirstAsync();
 
+            // Assert
             Assert.Equal("BMW", vehicle.Make);
 
             var car = await context
@@ -230,6 +240,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Concurrency_check_detects_conflict()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context1 = new ConcurrencyCrudContext(CreateOptions<ConcurrencyCrudContext>(connectionString));
 
@@ -262,7 +273,11 @@ public sealed class MySqlModelingIntegrationTests
             var entity = await context1.Items.FirstAsync();
             entity.Name = "Modified";
 
-            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context1.SaveChangesAsync());
+            // Act
+            var failure = await Record.ExceptionAsync(() => context1.SaveChangesAsync());
+
+            // Assert
+            Assert.IsType<DbUpdateConcurrencyException>(failure);
         }
         finally
         {
@@ -276,6 +291,7 @@ public sealed class MySqlModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Bool_to_string_converter_roundtrip()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new ConverterCrudContext(CreateOptions<ConverterCrudContext>(connectionString));
 
@@ -304,8 +320,10 @@ public sealed class MySqlModelingIntegrationTests
             // Clear tracker to force fresh read.
             context.ChangeTracker.Clear();
 
+            // Act
             var loaded = await context.Items.FirstAsync();
 
+            // Assert
             Assert.True(loaded.IsActive);
             Assert.Equal(42.50m, loaded.Price.Amount);
         }
@@ -436,6 +454,7 @@ public sealed class MySqlModelingIntegrationTests
     {
         var builder = IntegrationTestDbContextOptions.Create<TContext>();
         builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         return builder.Options;
     }
 

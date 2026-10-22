@@ -13,6 +13,7 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void Geometry_mapping_reads_the_untyped_provider_value()
     {
+        // Arrange
         var mapping = new MySqlNetTopologySuiteGeometryTypeMapping<Geometry>(
             new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<Geometry, MySqlGeometry>(
                 geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
@@ -21,8 +22,10 @@ public sealed class MySqlSpatialInputGuardTests
             jsonValueReaderWriter: null,
             useLongLatAxisOrder: false);
 
+        // Act
         var readerMethod = mapping.GetDataReaderMethod();
 
+        // Assert
         Assert.Equal(typeof(System.Data.Common.DbDataReader), readerMethod.DeclaringType);
         Assert.Equal(nameof(System.Data.Common.DbDataReader.GetValue), readerMethod.Name);
         Assert.Equal(typeof(object), readerMethod.ReturnType);
@@ -32,42 +35,51 @@ public sealed class MySqlSpatialInputGuardTests
     /// Proves every public geometry mapping materializes both driver shapes with
     /// the concrete CLR type and SRID intact.
     /// </summary>
-    [Fact]
-    public void ReadSpatialColumn_materializes_every_geometry_family_from_both_driver_shapes()
+    [Theory]
+    [MemberData(nameof(GeometryFamilyCases))]
+    public void ReadSpatialColumn_materializes_every_geometry_family_from_both_driver_shapes(
+        Type mappingType,
+        string wkt,
+        bool nativeDriverShape
+    )
     {
-        var cases = new (Type MappingType, string Wkt)[]
+        // Arrange
+        var expected = new WKTReader().Read(wkt);
+        expected.SRID = 4326;
+        var wkb = new WKBWriter().Write(expected);
+        var sridPrefixedWkb = new byte[wkb.Length + sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(sridPrefixedWkb, 4326);
+        wkb.CopyTo(sridPrefixedWkb, sizeof(int));
+        var providerValue = nativeDriverShape
+            ? (object)MySqlGeometry.FromWkb(4326, wkb)
+            : sridPrefixedWkb;
+
+        // Act
+        var actual = InvokeReadSpatialColumn(mappingType, providerValue);
+
+        // Assert
+        Assert.IsAssignableFrom(mappingType, actual);
+        Assert.Equal(4326, actual.SRID);
+        Assert.True(expected.EqualsExact(actual));
+    }
+
+    /// <summary>Supplies concrete geometry families and both supported driver value shapes.</summary>
+    public static IEnumerable<object[]> GeometryFamilyCases()
+    {
+        foreach (var (mappingType, wkt) in new (Type, string)[]
+                 {
+                     (typeof(Point), "POINT (1 2)"),
+                     (typeof(LineString), "LINESTRING (0 0, 1 1)"),
+                     (typeof(Polygon), "POLYGON ((0 0, 0 1, 1 1, 0 0))"),
+                     (typeof(MultiPoint), "MULTIPOINT ((0 0), (1 1))"),
+                     (typeof(MultiLineString), "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))"),
+                     (typeof(MultiPolygon), "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))"),
+                     (typeof(GeometryCollection), "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"),
+                     (typeof(Geometry), "POINT (3 4)"),
+                 })
         {
-            (typeof(Point), "POINT (1 2)"),
-            (typeof(LineString), "LINESTRING (0 0, 1 1)"),
-            (typeof(Polygon), "POLYGON ((0 0, 0 1, 1 1, 0 0))"),
-            (typeof(MultiPoint), "MULTIPOINT ((0 0), (1 1))"),
-            (typeof(MultiLineString), "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))"),
-            (typeof(MultiPolygon), "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))"),
-            (typeof(GeometryCollection), "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"),
-            (typeof(Geometry), "POINT (3 4)"),
-        };
-
-        foreach (var (mappingType, wkt) in cases)
-        {
-            var expected = new WKTReader().Read(wkt);
-            expected.SRID = 4326;
-            var wkb = new WKBWriter().Write(expected);
-            var sridPrefixedWkb = new byte[wkb.Length + sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(sridPrefixedWkb, 4326);
-            wkb.CopyTo(sridPrefixedWkb, sizeof(int));
-
-            foreach (var providerValue in new object[]
-                     {
-                         MySqlGeometry.FromWkb(4326, wkb),
-                         sridPrefixedWkb,
-                     })
-            {
-                var actual = InvokeReadSpatialColumn(mappingType, providerValue);
-
-                Assert.IsAssignableFrom(mappingType, actual);
-                Assert.Equal(4326, actual.SRID);
-                Assert.True(expected.EqualsExact(actual));
-            }
+            yield return [mappingType, wkt, false];
+            yield return [mappingType, wkt, true];
         }
     }
 
@@ -78,12 +90,17 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadSpatialColumn_rejects_a_geometry_family_mismatch()
     {
+        // Arrange
         var line = new WKTReader().Read("LINESTRING (0 0, 1 1)");
         var providerValue = MySqlGeometry.FromWkb(4326, new WKBWriter().Write(line));
+        Action act = () =>
+            InvokeReadSpatialColumn(typeof(Point), providerValue);
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            InvokeReadSpatialColumn(typeof(Point), providerValue));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("cannot be materialized as 'Point'", exception.Message, StringComparison.Ordinal);
     }
 
@@ -93,9 +110,15 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadSpatialColumn_rejects_an_unknown_driver_shape()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)"));
+        // Arrange
+        Action act = () =>
+            InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)");
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("System.String", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("POINT (1 2)", exception.Message, StringComparison.Ordinal);
     }
@@ -105,26 +128,43 @@ public sealed class MySqlSpatialInputGuardTests
     /// readers while exercising point, sequence, polygon, and collection layouts.
     /// </summary>
     [Theory]
-    [InlineData("POINT (1 2)")]
-    [InlineData("LINESTRING (0 0, 1 1)")]
-    [InlineData("POLYGON ((0 0, 0 1, 1 1, 0 0))")]
-    [InlineData("MULTIPOINT ((0 0), (1 1))")]
-    [InlineData("MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))")]
-    [InlineData("MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))")]
-    [InlineData("GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))")]
-    [InlineData("GEOMETRYCOLLECTION EMPTY")]
+    [MemberData(nameof(SpatialReaderCases))]
     public void ReadWkt_and_wkb_accept_every_supported_geometry_family(
-        string wkt
+        string wkt,
+        bool binaryReader
     )
     {
+        // Arrange
         var expected = new WKTReader().Read(wkt);
         var wkb = new WKBWriter().Write(expected);
 
-        var fromWkt = MySqlSpatialValueReader.ReadWkt(wkt);
-        var fromWkb = MySqlSpatialValueReader.ReadWkb(wkb);
+        // Act
+        var actual = binaryReader
+            ? MySqlSpatialValueReader.ReadWkb(wkb)
+            : MySqlSpatialValueReader.ReadWkt(wkt);
 
-        Assert.True(expected.EqualsExact(fromWkt));
-        Assert.True(expected.EqualsExact(fromWkb));
+        // Assert
+        Assert.True(expected.EqualsExact(actual));
+    }
+
+    /// <summary>Supplies each geometry payload independently to the WKT and WKB reader boundaries.</summary>
+    public static IEnumerable<object[]> SpatialReaderCases()
+    {
+        foreach (var wkt in new[]
+                 {
+                     "POINT (1 2)",
+                     "LINESTRING (0 0, 1 1)",
+                     "POLYGON ((0 0, 0 1, 1 1, 0 0))",
+                     "MULTIPOINT ((0 0), (1 1))",
+                     "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))",
+                     "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))",
+                     "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))",
+                     "GEOMETRYCOLLECTION EMPTY"
+                 })
+        {
+            yield return [wkt, false];
+            yield return [wkt, true];
+        }
     }
 
     /// <summary>
@@ -134,10 +174,13 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkt_accepts_the_maximum_supported_nesting_depth()
     {
+        // Arrange
         var wkt = CreateNestedWkt(MySqlSpatialInputGuard.MaximumNestingDepth - 1);
 
+        // Act
         var geometry = MySqlSpatialValueReader.ReadWkt(wkt);
 
+        // Assert
         Assert.Equal("GeometryCollection", geometry.GeometryType);
     }
 
@@ -148,10 +191,15 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkt_rejects_nesting_above_the_supported_limit()
     {
+        // Arrange
         var wkt = CreateNestedWkt(MySqlSpatialInputGuard.MaximumNestingDepth);
+        Action act = () => MySqlSpatialValueReader.ReadWkt(wkt);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlSpatialValueReader.ReadWkt(wkt));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
         Assert.DoesNotContain(wkt, exception.Message, StringComparison.Ordinal);
     }
@@ -163,10 +211,15 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkt_rejects_the_original_stack_overflow_reproducer()
     {
+        // Arrange
         var wkt = CreateNestedWkt(depth: 50_000);
+        Action act = () => MySqlSpatialValueReader.ReadWkt(wkt);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlSpatialValueReader.ReadWkt(wkt));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
 
@@ -181,10 +234,13 @@ public sealed class MySqlSpatialInputGuardTests
         bool littleEndian
     )
     {
+        // Arrange
         var wkb = CreateNestedWkb(MySqlSpatialInputGuard.MaximumNestingDepth - 1, littleEndian);
 
+        // Act
         var geometry = MySqlSpatialValueReader.ReadWkb(wkb);
 
+        // Assert
         Assert.Equal("GeometryCollection", geometry.GeometryType);
     }
 
@@ -199,10 +255,15 @@ public sealed class MySqlSpatialInputGuardTests
         bool littleEndian
     )
     {
+        // Arrange
         var wkb = CreateNestedWkb(MySqlSpatialInputGuard.MaximumNestingDepth, littleEndian);
+        Action act = () => MySqlSpatialValueReader.ReadWkb(wkb);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlSpatialValueReader.ReadWkb(wkb));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
 
@@ -213,10 +274,15 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkb_rejects_the_original_stack_overflow_reproducer()
     {
+        // Arrange
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
+        Action act = () => MySqlSpatialValueReader.ReadWkb(wkb);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlSpatialValueReader.ReadWkb(wkb));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
 
@@ -231,12 +297,17 @@ public sealed class MySqlSpatialInputGuardTests
         bool useMySqlGeometry
     )
     {
+        // Arrange
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
         object providerValue = useMySqlGeometry ? MySqlGeometry.FromWkb(0, wkb) : wkb;
+        Action act = () =>
+            InvokeReadSpatialColumn(typeof(Geometry), providerValue);
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            InvokeReadSpatialColumn(typeof(Geometry), providerValue));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
 
@@ -254,13 +325,19 @@ public sealed class MySqlSpatialInputGuardTests
         bool includesSrid
     )
     {
+        // Arrange
         var wkb = CreateNestedCollectionHeaders(
             MySqlSpatialInputGuard.MaximumNestingDepth,
             encodedCollectionType,
             includesSrid);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlSpatialInputGuard.ValidateWkb(wkb));
+        Action act = () => MySqlSpatialInputGuard.ValidateWkb(wkb);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal(ExpectedLimitMessage(), exception.Message);
     }
 
@@ -271,7 +348,14 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkt_preserves_existing_parse_errors_for_malformed_input()
     {
-        Assert.Throws<ParseException>(() => MySqlSpatialValueReader.ReadWkt("POINT ("));
+        // Arrange
+        Action act = () => MySqlSpatialValueReader.ReadWkt("POINT (");
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ParseException>(recordedException);
     }
 
     /// <summary>
@@ -281,7 +365,14 @@ public sealed class MySqlSpatialInputGuardTests
     [Fact]
     public void ReadWkb_preserves_existing_parse_errors_for_malformed_input()
     {
-        Assert.Throws<ParseException>(() => MySqlSpatialValueReader.ReadWkb([1]));
+        // Arrange
+        Action act = () => MySqlSpatialValueReader.ReadWkb([1]);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ParseException>(recordedException);
     }
 
     private static string CreateNestedWkt(
@@ -330,6 +421,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         var geometry = MySqlSpatialValueReader.ReadWkb(providerValue.WKB.ToArray());
         geometry.SRID = providerValue.SRID;
+
         return geometry;
     }
 
@@ -351,6 +443,7 @@ public sealed class MySqlSpatialInputGuardTests
         offset += 2 * sizeof(double);
 
         Assert.Equal(wkb.Length, offset);
+
         return wkb;
     }
 
@@ -377,6 +470,7 @@ public sealed class MySqlSpatialInputGuardTests
         }
 
         Assert.Equal(wkb.Length, offset);
+
         return wkb;
     }
 

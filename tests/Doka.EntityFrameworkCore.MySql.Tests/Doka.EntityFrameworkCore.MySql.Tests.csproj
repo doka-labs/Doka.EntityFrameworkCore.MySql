@@ -36,4 +36,62 @@
     <ProjectReference Include="../../src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj" />
     <ProjectReference Include="../../tests/Doka.EntityFrameworkCore.MySql.TestUtilities/Doka.EntityFrameworkCore.MySql.TestUtilities.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Caching/MySqlCacheRegistrationTests.*.cs">
+      <DependentUpon>MySqlCacheRegistrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Capabilities/EngineProfileTableTests.*.cs">
+      <DependentUpon>EngineProfileTableTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Contracts/AdrRepositoryValidatorTests.*.cs">
+      <DependentUpon>AdrRepositoryValidatorTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Contracts/MySqlRuntimeBaselineTests.*.cs">
+      <DependentUpon>MySqlRuntimeBaselineTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Diagnostics/MySqlActivityAndMeterSmokeTests.*.cs">
+      <DependentUpon>MySqlActivityAndMeterSmokeTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Diagnostics/MySqlObservabilityContractTests.*.cs">
+      <DependentUpon>MySqlObservabilityContractTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Infrastructure/MySqlDatabaseFacadeExtensionsTests.*.cs">
+      <DependentUpon>MySqlDatabaseFacadeExtensionsTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlMigrationOperationContractTests.*.cs">
+      <DependentUpon>MySqlMigrationOperationContractTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Performance/GenericLikeBenchmarkTests.*.cs">
+      <DependentUpon>GenericLikeBenchmarkTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Performance/PerformanceGateTests.*.cs">
+      <DependentUpon>PerformanceGateTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlMaterializedSourceExpressionTests.*.cs">
+      <DependentUpon>MySqlMaterializedSourceExpressionTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlStraightJoinTests.*.cs">
+      <DependentUpon>MySqlStraightJoinTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Scaffolding/MySqlDatabaseModelFactoryTests.*.cs">
+      <DependentUpon>MySqlDatabaseModelFactoryTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Storage/MySqlJsonValueComparersTests.*.cs">
+      <DependentUpon>MySqlJsonValueComparersTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Update/MySqlGeneratedValueReadbackTests.*.cs">
+      <DependentUpon>MySqlGeneratedValueReadbackTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Update/MySqlGeneratedValueSqlTests.*.cs">
+      <DependentUpon>MySqlGeneratedValueSqlTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Update/MySqlUpdateSqlGeneratorTests.*.cs">
+      <DependentUpon>MySqlUpdateSqlGeneratorTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ValueGeneration/MySqlHiLoStateCacheTests.*.cs">
+      <DependentUpon>MySqlHiLoStateCacheTests.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

@@ -12,14 +12,17 @@ public sealed class MySqlJsonCollectionFacetTests
     [Fact]
     public void Owned_json_collection_uses_lossless_extraction_mappings()
     {
+        // Arrange
         using var context = CreateContext();
 
+        // Act
         var sql = context.Owners
             .AsNoTracking()
             .SelectMany(owner => owner.Values)
             .Where(value => value.Text == "alphabet")
             .ToQueryString();
 
+        // Assert
         Assert.Contains("`Text` longtext PATH '$.Text'", sql, StringComparison.Ordinal);
         Assert.Contains("`Amount` decimal(65,30) PATH '$.Amount'", sql, StringComparison.Ordinal);
         Assert.Contains("`OccurredAt` datetime(6) PATH '$.OccurredAt'", sql, StringComparison.Ordinal);
@@ -58,8 +61,10 @@ public sealed class MySqlJsonCollectionFacetTests
     [Fact]
     public void Owned_json_grouping_preserves_select_identifier_columns()
     {
+        // Arrange
         using var context = CreateContext();
 
+        // Act
         var sql = context.Owners
             .Where(owner => owner.Values
                 .GroupBy(value => value.Text)
@@ -67,6 +72,7 @@ public sealed class MySqlJsonCollectionFacetTests
                 .Any(sum => sum == 16))
             .ToQueryString();
 
+        // Assert
         Assert.Contains("GROUP BY", sql, StringComparison.Ordinal);
         Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(", sql, StringComparison.Ordinal);
     }

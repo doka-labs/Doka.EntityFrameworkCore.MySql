@@ -8,10 +8,16 @@ public sealed class InvisibleColumnIntegrationTests
 {
     private const string TableName = "InvisibleColumnRecords";
 
+    /// <summary>
+    /// Verifies my sql84 invisible column roundtrips through add and alter operations.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_invisible_column_roundtrips_through_add_and_alter_operations() =>
         RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MySql84);
 
+    /// <summary>
+    /// Verifies maria db118 invisible column roundtrips through add and alter operations.
+    /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_invisible_column_roundtrips_through_add_and_alter_operations() =>
         RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MariaDb118);
@@ -20,6 +26,7 @@ public sealed class InvisibleColumnIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var empty = new EmptyInvisibleColumnContext(
@@ -38,6 +45,8 @@ public sealed class InvisibleColumnIntegrationTests
 
         try
         {
+            // WHY: Each visibility transition consumes the physical column created by the preceding transition.
+            // Act
             await ExecuteOperationsAsync(withoutColumn, connectionString, GetDifferences(empty, withoutColumn));
             await InsertRecordAsync(connectionString);
 
@@ -45,67 +54,51 @@ public sealed class InvisibleColumnIntegrationTests
                 GetDifferences(withoutColumn, invisible)
                     .OfType<AddColumnOperation>());
 
-            Assert.Equal(
-                true,
-                addColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
-                    ?.Value);
+            var addedInvisibleAnnotation = addColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
 
             await ExecuteOperationsAsync(invisible, connectionString, [addColumn]);
 
-            Assert.Contains(
-                "INVISIBLE",
-                await ReadColumnExtraAsync(connectionString),
-                StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(
-                nameof(InvisibleColumnRecord.InternalData),
-                await ReadWildcardColumnNamesAsync(connectionString));
-            Assert.Equal(string.Empty, await ReadExplicitColumnValueAsync(connectionString));
+            var extraAfterAdd = await ReadColumnExtraAsync(connectionString);
+            var wildcardAfterAdd = await ReadWildcardColumnNamesAsync(connectionString);
+            var explicitValueAfterAdd = await ReadExplicitColumnValueAsync(connectionString);
 
             var makeVisible = Assert.Single(
                 GetDifferences(invisible, visible)
                     .OfType<AlterColumnOperation>());
 
-            Assert.Equal(
-                false,
-                makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)
-                    ?.Value);
-            Assert.Equal(
-                true,
-                makeVisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
-                    ?.Value);
+            var visibleAnnotation = makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
+            var oldInvisibleAnnotation = makeVisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
 
             await ExecuteOperationsAsync(visible, connectionString, [makeVisible]);
 
-            Assert.DoesNotContain(
-                "INVISIBLE",
-                await ReadColumnExtraAsync(connectionString),
-                StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(
-                nameof(InvisibleColumnRecord.InternalData),
-                await ReadWildcardColumnNamesAsync(connectionString));
+            var extraAfterVisible = await ReadColumnExtraAsync(connectionString);
+            var wildcardAfterVisible = await ReadWildcardColumnNamesAsync(connectionString);
 
             var makeInvisible = Assert.Single(
                 GetDifferences(visible, invisible)
                     .OfType<AlterColumnOperation>());
 
-            Assert.Equal(
-                true,
-                makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)
-                    ?.Value);
-            Assert.Equal(
-                false,
-                makeInvisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
-                    ?.Value);
+            var invisibleAnnotation = makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
+            var oldVisibleAnnotation = makeInvisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
 
             await ExecuteOperationsAsync(invisible, connectionString, [makeInvisible]);
 
-            Assert.Contains(
-                "INVISIBLE",
-                await ReadColumnExtraAsync(connectionString),
-                StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(
-                nameof(InvisibleColumnRecord.InternalData),
-                await ReadWildcardColumnNamesAsync(connectionString));
+            var extraAfterInvisible = await ReadColumnExtraAsync(connectionString);
+            var wildcardAfterInvisible = await ReadWildcardColumnNamesAsync(connectionString);
+
+            // Assert
+            Assert.Equal(true, addedInvisibleAnnotation);
+            Assert.Contains("INVISIBLE", extraAfterAdd, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(nameof(InvisibleColumnRecord.InternalData), wildcardAfterAdd);
+            Assert.Equal(string.Empty, explicitValueAfterAdd);
+            Assert.Equal(false, visibleAnnotation);
+            Assert.Equal(true, oldInvisibleAnnotation);
+            Assert.DoesNotContain("INVISIBLE", extraAfterVisible, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(nameof(InvisibleColumnRecord.InternalData), wildcardAfterVisible);
+            Assert.Equal(true, invisibleAnnotation);
+            Assert.Equal(false, oldVisibleAnnotation);
+            Assert.Contains("INVISIBLE", extraAfterInvisible, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(nameof(InvisibleColumnRecord.InternalData), wildcardAfterInvisible);
         }
         finally
         {
@@ -121,6 +114,7 @@ public sealed class InvisibleColumnIntegrationTests
     {
         var builder = IntegrationTestDbContextOptions.Create<TContext>();
         builder.UseMySql(connectionString, serverVersion);
+
         return builder.Options;
     }
 
@@ -229,6 +223,7 @@ public sealed class InvisibleColumnIntegrationTests
     {
         protected abstract ColumnDisposition Disposition { get; }
 
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -241,6 +236,7 @@ public sealed class InvisibleColumnIntegrationTests
                 if (Disposition == ColumnDisposition.Absent)
                 {
                     entity.Ignore(record => record.InternalData);
+
                     return;
                 }
 
@@ -259,25 +255,34 @@ public sealed class InvisibleColumnIntegrationTests
     private sealed class WithoutInvisibleColumnContext(DbContextOptions<WithoutInvisibleColumnContext> options)
         : InvisibleColumnContextBase(options)
     {
+        /// <inheritdoc />
         protected override ColumnDisposition Disposition => ColumnDisposition.Absent;
     }
 
     private sealed class InvisibleColumnContext(DbContextOptions<InvisibleColumnContext> options)
         : InvisibleColumnContextBase(options)
     {
+        /// <inheritdoc />
         protected override ColumnDisposition Disposition => ColumnDisposition.Invisible;
     }
 
     private sealed class VisibleColumnContext(DbContextOptions<VisibleColumnContext> options)
         : InvisibleColumnContextBase(options)
     {
+        /// <inheritdoc />
         protected override ColumnDisposition Disposition => ColumnDisposition.Visible;
     }
 
     private sealed class InvisibleColumnRecord
     {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
         public int Id { get; set; }
 
+        /// <summary>
+        /// Gets or sets the internal data.
+        /// </summary>
         public string InternalData { get; set; } = string.Empty;
     }
 

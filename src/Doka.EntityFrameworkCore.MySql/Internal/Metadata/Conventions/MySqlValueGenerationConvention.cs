@@ -253,6 +253,15 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             return;
         }
 
+        // SQL defaults and computed expressions belong to the store. Preserve EF's
+        // generation facets so its temporary GUID generator and readback remain active;
+        // an explicitly configured provider strategy above still expresses application intent.
+        if (IsGuidProperty(property)
+            && HasStoreGeneratedExpression(entityType, property))
+        {
+            return;
+        }
+
         if (property.ClrType == typeof(Guid))
         {
             var generatedOnAdd = property.ValueGenerated == ValueGenerated.OnAdd;
@@ -296,6 +305,33 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         _ => throw new ArgumentOutOfRangeException(nameof(strategy))
     };
 
+    /// <summary>Includes defaults and computed expressions inherited from a shared-table root property.</summary>
+    private static bool HasStoreGeneratedExpression(
+        IReadOnlyEntityType entityType,
+        IReadOnlyProperty property
+    )
+    {
+        // A table-split dependent need not repeat its root property's annotations.
+        var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
+
+        return storeObject is { } table
+            ? property.GetDefaultValueSql(table) is not null || property.GetComputedColumnSql(table) is not null
+            : property.GetDefaultValueSql() is not null || property.GetComputedColumnSql() is not null;
+    }
+
+    /// <summary>Recognizes a physical literal default before inferring AUTO_INCREMENT.</summary>
+    private static bool HasStoreLiteralDefault(
+        IReadOnlyEntityType entityType,
+        IReadOnlyProperty property
+    )
+    {
+        var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
+
+        return storeObject is { } table
+            ? property.TryGetDefaultValue(table, out _)
+            : property.TryGetDefaultValue(out _);
+    }
+
     private static bool IsAutoIncrementIntegerKey(
         IReadOnlyEntityType entityType,
         IConventionProperty property
@@ -317,9 +353,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             || !primaryKey.Properties.Contains(property)
             || (property.ValueGenerated != ValueGenerated.OnAdd
                 && !isConventionallyGeneratedOwnedCollectionKey)
-            || property.FindAnnotation(RelationalAnnotationNames.DefaultValue) is not null
-            || property.GetDefaultValueSql() is not null
-            || property.GetComputedColumnSql() is not null)
+            || HasStoreLiteralDefault(entityType, property)
+            || HasStoreGeneratedExpression(entityType, property))
         {
             return false;
         }

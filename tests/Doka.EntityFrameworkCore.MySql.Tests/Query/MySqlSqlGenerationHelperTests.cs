@@ -9,9 +9,13 @@ public sealed class MySqlSqlGenerationHelperTests
     [Fact]
     public void DelimitIdentifier_wraps_in_backticks()
     {
+        // Arrange
         var helper = CreateHelper();
+
+        // Act
         var result = helper.DelimitIdentifier("MyTable");
 
+        // Assert
         Assert.Equal("`MyTable`", result);
     }
 
@@ -19,9 +23,13 @@ public sealed class MySqlSqlGenerationHelperTests
     [Fact]
     public void EscapeIdentifier_doubles_backticks()
     {
+        // Arrange
         var helper = CreateHelper();
+
+        // Act
         var result = helper.DelimitIdentifier("my`table");
 
+        // Assert
         Assert.Equal("`my``table`", result);
     }
 
@@ -29,9 +37,13 @@ public sealed class MySqlSqlGenerationHelperTests
     [Fact]
     public void DelimitIdentifier_with_schema_produces_qualified_name()
     {
+        // Arrange
         var helper = CreateHelper();
+
+        // Act
         var result = helper.DelimitIdentifier("MyTable", "myschema");
 
+        // Assert
         Assert.Equal("`myschema`.`MyTable`", result);
     }
 
@@ -39,20 +51,30 @@ public sealed class MySqlSqlGenerationHelperTests
     [Fact]
     public void StatementTerminator_is_semicolon()
     {
+        // Arrange
         var helper = CreateHelper();
 
-        Assert.Equal(";", helper.StatementTerminator);
+        // Act
+        var terminator = helper.StatementTerminator;
+
+        // Assert
+        Assert.Equal(";", terminator);
     }
 
     /// <summary>StringBuilder overload produces identical output.</summary>
     [Fact]
     public void DelimitIdentifier_StringBuilder_matches_string_overload()
     {
+        // Arrange
         var helper = CreateHelper();
         var sb = new System.Text.StringBuilder();
-        helper.DelimitIdentifier(sb, "Test`Col");
 
-        Assert.Equal("`Test``Col`", sb.ToString());
+        // Act
+        helper.DelimitIdentifier(sb, "Test`Col");
+        var actual = sb.ToString();
+
+        // Assert
+        Assert.Equal("`Test``Col`", actual);
     }
 
     /// <summary>
@@ -80,11 +102,16 @@ public sealed class MySqlSqlGenerationHelperTests
         string expected
     )
     {
+        // Arrange
         var helper = CreateHelper();
         var builderOutput = new System.Text.StringBuilder();
-        helper.DelimitIdentifier(builderOutput, identifier);
 
-        Assert.Equal(expected, helper.DelimitIdentifier(identifier));
+        // Act
+        helper.DelimitIdentifier(builderOutput, identifier);
+        var actual = helper.DelimitIdentifier(identifier);
+
+        // Assert
+        Assert.Equal(expected, actual);
         Assert.Equal(expected, builderOutput.ToString());
     }
 
@@ -104,11 +131,16 @@ public sealed class MySqlSqlGenerationHelperTests
         string expected
     )
     {
+        // Arrange
         var helper = (MySqlSqlGenerationHelper)CreateHelper();
         var builderOutput = new System.Text.StringBuilder();
-        helper.EscapeIdentifier(builderOutput, identifier);
 
-        Assert.Equal(expected, helper.EscapeIdentifier(identifier));
+        // Act
+        helper.EscapeIdentifier(builderOutput, identifier);
+        var actual = helper.EscapeIdentifier(identifier);
+
+        // Assert
+        Assert.Equal(expected, actual);
         Assert.Equal(expected, builderOutput.ToString());
     }
 
@@ -129,11 +161,16 @@ public sealed class MySqlSqlGenerationHelperTests
         string expected
     )
     {
+        // Arrange
         var helper = CreateHelper();
         var builderOutput = new System.Text.StringBuilder();
-        helper.DelimitIdentifier(builderOutput, name, schema);
 
-        Assert.Equal(expected, helper.DelimitIdentifier(name, schema));
+        // Act
+        helper.DelimitIdentifier(builderOutput, name, schema);
+        var actual = helper.DelimitIdentifier(name, schema);
+
+        // Assert
+        Assert.Equal(expected, actual);
         Assert.Equal(expected, builderOutput.ToString());
     }
 
@@ -148,11 +185,16 @@ public sealed class MySqlSqlGenerationHelperTests
         string? schema
     )
     {
+        // Arrange
         var helper = CreateHelper();
         var builderOutput = new System.Text.StringBuilder();
-        helper.DelimitIdentifier(builderOutput, "Plain", schema);
 
-        Assert.Equal("`Plain`", helper.DelimitIdentifier("Plain", schema));
+        // Act
+        helper.DelimitIdentifier(builderOutput, "Plain", schema);
+        var actual = helper.DelimitIdentifier("Plain", schema);
+
+        // Assert
+        Assert.Equal("`Plain`", actual);
         Assert.Equal("`Plain`", builderOutput.ToString());
     }
 
@@ -164,6 +206,7 @@ public sealed class MySqlSqlGenerationHelperTests
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         var context = new HelperTestContext(builder.Options);
+
         return context.GetService<ISqlGenerationHelper>();
     }
 

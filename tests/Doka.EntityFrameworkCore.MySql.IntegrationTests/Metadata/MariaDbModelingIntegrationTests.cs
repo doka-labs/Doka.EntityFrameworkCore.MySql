@@ -12,6 +12,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Tph_crud_roundtrip_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new TphContext(CreateOptions<TphContext>(connectionString));
         await CleanupAsync(context, "MdbTphAnimals");
@@ -34,11 +35,14 @@ public sealed class MariaDbModelingIntegrationTests
             context.Animals.Add(new TphCat { Name = "Mimi", IsIndoor = true });
             await context.SaveChangesAsync();
 
+            // Act
             var dogs = await context.Animals.OfType<TphDog>().ToListAsync();
+            var allAnimalCount = await context.Animals.CountAsync();
 
+            // Assert
             Assert.Single(dogs);
             Assert.Equal("Shepherd", dogs[0].Breed);
-            Assert.Equal(2, await context.Animals.CountAsync());
+            Assert.Equal(2, allAnimalCount);
         }
         finally
         {
@@ -49,6 +53,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Tpt_insert_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new TptContext(CreateOptions<TptContext>(connectionString));
         await CleanupAsync(context, "MdbTptCars", "MdbTptVehicles");
@@ -62,8 +67,11 @@ public sealed class MariaDbModelingIntegrationTests
         {
             context.Vehicles.Add(new TptCar { Make = "Audi", SeatCount = 4 });
             await context.SaveChangesAsync();
+
+            // Act
             var car = await context.Vehicles.OfType<TptCar>().FirstAsync();
 
+            // Assert
             Assert.Equal("Audi", car.Make);
             Assert.Equal(4, car.SeatCount);
         }
@@ -76,6 +84,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Owns_one_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new OwnedContext(CreateOptions<OwnedContext>(connectionString));
         await CleanupAsync(context, "MdbOwnedCustomers");
@@ -97,8 +106,11 @@ public sealed class MariaDbModelingIntegrationTests
                 });
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
+
+            // Act
             var c = await context.Customers.FirstAsync();
 
+            // Assert
             Assert.Equal("Munich", c.Address!.City);
         }
         finally
@@ -110,6 +122,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Many_to_many_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new M2MContext(CreateOptions<M2MContext>(connectionString));
         await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
@@ -128,10 +141,13 @@ public sealed class MariaDbModelingIntegrationTests
             context.Students.Add(s);
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
+
+            // Act
             var loaded = await context
                 .Students.Include(x => x.Courses)
                 .FirstAsync();
 
+            // Assert
             Assert.Single(loaded.Courses);
         }
         finally
@@ -143,6 +159,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Concurrency_check_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new ConcurrencyContext(CreateOptions<ConcurrencyContext>(connectionString));
         await CleanupAsync(context, "MdbConcurrency");
@@ -157,7 +174,11 @@ public sealed class MariaDbModelingIntegrationTests
             var entity = await context.Items.FirstAsync();
             entity.Name = "Modified";
 
-            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
+            // Act
+            var failure = await Record.ExceptionAsync(() => context.SaveChangesAsync());
+
+            // Assert
+            Assert.IsType<DbUpdateConcurrencyException>(failure);
         }
         finally
         {
@@ -168,6 +189,7 @@ public sealed class MariaDbModelingIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Value_converter_roundtrip_on_mariadb118()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new ConverterContext(CreateOptions<ConverterContext>(connectionString));
         await CleanupAsync(context, "MdbConverter");
@@ -185,8 +207,11 @@ public sealed class MariaDbModelingIntegrationTests
                 });
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
+
+            // Act
             var loaded = await context.Items.FirstAsync();
 
+            // Assert
             Assert.True(loaded.IsActive);
             Assert.Equal(99.95m, loaded.Price);
         }
@@ -205,6 +230,7 @@ public sealed class MariaDbModelingIntegrationTests
     {
         var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
+
         return b.Options;
     }
 

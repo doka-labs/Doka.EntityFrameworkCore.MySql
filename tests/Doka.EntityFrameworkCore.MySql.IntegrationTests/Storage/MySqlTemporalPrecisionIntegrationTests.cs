@@ -27,6 +27,7 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var builder = IntegrationTestDbContextOptions.Create<TemporalPrecisionContext>();
         builder.UseMySql(
             IntegrationTestEnvironment.GetConnectionString(target),
@@ -37,6 +38,8 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
         try
         {
             var fraction = TimeSpan.FromTicks(1234560);
+
+            // Act
             var entity = new TemporalPrecisionEntity
             {
                 Id = 1,
@@ -56,6 +59,7 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
             var actual = await context.Items
                 .SingleAsync(CancellationToken.None);
 
+            // Assert
             Assert.Equal(entity.DateTime, actual.DateTime);
             Assert.Equal(entity.Timestamp, actual.Timestamp);
             Assert.Equal(entity.TimeOnly, actual.TimeOnly);

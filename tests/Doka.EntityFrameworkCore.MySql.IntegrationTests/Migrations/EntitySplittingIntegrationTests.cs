@@ -29,6 +29,7 @@ public sealed class EntitySplittingIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
@@ -44,6 +45,7 @@ public sealed class EntitySplittingIntegrationTests
             await using var targetContext = new EntitySplitContext(
                 CreateOptions<EntitySplitContext>(connectionString, serverVersion));
 
+            // Act
             var operations = targetContext
                 .GetService<IMigrationsModelDiffer>()
                 .GetDifferences(
@@ -70,11 +72,11 @@ public sealed class EntitySplittingIntegrationTests
                 _ = await command.ExecuteNonQueryAsync();
             }
 
-            Assert.Equal("auto_increment", await ReadColumnExtraAsync(connection, PrincipalTable));
-            Assert.Equal(string.Empty, await ReadColumnExtraAsync(connection, SecondaryTable));
-            Assert.Equal(1L, await CountConstraintAsync(connection, SecondaryTable, "PRIMARY KEY"));
-            Assert.Equal(1L, await CountConstraintAsync(connection, SecondaryTable, "FOREIGN KEY"));
-            Assert.Equal("CASCADE", await ReadDeleteRuleAsync(connection));
+            var principalExtra = await ReadColumnExtraAsync(connection, PrincipalTable);
+            var secondaryExtra = await ReadColumnExtraAsync(connection, SecondaryTable);
+            var secondaryPrimaryKeys = await CountConstraintAsync(connection, SecondaryTable, "PRIMARY KEY");
+            var secondaryForeignKeys = await CountConstraintAsync(connection, SecondaryTable, "FOREIGN KEY");
+            var deleteRule = await ReadDeleteRuleAsync(connection);
 
             var inventory = new EntitySplitInventory
             {
@@ -85,44 +87,55 @@ public sealed class EntitySplittingIntegrationTests
             targetContext.Inventory.Add(inventory);
             await targetContext.SaveChangesAsync();
 
-            Assert.True(inventory.Id > 0);
+            string loadedName;
+            string loadedDescription;
 
             await using (var readContext = new EntitySplitContext(
                              CreateOptions<EntitySplitContext>(connectionString, serverVersion)))
             {
                 var loaded = await readContext.Inventory.SingleAsync(item => item.Id == inventory.Id);
 
-                Assert.Equal("inventory", loaded.Name);
-                Assert.Equal("initial", loaded.Description);
+                loadedName = loaded.Name;
+                loadedDescription = loaded.Description;
                 loaded.Description = "updated";
                 await readContext.SaveChangesAsync();
             }
+
+            string? updatedDescription;
+            long remainingSecondaryRows;
 
             await using (var command = connection.CreateCommand())
             {
                 command.CommandText = $"SELECT `Description` FROM `{SecondaryTable}` WHERE `Id` = @id;";
                 command.Parameters.AddWithValue("@id", inventory.Id);
 
-                Assert.Equal(
-                    "updated",
-                    Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+                updatedDescription = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
 
                 command.CommandText = $"DELETE FROM `{PrincipalTable}` WHERE `Id` = @id;";
                 _ = await command.ExecuteNonQueryAsync();
 
                 command.CommandText = $"SELECT COUNT(*) FROM `{SecondaryTable}` WHERE `Id` = @id;";
 
-                Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+                remainingSecondaryRows = Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
             }
 
             await using var finalContext = new EntitySplitContext(
                 CreateOptions<EntitySplitContext>(connectionString, serverVersion));
 
-            Assert.Empty(
-                await finalContext
-                    .Inventory
-                    .AsNoTracking()
-                    .ToListAsync());
+            var remainingInventory = await finalContext.Inventory.AsNoTracking().ToListAsync();
+
+            // Assert
+            Assert.Equal("auto_increment", principalExtra);
+            Assert.Equal(string.Empty, secondaryExtra);
+            Assert.Equal(1L, secondaryPrimaryKeys);
+            Assert.Equal(1L, secondaryForeignKeys);
+            Assert.Equal("CASCADE", deleteRule);
+            Assert.True(inventory.Id > 0);
+            Assert.Equal("inventory", loadedName);
+            Assert.Equal("initial", loadedDescription);
+            Assert.Equal("updated", updatedDescription);
+            Assert.Equal(0L, remainingSecondaryRows);
+            Assert.Empty(remainingInventory);
         }
         finally
         {
@@ -194,8 +207,12 @@ public sealed class EntitySplittingIntegrationTests
 
     private sealed class EntitySplitContext(DbContextOptions<EntitySplitContext> options) : DbContext(options)
     {
+        /// <summary>
+        /// Verifies set.
+        /// </summary>
         public DbSet<EntitySplitInventory> Inventory => Set<EntitySplitInventory>();
 
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -220,10 +237,19 @@ public sealed class EntitySplittingIntegrationTests
 
     private sealed class EntitySplitInventory
     {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
         public int Id { get; set; }
 
+        /// <summary>
+        /// Gets or sets the name.
+        /// </summary>
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Gets or sets the description.
+        /// </summary>
         public string Description { get; set; } = string.Empty;
     }
 }

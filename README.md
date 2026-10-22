@@ -103,19 +103,23 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.0` adds `Database.IsMariaDb()`, `WithMaterializedSource`, and
-`StraightJoin`. The query operators are opt-in and do not guarantee faster
-plans. Physical index-key budgeting and MySQL generated-value readback are
-hardened; review generated migrations for indexed string or binary
-column-length changes before deployment. Existing GUID formats and the
-multiple-parameter collection-translation default remain unchanged.
+`10.6.1` fixes GUID SQL defaults and computed-value generation without adding
+public APIs or changing GUID storage defaults. Explicit client-generation
+choices remain authoritative. MariaDB reads server-generated UUID keys through
+`RETURNING`; MySQL rejects an insert whose generated key cannot be read back
+unambiguously. Review the [GUID generation and upgrade guidance][guid-sql-defaults]
+when upgrading a model with SQL-generated GUIDs or older snapshots.
+
+The release also separates large implementation and test classes by
+responsibility and adds independent regression cases. EF Core requirements,
+supported engines, and the multiple-parameter collection default are unchanged.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.0 before upgrading the provider.
+its published dependency range includes 10.6.1 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.0
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.1
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -562,6 +566,7 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
 [generated-value-readback]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#generated-value-readback
 [global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
+[guid-sql-defaults]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/migrations.md#guid-sql-defaults
 [host-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/host-integration-examples.md
 [ide-integration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ide-integration.md
 [index-key-byte-fidelity]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#index-key-byte-fidelity

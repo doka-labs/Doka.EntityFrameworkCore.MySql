@@ -23,16 +23,18 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
     [Fact]
     public void UseNetTopologySuite_adds_the_optional_spatial_extension()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
-
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
             options => options.UseNetTopologySuite());
 
+        // Act
         var extension = builder.Options.FindExtension<MySqlNetTopologySuiteOptionsExtension>();
 
+        // Assert
         Assert.NotNull(extension);
     }
 
@@ -42,15 +44,18 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
     [Fact]
     public void UseNetTopologySuite_returns_the_same_builder_instance()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         MySqlDbContextOptionsBuilder? returnedBuilder = null;
 
+        // Act
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
             options => returnedBuilder = options.UseNetTopologySuite());
 
+        // Assert
         Assert.NotNull(returnedBuilder);
     }
 
@@ -60,8 +65,13 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
     [Fact]
     public void Main_provider_assembly_does_not_reference_nettopologysuite()
     {
-        var referencedAssemblies = typeof(MySqlDbContextOptionsBuilder).Assembly.GetReferencedAssemblies();
+        // Arrange
+        var assembly = typeof(MySqlDbContextOptionsBuilder).Assembly;
 
+        // Act
+        var referencedAssemblies = assembly.GetReferencedAssemblies();
+
+        // Assert
         Assert.DoesNotContain(
             referencedAssemblies,
             assemblyName => string.Equals(assemblyName.Name, "NetTopologySuite", StringComparison.Ordinal));
@@ -78,15 +88,20 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
         string wkt
     )
     {
+        // Arrange
         var plugin = new MySqlNetTopologySuiteTypeMappingSourcePlugin(
             [new MySqlSingletonOptions()]);
+
         var mapping = plugin.FindMapping(new RelationalTypeMappingInfo(geometryType));
         var geometry = new WKTReader().Read(wkt);
         geometry.SRID = 4326;
+
+        // Act
         var providerValue = MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry));
+
+        // Assert
         var providerOwnedMapping = Assert.IsAssignableFrom<IMySqlProviderOwnedModelTypeMapping>(mapping);
         var modelValue = providerOwnedMapping.ConvertToModelValue(providerValue);
-
         Assert.Equal(geometryType, mapping?.ClrType);
         Assert.Equal(typeof(MySqlGeometry), providerOwnedMapping.ProviderClrType);
         Assert.True(geometryType.IsInstanceOfType(modelValue));
@@ -105,9 +120,11 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
         string expectedSql
     )
     {
+        // Arrange
         var serverVersion = mariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 4, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
+
         var options = new DbContextOptionsBuilder<SpatialLiteralContext>()
             .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
@@ -119,12 +136,17 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
         var mapping = context
             .GetService<IRelationalTypeMappingSource>()
             .FindMapping(typeof(Point));
+
         var point = new Point(13.405, 52.52)
         {
             SRID = 4326,
         };
 
-        Assert.Equal(expectedSql, mapping?.GenerateSqlLiteral(point));
+        // Act
+        var actual = mapping?.GenerateSqlLiteral(point);
+
+        // Assert
+        Assert.Equal(expectedSql, actual);
     }
 
     private sealed class SpatialLiteralContext(

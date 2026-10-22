@@ -7,6 +7,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var probe = new BindingCommandProbe();
         var connectionString = fixture.Context.Database.GetConnectionString()
@@ -24,6 +25,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         await using var context = new BindingContext(options);
         var maximum = 2;
+
+        // Act
         var query = context.Items.Where(item => item.Id <= maximum)
             .WithMaterializedSource(source => source.Select(item => new RuntimeModelRow
             {
@@ -39,6 +42,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Same(fixture.Context.Model, context.Model);
         Assert.Equal([1, 2], actual.Select(row => row.Id));
         Assert.Equal([s_binaryToken, Guid.Empty], actual.Select(row => row.Token));

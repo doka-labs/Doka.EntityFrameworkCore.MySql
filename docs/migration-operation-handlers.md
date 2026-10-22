@@ -105,7 +105,7 @@ The projection currently exposes:
 
 | Metadata | Operation | Meaning |
 | --- | --- | --- |
-| `GuidFormat` | `ColumnOperation` | Physical `binary(16)` or `char(36)` storage used by DDL and catalog comparison |
+| `GuidFormat` | `ColumnOperation` | Physical `binary(16)`, `char(36)`, or MariaDB-native `uuid` storage used by DDL and catalog comparison |
 | `ValueGenerationStrategy` | `ColumnOperation` | Provider generation; `AutoIncrement` affects DDL and catalog state, `ClientGuid` is an EF client behavior, and `None` is explicit absence |
 | `IndexPrefixLengths` | `CreateIndexOperation` | Ordered DDL and catalog prefix lengths; zero means the complete key |
 
@@ -120,6 +120,13 @@ remains valid because EF Core may defer mapping resolution. Future typed
 `MySqlValueGenerationStrategy` values are preserved so a consumer can reject
 unsupported semantics explicitly. Unrelated annotations are not classified as
 known Doka metadata.
+
+On SQL-default or computed columns, runtime-only `ClientGuid` and `None`
+choices do not by themselves produce a physical schema difference. When a
+physical column operation is emitted, its public metadata still preserves the
+explicit strategy, including `OldColumn` during expression changes combined
+with table or column renames. Property, snapshot, and designer metadata retain
+the original application choice.
 
 Do not copy `Doka:MySql:*` annotation names into an extension package. Their
 identities remain private and are not a compatibility contract.

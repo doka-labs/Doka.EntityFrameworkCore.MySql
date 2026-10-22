@@ -8,33 +8,41 @@ namespace ConsumerMigrationTests;
 /// </summary>
 public sealed class MySqlLikeOverloadBindingTests
 {
-    [Fact]
-    public void Strings_bind_to_EF_Core_and_scalars_bind_to_Doka()
+    /// <summary>Verifies the owner and generic argument of one consumer-visible overload.</summary>
+    [Theory]
+    [InlineData("String", typeof(DbFunctionsExtensions), null)]
+    [InlineData("NullableString", typeof(DbFunctionsExtensions), null)]
+    [InlineData("Int32", typeof(MySqlDbFunctionsExtensions), typeof(int))]
+    [InlineData("NullableGuid", typeof(MySqlDbFunctionsExtensions), typeof(Guid?))]
+    public void Like_overload_binds_to_its_expected_owner(
+        string operand,
+        Type declaringType,
+        Type? genericArgument
+    )
     {
-        System.Linq.Expressions.Expression<Func<string, string, bool>> text =
-            (value, pattern) => EF.Functions.Like(value, pattern);
+        // Arrange
+        System.Linq.Expressions.LambdaExpression expression = operand switch
+        {
+            "String" => (System.Linq.Expressions.Expression<Func<string, string, bool>>)
+                ((value, pattern) => EF.Functions.Like(value, pattern)),
+            "NullableString" => (System.Linq.Expressions.Expression<Func<string?, string, bool>>)
+                ((value, pattern) => EF.Functions.Like(value!, pattern, "!")),
+            "Int32" => (System.Linq.Expressions.Expression<Func<int, string, bool>>)
+                ((value, pattern) => EF.Functions.Like(value, pattern)),
+            "NullableGuid" => (System.Linq.Expressions.Expression<Func<Guid?, string, bool>>)
+                ((value, pattern) => EF.Functions.Like(value, pattern, "!")),
+            _ => throw new ArgumentOutOfRangeException(nameof(operand)),
+        };
 
-        System.Linq.Expressions.Expression<Func<string?, string, bool>> nullableText =
-            (value, pattern) => EF.Functions.Like(value!, pattern, "!");
+        var expectedArguments = genericArgument is null ? Type.EmptyTypes : [genericArgument];
 
-        System.Linq.Expressions.Expression<Func<int, string, bool>> number =
-            (value, pattern) => EF.Functions.Like(value, pattern);
+        // Act
+        var call = (System.Linq.Expressions.MethodCallExpression)expression.Body;
+        var method = call.Method;
 
-        System.Linq.Expressions.Expression<Func<Guid?, string, bool>> nullableGuid =
-            (value, pattern) => EF.Functions.Like(value, pattern, "!");
-
-        var textCall = Assert.IsType<System.Linq.Expressions.MethodCallExpression>(text.Body, exactMatch: false);
-        var nullableTextCall = Assert.IsType<System.Linq.Expressions.MethodCallExpression>(nullableText.Body, exactMatch: false);
-        var numberCall = Assert.IsType<System.Linq.Expressions.MethodCallExpression>(number.Body, exactMatch: false);
-        var nullableGuidCall = Assert.IsType<System.Linq.Expressions.MethodCallExpression>(nullableGuid.Body, exactMatch: false);
-
-        Assert.Equal(typeof(DbFunctionsExtensions), textCall.Method.DeclaringType);
-        Assert.Equal(typeof(DbFunctionsExtensions), nullableTextCall.Method.DeclaringType);
-        Assert.False(textCall.Method.IsGenericMethod);
-        Assert.False(nullableTextCall.Method.IsGenericMethod);
-        Assert.Equal(typeof(MySqlDbFunctionsExtensions), numberCall.Method.DeclaringType);
-        Assert.Equal(typeof(MySqlDbFunctionsExtensions), nullableGuidCall.Method.DeclaringType);
-        Assert.Equal([typeof(int)], numberCall.Method.GetGenericArguments());
-        Assert.Equal([typeof(Guid?)], nullableGuidCall.Method.GetGenericArguments());
+        // Assert
+        Assert.Equal(declaringType, method.DeclaringType);
+        Assert.Equal(genericArgument is not null, method.IsGenericMethod);
+        Assert.Equal(expectedArguments, method.GetGenericArguments());
     }
 }

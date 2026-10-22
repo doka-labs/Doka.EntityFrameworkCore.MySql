@@ -149,6 +149,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var databaseName = $"doka_connection_callbacks_{Guid.NewGuid():N}"[..48];
         var builder = CreateLifecycleConnectionString(
             administrativeConnectionString,
@@ -166,29 +167,28 @@ public sealed class MySqlTlsAuthenticationContractTests
         var certificateCallbackCount = 0;
         var clientCertificateCallbackCount = 0;
         var passwordCallbackCount = 0;
-        await using var connection = new MySqlConnection(builder.ConnectionString)
+        await using var connection = new MySqlConnection(builder.ConnectionString);
+        connection.RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
         {
-            RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
-            {
-                Interlocked.Increment(ref certificateCallbackCount);
-                return ValidateTestServerCertificate(
-                    certificate,
-                    errors,
-                    certificateAuthority);
-            },
-            ProvideClientCertificatesCallback = certificates =>
-            {
-                Interlocked.Increment(ref clientCertificateCallbackCount);
-                certificates.Add(clientCertificate);
-                return ValueTask.CompletedTask;
-            },
-            ProvidePasswordCallback = _ =>
-            {
-                Interlocked.Increment(ref passwordCallbackCount);
-                return password;
-            },
+            Interlocked.Increment(ref certificateCallbackCount);
+            return ValidateTestServerCertificate(
+                certificate,
+                errors,
+                certificateAuthority);
+        };
+        connection.ProvideClientCertificatesCallback = certificates =>
+        {
+            Interlocked.Increment(ref clientCertificateCallbackCount);
+            certificates.Add(clientCertificate);
+            return ValueTask.CompletedTask;
+        };
+        connection.ProvidePasswordCallback = _ =>
+        {
+            Interlocked.Increment(ref passwordCallbackCount);
+            return password;
         };
 
+        // Act
         var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>()
             .UseMySql(connection, serverVersion)
             .Options;
@@ -196,6 +196,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertLifecycleOperationsAsync(options)
             .ConfigureAwait(false);
 
+        // Assert
         Assert.True(certificateCallbackCount >= 6);
         Assert.True(clientCertificateCallbackCount >= 6);
         Assert.True(passwordCallbackCount >= 6);
@@ -208,6 +209,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var databaseName = $"doka_data_source_callbacks_{Guid.NewGuid():N}"[..48];
         var builder = CreateLifecycleConnectionString(administrativeConnectionString, databaseName);
         builder.UserID = LifecycleCallbackUser;
@@ -279,6 +281,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 })
                 .Build();
 
+            // Act
             var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(dataSource, serverVersion)
                 .Options;
 
@@ -293,6 +296,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             await AssertLifecycleOperationsAsync(options)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.True(certificateCallbackCount >= 12);
             Assert.True(clientCertificateCallbackCount >= 12);
             Assert.True(passwordProviderCount >= 2);
@@ -343,35 +347,35 @@ public sealed class MySqlTlsAuthenticationContractTests
         DbContextOptions<SecurityContractContext> options
     )
     {
+        // Arrange
         await using var context = new SecurityContractContext(options);
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         try
         {
-            Assert.False(
-                await creator
-                    .ExistsAsync()
-                    .ConfigureAwait(false));
+            // Act
+            // WHY: Creation and deletion use the same callback-bearing connection
+            // configuration so every server-level operation must preserve it.
+            var existedBefore = await creator.ExistsAsync().ConfigureAwait(false);
+
             await creator
                 .CreateAsync()
                 .ConfigureAwait(false);
 
-            Assert.True(
-                await creator
-                    .ExistsAsync()
-                    .ConfigureAwait(false));
-            Assert.False(
-                await creator
-                    .HasTablesAsync()
-                    .ConfigureAwait(false));
+            var existedAfterCreate = await creator.ExistsAsync().ConfigureAwait(false);
+            var hadTables = await creator.HasTablesAsync().ConfigureAwait(false);
+
             await creator
                 .DeleteAsync()
                 .ConfigureAwait(false);
 
-            Assert.False(
-                await creator
-                    .ExistsAsync()
-                    .ConfigureAwait(false));
+            var existsAfterDelete = await creator.ExistsAsync().ConfigureAwait(false);
+
+            // Assert
+            Assert.False(existedBefore);
+            Assert.True(existedAfterCreate);
+            Assert.False(hadTables);
+            Assert.False(existsAfterDelete);
         }
         finally
         {
@@ -391,6 +395,7 @@ public sealed class MySqlTlsAuthenticationContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
             .OpenAsync()
@@ -398,26 +403,30 @@ public sealed class MySqlTlsAuthenticationContractTests
 
         await using var cipherCommand = connection.CreateCommand();
         cipherCommand.CommandText = "SHOW STATUS LIKE 'Ssl_cipher';";
+
+        // Act
         await using var reader = await cipherCommand
             .ExecuteReaderAsync()
             .ConfigureAwait(false);
 
-        Assert.True(
-            await reader
-                .ReadAsync()
-                .ConfigureAwait(false));
-        Assert.False(string.IsNullOrWhiteSpace(reader.GetString(1)));
+        var hasCipherRow = await reader.ReadAsync().ConfigureAwait(false);
+
+        // WHY: The cipher value can only be read from a positioned reader. This
+        // guard validates fixture output before the independent provider query.
+        Assert.True(hasCipherRow);
+
+        var cipher = reader.GetString(1);
 
         await using var context = new SecurityContractContext(
             IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
                 .Options);
 
-        Assert.Equal(
-            1,
-            await context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-                .SingleAsync()
-                .ConfigureAwait(false));
+        var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync().ConfigureAwait(false);
+
+        // Assert
+        Assert.False(string.IsNullOrWhiteSpace(cipher));
+        Assert.Equal(1, scalar);
     }
 
     private static async Task AssertInvalidTransportProfilesAreRejectedAsync(
@@ -663,27 +672,33 @@ public sealed class MySqlTlsAuthenticationContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         await using var context = new SecurityContractContext(
             IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
                 .Options);
 
-        Assert.Equal(
-            1,
-            await context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-                .SingleAsync()
-                .ConfigureAwait(false));
+        // Act
+        var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync().ConfigureAwait(false);
+
+        // Assert
+        Assert.Equal(1, scalar);
     }
 
     private static async Task AssertConnectionRejectedAsync(
         string connectionString
     )
     {
+        // Arrange
         await using var connection = new MySqlConnection(connectionString);
 
-        _ = await Assert
-            .ThrowsAsync<MySqlException>(() => connection.OpenAsync())
+        // Act
+        var exception = await Record
+            .ExceptionAsync(connection.OpenAsync)
             .ConfigureAwait(false);
+
+        // Assert
+        Assert.IsType<MySqlException>(exception);
     }
 
     private sealed class SecurityContractContext : DbContext

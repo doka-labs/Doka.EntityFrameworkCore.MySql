@@ -11,6 +11,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Emits one insert and one readback, with a row-relative ordinal and row-count guard in every arm.
     /// </summary>
+    /// <param name="count">The number of commands or rows used to exercise the boundary.</param>
     [Theory]
     [InlineData(2)]
     [InlineData(64)]
@@ -19,14 +20,17 @@ public sealed partial class MySqlGeneratedValueSqlTests
         int count
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", count);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, commandPosition: 71, out var transaction);
-
         var text = sql.ToString();
+
+        // Assert
         Assert.Equal(ResultSetMapping.NotLastInResultSet | ResultSetMapping.IsPositionalResultMappingEnabled, mapping);
         Assert.True(transaction);
         Assert.Equal(1, Regex.Count(text, "INSERT INTO"));
@@ -42,6 +46,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Uses every physical key column and preserves its native type and collation comparison.
     /// </summary>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
     [Theory]
     [InlineData("ShadowRows")]
     [InlineData("ExplicitInnoDbRows")]
@@ -53,14 +58,18 @@ public sealed partial class MySqlGeneratedValueSqlTests
         string tableName
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, tableName, 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out var transaction);
+        var actual = mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled);
 
-        Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
+        // Assert
+        Assert.True(actual);
         Assert.True(transaction);
         Assert.Contains("`Id` = @p0_0", sql.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("CAST", sql.ToString(), StringComparison.Ordinal);
@@ -78,20 +87,25 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void NeverGeneratedZeroKeyIsNotMistakenForTemporaryIdentity()
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2, firstKey: 0);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
+        var actual = mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled);
 
-        Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
+        // Assert
+        Assert.True(actual);
         Assert.Equal(0, commands[0].ColumnModifications[0].Value);
     }
 
     /// <summary>
     /// One unsafe command forces the entire group onto its original per-row path.
     /// </summary>
+    /// <param name="failure">The malformed result or unsafe command shape.</param>
     [Theory]
     [InlineData("null-key")]
     [InlineData("missing-key")]
@@ -109,15 +123,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
         string failure
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2);
         commands[1] = UnsafeCommand(context, commands[1], failure);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
+        var actual = mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled);
 
-        Assert.False(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
+        // Assert
+        Assert.False(actual);
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
     }
@@ -125,6 +143,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Modeled triggers, temporal emulation and nontransactional tables retain the safe fallback.
     /// </summary>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
     [Theory]
     [InlineData("TriggeredRows")]
     [InlineData("TemporalRows")]
@@ -135,13 +154,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
         string tableName
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, tableName, 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
 
+        // Assert
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
@@ -153,13 +175,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void WrittenAutoIncrementZeroRetainsPerRowReadback()
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "ZeroSentinelIdentityRows", 2, firstKey: 0);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
 
+        // Assert
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
@@ -168,19 +193,23 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Every supported integer key shape treats a written zero as a server-generated identity.
     /// </summary>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
     [Theory]
     [MemberData(nameof(NumericIdentityTables))]
     public void NumericAutoIncrementZeroCannotCorrelateReadback(
         string tableName
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, tableName, 2, firstKey: 0);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
 
+        // Assert
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
@@ -189,20 +218,25 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Explicit nonzero integer identities remain stable across the insert and keyed readback.
     /// </summary>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
     [Theory]
     [MemberData(nameof(NumericIdentityTables))]
     public void NumericAutoIncrementNonzeroKeysCanCorrelateReadback(
         string tableName
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, tableName, 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out _);
+        var actual = mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled);
 
-        Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
+        // Assert
+        Assert.True(actual);
         Assert.Equal(1, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.Contains("UNION ALL", sql.ToString(), StringComparison.Ordinal);
     }
@@ -228,6 +262,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void TrackedTemporaryKeysCannotEnablePositionalReadback()
     {
+        // Arrange
         using var context = CreateContext();
         context.AddRange(new IdentityRow { Payload = 11, }, new IdentityRow { Payload = 22, });
         var entries = context.GetService<IUpdateAdapterFactory>().Create().Entries.ToArray();
@@ -235,8 +270,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out var transaction);
 
+        // Assert
         Assert.True(transaction);
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Contains("LAST_INSERT_ID()", sql.ToString(), StringComparison.Ordinal);
@@ -252,6 +289,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void ClientGeneratedGuidOnAddRetainsKeyedReadback()
     {
+        // Arrange
         using var context = CreateContext();
         context.AddRange(new GuidIdentityRow { Payload = 11, }, new GuidIdentityRow { Payload = 22, });
         var entries = context.GetService<IUpdateAdapterFactory>().Create().Entries.ToArray();
@@ -259,8 +297,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out var transaction);
 
+        // Assert
         Assert.True(transaction);
         Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
         Assert.All(entries, entry =>
@@ -284,13 +324,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void TransactionPermissionCannotBeAssumedByTheGenerator()
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, allowKeyedReadback: false, out _);
 
+        // Assert
         Assert.Equal(ResultSetMapping.LastInResultSet, mapping);
         Assert.Equal(2, Regex.Count(sql.ToString(), "INSERT INTO"));
         Assert.DoesNotContain("UNION ALL", sql.ToString(), StringComparison.Ordinal);
@@ -299,6 +342,8 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Repeated physical key values count toward packet size without doubling the INSERT placeholder limit.
     /// </summary>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
+    /// <param name="expectedKeyParameters">The number of physical key parameters per row.</param>
     [Theory]
     [InlineData("Rows", 1)]
     [InlineData("CompositeRows", 2)]
@@ -309,14 +354,17 @@ public sealed partial class MySqlGeneratedValueSqlTests
         int expectedKeyParameters
     )
     {
+        // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, tableName, 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var eligible = generator.TryGetKeyedReadbackCost(commands[0], out var packetBytes);
         generator.AppendBulkInsertOperation(sql, commands, 0, out _);
 
+        // Assert
         Assert.True(eligible);
         Assert.Equal(4 * expectedKeyParameters, Regex.Count(sql.ToString(), "@p[0-9]+_[0-9]+\\b"));
         Assert.InRange(packetBytes, 1, 10_000);
@@ -325,6 +373,8 @@ public sealed partial class MySqlGeneratedValueSqlTests
     /// <summary>
     /// Native RETURNING and unsafe table contracts add no keyed-readback packet reservation.
     /// </summary>
+    /// <param name="mariaDb">Whether to use the MariaDB engine profile.</param>
+    /// <param name="tableName">The modeled table and physical key shape.</param>
     [Theory]
     [InlineData(false, "TriggeredRows")]
     [InlineData(false, "TemporalRows")]
@@ -335,12 +385,15 @@ public sealed partial class MySqlGeneratedValueSqlTests
         string tableName
     )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var command = CreateCommands(context, tableName, 2)[0];
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
 
+        // Act
         var eligible = generator.TryGetKeyedReadbackCost(command, out var packetBytes);
 
+        // Assert
         Assert.False(eligible);
         Assert.Equal(0, packetBytes);
     }
@@ -351,13 +404,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
     [Fact]
     public void MariaDbReadbackPreservesReturningWithoutOrdinal()
     {
+        // Arrange
         using var context = CreateContext(mariaDb: true);
         var commands = CreateCommands(context, "Rows", 2);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
 
+        // Act
         var mapping = generator.AppendBulkInsertOperation(sql, commands, 0, out var transaction);
 
+        // Assert
         Assert.Equal(ResultSetMapping.NotLastInResultSet, mapping);
         Assert.False(transaction);
         Assert.Contains("RETURNING `Generated`", sql.ToString(), StringComparison.Ordinal);

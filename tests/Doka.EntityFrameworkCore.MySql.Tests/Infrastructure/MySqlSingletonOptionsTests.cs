@@ -12,20 +12,21 @@ public sealed class MySqlSingletonOptionsTests
     [Fact]
     public void Initialize_caches_resolved_server_version_capabilities_and_phase1_settings()
     {
+        // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
-
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
             options => options
                 .EnableRetryOnFailure(maxRetryCount: 4, maxRetryDelay: TimeSpan.FromSeconds(9))
                 .DefaultGuidFormat(MySqlGuidFormat.Char36));
-
         var singletonOptions = new MySqlSingletonOptions();
 
+        // Act
         singletonOptions.Initialize(builder.Options);
 
+        // Assert
         Assert.Equal(serverVersion.Profile, singletonOptions.Profile);
         Assert.NotNull(singletonOptions.RetryOptions);
         Assert.Equal(4, singletonOptions.RetryOptions.MaxRetryCount);
@@ -40,14 +41,18 @@ public sealed class MySqlSingletonOptionsTests
     [Fact]
     public void Validate_rejects_server_version_changes()
     {
+        // Arrange
         var originalOptions = CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0)), MySqlGuidFormat.Binary16);
         var changedOptions = CreateOptions(MySqlServerVersion.MariaDb(new Version(11, 8, 0)), MySqlGuidFormat.Binary16);
         var singletonOptions = new MySqlSingletonOptions();
-
         singletonOptions.Initialize(originalOptions);
+        Action act = () => singletonOptions.Validate(changedOptions);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => singletonOptions.Validate(changedOptions));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("The configured MySQL server version changed for the shared service provider.", exception.Message);
     }
 
@@ -57,14 +62,18 @@ public sealed class MySqlSingletonOptionsTests
     [Fact]
     public void Validate_rejects_guid_format_changes()
     {
+        // Arrange
         var originalOptions = CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0)), MySqlGuidFormat.Binary16);
         var changedOptions = CreateOptions(MySqlServerVersion.MySql(new Version(8, 4, 0)), MySqlGuidFormat.Char36);
         var singletonOptions = new MySqlSingletonOptions();
-
         singletonOptions.Initialize(originalOptions);
+        Action act = () => singletonOptions.Validate(changedOptions);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => singletonOptions.Validate(changedOptions));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("The configured MySQL GUID format changed for the shared service provider.", exception.Message);
     }
 

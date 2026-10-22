@@ -11,8 +11,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MySql_factory_creates_mysql_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+        // Arrange
+        var input = new Version(8, 4, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MySql(input);
+
+        // Assert
         Assert.False(serverVersion.IsMariaDb);
         AssertMySqlProviderProfile(serverVersion);
     }
@@ -23,8 +28,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MySql97_factory_creates_the_expected_mysql_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MySql(new Version(9, 7, 0));
+        // Arrange
+        var input = new Version(9, 7, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MySql(input);
+
+        // Assert
         Assert.False(serverVersion.IsMariaDb);
         AssertMySqlProviderProfile(serverVersion);
     }
@@ -35,8 +45,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MariaDb_factory_creates_mariadb_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
+        // Arrange
+        var input = new Version(11, 8, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MariaDb(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         AssertMariaDbProviderProfile(serverVersion);
     }
@@ -47,8 +62,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MariaDb114_factory_creates_the_expected_mariadb_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+        // Arrange
+        var input = new Version(11, 4, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MariaDb(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         AssertMariaDbProviderProfile(serverVersion);
     }
@@ -59,8 +79,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MariaDb1011_factory_creates_the_expected_mariadb_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MariaDb(new Version(10, 11, 0));
+        // Arrange
+        var input = new Version(10, 11, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MariaDb(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         AssertMariaDbProviderProfile(serverVersion);
     }
@@ -71,8 +96,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void MariaDb123_factory_creates_the_expected_mariadb_capabilities()
     {
-        var serverVersion = MySqlServerVersion.MariaDb(new Version(12, 3, 0));
+        // Arrange
+        var input = new Version(12, 3, 0);
 
+        // Act
+        var serverVersion = MySqlServerVersion.MariaDb(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         AssertMariaDbProviderProfile(serverVersion);
     }
@@ -83,8 +113,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void Parse_recognizes_mariadb_version_strings()
     {
-        var serverVersion = MySqlServerVersion.Parse("11.8.1-MariaDB-ubu2404");
+        // Arrange
+        const string input = "11.8.1-MariaDB-ubu2404";
 
+        // Act
+        var serverVersion = MySqlServerVersion.Parse(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         Assert.Equal(new Version(11, 8, 1), serverVersion.Version);
     }
@@ -96,8 +131,13 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void Parse_ignores_mariadb_legacy_compatibility_prefix()
     {
-        var serverVersion = MySqlServerVersion.Parse("5.5.5-10.11.18-MariaDB-ubu2204");
+        // Arrange
+        const string input = "5.5.5-10.11.18-MariaDB-ubu2204";
 
+        // Act
+        var serverVersion = MySqlServerVersion.Parse(input);
+
+        // Assert
         Assert.True(serverVersion.IsMariaDb);
         Assert.Equal(new Version(10, 11, 18), serverVersion.Version);
         Assert.Equal(MySqlServerVersionSupportStatus.Supported, serverVersion.SupportStatus);
@@ -114,8 +154,14 @@ public sealed class MySqlServerVersionTests
         string rawServerVersion
     )
     {
-        var exception = Assert.Throws<ArgumentException>(() => MySqlServerVersion.Parse(rawServerVersion));
+        // Arrange
+        Action act = () => MySqlServerVersion.Parse(rawServerVersion);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentException>(recordedException);
         Assert.Equal("serverVersion", exception.ParamName);
     }
 
@@ -125,10 +171,15 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void AutoDetect_connection_rejects_missing_server_version()
     {
+        // Arrange
         using var connection = new StubDbConnection(string.Empty);
+        Action act = () => MySqlServerVersion.AutoDetect(connection);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlServerVersion.AutoDetect(connection));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("The supplied connection did not expose a server version.", exception.Message);
         Assert.Equal(ConnectionState.Open, connection.State);
         Assert.False(connection.WasDisposed);
@@ -145,14 +196,22 @@ public sealed class MySqlServerVersionTests
         bool useExplicitCompatibilityMode
     )
     {
+        // Arrange
         await using var connection = new MySqlConnection();
-
-        Assert.Throws<InvalidOperationException>(() => useExplicitCompatibilityMode
+        Func<object?> act1 = () => useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
-            : MySqlServerVersion.AutoDetect(connection));
+            : MySqlServerVersion.AutoDetect(connection);
 
+        Func<object?> act2 = () => connection.ServerVersion;
+
+        // Act
+        var recordedException1 = Record.Exception(act1);
+        var recordedException2 = Record.Exception(act2);
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(recordedException1);
         Assert.Equal(ConnectionState.Closed, connection.State);
-        Assert.Throws<InvalidOperationException>(() => connection.ServerVersion);
+        Assert.IsType<InvalidOperationException>(recordedException2);
     }
 
     /// <summary>
@@ -166,12 +225,15 @@ public sealed class MySqlServerVersionTests
         bool useExplicitCompatibilityMode
     )
     {
+        // Arrange
         using var connection = new StubDbConnection("8.4.9");
 
+        // Act
         var detected = useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
             : MySqlServerVersion.AutoDetect(connection);
 
+        // Assert
         Assert.Equal(new Version(8, 4, 9), detected.Version);
         Assert.Equal(
             useExplicitCompatibilityMode
@@ -192,10 +254,16 @@ public sealed class MySqlServerVersionTests
         bool useExplicitCompatibilityMode
     )
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => useExplicitCompatibilityMode
+        // Arrange
+        Func<object?> act = () => useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(null!, MySqlServerVersionCompatibilityMode.AllowUnsupported)
-            : MySqlServerVersion.AutoDetect((DbConnection)null!));
+            : MySqlServerVersion.AutoDetect((DbConnection)null!);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentNullException>(recordedException);
         Assert.Equal("connection", exception.ParamName);
     }
 
@@ -211,8 +279,14 @@ public sealed class MySqlServerVersionTests
         string? connectionString
     )
     {
-        var exception = Assert.ThrowsAny<ArgumentException>(() => MySqlServerVersion.AutoDetect(connectionString!));
+        // Arrange
+        Action act = () => MySqlServerVersion.AutoDetect(connectionString!);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsAssignableFrom<ArgumentException>(recordedException);
         Assert.Equal("connectionString", exception.ParamName);
     }
 
@@ -225,7 +299,17 @@ public sealed class MySqlServerVersionTests
     [InlineData("Server=localhost;Port=not-a-number")]
     public void AutoDetect_connection_string_rejects_malformed_options(
         string connectionString
-    ) => Assert.ThrowsAny<ArgumentException>(() => MySqlServerVersion.AutoDetect(connectionString));
+    )
+    {
+        // Arrange
+        Action act = () => MySqlServerVersion.AutoDetect(connectionString);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsAssignableFrom<ArgumentException>(recordedException);
+    }
 
     /// <summary>
     /// Verifies every support-policy boundary by release line rather than patch.
@@ -256,11 +340,15 @@ public sealed class MySqlServerVersionTests
         MySqlServerVersionSupportStatus expectedStatus
     )
     {
+        // Arrange
         var version = new Version(major, minor, patch);
+
+        // Act
         var serverVersion = isMariaDb
             ? MySqlServerVersion.MariaDb(version)
             : MySqlServerVersion.MySql(version);
 
+        // Assert
         Assert.Equal(expectedStatus, serverVersion.SupportStatus);
         Assert.Equal(MySqlServerVersionCompatibilityMode.SupportedOnly, serverVersion.CompatibilityMode);
     }
@@ -271,10 +359,15 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void Parse_preserves_explicit_unsupported_compatibility_mode()
     {
+        // Arrange
+        const string input = "8.0.44";
+
+        // Act
         var serverVersion = MySqlServerVersion.Parse(
-            "8.0.44",
+            input,
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
+        // Assert
         Assert.Equal(MySqlServerVersionSupportStatus.Legacy, serverVersion.SupportStatus);
         Assert.Equal(MySqlServerVersionCompatibilityMode.AllowUnsupported, serverVersion.CompatibilityMode);
     }
@@ -285,10 +378,17 @@ public sealed class MySqlServerVersionTests
     [Fact]
     public void Factory_rejects_undefined_compatibility_mode()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        // Arrange
+        Action act = () =>
             MySqlServerVersion.MySql(
                 new Version(8, 4, 0),
-                (MySqlServerVersionCompatibilityMode)int.MaxValue));
+                (MySqlServerVersionCompatibilityMode)int.MaxValue);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     private static void AssertMySqlProviderProfile(

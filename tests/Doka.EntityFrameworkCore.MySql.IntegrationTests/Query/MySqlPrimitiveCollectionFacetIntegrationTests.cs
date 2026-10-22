@@ -5,355 +5,561 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// applying lossy property facets before comparison.
 /// </summary>
 [IntegrationDatabaseTest]
-public sealed class MySqlPrimitiveCollectionFacetIntegrationTests
+public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests :
+    IClassFixture<MySqlPrimitiveCollectionFacetIntegrationTests.SeededDatabaseFixture>
 {
-    private const string TableName = "IntPrimitiveCollectionFacetItems";
+    private readonly SeededDatabaseFixture _fixture;
 
-    /// <summary>
-    /// Verifies lossless collection extraction on MySQL 8.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MySql84);
+    /// <summary>Returns the selected engines in the supported six-engine contract.</summary>
+    // WHY: the legacy MySQL 8.0 opt-in target is outside this supported-engine matrix.
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
+        .Select(target => new object[] { target.ToString() });
 
-    /// <summary>
-    /// Verifies lossless collection extraction on MySQL 9.7.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MySql97);
-
-    /// <summary>
-    /// Verifies lossless collection extraction on MariaDB 10.11.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb1011);
-
-    /// <summary>
-    /// Verifies lossless collection extraction on MariaDB 11.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb114);
-
-    /// <summary>
-    /// Verifies lossless collection extraction on MariaDB 11.8.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb118);
-
-    /// <summary>
-    /// Verifies lossless collection extraction on MariaDB 12.3.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_parameter_values_before_comparison() =>
-        AssertParameterValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb123);
-
-    private static async Task AssertParameterValuesRemainLosslessAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Creates an independent test case sharing only immutable seeded rows.</summary>
+    /// <param name="fixture">The class-owned per-engine database fixture.</param>
+    public MySqlPrimitiveCollectionFacetIntegrationTests(
+        SeededDatabaseFixture fixture
     )
     {
-        var builder = IntegrationTestDbContextOptions.Create<PrimitiveCollectionFacetContext>();
-        builder.UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target));
-        await using var context = new PrimitiveCollectionFacetContext(builder.Options);
-        await DropTableAsync(context);
-
-        var exactDateTime = new DateTime(2026, 9, 19, 12, 34, 56, DateTimeKind.Unspecified);
-        var exactTimestamp = new DateTime(2026, 9, 19, 12, 34, 56, DateTimeKind.Utc);
-        var birthDate = new DateTime(2000, 1, 2, 0, 0, 0, DateTimeKind.Unspecified);
-        var calendarDate = new DateOnly(2026, 9, 19);
-        var exactTimeOnly = new TimeOnly(12, 34, 56);
-        var exactTimeSpan = TimeSpan.FromHours(27);
-        var negativeTimeSpan = TimeSpan.FromHours(-27);
-        var maximumStoredTimeSpan = TimeSpan.FromHours(838)
-            + TimeSpan.FromMinutes(59)
-            + TimeSpan.FromSeconds(59);
-        var minimumStoredTimeSpan = -maximumStoredTimeSpan;
-
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(
-                context.Database.GenerateCreateScript(),
-                CancellationToken.None);
-            context.Add(
-                new PrimitiveCollectionFacetEntity
-                {
-                    Id = 1,
-                    Price = 3.1m,
-                    OccurredAt = exactDateTime,
-                    OptionalOccurredAt = exactDateTime,
-                    RecordedAt = exactTimestamp,
-                    BirthDate = birthDate,
-                    CalendarDate = calendarDate,
-                    OptionalCalendarDate = calendarDate,
-                    StartsAt = exactTimeOnly,
-                    Duration = exactTimeSpan,
-                    OptionalDuration = exactTimeSpan,
-                });
-            context.Add(
-                new PrimitiveCollectionFacetEntity
-                {
-                    Id = 2,
-                    Price = 10m,
-                    OccurredAt = exactDateTime.AddDays(1),
-                    RecordedAt = exactTimestamp.AddDays(1),
-                    BirthDate = birthDate.AddDays(1),
-                    CalendarDate = calendarDate.AddDays(1),
-                    StartsAt = new TimeOnly(0, 0),
-                    Duration = negativeTimeSpan,
-                });
-            context.Add(
-                new PrimitiveCollectionFacetEntity
-                {
-                    Id = 3,
-                    Price = 20m,
-                    OccurredAt = exactDateTime.AddDays(2),
-                    RecordedAt = exactTimestamp.AddDays(2),
-                    BirthDate = birthDate.AddDays(2),
-                    CalendarDate = calendarDate.AddDays(2),
-                    StartsAt = new TimeOnly(1, 0),
-                    Duration = maximumStoredTimeSpan,
-                });
-            context.Add(
-                new PrimitiveCollectionFacetEntity
-                {
-                    Id = 4,
-                    Price = 30m,
-                    OccurredAt = exactDateTime.AddDays(3),
-                    RecordedAt = exactTimestamp.AddDays(3),
-                    BirthDate = birthDate.AddDays(3),
-                    CalendarDate = calendarDate.AddDays(3),
-                    StartsAt = new TimeOnly(2, 0),
-                    Duration = minimumStoredTimeSpan,
-                });
-            await context.SaveChangesAsync(CancellationToken.None);
-            context.ChangeTracker.Clear();
-
-            var exactDecimals = new[] { 3.1m };
-            var truncatedDecimals = new[] { 3.14159m };
-            var exactDateTimes = new[] { exactDateTime };
-            var truncatedDateTimes = new[] { exactDateTime.AddMilliseconds(500) };
-            DateTime?[] exactNullableDateTimes = [exactDateTime];
-            DateTime?[] outOfRangeNullableDateTimes = [DateTime.MinValue];
-            var exactTimestamps = new[] { exactTimestamp };
-            var truncatedTimestamps = new[] { exactTimestamp.AddMilliseconds(500) };
-            var outOfRangeDateTimes = new[] { DateTime.MinValue };
-            var exactDates = new[] { birthDate };
-            var timeBearingDates = new[] { birthDate.AddHours(12) };
-            var exactCalendarDates = new[] { calendarDate };
-            var absentCalendarDates = new[] { calendarDate.AddYears(1) };
-            DateOnly?[] exactNullableCalendarDates = [calendarDate];
-            DateOnly?[] outOfRangeNullableCalendarDates = [DateOnly.MinValue];
-            var exactTimeOnlyValues = new[] { exactTimeOnly };
-            var truncatedTimeOnlyValues = new[] { exactTimeOnly.Add(TimeSpan.FromMilliseconds(500)) };
-            var exactTimeSpanValues = new[] { exactTimeSpan };
-            var truncatedTimeSpanValues = new[] { exactTimeSpan.Add(TimeSpan.FromMilliseconds(500)) };
-            TimeSpan?[] exactNullableTimeSpanValues = [exactTimeSpan];
-            var negativeTimeSpanValues = new[] { negativeTimeSpan };
-            var positiveOutOfRangeTimeSpanValues = new[] { TimeSpan.FromHours(839) };
-            var negativeOutOfRangeTimeSpanValues = new[] { TimeSpan.FromHours(-839) };
-
-            var results = new PrimitiveCollectionFacetResults(
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactDecimals).Count(value => value == item.Price) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(truncatedDecimals).Count(value => value == item.Price) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactDateTimes).Count(value => value == item.OccurredAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(truncatedDateTimes).Count(value => value == item.OccurredAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactNullableDateTimes).Contains(item.OptionalOccurredAt))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(outOfRangeNullableDateTimes).Contains(item.OptionalOccurredAt))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactTimestamps).Count(value => value == item.RecordedAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(truncatedTimestamps).Count(value => value == item.RecordedAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(outOfRangeDateTimes).Count(value => value == item.OccurredAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactDates).Count(value => value == item.BirthDate) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(timeBearingDates).Count(value => value == item.BirthDate) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactCalendarDates).Contains(item.CalendarDate))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(absentCalendarDates).Contains(item.CalendarDate))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactNullableCalendarDates).Contains(item.OptionalCalendarDate))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(outOfRangeNullableCalendarDates).Contains(item.OptionalCalendarDate))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactTimeOnlyValues).Count(value => value == item.StartsAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(truncatedTimeOnlyValues).Count(value => value == item.StartsAt) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactTimeSpanValues).Count(value => value == item.Duration) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(truncatedTimeSpanValues).Count(value => value == item.Duration) > 0)),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(exactNullableTimeSpanValues).Contains(item.OptionalDuration))),
-                await SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(negativeTimeSpanValues).Count(value => value == item.Duration) > 0)),
-                await Record.ExceptionAsync(() => SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(positiveOutOfRangeTimeSpanValues)
-                        .Count(value => value == item.Duration) > 0))),
-                await Record.ExceptionAsync(() => SelectIdsAsync(context.Items.Where(
-                    item => EF.Parameter(negativeOutOfRangeTimeSpanValues)
-                        .Count(value => value == item.Duration) > 0))));
-
-            Assert.Equal([1], results.ExactDecimal);
-            Assert.Empty(results.TruncatedDecimal);
-            Assert.Equal([1], results.ExactDateTime);
-            Assert.Empty(results.TruncatedDateTime);
-            Assert.Equal([1], results.ExactNullableDateTime);
-            Assert.Empty(results.OutOfRangeNullableDateTime);
-            Assert.Equal([1], results.ExactTimestamp);
-            Assert.Empty(results.TruncatedTimestamp);
-            Assert.Empty(results.OutOfRangeDateTime);
-            Assert.Equal([1], results.ExactDate);
-            Assert.Empty(results.TimeBearingDate);
-            Assert.Equal([1], results.ExactCalendarDate);
-            Assert.Empty(results.AbsentCalendarDate);
-            Assert.Equal([1], results.ExactNullableCalendarDate);
-            Assert.Empty(results.OutOfRangeNullableCalendarDate);
-            Assert.Equal([1], results.ExactTimeOnly);
-            Assert.Empty(results.TruncatedTimeOnly);
-            Assert.Equal([1], results.ExactTimeSpan);
-            Assert.Empty(results.TruncatedTimeSpan);
-            Assert.Equal([1], results.ExactNullableTimeSpan);
-            Assert.Equal([2], results.NegativeTimeSpan);
-            Assert.Contains(
-                "exceeds the MySQL TIME range",
-                Assert.IsType<InvalidOperationException>(results.PositiveOutOfRangeTimeSpan).Message,
-                StringComparison.Ordinal);
-            Assert.Contains(
-                "exceeds the MySQL TIME range",
-                Assert.IsType<InvalidOperationException>(results.NegativeOutOfRangeTimeSpan).Message,
-                StringComparison.Ordinal);
-        }
-        finally
-        {
-            await DropTableAsync(context);
-        }
+        _fixture = fixture;
     }
 
-    private static async Task<int[]> SelectIdsAsync(
-        IQueryable<PrimitiveCollectionFacetEntity> query
-    ) => await query
-        .Select(item => item.Id)
-        .ToArrayAsync(CancellationToken.None);
-
-    private static async Task DropTableAsync(
-        PrimitiveCollectionFacetContext context
-    ) => await context.Database.ExecuteSqlRawAsync(
-        $"DROP TABLE IF EXISTS `{TableName}`;",
-        CancellationToken.None);
-
-    private sealed record PrimitiveCollectionFacetResults(
-        int[] ExactDecimal,
-        int[] TruncatedDecimal,
-        int[] ExactDateTime,
-        int[] TruncatedDateTime,
-        int[] ExactNullableDateTime,
-        int[] OutOfRangeNullableDateTime,
-        int[] ExactTimestamp,
-        int[] TruncatedTimestamp,
-        int[] OutOfRangeDateTime,
-        int[] ExactDate,
-        int[] TimeBearingDate,
-        int[] ExactCalendarDate,
-        int[] AbsentCalendarDate,
-        int[] ExactNullableCalendarDate,
-        int[] OutOfRangeNullableCalendarDate,
-        int[] ExactTimeOnly,
-        int[] TruncatedTimeOnly,
-        int[] ExactTimeSpan,
-        int[] TruncatedTimeSpan,
-        int[] ExactNullableTimeSpan,
-        int[] NegativeTimeSpan,
-        Exception? PositiveOutOfRangeTimeSpan,
-        Exception? NegativeOutOfRangeTimeSpan
-    );
-
-    private sealed class PrimitiveCollectionFacetContext(
-        DbContextOptions<PrimitiveCollectionFacetContext> options
-    ) : DbContext(options)
+    /// <summary>Exact decimal parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_decimal_parameter_matches_stored_value(
+        string targetName
+    )
     {
-        public DbSet<PrimitiveCollectionFacetEntity> Items => Set<PrimitiveCollectionFacetEntity>();
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<PrimitiveCollectionFacetEntity>(entity =>
-            {
-                entity.ToTable(TableName);
-                entity.HasKey(item => item.Id);
-                entity
-                    .Property(item => item.Id)
-                    .ValueGeneratedNever();
-                entity
-                    .Property(item => item.Price)
-                    .HasPrecision(10, 1);
-                entity
-                    .Property(item => item.OccurredAt)
-                    .HasPrecision(0);
-                entity
-                    .Property(item => item.OptionalOccurredAt)
-                    .HasPrecision(0);
-                entity
-                    .Property(item => item.RecordedAt)
-                    .HasColumnType("timestamp(0)");
-                entity
-                    .Property(item => item.BirthDate)
-                    .HasColumnType("date");
-                entity
-                    .Property(item => item.CalendarDate)
-                    .HasColumnType("date");
-                entity
-                    .Property(item => item.OptionalCalendarDate)
-                    .HasColumnType("date");
-                entity
-                    .Property(item => item.StartsAt)
-                    .HasPrecision(0);
-                entity
-                    .Property(item => item.Duration)
-                    .HasPrecision(0);
-                entity
-                    .Property(item => item.OptionalDuration)
-                    .HasPrecision(0);
-            });
-        }
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDecimals = new[] { 3.1m };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactDecimals).Count(value => value == item.Price) > 0));
+
+        // Assert
+        Assert.Equal([1], ids);
     }
 
-    private sealed class PrimitiveCollectionFacetEntity
+    /// <summary>Extra decimal precision does not match rounded property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Extra_decimal_precision_does_not_match_rounded_property(
+        string targetName
+    )
     {
-        public int Id { get; set; }
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        public decimal Price { get; set; }
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var truncatedDecimals = new[] { 3.14159m };
 
-        public DateTime OccurredAt { get; set; }
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(truncatedDecimals).Count(value => value == item.Price) > 0));
 
-        public DateTime? OptionalOccurredAt { get; set; }
+        // Assert
+        Assert.Empty(ids);
+    }
 
-        public DateTime RecordedAt { get; set; }
+    /// <summary>Exact DateTime parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_datetime_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        public DateTime BirthDate { get; set; }
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDateTimes = new[] { s_exactDateTime };
 
-        public DateOnly CalendarDate { get; set; }
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactDateTimes).Count(value => value == item.OccurredAt) > 0));
 
-        public DateOnly? OptionalCalendarDate { get; set; }
+        // Assert
+        Assert.Equal([1], ids);
+    }
 
-        public TimeOnly StartsAt { get; set; }
+    /// <summary>Fractional DateTime does not match second precision property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_datetime_does_not_match_second_precision_property(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        public TimeSpan Duration { get; set; }
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var truncatedDateTimes = new[] { s_exactDateTime.AddMilliseconds(500) };
 
-        public TimeSpan? OptionalDuration { get; set; }
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(truncatedDateTimes).Count(value => value == item.OccurredAt) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact nullable DateTime parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_nullable_datetime_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateTime?[] exactNullableDateTimes = [s_exactDateTime];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactNullableDateTimes).Contains(item.OptionalOccurredAt)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Out of range nullable DateTime does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Out_of_range_nullable_datetime_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateTime?[] outOfRangeNullableDateTimes = [DateTime.MinValue];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(outOfRangeNullableDateTimes).Contains(item.OptionalOccurredAt)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact timestamp parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_timestamp_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactTimestamps = new[] { s_exactTimestamp };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactTimestamps).Count(value => value == item.RecordedAt) > 0));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Fractional timestamp does not match second precision property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_timestamp_does_not_match_second_precision_property(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var truncatedTimestamps = new[] { s_exactTimestamp.AddMilliseconds(500) };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(truncatedTimestamps).Count(value => value == item.RecordedAt) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Out of range DateTime does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Out_of_range_datetime_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var outOfRangeDateTimes = new[] { DateTime.MinValue };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(outOfRangeDateTimes).Count(value => value == item.OccurredAt) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact date parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_date_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDates = new[] { s_birthDate };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactDates).Count(value => value == item.BirthDate) > 0));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Time bearing DateTime does not match date property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Time_bearing_datetime_does_not_match_date_property(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var timeBearingDates = new[] { s_birthDate.AddHours(12) };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(timeBearingDates).Count(value => value == item.BirthDate) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact DateOnly parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_dateonly_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactCalendarDates = new[] { s_calendarDate };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactCalendarDates).Contains(item.CalendarDate)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Absent DateOnly parameter does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Absent_dateonly_parameter_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var absentCalendarDates = new[] { s_calendarDate.AddYears(1) };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(absentCalendarDates).Contains(item.CalendarDate)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact nullable DateOnly parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_nullable_dateonly_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateOnly?[] exactNullableCalendarDates = [s_calendarDate];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactNullableCalendarDates).Contains(item.OptionalCalendarDate)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Out of range nullable DateOnly does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Out_of_range_nullable_dateonly_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        DateOnly?[] outOfRangeNullableCalendarDates = [DateOnly.MinValue];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(outOfRangeNullableCalendarDates).Contains(item.OptionalCalendarDate)));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact TimeOnly parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_timeonly_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactTimeOnlyValues = new[] { s_exactTimeOnly };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactTimeOnlyValues).Count(value => value == item.StartsAt) > 0));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Fractional TimeOnly does not match second precision property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_timeonly_does_not_match_second_precision_property(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var truncatedTimeOnlyValues = new[] { s_exactTimeOnly.Add(TimeSpan.FromMilliseconds(500)) };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(truncatedTimeOnlyValues).Count(value => value == item.StartsAt) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact duration parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_duration_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactTimeSpanValues = new[] { s_exactTimeSpan };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactTimeSpanValues).Count(value => value == item.Duration) > 0));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Fractional duration does not match second precision property on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_duration_does_not_match_second_precision_property(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var truncatedTimeSpanValues = new[] { s_exactTimeSpan.Add(TimeSpan.FromMilliseconds(500)) };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(truncatedTimeSpanValues).Count(value => value == item.Duration) > 0));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Exact nullable duration parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Exact_nullable_duration_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        TimeSpan?[] exactNullableTimeSpanValues = [s_exactTimeSpan];
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(exactNullableTimeSpanValues).Contains(item.OptionalDuration)));
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Negative duration parameter matches stored value on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Negative_duration_parameter_matches_stored_value(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var negativeTimeSpanValues = new[] { s_negativeTimeSpan };
+
+        // Act
+        var ids = await SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(negativeTimeSpanValues).Count(value => value == item.Duration) > 0));
+
+        // Assert
+        Assert.Equal([2], ids);
+    }
+
+    /// <summary>Duration above MySQL time range is rejected on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Duration_above_mysql_time_range_is_rejected(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var positiveOutOfRangeTimeSpanValues = new[] { TimeSpan.FromHours(839) };
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(positiveOutOfRangeTimeSpanValues)
+                .Count(value => value == item.Duration) > 0)));
+
+        // Assert
+        Assert.Contains(
+            "exceeds the MySQL TIME range",
+            Assert.IsType<InvalidOperationException>(exception).Message,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>Duration below MySQL time range is rejected on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Duration_below_mysql_time_range_is_rejected(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var negativeOutOfRangeTimeSpanValues = new[] { TimeSpan.FromHours(-839) };
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => SelectIdsAsync(context.Items.Where(
+            item => EF.Parameter(negativeOutOfRangeTimeSpanValues)
+                .Count(value => value == item.Duration) > 0)));
+
+        // Assert
+        Assert.Contains(
+            "exceeds the MySQL TIME range",
+            Assert.IsType<InvalidOperationException>(exception).Message,
+            StringComparison.Ordinal);
     }
 }

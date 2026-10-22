@@ -18,6 +18,7 @@ public sealed class MySqlScaffoldingFilterTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Scaffolding_with_filter_returns_only_requested_tables()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
         await PrepareSchemaAsync(connectionString)
@@ -34,6 +35,7 @@ public sealed class MySqlScaffoldingFilterTests
                 new MySqlConnectorDriverFacade(),
                 new MySqlScaffoldingContext());
 
+            // Act
             var filteredModel = factory.Create(
                 connection,
                 new DatabaseModelFactoryOptions(
@@ -43,6 +45,7 @@ public sealed class MySqlScaffoldingFilterTests
                     ],
                     Array.Empty<string>()));
 
+            // Assert
             Assert.Equal(2, filteredModel.Tables.Count);
             Assert.Contains(filteredModel.Tables, table => table.Name == TablePrefix + "03");
             Assert.Contains(filteredModel.Tables, table => table.Name == TablePrefix + "07");
@@ -57,6 +60,7 @@ public sealed class MySqlScaffoldingFilterTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Scaffolding_without_filter_returns_every_table()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
         await PrepareSchemaAsync(connectionString)
@@ -73,16 +77,19 @@ public sealed class MySqlScaffoldingFilterTests
                 new MySqlConnectorDriverFacade(),
                 new MySqlScaffoldingContext());
 
+            // Act
             var fullModel = factory.Create(
                 connection,
                 new DatabaseModelFactoryOptions(Array.Empty<string>(), Array.Empty<string>()));
 
             // Filter set is empty -> MatchAll. Expect at least our 20 fixture tables;
             // other test suites may run concurrently and leave residual tables behind.
+
             var fixtureTables = fullModel
                 .Tables.Where(table => table.Name.StartsWith(TablePrefix, StringComparison.Ordinal))
                 .ToArray();
 
+            // Assert
             Assert.Equal(TableCount, fixtureTables.Length);
         }
         finally

@@ -11,14 +11,21 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Entity_source_preserves_mapped_columns(bool mariaDb)
+    public void Entity_source_preserves_mapped_columns(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.WithMaterializedSource(shared => shared.Where(node => node.Left > 2));
 
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.Contains("`Name`", sql, StringComparison.Ordinal);
         Assert.Empty(context.ChangeTracker.Entries());
@@ -30,15 +37,22 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Duplicate_scalar_source_does_not_add_distinct(bool mariaDb)
+    public void Duplicate_scalar_source_does_not_add_distinct(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var source = context.Nodes.Select(node => node.Name);
+
+        // Act
         var query = source.WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.DoesNotContain("DISTINCT", sql, StringComparison.OrdinalIgnoreCase);
         // WHY: One UNION ALL forms the empty recursive arm; the other preserves the consumer's bag.
@@ -51,8 +65,11 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Ordered_page_and_reference_filters_share_one_source(bool mariaDb)
+    public void Ordered_page_and_reference_filters_share_one_source(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var minimum = 3;
         var skip = 5;
@@ -65,6 +82,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             .Take(take)
             .Select(node => new Coordinates { Id = node.Id, Left = node.Left, Right = node.Right });
 
+        // Act
         var query = source.WithMaterializedSource(shared => shared
             .Where(node => node.Left < 10)
             .Concat(shared.Where(node => node.Right > 20)));
@@ -72,6 +90,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.Equal(1, CountOccurrences(sql, "LIMIT"));
         Assert.Contains("OFFSET", sql, StringComparison.Ordinal);
@@ -86,10 +106,15 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Volatile_projection_is_not_duplicated_by_a_self_join(bool mariaDb)
+    public void Volatile_projection_is_not_duplicated_by_a_self_join(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var source = context.Nodes.Select(node => new { node.Id, Token = Guid.NewGuid() });
+
+        // Act
         var query = source.WithMaterializedSource(shared => shared.Join(
             shared,
             first => first.Id,
@@ -99,6 +124,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "UUID()"));
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
     }
@@ -109,8 +136,11 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Aggregate_references_do_not_repeat_source_selection(bool mariaDb)
+    public void Aggregate_references_do_not_repeat_source_selection(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var source = context.Nodes.Select(node => new Coordinates
         {
@@ -119,6 +149,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             Right = node.Right,
         });
 
+        // Act
         var query = source.WithMaterializedSource(shared => shared.Select(node => new
         {
             node.Id,
@@ -129,6 +160,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         MySqlSqlAssert.ContainsFunction(sql, "MAX");
         MySqlSqlAssert.ContainsFunction(sql, "MIN");
@@ -140,9 +173,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Empty_source_stays_inside_the_statement(bool mariaDb)
+    public void Empty_source_stays_inside_the_statement(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Where(_ => false)
             .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
@@ -150,6 +188,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.DoesNotContain("COUNT(", sql, StringComparison.OrdinalIgnoreCase);
     }
@@ -160,9 +200,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Native_guid_nullability_and_collation_survive_binding(bool mariaDb)
+    public void Native_guid_nullability_and_collation_survive_binding(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes
             .Select(node => new { node.Token, node.OptionalName })
             .WithMaterializedSource(shared => shared.Join(
@@ -175,6 +220,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var sql = query.ToQueryString();
 
         AssertBinding(sql);
+
+        // Assert
         Assert.Contains("COLLATE utf8mb4_bin", sql, StringComparison.Ordinal);
         Assert.Contains("IS NULL", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.OrdinalIgnoreCase);
@@ -187,14 +234,19 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Equivalent_query_shapes_generate_stable_sql(bool mariaDb)
+    public void Equivalent_query_shapes_generate_stable_sql(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var first = BuildParameterizedQuery(context, 3);
         var second = BuildParameterizedQuery(context, 3);
 
+        // Act
         var sql = new[] { first.ToQueryString(), second.ToQueryString() };
 
+        // Assert
         Assert.Equal(sql[0], sql[1]);
         Assert.Contains("@minimum", sql[0], StringComparison.Ordinal);
     }
@@ -202,7 +254,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>
     /// Builds a fresh, equivalent expression tree while leaving scalar inputs parameterized.
     /// </summary>
-    private static IQueryable<int> BuildParameterizedQuery(BindingContext context, int minimum)
+    private static IQueryable<int> BuildParameterizedQuery(
+        BindingContext context,
+        int minimum
+    )
         => context.Nodes.Where(node => node.Left > minimum)
             .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
@@ -210,7 +265,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>
     /// Checks the provider-owned recursive fence without coupling tests to generated aliases.
     /// </summary>
-    private static void AssertBinding(string sql)
+    private static void AssertBinding(
+        string sql
+    )
     {
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("UNION ALL", sql, StringComparison.OrdinalIgnoreCase);
@@ -219,7 +276,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>
     /// Counts SQL tokens whose multiplicity distinguishes a definition from its references.
     /// </summary>
-    private static int CountOccurrences(string value, string fragment)
+    private static int CountOccurrences(
+        string value,
+        string fragment
+    )
     {
         var count = 0;
         var offset = 0;

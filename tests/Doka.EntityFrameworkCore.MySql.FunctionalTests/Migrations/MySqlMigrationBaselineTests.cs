@@ -11,10 +11,13 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Relational_connection_uses_a_mysql_connection_for_connection_string_registration()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
 
+        // Act
         var relationalConnection = context.GetService<IRelationalConnection>();
 
+        // Assert
         Assert.IsType<MySqlConnection>(relationalConnection.DbConnection);
         Assert.Contains("Database=doka", relationalConnection.DbConnection.ConnectionString, StringComparison.Ordinal);
     }
@@ -25,14 +28,17 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Query_translation_uses_limit_syntax_and_parameterized_predicates()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var id = 7;
 
+        // Act
         var sql = context
             .Entities.Where(entity => entity.Id == id)
             .Take(2)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("-- @id='7'", sql, StringComparison.Ordinal);
         Assert.Contains("WHERE `e`.`Id` = @id", sql, StringComparison.Ordinal);
         Assert.Contains("LIMIT @p", sql, StringComparison.Ordinal);
@@ -46,14 +52,18 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void History_repository_generates_the_expected_phase_1_scripts()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var historyRepository = context.GetService<IHistoryRepository>();
         var row = new HistoryRow("20260407120000_Initial", "10.0.0");
 
         var createScript = historyRepository.GetCreateScript();
         var insertScript = historyRepository.GetInsertScript(row);
+
+        // Act
         var deleteScript = historyRepository.GetDeleteScript(row.MigrationId);
 
+        // Assert
         Assert.Contains("CREATE TABLE `__EFMigrationsHistory`", createScript, StringComparison.Ordinal);
         Assert.Contains("`MigrationId` varchar(150) NOT NULL", createScript, StringComparison.Ordinal);
         Assert.Contains("`ProductVersion` varchar(32) NOT NULL", createScript, StringComparison.Ordinal);
@@ -71,14 +81,17 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void History_repository_uses_the_configured_history_table_name()
     {
+        // Arrange
         var options = CreateOptions(extension =>
             (MySqlOptionsExtension)extension.WithMigrationsHistoryTableName("__CustomHistory"));
 
         using var context = new BaselineContext(options);
         var historyRepository = context.GetService<IHistoryRepository>();
 
+        // Act
         var createScript = historyRepository.GetCreateScript();
 
+        // Assert
         Assert.Contains("CREATE TABLE `__CustomHistory`", createScript, StringComparison.Ordinal);
         Assert.Contains("CONSTRAINT `PK___CustomHistory` PRIMARY KEY", createScript, StringComparison.Ordinal);
     }
@@ -89,6 +102,7 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void History_repository_rejects_migrations_history_schema_overrides()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var options = CreateOptions(
@@ -99,9 +113,11 @@ public sealed class MySqlMigrationBaselineTests
 
         using var context = new BaselineContext(options);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => context.GetService<IHistoryRepository>());
+        // Act
+        var exception = Assert.Throws<InvalidOperationException>(context.GetService<IHistoryRepository>);
         var entry = Assert.Single(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SchemaUnsupported.Id);
 
+        // Assert
         Assert.Contains("migrations history table schema", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(MySqlEventId.SchemaUnsupported.Id, entry.EventId.Id);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
@@ -116,8 +132,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Migrations_sql_generator_generates_quoted_create_table_sql()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -140,6 +159,7 @@ public sealed class MySqlMigrationBaselineTests
 
         var command = Assert.Single(commands);
 
+        // Assert
         Assert.Contains("CREATE TABLE `ProbeTable`", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`Id` int NOT NULL", command.CommandText, StringComparison.Ordinal);
     }
@@ -151,6 +171,7 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Create_table_foreign_key_preserves_relational_schemas()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
         var operation = new CreateTableOperation
@@ -182,9 +203,11 @@ public sealed class MySqlMigrationBaselineTests
             },
         };
 
+        // Act
         var command = Assert.Single(
             migrationsSqlGenerator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("CREATE TABLE `dbo2`.`Child`", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("REFERENCES `dbo2`.`Parent` (`Id`)", command.CommandText, StringComparison.Ordinal);
     }
@@ -195,12 +218,15 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Ensure_schema_creates_database_if_missing()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
 
+        // Act
         var command = Assert.Single(
             migrationsSqlGenerator.Generate([new EnsureSchemaOperation { Name = "tenant_database" }], context.Model));
 
+        // Assert
         Assert.Equal(
             "CREATE DATABASE IF NOT EXISTS `tenant_database`;" + Environment.NewLine,
             command.CommandText);
@@ -212,10 +238,13 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Migrations_pipeline_emits_auto_increment_for_integer_primary_keys()
     {
+        // Arrange
         using var sourceContext = new EmptyBaselineContext(CreateOptions<EmptyBaselineContext>());
         using var targetContext = new BaselineContext(CreateOptions<BaselineContext>());
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
@@ -229,6 +258,7 @@ public sealed class MySqlMigrationBaselineTests
         var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
         var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
 
+        // Assert
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             idColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
@@ -242,8 +272,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Migrations_sql_generator_emits_sizes_for_bounded_string_and_binary_columns()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -281,6 +314,7 @@ public sealed class MySqlMigrationBaselineTests
 
         var command = Assert.Single(commands);
 
+        // Assert
         Assert.Contains("`Code` varchar(32) NOT NULL", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`LegacyGuid` char(36) NOT NULL", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`Token` varbinary(64) NOT NULL", command.CommandText, StringComparison.Ordinal);
@@ -292,9 +326,14 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Default_schema_configuration_is_preserved()
     {
+        // Arrange
         using var context = new DefaultSchemaContext(CreateOptions());
 
-        Assert.Equal("dbo", context.Model.GetDefaultSchema());
+        // Act
+        var schema = context.Model.GetDefaultSchema();
+
+        // Assert
+        Assert.Equal("dbo", schema);
     }
 
     /// <summary>
@@ -303,9 +342,13 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Entity_schema_configuration_is_preserved()
     {
+        // Arrange
         using var context = new EntitySchemaContext(CreateOptions());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(BaselineEntity));
 
+        // Assert
         Assert.NotNull(entityType);
         Assert.Equal("dbo", entityType.GetSchema());
     }
@@ -313,8 +356,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Create_index_emits_desc_for_descending_columns()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -329,6 +375,8 @@ public sealed class MySqlMigrationBaselineTests
             context.Model);
 
         var command = Assert.Single(commands);
+
+        // Assert
         Assert.Contains("DESC", command.CommandText, StringComparison.Ordinal);
     }
 
@@ -338,8 +386,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Create_index_preserves_relational_schema()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -355,6 +406,7 @@ public sealed class MySqlMigrationBaselineTests
 
         var command = Assert.Single(commands);
 
+        // Assert
         Assert.Contains("ON `dbo2`.`SchemaProbe` (`Code`)", command.CommandText, StringComparison.Ordinal);
     }
 
@@ -364,8 +416,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Rename_table_produces_mysql_rename_syntax()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -380,6 +435,8 @@ public sealed class MySqlMigrationBaselineTests
             context.Model);
 
         var command = Assert.Single(commands);
+
+        // Assert
         Assert.Contains("RENAME TABLE", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`source_database`.`OldTable`", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`target_database`.`NewTable`", command.CommandText, StringComparison.Ordinal);
@@ -391,8 +448,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Rename_column_produces_mysql_rename_column_syntax()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -406,6 +466,8 @@ public sealed class MySqlMigrationBaselineTests
             context.Model);
 
         var command = Assert.Single(commands);
+
+        // Assert
         Assert.Contains("RENAME COLUMN", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`OldColumn`", command.CommandText, StringComparison.Ordinal);
         Assert.Contains("`NewColumn`", command.CommandText, StringComparison.Ordinal);
@@ -417,8 +479,11 @@ public sealed class MySqlMigrationBaselineTests
     [Fact]
     public void Create_sequence_operation_produces_table_emulation_ddl()
     {
+        // Arrange
         using var context = new BaselineContext(CreateOptions());
         var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var commands = migrationsSqlGenerator.Generate(
             new MigrationOperation[]
             {
@@ -434,6 +499,7 @@ public sealed class MySqlMigrationBaselineTests
         // MySQL path: should create an emulation table.
         var sql = string.Join(Environment.NewLine, commands.Select(c => c.CommandText));
 
+        // Assert
         Assert.Contains("__efsequence_TestSequence", sql, StringComparison.Ordinal);
         Assert.Contains("`value` BIGINT NOT NULL", sql, StringComparison.Ordinal);
     }

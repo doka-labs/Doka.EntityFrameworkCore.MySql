@@ -14,10 +14,13 @@ public sealed partial class MySqlIndexByteBudgetTests
         int expectedLength
     )
     {
+        // Arrange
         using var context = CreateContext("charset-" + charSet);
 
+        // Act
         var property = context.Model.FindEntityType("Budget")!.FindProperty("B")!;
 
+        // Assert
         Assert.Equal(expectedLength, property.GetMaxLength());
     }
 
@@ -35,16 +38,20 @@ public sealed partial class MySqlIndexByteBudgetTests
         string configuredStoreType
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(expectedLength, entity.FindProperty("B")!.GetMaxLength());
         Assert.Equal(
             configuredStoreType,
             entity.FindProperty("A")!.FindAnnotation(RelationalAnnotationNames.ColumnType)!.Value);
         Assert.Equal("varchar(750)", entity.FindProperty("A")!.GetColumnType());
-        Assert.Contains("`A` varchar(750)", context.Database.GenerateCreateScript(), StringComparison.Ordinal);
+        Assert.Contains("`A` varchar(750)", ddl, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -61,13 +68,17 @@ public sealed partial class MySqlIndexByteBudgetTests
         long expectedBytes
     )
     {
+        // Arrange
         using var context = CreateContext("float-metadata");
+
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
         var property = entity.FindProperty("B")!;
         var mapping = new MySqlFloatTypeMapping(storeType);
 
         var bytes = MySqlIndexByteBudget.GetIndexedBytes(property, 0, null, bytesPerCharacter: null, mapping: mapping);
 
+        // Assert
         Assert.Equal(expectedBytes, bytes);
     }
 
@@ -84,13 +95,16 @@ public sealed partial class MySqlIndexByteBudgetTests
         long expectedBytes
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var property = context.Model.FindEntityType("Budget")!.FindProperty("D")!;
         var mapping = property.GetRelationalTypeMapping();
 
         var bytes = MySqlIndexByteBudget.GetIndexedBytes(property, 0, null, null);
 
+        // Assert
         Assert.Equal(storeType, mapping.StoreType);
         Assert.Equal(expectedBytes, bytes);
     }
@@ -102,11 +116,14 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Decimal_budget_allocates_only_the_remaining_full_character()
     {
+        // Arrange
         using var context = CreateContext("decimal-boundary-pass");
 
+        // Act
         var entity = context.Model.FindEntityType("Budget")!;
         var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(1, entity.FindProperty("E")!.GetMaxLength());
         Assert.Contains("`E` varchar(1)", ddl, StringComparison.Ordinal);
         Assert.Null(Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
@@ -119,10 +136,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Decimal_budget_rejects_a_key_one_byte_past_the_limit()
     {
+        // Arrange
         using var context = CreateContext("decimal-boundary-fail");
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("3072-byte", exception.Message, StringComparison.Ordinal);
     }
 
@@ -133,10 +153,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Explicit_decimal_key_overflow_is_rejected_by_model_validation()
     {
+        // Arrange
         using var context = CreateContext("decimal-explicit-overflow");
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("3073 bytes", exception.Message, StringComparison.Ordinal);
         Assert.Contains("3072-byte", exception.Message, StringComparison.Ordinal);
     }

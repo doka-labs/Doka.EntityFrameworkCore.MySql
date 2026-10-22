@@ -6,39 +6,54 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationOperationHandlerRegistryTests
 {
+    /// <summary>
+    /// Verifies registry snapshots handler metadata once.
+    /// </summary>
     [Fact]
     public void Registry_snapshots_handler_metadata_once()
     {
+        // Arrange
         var handler = new CountingHandler("sample.first", typeof(FirstOperation));
 
+        // Act
         var registry = new MySqlMigrationOperationHandlerRegistry([handler]);
 
+        // Assert
         var registration = AssertRegistration(registry, typeof(FirstOperation));
-
         Assert.Same(handler, registration.Handler);
         Assert.Equal("sample.first", registration.HandlerId);
         Assert.Equal(1, handler.HandlerIdReadCount);
         Assert.Equal(1, handler.OperationTypeReadCount);
     }
 
+    /// <summary>
+    /// Verifies separate handler instances of the same implementation can own distinct types.
+    /// </summary>
     [Fact]
     public void Separate_handler_instances_of_the_same_implementation_can_own_distinct_types()
     {
+        // Arrange
         var first = new CountingHandler("sample.first", typeof(FirstOperation));
         var second = new CountingHandler("sample.second", typeof(SecondOperation));
-
         var registry = new MySqlMigrationOperationHandlerRegistry([second, first]);
 
+        // Act
+        var actual = AssertRegistration(registry, typeof(FirstOperation))
+                .Handler;
+
+        // Assert
         Assert.Same(
             first,
-            AssertRegistration(registry, typeof(FirstOperation))
-                .Handler);
+            actual);
         Assert.Same(
             second,
             AssertRegistration(registry, typeof(SecondOperation))
                 .Handler);
     }
 
+    /// <summary>
+    /// Verifies invalid handler ids fail registration.
+    /// </summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -52,24 +67,41 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         string? handlerId
     )
     {
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]));
+        // Arrange
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidRegistration, exception.FailureCode);
         Assert.Null(exception.HandlerId);
     }
 
+    /// <summary>
+    /// Verifies handler ids longer than 200 ascii characters fail registration.
+    /// </summary>
     [Fact]
     public void Handler_ids_longer_than_200_ascii_characters_fail_registration()
     {
+        // Arrange
         var handlerId = $"sample.{new string('a', 194)}";
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
 
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidRegistration, exception.FailureCode);
     }
 
+    /// <summary>
+    /// Verifies duplicate handler ids fail independently of registration order.
+    /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -77,6 +109,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         bool reverseRegistrationOrder
     )
     {
+        // Arrange
         IMySqlMigrationOperationHandler[] handlers =
         [
             new CountingHandler("sample.shared", typeof(SecondOperation)),
@@ -88,14 +121,22 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry(handlers));
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry(handlers);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.DuplicateHandlerId, exception.FailureCode);
         Assert.Equal("sample.shared", exception.HandlerId);
         Assert.Equal(typeof(FirstOperation).FullName, exception.OperationType);
     }
 
+    /// <summary>
+    /// Verifies duplicate exact operation ownership fails independently of registration order.
+    /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -103,6 +144,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         bool reverseRegistrationOrder
     )
     {
+        // Arrange
         IMySqlMigrationOperationHandler[] handlers =
         [
             new CountingHandler("sample.first", typeof(FirstOperation)),
@@ -114,22 +156,35 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry(handlers));
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry(handlers);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.DuplicateOperationOwnership, exception.FailureCode);
         Assert.Equal("sample.first", exception.HandlerId);
         Assert.Equal(typeof(FirstOperation).FullName, exception.OperationType);
     }
 
+    /// <summary>
+    /// Verifies duplicate handler instance fails through the public handler id key.
+    /// </summary>
     [Fact]
     public void Duplicate_handler_instance_fails_through_the_public_handler_id_key()
     {
+        // Arrange
         var handler = new CountingHandler("sample.first", typeof(FirstOperation));
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([handler, handler]);
 
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([handler, handler]));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.DuplicateHandlerId, exception.FailureCode);
         Assert.Equal("sample.first", exception.HandlerId);
         Assert.Equal(typeof(FirstOperation).FullName, exception.OperationType);
@@ -137,43 +192,78 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         Assert.Equal(2, handler.OperationTypeReadCount);
     }
 
+    /// <summary>
+    /// Verifies null handler fails registration.
+    /// </summary>
     [Fact]
     public void Null_handler_fails_registration()
     {
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([null!]));
+        // Arrange
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([null!]);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidRegistration, exception.FailureCode);
     }
 
+    /// <summary>
+    /// Verifies non concrete migration operation types fail registration.
+    /// </summary>
     [Theory]
     [MemberData(nameof(InvalidOperationTypes))]
     public void Non_concrete_migration_operation_types_fail_registration(
         Type operationType
     )
     {
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]));
+        // Arrange
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidRegistration, exception.FailureCode);
     }
 
-    [Fact]
-    public void Every_ef_core_builtin_operation_is_reserved()
+    /// <summary>
+    /// Verifies every ef core builtin operation is reserved.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ReservedOperationCases))]
+    public void Every_ef_core_builtin_operation_is_reserved(
+        Type operationType
+    )
     {
-        foreach (var operationType in MySqlStandardMigrationOperations.Types)
-        {
-            var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-                new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.reserved", operationType)]));
+        // Arrange
+        var handler = new CountingHandler("sample.reserved", operationType);
 
-            Assert.Equal(MySqlMigrationHandlerFailureCode.ReservedOperationType, exception.FailureCode);
-            Assert.Equal(operationType.FullName, exception.OperationType);
-        }
+        // Act
+        var recordedException = Record.Exception(() =>
+            _ = new MySqlMigrationOperationHandlerRegistry([handler]));
+
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
+        Assert.Equal(MySqlMigrationHandlerFailureCode.ReservedOperationType, exception.FailureCode);
+        Assert.Equal(operationType.FullName, exception.OperationType);
     }
 
+    /// <summary>Supplies each exact EF Core operation type reserved by the provider.</summary>
+    public static IEnumerable<object[]> ReservedOperationCases() => MySqlStandardMigrationOperations.Types
+        .Select(type => new object[] { type });
+
+    /// <summary>
+    /// Verifies ef core dispatch and provider reserved operation sets agree.
+    /// </summary>
     [Fact]
     public void Ef_core_dispatch_and_provider_reserved_operation_sets_agree()
     {
+        // Arrange
         // This private field is intentionally inspected only in the test suite.
         // A supported EF Core patch that changes exact built-in dispatch must
         // fail qualification until the provider ownership set is reconciled.
@@ -181,7 +271,11 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             "GenerateActions",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
-        var generateActions = Assert.IsAssignableFrom<IDictionary>(generateActionsField?.GetValue(null));
+        // Act
+        var actual = generateActionsField?.GetValue(null);
+
+        // Assert
+        var generateActions = Assert.IsAssignableFrom<IDictionary>(actual);
         var efCoreOperationTypes = generateActions
             .Keys.Cast<Type>()
             .ToHashSet();
@@ -191,16 +285,24 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             "The provider reserved-operation set drifted from EF Core's exact dispatch table.");
     }
 
+    /// <summary>
+    /// Verifies getter failure is wrapped without copying its message.
+    /// </summary>
     [Fact]
     public void Getter_failure_is_wrapped_without_copying_its_message()
     {
+        // Arrange
         var secret = "server=private;password=do-not-log";
         var source = new InvalidOperationException(secret);
         var handler = new ThrowingMetadataHandler(source);
+        Func<object?> act = () =>
+            new MySqlMigrationOperationHandlerRegistry([handler]);
 
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            new MySqlMigrationOperationHandlerRegistry([handler]));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(recordedException);
         Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidRegistration, exception.FailureCode);
         Assert.Same(source, exception.InnerException);
         Assert.DoesNotContain(secret, exception.Message, StringComparison.Ordinal);
@@ -221,6 +323,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         Assert.True(registry.TryGet(operationType, out var registration));
+
         return registration;
     }
 
@@ -247,6 +350,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             get
             {
                 HandlerIdReadCount++;
+
                 return _handlerId;
             }
         }
@@ -256,6 +360,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             get
             {
                 OperationTypeReadCount++;
+
                 return _operationType;
             }
         }

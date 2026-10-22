@@ -10,13 +10,17 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     )
         where TNode : class
     {
+        // Arrange
         await using var fixture = await CreateMappingFixtureAsync<TNode>(target);
+
+        // Act
         var query = CreateMappingQuery(fixture.Context)
             .OrderBy(row => row.Tenant)
             .ThenBy(row => row.Id);
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(2, actual.Length);
         Assert.Equal(["value-1", "value-2"], actual.Select(row => row.Value));
         Assert.Equal(["detail-1", "detail-2"], actual.Select(row => row.Detail));

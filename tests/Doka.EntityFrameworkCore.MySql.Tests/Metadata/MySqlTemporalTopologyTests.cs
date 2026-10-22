@@ -14,10 +14,16 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Implicit_many_to_many_join_between_temporal_entities_is_temporal()
     {
+        // Arrange
         using var context = CreateContext<ManyToManyConfiguration>();
 
+        // Act
         var left = context.Model.FindEntityType(typeof(TemporalLeft))!;
-        var joinEntityType = Assert.Single(left.GetSkipNavigations())
+
+        var actual = left.GetSkipNavigations();
+
+        // Assert
+        var joinEntityType = Assert.Single(actual)
             .JoinEntityType;
 
         Assert.True(joinEntityType.IsMySqlTemporal());
@@ -31,10 +37,15 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Current_only_owned_entity_cannot_share_temporal_table()
     {
+        // Arrange
         using var context = CreateContext<CurrentOwnedConfiguration>();
+        Action act = () => _ = context.Model;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains(
             "Every entity type sharing table 'TemporalOwners' must use the same temporal mapping",
             exception.Message,
@@ -47,12 +58,17 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Implicit_owned_mapping_inherits_shared_temporal_table_contract()
     {
+        // Arrange
         using var context = CreateContext<ImplicitTemporalOwnedConfiguration>();
 
+        // Act
         var owner = context.Model.FindEntityType(typeof(TemporalOwner))!;
-        var owned = Assert.Single(owner.GetNavigations()).TargetEntityType;
-        var storeObject = StoreObjectIdentifier.Table("TemporalOwners", schema: null);
 
+        var actual = owner.GetNavigations();
+
+        // Assert
+        var owned = Assert.Single(actual).TargetEntityType;
+        var storeObject = StoreObjectIdentifier.Table("TemporalOwners", schema: null);
         Assert.True(owned.IsMySqlTemporal());
         Assert.Equal("TemporalOwnerHistory", owned.GetMySqlTemporalHistoryTableName());
         Assert.Equal("ValidFrom", owned.GetMySqlTemporalPeriodStartPropertyName());
@@ -67,11 +83,16 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Separately_mapped_owned_entity_does_not_inherit_temporal_contract()
     {
+        // Arrange
         using var context = CreateContext<SeparateOwnedConfiguration>();
 
+        // Act
         var owner = context.Model.FindEntityType(typeof(TemporalOwner))!;
-        var owned = Assert.Single(owner.GetNavigations()).TargetEntityType;
 
+        var actual = owner.GetNavigations();
+
+        // Assert
+        var owned = Assert.Single(actual).TargetEntityType;
         Assert.True(owner.IsMySqlTemporal());
         Assert.False(owned.IsMySqlTemporal());
         Assert.Equal("TemporalOwnerDetails", owned.GetTableName());
@@ -84,11 +105,17 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Separately_mapped_temporal_owned_entity_still_rejects_mysql_cascade()
     {
+        // Arrange
         using var context = CreateContext<SeparateTemporalOwnedConfiguration>(
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
+        Action act = () => _ = context.Model;
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("cannot use database delete behavior 'Cascade'", exception.Message, StringComparison.Ordinal);
     }
 
@@ -98,10 +125,16 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Matching_owned_temporal_mapping_can_share_table()
     {
+        // Arrange
         using var context = CreateContext<TemporalOwnedConfiguration>();
 
+        // Act
         var owner = context.Model.FindEntityType(typeof(TemporalOwner))!;
-        var owned = Assert.Single(owner.GetNavigations())
+
+        var actual = owner.GetNavigations();
+
+        // Assert
+        var owned = Assert.Single(actual)
             .TargetEntityType;
 
         Assert.True(owner.IsMySqlTemporal());
@@ -120,12 +153,17 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Tph_hierarchy_can_share_temporal_table()
     {
+        // Arrange
         using var context = CreateContext<TphConfiguration>();
 
+        // Act
         var root = context.Model.FindEntityType(typeof(TemporalAnimal))!;
         var derived = context.Model.FindEntityType(typeof(TemporalDog))!;
 
-        Assert.Equal("TemporalAnimals", root.GetTableName());
+        var actual = root.GetTableName();
+
+        // Assert
+        Assert.Equal("TemporalAnimals", actual);
         Assert.Equal(root.GetTableName(), derived.GetTableName());
         Assert.True(root.IsMySqlTemporal());
         Assert.True(derived.IsMySqlTemporal());
@@ -137,16 +175,20 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Tpt_hierarchy_propagates_temporal_metadata_to_each_table()
     {
+        // Arrange
         using var context = CreateContext<TptConfiguration>();
 
+        // Act
         var root = context.Model.FindEntityType(typeof(TemporalAnimal))!;
         var derived = context.Model.FindEntityType(typeof(TemporalDog))!;
         var rootPeriodStart = root.GetMySqlTemporalPeriodStartPropertyName()!;
         var derivedPeriodStart = derived.GetMySqlTemporalPeriodStartPropertyName()!;
         var derivedStoreObject = StoreObjectIdentifier.Table("TemporalDogs", schema: null);
 
-        var baseLink = Assert.Single(derived.GetForeignKeys(), foreignKey => foreignKey.IsBaseLinking());
+        var actual = derived.GetForeignKeys();
 
+        // Assert
+        var baseLink = Assert.Single(actual, foreignKey => foreignKey.IsBaseLinking());
         Assert.True(root.IsMySqlTemporal());
         Assert.True(derived.IsMySqlTemporal());
         Assert.NotEqual(rootPeriodStart, derivedPeriodStart);
@@ -162,14 +204,19 @@ public sealed class MySqlTemporalTopologyTests
     [Fact]
     public void Tpc_hierarchy_propagates_temporal_metadata_to_each_branch()
     {
+        // Arrange
         using var context = CreateContext<TpcConfiguration>();
 
+        // Act
         var dog = context.Model.FindEntityType(typeof(TemporalDog))!;
         var cat = context.Model.FindEntityType(typeof(TemporalCat))!;
         var catPeriodStart = cat.GetMySqlTemporalPeriodStartPropertyName()!;
         var catStoreObject = StoreObjectIdentifier.Table("TemporalCats", schema: null);
 
-        Assert.True(dog.IsMySqlTemporal());
+        var actual = dog.IsMySqlTemporal();
+
+        // Assert
+        Assert.True(actual);
         Assert.True(cat.IsMySqlTemporal());
         Assert.Equal(
             MySqlTemporalMetadata.DefaultPeriodStartPropertyName,
@@ -343,6 +390,7 @@ public sealed class MySqlTemporalTopologyTests
                             if (ownedTemporalMapping == OwnedTemporalMapping.ExplicitCurrent)
                             {
                                 table.IsTemporal(false);
+
                                 return;
                             }
 

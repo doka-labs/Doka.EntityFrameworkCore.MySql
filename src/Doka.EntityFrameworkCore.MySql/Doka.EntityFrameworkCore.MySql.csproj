@@ -32,4 +32,35 @@
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" Link="README.md" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Internal/Metadata/Validation/MySqlModelValidator.*.cs">
+      <DependentUpon>MySqlModelValidator.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Migrations/MySqlMigrationsModelDiffer.*.cs">
+      <DependentUpon>MySqlMigrationsModelDiffer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Migrations/MySqlMigrationsSqlGenerator.*.cs">
+      <DependentUpon>MySqlMigrationsSqlGenerator.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/SqlGeneration/MySqlQuerySqlGenerator.*.cs">
+      <DependentUpon>MySqlQuerySqlGenerator.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/Translation/MySqlQueryableMethodTranslatingExpressionVisitor.*.cs">
+      <DependentUpon>MySqlQueryableMethodTranslatingExpressionVisitor.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Scaffolding/MySqlScaffoldingModelFactory.*.cs">
+      <DependentUpon>MySqlScaffoldingModelFactory.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Update/MySqlModificationCommandBatch.*.cs">
+      <DependentUpon>MySqlModificationCommandBatch.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Update/MySqlUpdateSqlGenerator.*.cs">
+      <DependentUpon>MySqlUpdateSqlGenerator.cs</DependentUpon>
+    </Compile>
+    <Compile Update="MySqlQueryableExtensions.*.cs">
+      <DependentUpon>MySqlQueryableExtensions.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

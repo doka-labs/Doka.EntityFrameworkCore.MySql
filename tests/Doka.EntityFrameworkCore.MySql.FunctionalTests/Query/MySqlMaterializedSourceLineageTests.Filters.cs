@@ -17,12 +17,15 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         int outerTenant
     )
     {
+        // Arrange
         using var context = CreateFilterContext(mariaDb);
         context.FirstTenantId = firstTenant;
         context.SecondTenantId = secondTenant;
         context.OuterTenantId = outerTenant;
         var first = context.First.WithMaterializedSource(shared => shared);
         var second = context.Second.WithMaterializedSource(shared => shared);
+
+        // Act
         var query = first.Join(second, row => row.Id, row => row.Id, (left, _) => left.Id)
             .Join(context.Outer, id => id, row => row.Id, (id, _) => id);
 
@@ -37,6 +40,7 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             .OrderBy(value => value)
             .ToArray();
 
+        // Assert
         Assert.True(expectedValues.SequenceEqual(actualValues), sql);
         Assert.Equal(3, declarations.Select(match => match.Groups["name"].Value).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageFilterFirst`"));
@@ -48,15 +52,22 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Volatile_root_filter_is_not_reapplied_after_random_paging(bool mariaDb)
+    public void Volatile_root_filter_is_not_reapplied_after_random_paging(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateFilterContext(mariaDb);
+
+        // Act
         var query = context.Volatile.OrderBy(_ => EF.Functions.Random()).Skip(1).Take(3)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
 
         // WHY: Paging may project its random ordering expression too; only the selection predicate must occur once.
+
+        // Assert
         Assert.Single(Regex.Matches(sql, @"RAND\(\)\s*>\s*0\.5"));
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageVolatile`"));
         Assert.Equal(1, CountOccurrences(sql, "LIMIT"));
@@ -67,14 +78,20 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Navigated_target_filter_remains_after_binding(bool mariaDb)
+    public void Navigated_target_filter_remains_after_binding(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateFilterContext(mariaDb);
+
+        // Act
         var query = context.NavigationSources.WithMaterializedSource(shared =>
             shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageNavigationSources`"));
         Assert.Equal(1, CountOccurrences(sql, "`LineageNavigationTargets`"));
@@ -86,22 +103,30 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Ignoring_query_filters_removes_navigated_target_filter(bool mariaDb)
+    public void Ignoring_query_filters_removes_navigated_target_filter(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateFilterContext(mariaDb);
+
+        // Act
         var query = context.NavigationSources.WithMaterializedSource(shared =>
                 shared.Select(row => row.Target.Name))
             .IgnoreQueryFilters();
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(sql, "`LineageNavigationTargets`"));
         Assert.DoesNotContain("`IsVisible`", sql, StringComparison.Ordinal);
     }
 
     /// <summary>Creates a context with separate filtered roots and one explicitly volatile filter.</summary>
-    private static FilterContext CreateFilterContext(bool mariaDb)
+    private static FilterContext CreateFilterContext(
+        bool mariaDb
+    )
     {
         var version = mariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
@@ -154,7 +179,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         public int OuterTenant() => OuterTenantId;
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<FirstFiltered>().ToTable("LineageFilterFirst")
                 .HasQueryFilter(row => row.TenantId == FirstTenant());
@@ -226,7 +253,7 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         /// <summary>Gets or sets the target key.</summary>
         public int TargetId { get; set; }
 
-        /// <summary>Gets or sets the required filtered target.</summary>
+        /// <summary>Gets or sets the required to be filtered target.</summary>
         public NavigationFilteredTarget Target { get; set; } = null!;
     }
 

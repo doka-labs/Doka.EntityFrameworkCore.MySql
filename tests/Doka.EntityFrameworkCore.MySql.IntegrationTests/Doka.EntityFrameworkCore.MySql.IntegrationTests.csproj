@@ -29,4 +29,65 @@
       Include="../../examples/MigrationsWorkflow/MigrationsWorkflow.csproj"
       ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Caching/MySqlDistributedCacheIntegrationTests.*.cs">
+      <DependentUpon>MySqlDistributedCacheIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Compatibility/MySql84CrudBaselineTests.*.cs">
+      <DependentUpon>MySql84CrudBaselineTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlColumnDefaultIntegrationTests.*.cs">
+      <DependentUpon>MySqlColumnDefaultIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlGuidMigrationIntegrationTests.*.cs">
+      <DependentUpon>MySqlGuidMigrationIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlGuidSqlDefaultDdlIntegrationTests.*.cs">
+      <DependentUpon>MySqlGuidSqlDefaultDdlIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlIndexKeyIntegrationTests.*.cs">
+      <DependentUpon>MySqlIndexKeyIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlScopedMigrationOperationIntegrationTests.*.cs">
+      <DependentUpon>MySqlScopedMigrationOperationIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlGuidTextIntegrationTests.*.cs">
+      <DependentUpon>MySqlGuidTextIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlJsonCollectionFacetIntegrationTests.*.cs">
+      <DependentUpon>MySqlJsonCollectionFacetIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlLikeIntegrationTests.*.cs">
+      <DependentUpon>MySqlLikeIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlMaterializedSourceIntegrationTests.*.cs">
+      <DependentUpon>MySqlMaterializedSourceIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlPrimitiveCollectionFacetIntegrationTests.*.cs">
+      <DependentUpon>MySqlPrimitiveCollectionFacetIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlPrimitiveCollectionParameterIntegrationTests.*.cs">
+      <DependentUpon>MySqlPrimitiveCollectionParameterIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlQueryTranslationIntegrationTests.*.cs">
+      <DependentUpon>MySqlQueryTranslationIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Scaffolding/MySqlScaffoldingRoundTripTests.*.cs">
+      <DependentUpon>MySqlScaffoldingRoundTripTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Scaffolding/MySqlScaffoldingScaleTests.*.cs">
+      <DependentUpon>MySqlScaffoldingScaleTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Spatial/MySqlNetTopologySuiteContractIntegrationTests.*.cs">
+      <DependentUpon>MySqlNetTopologySuiteContractIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Storage/MySqlMariaDbUuidIntegrationTests.*.cs">
+      <DependentUpon>MySqlMariaDbUuidIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Update/MySqlGeneratedValueReadbackTests.*.cs">
+      <DependentUpon>MySqlGeneratedValueReadbackTests.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

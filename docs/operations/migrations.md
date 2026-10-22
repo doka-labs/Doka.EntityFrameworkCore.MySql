@@ -95,6 +95,53 @@ expressions and are therefore emitted as parenthesized column defaults. The
 same policy covers expression-default forms for text, binary, JSON, and every
 spatial store type, including store types with modifiers.
 
+### GUID SQL defaults
+
+Version 10.6.1 corrects implicit client generation that could bypass a GUID SQL
+default. Before upgrading from 10.6.0 or earlier:
+
+1. Decide whether each affected property should use server or client generation.
+   Explicit client strategies and application generator factories are preserved;
+   do not remove them unless server generation is intended. A historical
+   `ClientGuid` snapshot annotation is also preserved, not silently reinterpreted.
+2. Exercise inserts with omitted and supplied keys, including dependent foreign
+   keys. MariaDB supports unknown UUID key readback through `RETURNING`; MySQL
+   now rejects unsupported generated-key inserts before execution. For MySQL,
+   supply the key or explicitly select client generation when that matches the
+   application contract.
+3. Review the next scaffolded migration and snapshot. Regenerate an unpublished
+   migration from the corrected application model when appropriate; keep already
+   deployed migration files and history unchanged. Changing only an implicit
+   generation annotation does not require a physical column change.
+
+`HasDefaultValueSql("UUID()")`, `AddColumn<Guid>(..., defaultValueSql: "UUID()")`,
+and `table.Column<Guid>(..., defaultValueSql: "UUID()")` preserve the SQL
+expression through migration source, snapshot/designer compilation, and DDL.
+Use `char(36)` or MariaDB's native `uuid` for this expression; a `binary(16)`
+column instead requires `UNHEX(REPLACE(UUID(), '-', ''))` for Doka's byte layout.
+`UUID()` alone does not fit that binary column. The provider does not reinterpret
+an application-supplied expression as a literal or rewrite it for another format.
+
+`CREATE TABLE` with these defaults works on the supported matrix. MariaDB also
+backfills populated tables when adding a required column with a UUID expression.
+MySQL 8.4 and 9.7 reject nondeterministic expression defaults in `ALTER TABLE ADD
+COLUMN` with error 1674 in the qualified configuration, even for an empty table.
+This is a server restriction, not a lost Guid mapping. For existing MySQL tables,
+use a reviewed staged migration: add a nullable column without the default,
+explicitly populate it, and then apply the required/default contract after
+checking the live engine's DDL rules. Do not disable replication safeguards to
+make the one-step operation succeed. See the
+[MySQL ALTER TABLE rules](https://dev.mysql.com/doc/refman/8.4/en/alter-table.html).
+
+Live scaffolding preserves the SQL default and store-generation facets.
+`char(36)` remains `string` unless `ScaffoldTextGuidsAsGuids()` is enabled;
+MariaDB `uuid` scaffolds as `Guid` without that opt-in. Binary columns do not
+intrinsically identify a Guid or its byte layout, so no new Binary16 inference
+is introduced. Runtime key generation and explicit override precedence are
+documented in [provider configuration](../provider-configuration.md#guid-sql-defaults-and-computed-values).
+
+### Temporal literal precision
+
 DateTime, TimeOnly, and TimeSpan precision is limited to the engine range of
 zero through six before migration SQL is generated. Explicit `datetime(...)`,
 `timestamp(...)`, and `time(...)` metadata is parsed strictly; malformed or

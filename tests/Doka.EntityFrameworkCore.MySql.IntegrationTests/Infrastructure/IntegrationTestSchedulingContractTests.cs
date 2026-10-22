@@ -7,6 +7,34 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class IntegrationTestSchedulingContractTests
 {
+    /// <summary>Supplies only the supported engines selected for this test run.</summary>
+    public static IEnumerable<object[]> SelectedSupportedTargets =>
+        IntegrationTestEnvironment
+            .GetSelectedTargets()
+            .Where(IntegrationTestEnvironment.GetSupportedTargets().Contains)
+            .Select(target => new object[] { target.ToString() });
+
+    /// <summary>
+    /// Guards the selected-target theory discovery used by the split live tests.
+    /// </summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedSupportedTargets))]
+    public void Selected_supported_target_theory_reports_the_selected_engine(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        // Act
+        var isSelected = IntegrationTestEnvironment.IsTargetSelected(target);
+
+        // Assert
+        Assert.True(isSelected);
+        Assert.Contains(target, IntegrationTestEnvironment.GetSupportedTargets());
+    }
+
+    /// <summary>Verifies database classes run in bounded parallel collections.</summary>
     [Fact]
     public void Database_classes_run_in_bounded_parallel_collections()
     {
@@ -25,6 +53,7 @@ public sealed class IntegrationTestSchedulingContractTests
         Assert.Null(ordinaryCollection);
     }
 
+    /// <summary>Verifies process wide pool reset is exclusive.</summary>
     [Fact]
     public void Process_wide_pool_reset_is_exclusive()
     {

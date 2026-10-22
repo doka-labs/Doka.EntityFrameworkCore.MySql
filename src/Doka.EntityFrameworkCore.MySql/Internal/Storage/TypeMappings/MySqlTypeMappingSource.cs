@@ -724,24 +724,6 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         return new ByteArrayTypeMapping(storeType, DbType.Binary, storeSize is > 0 ? storeSize : null);
     }
 
-    private static RelationalTypeMapping CreateEnumMapping(
-        Type clrType
-    )
-    {
-        ArgumentNullException.ThrowIfNull(clrType);
-
-        var underlyingType = Enum.GetUnderlyingType(clrType);
-
-        if (s_clrMappings.TryGetValue(underlyingType, out var mapping))
-        {
-            return mapping;
-        }
-
-        throw new InvalidOperationException(
-            $"The enum CLR type '{clrType.FullName ?? clrType.Name}' uses the unsupported "
-            + $"underlying type '{underlyingType.FullName ?? underlyingType.Name}'.");
-    }
-
     private static DecimalTypeMapping CreateDecimalMapping(
         RelationalTypeMappingInfo mappingInfo
     )

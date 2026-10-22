@@ -59,6 +59,7 @@ public sealed class MigrationProcessRecoveryTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var databaseName = $"doka_migration_abort_{Guid.NewGuid():N}"[..45];
         var connectionString = IntegrationDatabaseUtilities.BuildConnectionString(baseConnectionString, databaseName);
@@ -74,6 +75,8 @@ public sealed class MigrationProcessRecoveryTests
 
         try
         {
+            // WHY: Recovery and repeat application must consume the state left by the killed migrator process.
+            // Act
             await InterruptMigratorAsync(connectionString, serverVersion, pauseFile, lockName)
                 .ConfigureAwait(false);
 
@@ -87,6 +90,7 @@ public sealed class MigrationProcessRecoveryTests
             await RunMigratorAsync(connectionString, serverVersion, "verify-latest")
                 .ConfigureAwait(false);
 
+            // Assert
             await AssertMigratedStateAsync(connectionString)
                 .ConfigureAwait(false);
         }
@@ -293,6 +297,7 @@ public sealed class MigrationProcessRecoveryTests
         string lockName
     )
     {
+        // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
             .OpenAsync(CancellationToken.None)
@@ -302,10 +307,11 @@ public sealed class MigrationProcessRecoveryTests
         command.CommandText = "SELECT IS_USED_LOCK(@name);";
         command.Parameters.AddWithValue("@name", lockName);
 
-        Assert.NotNull(
-            await command
-                .ExecuteScalarAsync(CancellationToken.None)
-                .ConfigureAwait(false));
+        // Act
+        var lockOwner = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        Assert.NotNull(lockOwner);
     }
 
     private static async Task AssertLockBecomesFreeAsync(

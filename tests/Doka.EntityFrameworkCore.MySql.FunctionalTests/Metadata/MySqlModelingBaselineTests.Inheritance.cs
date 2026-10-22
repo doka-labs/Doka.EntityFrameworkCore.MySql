@@ -10,13 +10,18 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_produces_single_table_with_discriminator_and_nullable_derived_columns()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
         var model = context.Model;
         var baseType = model.FindEntityType(typeof(Animal))!;
         var dogType = model.FindEntityType(typeof(Dog))!;
         var catType = model.FindEntityType(typeof(Cat))!;
 
         // All types share the same table.
+
+        // Assert
         Assert.Equal("Animals", baseType.GetTableName());
         Assert.Equal("Animals", dogType.GetTableName());
         Assert.Equal("Animals", catType.GetTableName());
@@ -43,11 +48,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_three_level_hierarchy_shares_single_table()
     {
+        // Arrange
         using var context = new TphDeepContext(CreateOptions<TphDeepContext>());
+
+        // Act
         var model = context.Model;
         var mammalType = model.FindEntityType(typeof(Mammal))!;
         var dogType = model.FindEntityType(typeof(DeepDog))!;
 
+        // Assert
         Assert.Equal("Animals", mammalType.GetTableName());
         Assert.Equal("Animals", dogType.GetTableName());
 
@@ -66,9 +75,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_custom_discriminator_value_is_preserved()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
         var dogType = context.Model.FindEntityType(typeof(Dog))!;
 
+        // Assert
         Assert.Equal("Canine", dogType.GetDiscriminatorValue());
     }
 
@@ -78,12 +91,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_of_type_query_produces_discriminator_filter()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
         var sql = context
             .Set<Animal>()
             .OfType<Dog>()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("Discriminator", sql, StringComparison.Ordinal);
         Assert.Contains("Canine", sql, StringComparison.Ordinal);
     }
@@ -96,12 +113,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tpt_produces_separate_tables_with_fk()
     {
+        // Arrange
         using var context = new TptContext(CreateOptions<TptContext>());
+
+        // Act
         var model = context.Model;
         var baseType = model.FindEntityType(typeof(Vehicle))!;
         var carType = model.FindEntityType(typeof(Car))!;
         var truckType = model.FindEntityType(typeof(Truck))!;
 
+        // Assert
         Assert.Equal("Vehicles", baseType.GetTableName());
         Assert.Equal("Cars", carType.GetTableName());
         Assert.Equal("Trucks", truckType.GetTableName());
@@ -113,12 +134,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tpt_of_type_generates_inner_join()
     {
+        // Arrange
         using var context = new TptContext(CreateOptions<TptContext>());
+
+        // Act
         var sql = context
             .Set<Vehicle>()
             .OfType<Car>()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("JOIN", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Cars", sql, StringComparison.Ordinal);
     }
@@ -131,19 +156,20 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tpc_produces_separate_tables_with_union_all_query()
     {
+        // Arrange
         using var context = new TpcContext(CreateOptions<TpcContext>());
+
+        // Act
         var model = context.Model;
         var circleType = model.FindEntityType(typeof(Circle))!;
         var rectangleType = model.FindEntityType(typeof(Rectangle))!;
-
-        Assert.Equal("Circles", circleType.GetTableName());
-        Assert.Equal("Rectangles", rectangleType.GetTableName());
-
-        // Base type query should produce UNION ALL.
         var sql = context
             .Set<Shape>()
             .ToQueryString();
 
+        // Assert
+        Assert.Equal("Circles", circleType.GetTableName());
+        Assert.Equal("Rectangles", rectangleType.GetTableName());
         Assert.Contains("UNION ALL", sql, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -155,12 +181,17 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_discriminator_produces_varchar_column()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
         var baseType = context.Model.FindEntityType(typeof(Animal))!;
         var discriminator = baseType.FindDiscriminatorProperty()!;
+
+        // Act
         var columnType = discriminator.GetColumnType();
 
         // Must not be longtext -- should be varchar with a bounded length.
+
+        // Assert
         Assert.NotNull(columnType);
         Assert.DoesNotContain("longtext", columnType, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("varchar", columnType, StringComparison.OrdinalIgnoreCase);
@@ -172,11 +203,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_discriminator_with_explicit_max_length_produces_correct_varchar()
     {
+        // Arrange
         using var context = new TphExplicitLengthContext(CreateOptions<TphExplicitLengthContext>());
         var baseType = context.Model.FindEntityType(typeof(TaggedAnimal))!;
         var discriminator = baseType.FindDiscriminatorProperty()!;
+
+        // Act
         var columnType = discriminator.GetColumnType();
 
+        // Assert
         Assert.Equal("varchar(64)", columnType);
     }
 
@@ -188,9 +223,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_abstract_base_class_is_modeled()
     {
+        // Arrange
         using var context = new TphDeepContext(CreateOptions<TphDeepContext>());
+
+        // Act
         var baseType = context.Model.FindEntityType(typeof(DeepAnimal))!;
 
+        // Assert
         Assert.True(baseType.ClrType.IsAbstract);
         Assert.Equal("Animals", baseType.GetTableName());
     }
@@ -201,9 +240,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tpt_three_level_hierarchy_produces_three_tables()
     {
+        // Arrange
         using var context = new TptDeepContext(CreateOptions<TptDeepContext>());
+
+        // Act
         var model = context.Model;
 
+        // Assert
         Assert.Equal("BaseVehicles", model.FindEntityType(typeof(BaseVehicle))!.GetTableName());
         Assert.Equal("MotorVehicles", model.FindEntityType(typeof(MotorVehicle))!.GetTableName());
         Assert.Equal("ElectricCars", model.FindEntityType(typeof(ElectricCar))!.GetTableName());
@@ -293,11 +336,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_int_discriminator_produces_int_column()
     {
+        // Arrange
         using var context = new TphIntDiscriminatorContext(CreateOptions<TphIntDiscriminatorContext>());
         var baseType = context.Model.FindEntityType(typeof(IntAnimal))!;
         var discriminator = baseType.FindDiscriminatorProperty()!;
+
+        // Act
         var columnType = discriminator.GetColumnType();
 
+        // Assert
         Assert.Equal("int", columnType);
     }
     /// <summary>
@@ -306,9 +353,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Tph_custom_discriminator_value_in_model()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
         var catType = context.Model.FindEntityType(typeof(Cat))!;
 
+        // Assert
         Assert.Equal("Feline", catType.GetDiscriminatorValue());
     }
 

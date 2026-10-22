@@ -10,6 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Trait("Category", "ObservabilityContract")]
 public sealed class MySqlCrossLayerObservabilityTests
 {
+    /// <summary>Verifies mysql84 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_correlates_the_complete_observability_stack()
     {
@@ -19,6 +20,7 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mysql97 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task MySql97_correlates_the_complete_observability_stack()
     {
@@ -28,6 +30,7 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb1011 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_correlates_the_complete_observability_stack()
     {
@@ -37,6 +40,7 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb114 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_correlates_the_complete_observability_stack()
     {
@@ -46,6 +50,7 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb118 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_correlates_the_complete_observability_stack()
     {
@@ -55,6 +60,7 @@ public sealed class MySqlCrossLayerObservabilityTests
             .ConfigureAwait(false);
     }
 
+    /// <summary>Verifies mariadb123 correlates the complete observability stack.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_correlates_the_complete_observability_stack()
     {
@@ -69,6 +75,7 @@ public sealed class MySqlCrossLayerObservabilityTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         using var activitySink = new CrossLayerActivitySink();
         using var meterSink = new CrossLayerMeterSink();
         using var diagnosticSink = new EfCoreDiagnosticSink();
@@ -88,6 +95,7 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         // Server-version resolution is a one-shot singleton initialization signal.
         // Disable EF's provider cache so this test observes that boundary itself.
+
         await using var context = new ObservabilityContext(
             IntegrationTestDbContextOptions.Create<ObservabilityContext>()
                 .EnableServiceProviderCaching(false)
@@ -95,12 +103,13 @@ public sealed class MySqlCrossLayerObservabilityTests
                 .UseMySql(connectionStringBuilder.ConnectionString, serverVersion)
                 .Options);
 
-        Assert.Equal(
-            1,
-            await context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-                .SingleAsync()
-                .ConfigureAwait(false));
+        // Act
+        // WHY: The query, migration lock and connection release deliberately share
+        // one trace so correlation is verified across all three telemetry layers.
+        var scalar = await context
+            .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync()
+            .ConfigureAwait(false);
 
         await using (var migrationLock = await context
                          .GetService<IHistoryRepository>()
@@ -131,6 +140,9 @@ public sealed class MySqlCrossLayerObservabilityTests
         var resolutionLogs = logSink
             .Entries.Where(entry => entry.EventId == MySqlEventId.ServerVersionResolved)
             .ToList();
+
+        // Assert
+        Assert.Equal(1, scalar);
 
         var migrationLockLog = Assert.Single(
             logSink.Entries,
@@ -163,12 +175,18 @@ public sealed class MySqlCrossLayerObservabilityTests
             log => Assert.Contains(providerActivities, activity => activity.SpanId.ToString() == log.SpanId));
         Assert.Contains(
             meterSink.Measurements,
-            measurement => measurement.MeterName == MySqlDiagnostics.SourceName
-                && measurement.InstrumentName == MySqlDiagnostics.ServerVersionResolutionTotalMetricName);
+            measurement => measurement is
+            {
+                MeterName: MySqlDiagnostics.SourceName,
+                InstrumentName: MySqlDiagnostics.ServerVersionResolutionTotalMetricName,
+            });
         Assert.Contains(
             meterSink.Measurements,
-            measurement => measurement.MeterName == MySqlDiagnostics.SourceName
-                && measurement.InstrumentName == MySqlDiagnostics.MigrationLockAcquireDurationMetricName);
+            measurement => measurement is
+            {
+                MeterName: MySqlDiagnostics.SourceName,
+                InstrumentName: MySqlDiagnostics.MigrationLockAcquireDurationMetricName,
+            });
         Assert.Contains(
             meterSink.Measurements,
             measurement => measurement.MeterName == MySqlDiagnostics.MySqlConnectorSourceName);
@@ -198,7 +216,7 @@ public sealed class MySqlCrossLayerObservabilityTests
                 ShouldListenTo =
                     source => source.Name is MySqlDiagnostics.SourceName
                         or MySqlDiagnostics.MySqlConnectorSourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+                Sample = (ref _) =>
                     ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = Activities.Enqueue,
             };

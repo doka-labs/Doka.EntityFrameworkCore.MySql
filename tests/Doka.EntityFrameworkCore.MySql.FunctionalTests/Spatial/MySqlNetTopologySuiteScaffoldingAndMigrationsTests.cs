@@ -13,11 +13,16 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public void Reverse_engineering_with_the_optional_spatial_package_scaffolds_the_spatial_contract()
     {
+        // Arrange
+        var databaseModel = CreateSpatialDatabaseModel();
+
+        // Act
         var scaffoldedModel = ScaffoldModel(
-            CreateSpatialDatabaseModel(),
+            databaseModel,
             detectedServerVersionText: "8.4.6",
             includeNetTopologySuite: true);
 
+        // Assert
         Assert.Contains("UseNetTopologySuite()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains("HasSrid(4326)", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains("IsSpatial()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
@@ -40,14 +45,20 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public void Reverse_engineering_without_the_optional_spatial_package_warns_and_skips_spatial_artifacts()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
+
+        var databaseModel = CreateSpatialDatabaseModel();
+
+        // Act
         var scaffoldedModel = ScaffoldModel(
-            CreateSpatialDatabaseModel(),
+            databaseModel,
             detectedServerVersionText: "8.4.6",
             includeNetTopologySuite: false,
             loggerFactory: loggerFactory);
 
+        // Assert
         Assert.DoesNotContain("UseNetTopologySuite()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("HasSrid(", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("IsSpatial()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
@@ -78,12 +89,14 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public async Task Concurrent_reverse_engineering_isolates_server_and_spatial_state()
     {
+        // Arrange
         using var databaseModelBoundary = new Barrier(2);
         using var providerCodeBoundary = new Barrier(2);
         await using var serviceProvider = CreateConcurrentDesignTimeServiceProvider(
             databaseModelBoundary,
             providerCodeBoundary);
 
+        // Act
         var mySqlTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
             serviceProvider,
             "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"));
@@ -96,6 +109,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var mySqlCode = results[0].ContextFile.Code;
         var mariaDbCode = results[1].ContextFile.Code;
 
+        // Assert
         Assert.Contains(
             "MySqlServerVersion.MySql(new System.Version(8, 4, 6))",
             mySqlCode,
@@ -122,14 +136,17 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         bool cancel
     )
     {
+        // Arrange
         const string connectionString =
             "Server=localhost;Database=failing_operation;User ID=root;Password=secret;";
 
         using var serviceProvider = CreateFailingDesignTimeServiceProvider(cancel);
 
+        // Act
         var exception = Record.Exception(
             () => ScaffoldModel(serviceProvider, connectionString));
 
+        // Assert
         if (cancel)
         {
             Assert.IsType<OperationCanceledException>(exception);
@@ -148,12 +165,15 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public void MySql_spatial_migrations_emit_srid_and_spatial_index_sql()
     {
+        // Arrange
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: false));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: false));
 
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
@@ -168,6 +188,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                 .Generate(operations, targetContext.Model)
                 .Select(command => command.CommandText));
 
+        // Assert
         Assert.Contains("`Location` point SRID 4326 NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE SPATIAL INDEX", sql, StringComparison.Ordinal);
         Assert.Contains("(`Location`)", sql, StringComparison.Ordinal);
@@ -180,12 +201,15 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public void MariaDb_spatial_migrations_emit_srid_check_and_spatial_index_sql()
     {
+        // Arrange
         using var sourceContext = new EmptySpatialContext(CreateOptions<EmptySpatialContext>(isMariaDb: true));
         using var targetContext =
             new SpatialMigrationsContext(CreateOptions<SpatialMigrationsContext>(isMariaDb: true));
 
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
         var migrationsSqlGenerator = targetContext.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
@@ -200,6 +224,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                 .Generate(operations, targetContext.Model)
                 .Select(command => command.CommandText));
 
+        // Assert
         Assert.Contains(
             "`Location` point NOT NULL CHECK (ST_SRID(`Location`) = 4326)",
             sql,
@@ -214,17 +239,20 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
     [Fact]
     public void Invalid_multi_column_spatial_indexes_fail_validation_explicitly()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         using var context =
             new InvalidSpatialIndexContext(CreateOptions<InvalidSpatialIndexContext>(false, loggerFactory));
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
         var entry = Assert.Single(
             sink.Entries,
             logEntry => logEntry.EventId == MySqlEventId.InvalidSpatialIndexConfiguration
                 && logEntry.Category == DbLoggerCategory.Model.Validation.Name);
 
+        // Assert
         Assert.Contains("exactly one property", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
@@ -316,11 +344,14 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         string connectionString
     )
     {
+        // Arrange
         var codeGenerator = serviceProvider.GetRequiredService<IProviderConfigurationCodeGenerator>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(
             () => codeGenerator.GenerateUseProvider(connectionString));
 
+        // Assert
         Assert.Contains(
             "No MySQL scaffolding operation is active",
             exception.Message,
@@ -757,6 +788,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         )
         {
             WaitAt(_providerCodeBoundary, "provider-code");
+
             return _inner.GenerateUseProvider(connectionString, providerOptions);
         }
     }

@@ -81,6 +81,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
                     comparer: null,
                     generateParameterName: () => "tracked" + parameter++,
                     logger: context.GetService<IDiagnosticsLogger<DbLoggerCategory.Update>>()));
+
             command.AddEntry(entry, mainEntry: true);
 
             return (IReadOnlyModificationCommand)command;

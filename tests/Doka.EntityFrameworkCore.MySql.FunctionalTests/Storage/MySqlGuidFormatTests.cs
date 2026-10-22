@@ -102,11 +102,13 @@ public sealed class MySqlGuidFormatTests
     [Fact]
     public async Task Char36_guid_roundtrips_as_canonical_string_literal()
     {
+        // Arrange
         var dbName = $"doka_guid_char36_{Guid.NewGuid():N}";
         var connectionString = MySqlTestEnvironment.ConnectionString;
 
         try
         {
+            // Act: Schema seeding and an explicit insert share one persisted format contract.
             await using (var seedContext =
                          new Char36GuidContext(
                              BuildOptions<Char36GuidContext>(
@@ -142,11 +144,11 @@ public sealed class MySqlGuidFormatTests
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
+                var storageShape = await ReadRawIdStringsAsync(connectionString, dbName, "Char36Entities");
 
+                // Assert
                 Assert.Equal("seeded", seeded.Name);
                 Assert.Equal("inserted", inserted.Name);
-
-                var storageShape = await ReadRawIdStringsAsync(connectionString, dbName, "Char36Entities");
 
                 Assert.Contains("00003803-ce08-4029-b639-200564ae1dd2", storageShape, StringComparer.Ordinal);
                 Assert.Contains("11112222-3333-4444-5555-666677778888", storageShape, StringComparer.Ordinal);
@@ -167,11 +169,13 @@ public sealed class MySqlGuidFormatTests
     [Fact]
     public async Task Binary16_guid_roundtrips_as_16_byte_hex_literal()
     {
+        // Arrange
         var dbName = $"doka_guid_binary16_{Guid.NewGuid():N}";
         var connectionString = MySqlTestEnvironment.ConnectionString;
 
         try
         {
+            // Act: The server must store seeded and explicit values with the same binary layout.
             await using (var seedContext =
                          new Binary16GuidContext(
                              BuildOptions<Binary16GuidContext>(
@@ -207,11 +211,11 @@ public sealed class MySqlGuidFormatTests
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
+                var rawHex = await ReadRawIdHexAsync(connectionString, dbName, "Binary16Entities");
 
+                // Assert
                 Assert.Equal("seeded", seeded.Name);
                 Assert.Equal("inserted", inserted.Name);
-
-                var rawHex = await ReadRawIdHexAsync(connectionString, dbName, "Binary16Entities");
 
                 Assert.Contains("00003803CE084029B639200564AE1DD2", rawHex, StringComparer.OrdinalIgnoreCase);
                 Assert.Contains("11112222333344445555666677778888", rawHex, StringComparer.OrdinalIgnoreCase);
@@ -229,6 +233,12 @@ public sealed class MySqlGuidFormatTests
         bool useMigrations
     )
     {
+        // Arrange
+        var expectedCanonical = s_defaultGuid.ToString("D", CultureInfo.InvariantCulture);
+        DefaultChar36Principal principal;
+        ExplicitBinary16UnderChar36 binary;
+
+        // Act: Model creation, relational writes, and independent wire readback form one persistence pipeline.
         if (useMigrations)
         {
             await ApplyInitialMigrationAsync(connectionString);
@@ -267,42 +277,43 @@ public sealed class MySqlGuidFormatTests
 
         await using (var readContext = new DefaultChar36GuidContext(options))
         {
-            var principal = await readContext
+            principal = await readContext
                 .Principals
                 .Include(item => item.Dependents)
                 .SingleAsync(item => item.Id == s_defaultGuid);
 
-            var dependent = Assert.Single(principal.Dependents);
-            var binary = await readContext
+            binary = await readContext
                 .BinaryEntities
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == s_explicitBinaryGuid);
 
-            Assert.Equal(s_defaultGuid, dependent.PrincipalId);
-            Assert.Same(principal, dependent.Principal);
-            Assert.Equal(s_explicitBinaryGuid, binary.Id);
         }
 
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync();
+
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT CAST(`Id` AS CHAR(36)) FROM `DefaultChar36Principals`;";
 
-        Assert.Equal(
-            s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
-            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+        var storedPrincipal = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
 
         command.CommandText = "SELECT CAST(`PrincipalId` AS CHAR(36)) FROM `DefaultChar36Dependents`;";
 
-        Assert.Equal(
-            s_defaultGuid.ToString("D", CultureInfo.InvariantCulture),
-            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+        var storedDependent = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
 
         command.CommandText = "SELECT HEX(`Id`) FROM `ExplicitBinary16UnderChar36`;";
 
-        Assert.Equal(
-            "FEDCBA0987654321FEDCBA0987654321",
-            Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
+        var storedBinary = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+
+        // Assert
+        var dependent = Assert.Single(principal.Dependents);
+
+        Assert.Equal(s_defaultGuid, dependent.PrincipalId);
+        Assert.Same(principal, dependent.Principal);
+        Assert.Equal(s_explicitBinaryGuid, binary.Id);
+        Assert.Equal(expectedCanonical, storedPrincipal);
+        Assert.Equal(expectedCanonical, storedDependent);
+        Assert.Equal("FEDCBA0987654321FEDCBA0987654321", storedBinary);
     }
 
     private static async Task ApplyInitialMigrationAsync(

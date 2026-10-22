@@ -24,11 +24,14 @@ public sealed class MySqlBase64StringJsonValueReaderWriterTests
         string value
     )
     {
+        // Arrange
         var readerWriter = MySqlBase64StringJsonValueReaderWriter.Instance;
 
+        // Act
         var json = readerWriter.ToJsonString(value);
         var actual = readerWriter.FromJsonString(json);
 
+        // Assert
         Assert.Equal(value, actual);
         Assert.Equal($"\"{Convert.ToBase64String(Encoding.UTF8.GetBytes(value))}\"", json);
     }
@@ -40,11 +43,15 @@ public sealed class MySqlBase64StringJsonValueReaderWriterTests
     [Fact]
     public void Invalid_utf8_payload_is_rejected()
     {
+        // Arrange
         var readerWriter = MySqlBase64StringJsonValueReaderWriter.Instance;
+        Action act = () => readerWriter.FromJsonString("\"/w==\"");
 
-        var exception = Assert.Throws<DecoderFallbackException>(
-            () => readerWriter.FromJsonString("\"/w==\""));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<DecoderFallbackException>(recordedException);
         Assert.Equal([byte.MaxValue], Assert.IsType<byte[]>(exception.BytesUnknown));
     }
 }

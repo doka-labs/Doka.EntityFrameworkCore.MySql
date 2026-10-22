@@ -6,14 +6,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Non_owned_reference_include_in_source_is_rejected(bool mariaDb)
+    public void Non_owned_reference_include_in_source_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<BindingChild>().Include(child => child.Node)
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("non-owned reference Include", exception.Message, StringComparison.Ordinal);
         Assert.Empty(context.ChangeTracker.Entries());
     }
@@ -22,14 +28,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Reference_include_on_composed_entity_remains_supported(bool mariaDb)
+    public void Reference_include_on_composed_entity_remains_supported(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<BindingChild>()
             .WithMaterializedSource(shared => shared.Include(child => child.Node));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
         Assert.Contains("JOIN `BindingNodes`", sql, StringComparison.Ordinal);
     }
@@ -38,14 +50,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Irrelevant_reference_include_in_scalar_source_remains_supported(bool mariaDb)
+    public void Irrelevant_reference_include_in_scalar_source_remains_supported(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<BindingChild>().Include(child => child.Node).Select(child => child.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
 
+        // Assert
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("JOIN `BindingNodes`", sql, StringComparison.Ordinal);
     }
@@ -56,14 +74,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Client_only_source_projection_fails_before_execution(bool mariaDb)
+    public void Client_only_source_projection_fails_before_execution(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => new { node.Id, Name = ClientOnly(node.Name) })
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(context.ChangeTracker.Entries());
     }
@@ -74,10 +98,15 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Foreign_context_in_composition_fails_before_execution(bool mariaDb)
+    public void Foreign_context_in_composition_fails_before_execution(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         using var other = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 other.Nodes,
@@ -85,8 +114,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
                 node => node.Id,
                 (_, node) => node.Id));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("context", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(context.ChangeTracker.Entries());
         Assert.Empty(other.ChangeTracker.Entries());
@@ -98,9 +128,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Collection_in_source_projection_is_rejected(bool mariaDb)
+    public void Collection_in_source_projection_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => new
             {
                 node.Id,
@@ -108,8 +143,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             })
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -119,14 +155,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Deferred_include_in_source_is_rejected(bool mariaDb)
+    public void Deferred_include_in_source_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Include(node => node.Children)
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -136,14 +178,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void String_collection_include_in_source_is_rejected(bool mariaDb)
+    public void String_collection_include_in_source_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Include(nameof(BindingNode.Children))
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -153,16 +201,22 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Chained_collection_include_in_source_is_rejected(bool mariaDb)
+    public void Chained_collection_include_in_source_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Set<BindingChild>()
             .Include(child => child.Node)
             .ThenInclude(node => node.Children)
             .WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -172,15 +226,21 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Correlated_source_cannot_be_hoisted_outside_its_row_scope(bool mariaDb)
+    public void Correlated_source_cannot_be_hoisted_outside_its_row_scope(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.SelectMany(outer => context.Nodes
             .Where(inner => inner.Id == outer.Id)
             .WithMaterializedSource(shared => shared));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -190,16 +250,22 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Correlated_bound_source_cannot_reuse_an_enclosing_row_alias(bool mariaDb)
+    public void Correlated_bound_source_cannot_reuse_an_enclosing_row_alias(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => node.Id)
             .WithMaterializedSource(shared => shared.SelectMany(outer => shared
                 .Where(inner => inner == outer)
                 .WithMaterializedSource(inner => inner)));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -209,13 +275,19 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Automatic_collection_include_in_source_is_rejected(bool mariaDb)
+    public void Automatic_collection_include_in_source_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateAutoIncludeContext(mariaDb);
+
+        // Act
         var query = context.Nodes.WithMaterializedSource(shared => shared);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -225,14 +297,20 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Collection_include_on_directly_bound_output_is_rejected(bool mariaDb)
+    public void Collection_include_on_directly_bound_output_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.WithMaterializedSource(shared => shared)
             .Include(node => node.Children);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -242,9 +320,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Split_query_collection_output_is_rejected(bool mariaDb)
+    public void Split_query_collection_output_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
@@ -254,8 +337,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             .Include(node => node.Children)
             .AsSplitQuery();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -265,9 +349,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Global_split_collection_default_is_rejected(bool mariaDb)
+    public void Global_split_collection_default_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb, splitQueryDefault: true);
+
+        // Act
         var query = context.Nodes.Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
@@ -276,8 +365,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
                 (_, node) => node))
             .Include(node => node.Children);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -287,9 +377,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Deferred_queryable_result_cannot_escape_the_binding(bool mariaDb)
+    public void Deferred_queryable_result_cannot_escape_the_binding(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Select(id => new
             {
@@ -297,8 +392,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
                 Rows = shared.Where(other => other == id),
             }));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("query", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -308,19 +404,27 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Untranslatable_consumer_predicate_is_rejected(bool mariaDb)
+    public void Untranslatable_consumer_predicate_is_rejected(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
+
+        // Act
         var query = context.Nodes.Select(node => node.Name)
             .WithMaterializedSource(shared => shared.Where(name => ClientOnly(name) == "alpha"));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
+        // Assert
         Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     /// Supplies a deliberately untranslated operation without side effects.
     /// </summary>
-    private static string ClientOnly(string value) => $"client:{value}";
+    private static string ClientOnly(
+        string value
+    ) => $"client:{value}";
 }

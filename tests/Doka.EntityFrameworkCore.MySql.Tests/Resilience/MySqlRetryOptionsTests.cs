@@ -9,8 +9,13 @@ public sealed class MySqlRetryOptionsTests
     [Fact]
     public void Create_with_valid_inputs_succeeds()
     {
-        var options = MySqlRetryOptions.Create(3, TimeSpan.FromSeconds(10));
+        // Arrange
+        const int input = 3;
 
+        // Act
+        var options = MySqlRetryOptions.Create(input, TimeSpan.FromSeconds(10));
+
+        // Assert
         Assert.Equal(3, options.MaxRetryCount);
         Assert.Equal(TimeSpan.FromSeconds(10), options.MaxRetryDelay);
     }
@@ -19,8 +24,13 @@ public sealed class MySqlRetryOptionsTests
     [Fact]
     public void Create_with_null_delay_uses_default()
     {
-        var options = MySqlRetryOptions.Create(5, null);
+        // Arrange
+        const int input = 5;
 
+        // Act
+        var options = MySqlRetryOptions.Create(input, null);
+
+        // Assert
         Assert.Equal(MySqlRetryOptions.DefaultMaxRetryDelay, options.MaxRetryDelay);
     }
 
@@ -28,27 +38,55 @@ public sealed class MySqlRetryOptionsTests
     [Fact]
     public void Create_with_zero_retry_count_throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlRetryOptions.Create(0, TimeSpan.FromSeconds(5)));
+        // Arrange
+        Action act = () => MySqlRetryOptions.Create(0, TimeSpan.FromSeconds(5));
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     /// <summary>Negative retry count throws ArgumentOutOfRangeException.</summary>
     [Fact]
     public void Create_with_negative_retry_count_throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlRetryOptions.Create(-1, TimeSpan.FromSeconds(5)));
+        // Arrange
+        Action act = () => MySqlRetryOptions.Create(-1, TimeSpan.FromSeconds(5));
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     /// <summary>Zero delay throws ArgumentOutOfRangeException.</summary>
     [Fact]
     public void Create_with_zero_delay_throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlRetryOptions.Create(3, TimeSpan.Zero));
+        // Arrange
+        Action act = () => MySqlRetryOptions.Create(3, TimeSpan.Zero);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     /// <summary>Negative delay throws ArgumentOutOfRangeException.</summary>
     [Fact]
     public void Create_with_negative_delay_throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlRetryOptions.Create(3, TimeSpan.FromSeconds(-1)));
+        // Arrange
+        Action act = () => MySqlRetryOptions.Create(3, TimeSpan.FromSeconds(-1));
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 }

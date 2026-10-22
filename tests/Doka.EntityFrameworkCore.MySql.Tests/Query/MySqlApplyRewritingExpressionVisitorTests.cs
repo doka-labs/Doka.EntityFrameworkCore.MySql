@@ -24,10 +24,15 @@ public class MySqlApplyRewritingExpressionVisitorTests
         bool expected
     )
     {
+        // Arrange
         var operand = new SqlConstantExpression(true, typeMapping: null);
         var predicate = new SqlBinaryExpression(operatorType, operand, operand, typeof(bool), typeMapping: null);
 
-        Assert.Equal(expected, MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(predicate));
+        // Act
+        var actual = MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(predicate);
+
+        // Assert
+        Assert.Equal(expected, actual);
     }
 
     /// <summary>
@@ -37,10 +42,15 @@ public class MySqlApplyRewritingExpressionVisitorTests
     [Fact]
     public void Can_move_only_normalizable_non_binary_predicates_to_join()
     {
+        // Arrange
         var constant = new SqlConstantExpression(true, typeMapping: null);
         var unary = new SqlUnaryExpression(ExpressionType.Not, constant, typeof(bool), typeMapping: null);
 
-        Assert.True(MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(predicate: null));
+        // Act
+        var actual = MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(predicate: null);
+
+        // Assert
+        Assert.True(actual);
         Assert.True(MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(constant));
         Assert.False(MySqlApplyRewritingExpressionVisitor.CanMovePredicateToJoin(unary));
     }

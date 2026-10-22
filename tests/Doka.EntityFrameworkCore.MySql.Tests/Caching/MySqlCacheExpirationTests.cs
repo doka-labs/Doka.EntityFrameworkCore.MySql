@@ -14,8 +14,14 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Unspecified_expiration_uses_the_configured_sliding_default()
     {
-        var expiration = MySqlCacheExpiration.Resolve(new DistributedCacheEntryOptions(), 12_345L);
+        // Arrange
+        var options = new DistributedCacheEntryOptions();
+        const long defaultSlidingMicroseconds = 12_345L;
 
+        // Act
+        var expiration = MySqlCacheExpiration.Resolve(options, defaultSlidingMicroseconds);
+
+        // Assert
         Assert.Null(expiration.AbsoluteExpirationUtc);
         Assert.Null(expiration.AbsoluteExpirationRelativeMicroseconds);
         Assert.Equal(12_345L, expiration.SlidingExpirationMicroseconds);
@@ -27,10 +33,14 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Absolute_expiration_is_normalized_to_utc_without_adding_default_sliding()
     {
+        // Arrange
         var absolute = new DateTimeOffset(2030, 4, 5, 12, 30, 0, TimeSpan.FromHours(3));
+
+        // Act
         var expiration = MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions { AbsoluteExpiration = absolute }, 12_345L);
 
+        // Assert
         Assert.Equal(new DateTime(2030, 4, 5, 9, 30, 0), expiration.AbsoluteExpirationUtc);
         Assert.Equal(DateTimeKind.Unspecified, expiration.AbsoluteExpirationUtc!.Value.Kind);
         Assert.Null(expiration.AbsoluteExpirationRelativeMicroseconds);
@@ -43,9 +53,13 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Relative_expiration_remains_a_duration_without_reading_the_application_clock()
     {
-        var expiration = MySqlCacheExpiration.Resolve(
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(2) }, 12_345L);
+        // Arrange
+        var options = new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(2) };
 
+        // Act
+        var expiration = MySqlCacheExpiration.Resolve(options, 12_345L);
+
+        // Assert
         Assert.Null(expiration.AbsoluteExpirationUtc);
         Assert.Equal(2_000_000L, expiration.AbsoluteExpirationRelativeMicroseconds);
         Assert.Null(expiration.SlidingExpirationMicroseconds);
@@ -61,15 +75,18 @@ public sealed class MySqlCacheExpirationTests
         int absoluteYear
     )
     {
-        var expiration = MySqlCacheExpiration.Resolve(
-            new DistributedCacheEntryOptions
-            {
-                AbsoluteExpiration = new DateTimeOffset(absoluteYear, 1, 1, 0, 0, 0, TimeSpan.Zero),
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(2),
-                SlidingExpiration = TimeSpan.FromSeconds(1)
-            },
-            12_345L);
+        // Arrange
+        var options = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpiration = new DateTimeOffset(absoluteYear, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(2),
+            SlidingExpiration = TimeSpan.FromSeconds(1)
+        };
 
+        // Act
+        var expiration = MySqlCacheExpiration.Resolve(options, 12_345L);
+
+        // Assert
         Assert.Null(expiration.AbsoluteExpirationUtc);
         Assert.Equal(2_000_000L, expiration.AbsoluteExpirationRelativeMicroseconds);
         Assert.Equal(1_000_000L, expiration.SlidingExpirationMicroseconds);
@@ -81,7 +98,10 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Absolute_and_sliding_expiration_are_both_preserved()
     {
+        // Arrange
         var absolute = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // Act
         var expiration = MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions
             {
@@ -90,6 +110,7 @@ public sealed class MySqlCacheExpirationTests
             },
             12_345L);
 
+        // Assert
         Assert.Equal(absolute.UtcDateTime, expiration.AbsoluteExpirationUtc);
         Assert.Equal(3_000_000L, expiration.SlidingExpirationMicroseconds);
         Assert.Null(expiration.AbsoluteExpirationRelativeMicroseconds);
@@ -101,9 +122,13 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Explicit_sliding_expiration_replaces_the_default()
     {
-        var expiration = MySqlCacheExpiration.Resolve(
-            new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromSeconds(3) }, 12_345L);
+        // Arrange
+        var options = new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromSeconds(3) };
 
+        // Act
+        var expiration = MySqlCacheExpiration.Resolve(options, 12_345L);
+
+        // Assert
         Assert.Equal(3_000_000L, expiration.SlidingExpirationMicroseconds);
         Assert.Null(expiration.AbsoluteExpirationUtc);
         Assert.Null(expiration.AbsoluteExpirationRelativeMicroseconds);
@@ -115,11 +140,14 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Past_absolute_expiration_does_not_depend_on_the_application_clock()
     {
+        // Arrange
         var absolute = new DateTimeOffset(1000, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+        // Act
         var expiration = MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions { AbsoluteExpiration = absolute }, 12_345L);
 
+        // Assert
         Assert.Equal(absolute.UtcDateTime, expiration.AbsoluteExpirationUtc);
     }
 
@@ -129,12 +157,19 @@ public sealed class MySqlCacheExpirationTests
     [Fact]
     public void Absolute_expiration_before_mysql_datetime_range_is_rejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlCacheExpiration.Resolve(
+        // Arrange
+        Action act = () => MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions
             {
                 AbsoluteExpiration = new DateTimeOffset(999, 12, 31, 23, 59, 59, TimeSpan.Zero),
             },
-            12_345L));
+            12_345L);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     /// <summary>
@@ -147,6 +182,7 @@ public sealed class MySqlCacheExpirationTests
         bool sliding
     )
     {
+        // Arrange
         var options = new DistributedCacheEntryOptions();
         if (sliding)
         {
@@ -157,7 +193,13 @@ public sealed class MySqlCacheExpirationTests
             options.AbsoluteExpirationRelativeToNow = TimeSpan.FromTicks(9);
         }
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => MySqlCacheExpiration.Resolve(options, 12_345L));
+        Action act = () => MySqlCacheExpiration.Resolve(options, 12_345L);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     /// <summary>
@@ -171,13 +213,31 @@ public sealed class MySqlCacheExpirationTests
     public void Durations_convert_to_microseconds_without_floating_point_rounding(
         long ticks,
         long expectedMicroseconds
-    ) => Assert.Equal(expectedMicroseconds, MySqlCacheExpiration.ToMicroseconds(TimeSpan.FromTicks(ticks), "value"));
+    )
+    {
+        // Arrange: The theory supplies ticks, expectedMicroseconds.
+
+        // Act
+        var actual = MySqlCacheExpiration.ToMicroseconds(TimeSpan.FromTicks(ticks), "value");
+
+        // Assert
+        Assert.Equal(expectedMicroseconds, actual);
+    }
 
     /// <summary>
     /// Verifies missing per-entry options are rejected before an operation can run.
     /// </summary>
     [Fact]
-    public void Null_expiration_options_are_rejected()=> Assert.Throws<ArgumentNullException>(
-        "options",
-        () => MySqlCacheExpiration.Resolve(null!, 12_345L));
+    public void Null_expiration_options_are_rejected()
+    {
+        // Arrange
+        Action act = () => MySqlCacheExpiration.Resolve(null!, 12_345L);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<ArgumentNullException>(recordedException);
+        Assert.Equal("options", exception.ParamName);
+    }
 }

@@ -21,12 +21,16 @@ public sealed partial class MySqlIndexByteBudgetTests
         string scenario
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
+
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
 
         var captured = MySqlIndexByteBudget.GetPhysicalTableDefaults(model);
         var tables = model.GetRelationalModel().Tables.ToArray();
 
+        // Assert
         Assert.NotEmpty(tables);
         Assert.All(tables, table =>
         {
@@ -50,12 +54,15 @@ public sealed partial class MySqlIndexByteBudgetTests
         string scenario
     )
     {
+        // Arrange
         using var context = CreateContext(scenario);
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var detail = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(1200, detail.FindProperty(nameof(BudgetDefaultDetail.A))!.GetMaxLength());
         Assert.Equal(255, detail.FindProperty(nameof(BudgetDefaultDetail.B))!.GetMaxLength());
         Assert.Contains("CHARACTER SET latin1", ddl, StringComparison.Ordinal);

@@ -8,80 +8,122 @@ public sealed class MySqlSentinelContractTests
     /// <summary>
     /// Ensures every non-interval sentinel has one canonical, round-trippable name.
     /// </summary>
-    [Fact]
-    public void Every_non_interval_sentinel_round_trips()
+    [Theory]
+    [MemberData(nameof(NonIntervalSentinelCases))]
+    public void Every_non_interval_sentinel_round_trips(
+        int kindValue
+    )
     {
-        var kinds = Enum
-            .GetValues<MySqlSentinelKind>()
-            .Where(kind => kind is not (MySqlSentinelKind.DateAdd or MySqlSentinelKind.TimeAdd));
+        // Arrange
+        var kind = (MySqlSentinelKind)kindValue;
+        var name = MySqlSentinelContract.GetName(kind);
 
-        foreach (var kind in kinds)
-        {
-            var name = MySqlSentinelContract.GetName(kind);
-            var resolved = MySqlSentinelContract.Resolve(name, ValidArgumentCount(kind));
+        // Act
+        var resolved = MySqlSentinelContract.Resolve(name, ValidArgumentCount(kind));
 
-            Assert.Equal(new MySqlSentinel(kind), resolved);
-        }
+        // Assert
+        Assert.Equal(new MySqlSentinel(kind), resolved);
     }
 
     /// <summary>
     /// Ensures every declared interval unit round-trips through the date-add contract.
     /// </summary>
-    [Fact]
-    public void Every_date_add_interval_unit_round_trips()
+    [Theory]
+    [MemberData(nameof(IntervalUnitCases))]
+    public void Every_date_add_interval_unit_round_trips(
+        int intervalUnitValue
+    )
     {
-        foreach (var intervalUnit in Enum.GetValues<MySqlIntervalUnit>())
-        {
-            var name = MySqlSentinelContract.GetName(MySqlSentinelKind.DateAdd, intervalUnit);
-            var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+        // Arrange
+        var intervalUnit = (MySqlIntervalUnit)intervalUnitValue;
+        var name = MySqlSentinelContract.GetName(MySqlSentinelKind.DateAdd, intervalUnit);
 
-            Assert.Equal(new MySqlSentinel(MySqlSentinelKind.DateAdd, intervalUnit), resolved);
-        }
+        // Act
+        var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+
+        // Assert
+        Assert.Equal(new MySqlSentinel(MySqlSentinelKind.DateAdd, intervalUnit), resolved);
     }
 
     /// <summary>
-    /// Ensures the time-add contract accepts only the units translated by TimeOnly.
+    /// Ensures the time-add contract accepts the units translated by TimeOnly.
+    /// </summary>
+    [Theory]
+    [InlineData((int)MySqlIntervalUnit.Hour)]
+    [InlineData((int)MySqlIntervalUnit.Minute)]
+    public void Time_add_accepts_supported_interval_unit(int intervalUnitValue)
+    {
+        // Arrange
+        var intervalUnit = (MySqlIntervalUnit)intervalUnitValue;
+        var name = MySqlSentinelContract.GetName(MySqlSentinelKind.TimeAdd, intervalUnit);
+
+        // Act
+        var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+
+        // Assert
+        Assert.Equal(new MySqlSentinel(MySqlSentinelKind.TimeAdd, intervalUnit), resolved);
+    }
+
+    /// <summary>
+    /// Ensures the time-add contract rejects a unit not translated by TimeOnly.
     /// </summary>
     [Fact]
-    public void Time_add_accepts_only_supported_interval_units()
+    public void Time_add_rejects_unsupported_interval_unit()
     {
-        foreach (var intervalUnit in new[]
-                 {
-                     MySqlIntervalUnit.Hour,
-                     MySqlIntervalUnit.Minute,
-                 })
-        {
-            var name = MySqlSentinelContract.GetName(MySqlSentinelKind.TimeAdd, intervalUnit);
-            var resolved = MySqlSentinelContract.Resolve(name, argumentCount: 2);
+        // Arrange
+        const MySqlIntervalUnit unsupportedUnit = MySqlIntervalUnit.Second;
 
-            Assert.Equal(new MySqlSentinel(MySqlSentinelKind.TimeAdd, intervalUnit), resolved);
-        }
-
-        Assert.Throws<ArgumentException>(() => MySqlSentinelContract.GetName(
+        // Act
+        var exception = Record.Exception(() => MySqlSentinelContract.GetName(
             MySqlSentinelKind.TimeAdd,
-            MySqlIntervalUnit.Second));
+            unsupportedUnit));
+
+        // Assert
+        Assert.IsType<ArgumentException>(exception);
     }
 
     /// <summary>
     /// Ensures every sentinel rejects an arity that its SQL emitter cannot consume.
     /// </summary>
-    [Fact]
-    public void Every_sentinel_rejects_invalid_argument_count()
+    [Theory]
+    [MemberData(nameof(SentinelCases))]
+    public void Every_sentinel_rejects_invalid_argument_count(
+        int kindValue
+    )
     {
-        foreach (var kind in Enum.GetValues<MySqlSentinelKind>())
+        // Arrange
+        var kind = (MySqlSentinelKind)kindValue;
+        var name = kind switch
         {
-            var name = kind switch
-            {
-                MySqlSentinelKind.DateAdd => MySqlSentinelContract.GetName(kind, MySqlIntervalUnit.Day),
-                MySqlSentinelKind.TimeAdd => MySqlSentinelContract.GetName(kind, MySqlIntervalUnit.Hour),
-                _ => MySqlSentinelContract.GetName(kind),
-            };
+            MySqlSentinelKind.DateAdd => MySqlSentinelContract.GetName(kind, MySqlIntervalUnit.Day),
+            MySqlSentinelKind.TimeAdd => MySqlSentinelContract.GetName(kind, MySqlIntervalUnit.Hour),
+            _ => MySqlSentinelContract.GetName(kind),
+        };
 
-            var invalidCount = kind == MySqlSentinelKind.GroupConcat ? 1 : ValidArgumentCount(kind) + 1;
+        var invalidCount = kind == MySqlSentinelKind.GroupConcat ? 1 : ValidArgumentCount(kind) + 1;
 
-            Assert.Throws<InvalidOperationException>(() => MySqlSentinelContract.Resolve(name, invalidCount));
-        }
+        // Act
+        var exception = Record.Exception(() => MySqlSentinelContract.Resolve(name, invalidCount));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
     }
+
+    /// <summary>Supplies every non-interval SQL sentinel as an independently selectable case.</summary>
+    public static IEnumerable<object[]> NonIntervalSentinelCases() => Enum
+        .GetValues<MySqlSentinelKind>()
+        .Where(kind => kind is not (MySqlSentinelKind.DateAdd or MySqlSentinelKind.TimeAdd))
+        .Select(kind => new object[] { (int)kind });
+
+    /// <summary>Supplies every SQL sentinel for argument-count rejection.</summary>
+    public static IEnumerable<object[]> SentinelCases() => Enum
+        .GetValues<MySqlSentinelKind>()
+        .Select(kind => new object[] { (int)kind });
+
+    /// <summary>Supplies every translated date-add interval unit.</summary>
+    public static IEnumerable<object[]> IntervalUnitCases() => Enum
+        .GetValues<MySqlIntervalUnit>()
+        .Select(unit => new object[] { (int)unit });
 
     /// <summary>
     /// Ensures unknown names in the reserved sentinel namespace fail before SQL emission.
@@ -89,11 +131,18 @@ public sealed class MySqlSentinelContractTests
     [Fact]
     public void Unknown_reserved_sentinel_fails_closed()
     {
+        // Arrange
         var unknownName = MySqlSentinelContract
             .GetName(MySqlSentinelKind.JsonSet)
             .Replace("json_set", "unknown", StringComparison.Ordinal);
 
-        Assert.Throws<InvalidOperationException>(() => MySqlSentinelContract.Resolve(unknownName, argumentCount: 1));
+        Action act = () => MySqlSentinelContract.Resolve(unknownName, argumentCount: 1);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(recordedException);
     }
 
     /// <summary>
@@ -102,9 +151,16 @@ public sealed class MySqlSentinelContractTests
     [Fact]
     public void Non_interval_sentinel_rejects_interval_unit()
     {
-        Assert.Throws<ArgumentException>(() => MySqlSentinelContract.GetName(
+        // Arrange
+        Action act = () => MySqlSentinelContract.GetName(
             MySqlSentinelKind.Match,
-            MySqlIntervalUnit.Day));
+            MySqlIntervalUnit.Day);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentException>(recordedException);
     }
 
     private static int ValidArgumentCount(

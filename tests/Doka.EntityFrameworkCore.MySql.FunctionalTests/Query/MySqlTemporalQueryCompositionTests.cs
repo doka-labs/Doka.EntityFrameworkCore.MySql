@@ -18,13 +18,16 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void TemporalAsOf_propagates_to_temporal_include()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
+        // Act
         var sql = context
             .Parents.TemporalAsOf(s_firstPoint)
             .Include(parent => parent.Children)
             .ToQueryString();
 
+        // Assert
         Assert.Equal(2, CountOccurrences(sql, "FOR SYSTEM_TIME AS OF"));
     }
 
@@ -35,13 +38,16 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void TemporalAsOf_rejects_current_only_include()
     {
+        // Arrange
         using var context = CreateContext<CurrentChildrenConfiguration>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Parents.TemporalAsOf(s_firstPoint)
             .Include(parent => parent.Children)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("reached non-temporal entity", exception.Message, StringComparison.Ordinal);
     }
 
@@ -52,13 +58,16 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void TemporalAsOf_rejects_implicit_current_only_owned_collection()
     {
+        // Arrange
         using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Parents
             .TemporalAsOf(s_firstPoint)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("separately stored, non-temporal owned entity", exception.Message, StringComparison.Ordinal);
         Assert.Contains("even when Include is omitted", exception.Message, StringComparison.Ordinal);
         Assert.Contains(
@@ -73,14 +82,17 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void IgnoreAutoIncludes_does_not_mix_current_owned_rows_into_temporal_query()
     {
+        // Arrange
         using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Parents
             .TemporalAsOf(s_firstPoint)
             .IgnoreAutoIncludes()
             .ToQueryString());
 
+        // Assert
         Assert.Contains("IgnoreAutoIncludes is used", exception.Message, StringComparison.Ordinal);
     }
 
@@ -91,8 +103,10 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void TemporalAsOf_scalar_projection_excludes_current_owned_collection()
     {
+        // Arrange
         using var context = CreateContext<CurrentOwnedCollectionConfiguration>();
 
+        // Act
         var sql = context
             .Parents
             .TemporalAsOf(s_firstPoint)
@@ -103,6 +117,7 @@ public sealed class MySqlTemporalQueryCompositionTests
             })
             .ToQueryString();
 
+        // Assert
         Assert.Contains("FOR SYSTEM_TIME AS OF", sql, StringComparison.Ordinal);
         Assert.Contains("DisplayName", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("TemporalParentNotes", sql, StringComparison.Ordinal);
@@ -115,13 +130,16 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void TemporalAll_rejects_navigation_across_separate_temporal_table()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Parents.TemporalAll()
             .Include(parent => parent.Children)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("only for TemporalAsOf", exception.Message, StringComparison.Ordinal);
     }
 
@@ -132,6 +150,7 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void Matching_temporal_roots_support_set_operations()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
         var first = context
@@ -142,10 +161,12 @@ public sealed class MySqlTemporalQueryCompositionTests
             .Parents.TemporalAsOf(s_firstPoint)
             .Where(parent => parent.Id >= 10);
 
+        // Act
         var sql = first
             .Union(second)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("UNION", sql, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(sql, "FOR SYSTEM_TIME AS OF"));
     }
@@ -157,15 +178,18 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void Mismatched_temporal_roots_reject_set_operations()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
         var first = context.Parents.TemporalAsOf(s_firstPoint);
         var second = context.Parents.TemporalAsOf(s_secondPoint);
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => first
             .Union(second)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("identical UTC boundaries", exception.Message, StringComparison.Ordinal);
     }
 
@@ -176,13 +200,16 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void Temporal_and_current_roots_reject_set_operations()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
             .Parents.TemporalAll()
             .Union(context.Parents)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("matching temporal operators", exception.Message, StringComparison.Ordinal);
     }
 
@@ -192,8 +219,10 @@ public sealed class MySqlTemporalQueryCompositionTests
     [Fact]
     public void Temporal_root_supports_grouped_aggregates()
     {
+        // Arrange
         using var context = CreateContext<AllTemporalConfiguration>();
 
+        // Act
         var sql = context
             .Parents.TemporalAll()
             .GroupBy(_ => 1)
@@ -205,6 +234,7 @@ public sealed class MySqlTemporalQueryCompositionTests
             })
             .ToQueryString();
 
+        // Assert
         Assert.Contains("COUNT(*)", sql, StringComparison.Ordinal);
         Assert.Contains("MIN(", sql, StringComparison.Ordinal);
         Assert.Contains("MAX(", sql, StringComparison.Ordinal);

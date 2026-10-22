@@ -5,9 +5,13 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlDiagnosticsTests
 {
+    /// <summary>
+    /// Verifies invalid configuration logging uses bounded fields only.
+    /// </summary>
     [Fact]
     public void Invalid_configuration_logging_uses_bounded_fields_only()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var optionsBuilder = new DbContextOptionsBuilder();
@@ -15,13 +19,15 @@ public sealed class MySqlDiagnosticsTests
             "Server=localhost;Database=doka;User ID=root;Password=super-secret;");
 
         optionsBuilder.UseLoggerFactory(loggerFactory);
+        Action act = () => extension.Validate(optionsBuilder.Options);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => extension.Validate(optionsBuilder.Options));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("A MySQL server version must be configured.", exception.Message);
-
         var entry = Assert.Single(sink.Entries);
-
         Assert.Equal(MySqlEventId.InvalidConfiguration.Id, entry.EventId.Id);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
@@ -36,29 +42,35 @@ public sealed class MySqlDiagnosticsTests
         Assert.DoesNotContain("super-secret", entry.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies connection contract failure logging uses bounded fields only.
+    /// </summary>
     [Fact]
     public void Connection_contract_failure_logging_uses_bounded_fields_only()
     {
+        // Arrange
         const string secret = "connection-contract-secret";
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(
             builder => builder.AddProvider(new TestLoggerProvider(sink)));
-        var optionsBuilder = new DbContextOptionsBuilder();
 
+        var optionsBuilder = new DbContextOptionsBuilder();
         optionsBuilder.UseLoggerFactory(loggerFactory);
         optionsBuilder.UseMySql(
             $"Server=localhost;Database=doka;User ID=root;Password={secret};UseAffectedRows=true;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
         using var context = new DbContext(optionsBuilder.Options);
+        Action act = () =>
+            _ = context.GetService<IRelationalConnection>();
 
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
-            _ = context.GetService<IRelationalConnection>());
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         var entry = Assert.Single(
             sink.Entries,
             candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
-
         Assert.Equal(
             MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported,
             entry.State["Reason"]);
@@ -68,29 +80,37 @@ public sealed class MySqlDiagnosticsTests
         Assert.DoesNotContain("Password", entry.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies borrowed connection contract failure logging uses bounded fields only.
+    /// </summary>
     [Fact]
     public void Borrowed_connection_contract_failure_logging_uses_bounded_fields_only()
     {
+        // Arrange
         const string secret = "borrowed-connection-secret";
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(
             builder => builder.AddProvider(new TestLoggerProvider(sink)));
+
         var optionsBuilder = new DbContextOptionsBuilder();
         using var connection = new MySqlConnection(
             $"Server=borrowed-host;Database=borrowed-db;User ID=borrowed-user;Password={secret};"
             + "GuidFormat=Char36;");
 
         optionsBuilder.UseLoggerFactory(loggerFactory);
-
-        var exception = Assert.Throws<MySqlConnectionContractException>(() =>
+        Action act = () =>
             optionsBuilder.UseMySql(
                 connection,
-                MySqlServerVersion.MySql(new Version(8, 4, 0))));
+                MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<MySqlConnectionContractException>(recordedException);
         var entry = Assert.Single(
             sink.Entries,
             candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
-
         Assert.Equal(
             MySqlConfigurationFailureReason.GuidTransportIncompatible,
             entry.State["Reason"]);
@@ -109,18 +129,20 @@ public sealed class MySqlDiagnosticsTests
     [Fact]
     public void Schema_unsupported_logging_uses_the_model_validation_category()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
+        // Act
         MySqlLoggerMessages.SchemaUnsupported(
             logger,
             "Model",
             "schema unsupported",
             "remove the schema");
 
+        // Assert
         var entry = Assert.Single(sink.Entries);
-
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.DoesNotContain("ScopeName", entry.Message, StringComparison.Ordinal);
@@ -132,19 +154,20 @@ public sealed class MySqlDiagnosticsTests
     [Fact]
     public void Server_version_resolution_logging_uses_the_configuration_category()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var builder = new DbContextOptionsBuilder();
         var singletonOptions = new MySqlSingletonOptions();
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
-
         builder.UseLoggerFactory(loggerFactory);
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
 
+        // Act
         singletonOptions.Initialize(builder.Options);
 
+        // Assert
         var entry = Assert.Single(sink.Entries);
-
         Assert.Equal(MySqlEventId.ServerVersionResolved.Id, entry.EventId.Id);
         Assert.Equal(LogLevel.Information, entry.LogLevel);
         Assert.Equal(MySqlLoggerCategory.Configuration, entry.Category);
@@ -158,18 +181,20 @@ public sealed class MySqlDiagnosticsTests
     [Fact]
     public void Keyed_or_indexed_max_length_validation_uses_the_model_validation_category()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
+        // Act
         MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
             logger,
             "Entity",
             "Code",
             "text");
 
+        // Assert
         var entry = Assert.Single(sink.Entries);
-
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Error, entry.LogLevel);
         Assert.Contains("explicit max length", entry.Message, StringComparison.OrdinalIgnoreCase);
@@ -184,10 +209,12 @@ public sealed class MySqlDiagnosticsTests
     [Fact]
     public void Implicit_decimal_precision_warning_uses_the_model_validation_category()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var logger = loggerFactory.CreateLogger(DbLoggerCategory.Model.Validation.Name);
 
+        // Act
         MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
             logger,
             "Entity",
@@ -195,8 +222,8 @@ public sealed class MySqlDiagnosticsTests
             defaultPrecision: 18,
             defaultScale: 2);
 
+        // Assert
         var entry = Assert.Single(sink.Entries);
-
         Assert.Equal(DbLoggerCategory.Model.Validation.Name, entry.Category);
         Assert.Equal(LogLevel.Warning, entry.LogLevel);
         Assert.Equal(18, entry.State["DefaultPrecision"]);
@@ -212,9 +239,13 @@ public sealed class MySqlDiagnosticsTests
     [Fact]
     public void Provider_uses_the_logging_execution_strategy_wrapper_for_operability_diagnostics()
     {
+        // Arrange
         using var context = new DiagnosticsContext(CreateOptions());
+
+        // Act
         var strategy = context.Database.CreateExecutionStrategy();
 
+        // Assert
         Assert.IsType<MySqlLoggingExecutionStrategy>(strategy);
     }
 

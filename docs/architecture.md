@@ -250,6 +250,52 @@ The repository separates evidence by responsibility:
 Benchmarks are independent engineering evidence. They do not authorize or
 block package publication.
 
+### Source responsibilities
+
+Provider services retain EF Core's service boundaries. Feature partials keep
+the implementation navigable without adding factories, virtual calls, service
+registrations, or per-operation allocations:
+
+- The migrations model differ groups system time, application time, database
+  defaults, column projection, index evolution, and key transitions.
+- Model validation separates system-time and application-time contracts from
+  scalar, key, and index validation.
+- Query translation separates query roots, JSON collection rowsets, JSON
+  updates, materialized sources, and join extensions. The main visitor owns
+  shared EF dispatch and service state.
+- Migration column definitions own type/options rendering; column operations
+  own mutation order, safety guards, and backfills.
+- Reverse-engineering model projection separates column mappings, period
+  metadata, and identifier generation from the ordered relational reconstruction
+  pipeline.
+
+The main file is the entry point for each service, not a second implementation
+of its feature partials. Moving a method preserves its signature, attributes,
+control flow, and static initialization dependencies. EF-version-specific
+overrides stay visible at their integration boundary so changes can be carried
+between maintained .NET major versions without copying an older whole file
+over a newer adapter.
+
+### Test responsibilities and fixture ownership
+
+Repository-owned tests group one observable behavior per case, with explicit
+Arrange, Act, and Assert phases. Data theories expose independent inputs and
+engine variants. Generated-model roundtrips, transaction recovery, and blocked
+cleanup are coherent lifecycle contracts: their dependent steps remain together
+so the state that makes a regression observable is retained.
+
+Topic partials preserve xUnit class and method identities while separating
+tests from fixture infrastructure and model declarations. Namespace-level
+design-time fixture types retain their names because generated C# refers to
+them. The inherited EF specification suite keeps its upstream contract shape.
+
+Live test fixtures lazily seed each requested engine and own their cleanup.
+Cases may reuse immutable data, but cannot depend on another case's mutations
+or execution order. Connection factories stay together because the integration
+schema scope is derived from their source file. Moving a test to a topic partial
+must not move half of a fixture to a different schema or multiply its database
+setup for every data row.
+
 ## Architectural Invariants
 
 - Engine differences flow through the canonical capability model.

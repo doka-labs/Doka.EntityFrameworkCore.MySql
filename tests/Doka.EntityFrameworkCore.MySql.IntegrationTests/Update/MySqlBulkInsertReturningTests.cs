@@ -31,6 +31,7 @@ public sealed class MySqlBulkInsertReturningTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
@@ -51,21 +52,18 @@ public sealed class MySqlBulkInsertReturningTests
                 .ToList();
 
             context.Items.AddRange(items);
-            await context.SaveChangesAsync();
 
-            Assert.All(items, item => Assert.True(item.Id > 0));
-            Assert.Equal(
-                items
-                    .Select(i => i.Id)
-                    .Distinct()
-                    .Count(),
-                items.Count);
+            // Act
+            await context.SaveChangesAsync();
 
             context.ChangeTracker.Clear();
             var roundTripped = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
 
+            // Assert
+            Assert.All(items, item => Assert.True(item.Id > 0));
+            Assert.Equal(items.Count, items.Select(item => item.Id).Distinct().Count());
             Assert.Equal(5, roundTripped.Count);
             Assert.Equal("row-1", roundTripped[0].Name);
             Assert.Equal(50, roundTripped[4].Score);
@@ -81,6 +79,7 @@ public sealed class MySqlBulkInsertReturningTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_multirow_insert_returning_surfaces_trigger_modified_column()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new TriggerContext(CreateOptions<TriggerContext>(connectionString, serverVersion));
@@ -101,8 +100,11 @@ public sealed class MySqlBulkInsertReturningTests
             };
 
             context.Items.AddRange(items);
+
+            // Act
             await context.SaveChangesAsync();
 
+            // Assert
             Assert.Equal(1 * 7, items[0].Stamp);
             Assert.Equal(3 * 7, items[1].Stamp);
             Assert.Equal(11 * 7, items[2].Stamp);
@@ -120,6 +122,7 @@ public sealed class MySqlBulkInsertReturningTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_multirow_write_only_insert_lands_all_rows_in_single_statement()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
         await using var context =
@@ -141,13 +144,17 @@ public sealed class MySqlBulkInsertReturningTests
                 .ToList();
 
             context.Items.AddRange(items);
+
+            // Act
             await context.SaveChangesAsync();
 
             context.ChangeTracker.Clear();
+
             var roundTripped = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
 
+            // Assert
             Assert.Equal(5, roundTripped.Count);
             Assert.Equal("k-3", roundTripped[2].Name);
         }
@@ -171,6 +178,7 @@ public sealed class MySqlBulkInsertReturningTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
@@ -191,8 +199,11 @@ public sealed class MySqlBulkInsertReturningTests
                 .ToList();
 
             context.Items.AddRange(items);
+
+            // Act
             await context.SaveChangesAsync();
 
+            // Assert
             Assert.All(items, item => Assert.True(item.Id > 0));
             Assert.Equal(
                 items
@@ -214,6 +225,7 @@ public sealed class MySqlBulkInsertReturningTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_batch_with_distinct_shapes_splits_into_two_statements()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new MixedContext(CreateOptions<MixedContext>(connectionString, serverVersion));
@@ -231,10 +243,15 @@ public sealed class MySqlBulkInsertReturningTests
             context.ItemsA.Add(new MixedA { Name = "a2" });
             context.ItemsB.Add(new MixedB { Value = 100 });
             context.ItemsB.Add(new MixedB { Value = 200 });
-            await context.SaveChangesAsync();
 
-            Assert.Equal(2, await context.ItemsA.CountAsync());
-            Assert.Equal(2, await context.ItemsB.CountAsync());
+            // Act
+            await context.SaveChangesAsync();
+            var countA = await context.ItemsA.CountAsync();
+            var countB = await context.ItemsB.CountAsync();
+
+            // Assert
+            Assert.Equal(2, countA);
+            Assert.Equal(2, countB);
         }
         finally
         {
@@ -253,6 +270,7 @@ public sealed class MySqlBulkInsertReturningTests
     {
         var builder = IntegrationTestDbContextOptions.Create<T>();
         builder.UseMySql(connectionString, serverVersion);
+
         return builder.Options;
     }
 

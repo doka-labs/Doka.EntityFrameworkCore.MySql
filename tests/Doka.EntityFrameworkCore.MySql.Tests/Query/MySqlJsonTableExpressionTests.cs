@@ -15,6 +15,7 @@ public sealed class MySqlJsonTableExpressionTests
     [Experimental("EF9100")]
     public void Quote_preserves_paths_column_metadata_and_type_mappings()
     {
+        // Arrange
         var arrayIndex = new SqlConstantExpression(2, typeMapping: null);
         var expression = new MySqlJsonTableExpression(
             "json_rows",
@@ -37,16 +38,18 @@ public sealed class MySqlJsonTableExpressionTests
         using var context = CreateContext();
         var typeMappingSource = context.GetService<IRelationalTypeMappingSource>();
         var boundQuote = new TypeMappingSourceBindingExpressionVisitor(typeMappingSource).Visit(quoted);
+
+        // Act
         var reconstructed = Expression
             .Lambda<Func<MySqlJsonTableExpression>>(boundQuote)
             .Compile()();
 
+        // Assert
         Assert.Equal("json_rows", reconstructed.Alias);
         Assert.Equal(
             "[]",
             Assert.IsType<SqlConstantExpression>(reconstructed.JsonExpression)
                 .Value);
-
         Assert.Collection(
             Assert.IsAssignableFrom<IReadOnlyList<PathSegment>>(reconstructed.Path),
             segment => Assert.Equal("items", segment.PropertyName),
@@ -54,7 +57,6 @@ public sealed class MySqlJsonTableExpressionTests
                 2,
                 Assert.IsType<SqlConstantExpression>(segment.ArrayIndex)
                     .Value));
-
         Assert.Collection(
             Assert.IsAssignableFrom<IReadOnlyList<MySqlJsonTableExpression.ColumnInfo>>(reconstructed.ColumnInfos),
             column =>

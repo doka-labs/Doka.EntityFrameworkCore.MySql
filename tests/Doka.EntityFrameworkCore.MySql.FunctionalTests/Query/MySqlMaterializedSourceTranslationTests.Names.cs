@@ -15,11 +15,16 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Raw_sql_name_collision_preserves_identifier_limit(bool mariaDb)
+    public void Raw_sql_name_collision_preserves_identifier_limit(
+        bool mariaDb
+    )
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         // WHY: Every underscore-appended prefix already appears in this valid comment.
         // Collision recovery must choose another bounded name rather than grow indefinitely.
+
+        // Act
         var query = context.Nodes.FromSqlRaw(RawNameCollisionSql)
             .Select(row => row.Id)
             .WithMaterializedSource(source => source.Concat(source));
@@ -28,6 +33,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
 
         const string marker = "WITH RECURSIVE";
         var markerIndex = sql.IndexOf(marker, StringComparison.Ordinal);
+
+        // Assert
         Assert.True(markerIndex >= 0);
         var nameStart = sql.IndexOf('`', markerIndex + marker.Length) + 1;
         Assert.True(nameStart > 0);

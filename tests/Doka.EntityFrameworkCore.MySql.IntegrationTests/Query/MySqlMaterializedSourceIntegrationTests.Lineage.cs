@@ -7,7 +7,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         string mappingName
     )
     {
+        // Arrange
         await using var fixture = await CreateNamedLineageFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Set<NamedLineageNode>(mappingName)
             .Select(row => row)
             .Where(row => row.Id == 1)
@@ -15,6 +18,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal(mappingName == "First" ? "first-target" : "second-target", actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
@@ -23,6 +27,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateNamedLineageFixtureAsync(target);
         var context = fixture.Context;
         var source = context.Set<NamedLineageNode>("First").Join(
@@ -31,10 +36,12 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             second => second.Id,
             (_, second) => second);
 
+        // Act
         var query = source.WithMaterializedSource(bound => bound.Select(row => row.Target.Name));
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal("second-target", actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
@@ -43,7 +50,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateMappingFixtureAsync<OwnedMappedItem>(target);
+
+        // Act
         var query = fixture.Context.Set<OwnedMappedItem>()
             .WithMaterializedSource(source => source.Select(owner => new
             {
@@ -54,6 +64,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 2], actual.Select(row => row.Id));
         Assert.Equal(["detail-1", "detail-2"], actual.Select(row => row.Detail));
         Assert.Equal(1, fixture.Probe.Count);

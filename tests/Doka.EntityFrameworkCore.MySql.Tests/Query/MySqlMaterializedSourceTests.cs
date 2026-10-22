@@ -11,9 +11,15 @@ public sealed class MySqlMaterializedSourceTests
     [Fact]
     public void Null_source_is_rejected()
     {
-        var error = Assert.Throws<ArgumentNullException>(() =>
-            MySqlQueryableExtensions.WithMaterializedSource<int, int>(null!, source => source));
+        // Arrange
+        Action act = () =>
+            MySqlQueryableExtensions.WithMaterializedSource<int, int>(null!, source => source);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var error = Assert.IsType<ArgumentNullException>(recordedException);
         Assert.Equal("source", error.ParamName);
     }
 
@@ -21,10 +27,15 @@ public sealed class MySqlMaterializedSourceTests
     [Fact]
     public void Null_composition_is_rejected()
     {
+        // Arrange
         var source = s_values.AsQueryable();
+        Action act = () => source.WithMaterializedSource<int, int>(null!);
 
-        var error = Assert.Throws<ArgumentNullException>(() => source.WithMaterializedSource<int, int>(null!));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var error = Assert.IsType<ArgumentNullException>(recordedException);
         Assert.Equal("compose", error.ParamName);
     }
 
@@ -32,10 +43,15 @@ public sealed class MySqlMaterializedSourceTests
     [Fact]
     public void In_memory_source_is_rejected()
     {
+        // Arrange
         var source = s_values.AsQueryable();
+        Action act = () => source.WithMaterializedSource(rows => rows);
 
-        var error = Assert.Throws<InvalidOperationException>(() => source.WithMaterializedSource(rows => rows));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var error = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("provider", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -43,12 +59,15 @@ public sealed class MySqlMaterializedSourceTests
     [Fact]
     public void Construction_keeps_expression_shape_and_provider()
     {
+        // Arrange
         using var context = new GuardContext();
         var source = context.Set<GuardItem>().Where(item => item.Id > 1);
         var previous = source.WithMaterializedSource(rows => rows.Select(item => item.Id));
 
+        // Act
         var actual = source.WithMaterializedSource(rows => rows.Select(item => item.Id));
 
+        // Assert
         Assert.Same(source.Provider, actual.Provider);
         Assert.True(ExpressionEqualityComparer.Instance.Equals(previous.Expression, actual.Expression));
         Assert.Equal(typeof(IQueryable<int>), actual.Expression.Type);
@@ -59,15 +78,18 @@ public sealed class MySqlMaterializedSourceTests
     [Fact]
     public void Nested_source_construction_has_bounded_allocations()
     {
+        // Arrange
         using var context = new GuardContext();
         var leaf = context.Set<GuardItem>().Select(item => item.Id);
         _ = CreateNested(leaf, 1).ToQueryString();
         var query = CreateNested(leaf, 10);
+
+        // Act
         var before = GC.GetAllocatedBytesForCurrentThread();
-
         var sql = query.ToQueryString();
-
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
         // WHY: The original dependency-path expansion allocated over 250 MB for 3 KB of SQL.
         // This generous structural budget permits normal EF/JIT variation without a timing gate.
         Assert.InRange(allocated, 0, 2_000_000);
@@ -82,6 +104,7 @@ public sealed class MySqlMaterializedSourceTests
     {
         var compose = ((Func<IQueryable<int>, Expression<Func<IQueryable<int>, IQueryable<int>>>,
             IQueryable<int>>)MySqlQueryableExtensions.WithMaterializedSource<int, int>).Method;
+
         var concat = ((Func<IQueryable<int>, IEnumerable<int>, IQueryable<int>>)Queryable.Concat<int>).Method;
 
         return source.Provider.CreateQuery<int>(Nest(source.Expression, depth));

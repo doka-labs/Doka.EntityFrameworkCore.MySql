@@ -53,6 +53,7 @@ public sealed class ConnectionStringOverrideTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var databaseName = $"doka_connection_override_{Guid.NewGuid():N}"[..48];
         var overriddenConnectionString = IntegrationDatabaseUtilities.BuildConnectionString(
@@ -73,23 +74,22 @@ public sealed class ConnectionStringOverrideTests
 
             var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
 
-            Assert.False(
-                await databaseCreator
-                    .ExistsAsync()
-                    .ConfigureAwait(false));
+            // Act
+            // WHY: Existence, creation and the selected server database must all
+            // observe the same EF tooling override throughout this lifecycle.
+            var existedBefore = await databaseCreator.ExistsAsync().ConfigureAwait(false);
 
             await databaseCreator
                 .CreateAsync()
                 .ConfigureAwait(false);
 
-            Assert.True(
-                await databaseCreator
-                    .ExistsAsync()
-                    .ConfigureAwait(false));
+            var existsAfter = await databaseCreator.ExistsAsync().ConfigureAwait(false);
 
             await context
                 .Database.OpenConnectionAsync()
                 .ConfigureAwait(false);
+
+            string? selectedDatabase;
 
             try
             {
@@ -99,13 +99,9 @@ public sealed class ConnectionStringOverrideTests
 
                 command.CommandText = "SELECT DATABASE();";
 
-                Assert.Equal(
-                    databaseName,
-                    Convert.ToString(
-                        await command
-                            .ExecuteScalarAsync()
-                            .ConfigureAwait(false),
-                        CultureInfo.InvariantCulture));
+                selectedDatabase = Convert.ToString(
+                    await command.ExecuteScalarAsync().ConfigureAwait(false),
+                    CultureInfo.InvariantCulture);
             }
             finally
             {
@@ -113,6 +109,11 @@ public sealed class ConnectionStringOverrideTests
                     .Database.CloseConnectionAsync()
                     .ConfigureAwait(false);
             }
+
+            // Assert
+            Assert.False(existedBefore);
+            Assert.True(existsAfter);
+            Assert.Equal(databaseName, selectedDatabase);
         }
         finally
         {

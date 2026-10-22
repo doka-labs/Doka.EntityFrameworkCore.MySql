@@ -28,6 +28,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task SynchronousSaveReadsEveryGeneratedValue()
     {
+        // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
         await RecreateTableAsync(context);
@@ -35,10 +36,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         AddRows(context, rows);
         capture.Enabled = true;
 
+        // Act
         // WHY: This native control must exercise the synchronous provider result consumer.
         // ReSharper disable once MethodHasAsyncOverload
         var written = context.SaveChanges();
 
+        // Assert
         Assert.Equal(64, written);
         Assert.All(rows, AssertGenerated);
         Assert.Equal(1, capture.Commands.Sum(sql => CountOccurrences(sql, "INSERT INTO")));
@@ -86,12 +89,19 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         AssertGeneratedValuesAsync<long, ShadowCompositeMode>(
             IntegrationDatabaseTarget.MySql84, 64, value => value);
 
+    /// <summary>Observes one save and its persisted readback without mixing assertions into either step.</summary>
+    /// <typeparam name="TKey">The supplied key representation.</typeparam>
+    /// <typeparam name="TMode">The fixture's mapping and identity behavior.</typeparam>
+    /// <param name="target">The selected live database engine.</param>
+    /// <param name="count">The number of rows in the insert group.</param>
+    /// <param name="keyFactory">The deterministic supplied-key factory.</param>
     private static async Task AssertGeneratedValuesAsync<TKey, TMode>(
         IntegrationDatabaseTarget target,
         int count,
         Func<int, TKey> keyFactory
     ) where TKey : notnull
     {
+        // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<TKey, TMode>(target, capture);
         await RecreateTableAsync(context);
@@ -103,13 +113,22 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         AddRows(context, rows);
         capture.Enabled = true;
 
+        // Act: persistence and its readback are one dependent round trip.
         var written = await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
         var saveSql = capture.Commands.ToArray();
+
         var persisted = await context.Rows.AsNoTracking().OrderBy(row => row.Input)
             .ToListAsync(CancellationToken.None);
 
+        var scopes = typeof(TMode) == typeof(ShadowCompositeMode)
+            ? await context.Rows.AsNoTracking()
+                .Select(row => new { row.Input, Scope = EF.Property<string>(row, "Tenant") })
+                .ToListAsync(CancellationToken.None)
+            : null;
+
+        // Assert
         Assert.Equal(count, written);
         Assert.Equal(count, persisted.Count);
         Assert.All(rows, AssertGenerated);
@@ -119,12 +138,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             Assert.Equal(rows.OrderBy(row => row.Input).Select(row => row.Id), persisted.Select(row => row.Id));
         }
 
-        if (typeof(TMode) == typeof(ShadowCompositeMode))
+        if (scopes is not null)
         {
-            var scopes = await context.Rows.AsNoTracking()
-                .Select(row => new { row.Input, Scope = EF.Property<string>(row, "Tenant") })
-                .ToListAsync(CancellationToken.None);
-
             Assert.All(scopes, stored =>
             {
                 var supplied = (string)context.Entry(rows.Single(row => row.Input == stored.Input))
@@ -152,7 +167,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     private static void AssertGenerated<TKey>(GeneratedRow<TKey> row) where TKey : notnull
     {
         // WHY: Constant outputs alone cannot reveal an ordinal or key permutation.
-        Assert.Equal(row.Input * 17L + 3L, row.Stamp);
+        Assert.Equal((row.Input * 17L) + 3L, row.Stamp);
         Assert.Equal(row.Input % 2 == 0, row.IsEven);
         Assert.Equal(row.Input % 3 == 0 ? null : $"v{row.Input}", row.NullableValue);
         Assert.Equal("server-default", row.DefaultCode);

@@ -4,7 +4,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Emits MySQL-family update SQL. Compatible inserts share a multirow VALUES list;
 /// MariaDB uses native RETURNING, while MySQL correlates generated values through
 /// stable physical primary keys and an explicit row ordinal. Unsafe key or trigger
-/// contracts retain the existing per-row insert/readback protocol.
+/// contracts retain the existing per-row insert/readback protocol when their keys
+/// are known or generated through AUTO_INCREMENT.
 /// </summary>
 internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenerator
 {
@@ -62,9 +63,14 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             return ResultSetMapping.NoResults;
         }
 
-        return SupportsReturningClause()
-            ? AppendInsertReturningOperation(commandStringBuilder, command, out requiresTransaction)
-            : base.AppendInsertOperation(commandStringBuilder, command, commandPosition, out requiresTransaction);
+        if (SupportsReturningClause())
+        {
+            return AppendInsertReturningOperation(commandStringBuilder, command, out requiresTransaction);
+        }
+
+        ValidateGeneratedKeyReadback(command);
+
+        return base.AppendInsertOperation(commandStringBuilder, command, commandPosition, out requiresTransaction);
     }
 
     /// <inheritdoc />
@@ -735,13 +741,27 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         ArgumentNullException.ThrowIfNull(columnModification);
 
         SqlGenerationHelper.DelimitIdentifier(commandStringBuilder, columnModification.ColumnName);
-        commandStringBuilder.Append(" = LAST_INSERT_ID()");
+
+        // EF routes omitted read-key predicates through this hook. A literal
+        // default is known but is not an identity; include it in the complete key.
+        if (!IsIdentityColumn(columnModification)
+            && TryGetLiteralGeneratedKeyValue(columnModification, out var defaultValue))
+        {
+            var mapping = columnModification.TypeMapping
+                ?? Dependencies.TypeMappingSource.GetMapping(columnModification.Property!);
+
+            commandStringBuilder.Append(" = ").Append(mapping.GenerateSqlLiteral(defaultValue));
+        }
+        else
+        {
+            commandStringBuilder.Append(" = LAST_INSERT_ID()");
+        }
     }
 
     /// <inheritdoc />
     protected override bool IsIdentityOperation(
         IColumnModification modification
-    ) => IsIdentityColumn(modification);
+    ) => IsIdentityColumn(modification) || TryGetLiteralGeneratedKeyValue(modification, out _);
 
     internal static bool IsIdentityColumn(
         IColumnModification modification

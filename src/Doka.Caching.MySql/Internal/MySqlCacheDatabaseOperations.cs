@@ -275,7 +275,7 @@ internal sealed class MySqlCacheDatabaseOperations
             return false;
         }
 
-        ConfigureDeleteExpiredCommand(command, candidates);
+        _sql.ConfigureDeleteExpiredCommand(command, candidates);
         command.ExecuteNonQuery();
 
         return candidates.Count == CleanupBatchSize;
@@ -313,41 +313,12 @@ internal sealed class MySqlCacheDatabaseOperations
             return false;
         }
 
-        ConfigureDeleteExpiredCommand(command, candidates);
+        _sql.ConfigureDeleteExpiredCommand(command, candidates);
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return candidates.Count == CleanupBatchSize;
-    }
-
-    private void ConfigureDeleteExpiredCommand(
-        MySqlCommand command,
-        List<byte[]> candidates
-    )
-    {
-        command.Parameters.Clear();
-        var sql = new StringBuilder(_sql.DeleteExpiredPrefix);
-
-        // OR ranges avoid MariaDB's IN-to-subquery conversion at the full 1,000-key batch size.
-        for (var index = 0; index < candidates.Count; index++)
-        {
-            if (index > 0)
-            {
-                sql.Append(" OR ");
-            }
-
-            var parameterName = "@key" + index.ToString(CultureInfo.InvariantCulture);
-            sql
-                .Append("`Id` = ")
-                .Append(parameterName);
-
-            command.Parameters.Add(parameterName, MySqlDbType.VarBinary).Value = candidates[index];
-        }
-
-        command.CommandText = sql
-            .Append(");")
-            .ToString();
     }
 
     internal static void ValidateKey(

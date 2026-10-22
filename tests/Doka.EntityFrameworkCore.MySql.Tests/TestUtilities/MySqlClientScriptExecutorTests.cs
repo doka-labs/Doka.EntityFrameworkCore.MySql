@@ -6,9 +6,13 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlClientScriptExecutorTests
 {
+    /// <summary>
+    /// Verifies custom delimiter preserves the complete routine body.
+    /// </summary>
     [Fact]
     public void Custom_delimiter_preserves_the_complete_routine_body()
     {
+        // Arrange
         const string script = """
                               DROP PROCEDURE IF EXISTS `apply_migration`;
                               DELIMITER //
@@ -22,8 +26,10 @@ public sealed class MySqlClientScriptExecutorTests
                               DROP PROCEDURE IF EXISTS `apply_migration`;
                               """;
 
+        // Act
         var statements = MySqlClientScriptExecutor.ParseStatements(script);
 
+        // Assert
         Assert.Collection(
             statements,
             statement => Assert.Equal("DROP PROCEDURE IF EXISTS `apply_migration`", statement),
@@ -40,9 +46,13 @@ public sealed class MySqlClientScriptExecutorTests
             statement => Assert.Equal("DROP PROCEDURE IF EXISTS `apply_migration`", statement));
     }
 
+    /// <summary>
+    /// Verifies delimiter tokens inside comments and escaped literals do not split.
+    /// </summary>
     [Fact]
     public void Delimiter_tokens_inside_comments_and_escaped_literals_do_not_split()
     {
+        // Arrange
         const string script = """
                               DELIMITER //
                               CREATE PROCEDURE `quoted``name`()
@@ -56,14 +66,19 @@ public sealed class MySqlClientScriptExecutorTests
                               SELECT 2;
                               """;
 
+        // Act
         var statements = MySqlClientScriptExecutor.ParseStatements(script);
 
+        // Assert
         Assert.Equal(2, statements.Count);
         Assert.Contains("'not // split'", statements[0], StringComparison.Ordinal);
         Assert.Contains("-- not // split", statements[0], StringComparison.Ordinal);
         Assert.Equal("SELECT 2", statements[1]);
     }
 
+    /// <summary>
+    /// Verifies malformed client scripts fail before execution.
+    /// </summary>
     [Theory]
     [InlineData("DELIMITER   \nSELECT 1;")]
     [InlineData("DELIMITER one two\nSELECT 1;")]
@@ -73,7 +88,14 @@ public sealed class MySqlClientScriptExecutorTests
         string script
     )
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            MySqlClientScriptExecutor.ParseStatements(script));
+        // Arrange
+        Action act = () =>
+            MySqlClientScriptExecutor.ParseStatements(script);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(recordedException);
     }
 }

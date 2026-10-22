@@ -148,15 +148,18 @@ public sealed class CommonTableExpressionIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var interceptor = new CommandCancellationProbeInterceptor();
 
         await using var context = CreateContext(target, interceptor);
         using var cancellationSource = new CancellationTokenSource();
         var cancellationToken = cancellationSource.Token;
 
+        // Act
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateComposedQuery(context, 3)
             .CountAsync(cancellationToken));
 
+        // Assert
         Assert.Equal(cancellationToken, exception.CancellationToken);
         Assert.Equal(cancellationToken, interceptor.ReceivedCancellationToken);
         Assert.Equal(1, interceptor.InvocationCount);

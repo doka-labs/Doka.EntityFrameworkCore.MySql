@@ -7,7 +7,17 @@ public sealed class MySqlScalarConvertTests
 {
     /// <summary>Null input returns false.</summary>
     [Fact]
-    public void Null_returns_false() => Assert.False(MySqlScalarConvert.ToBoolean(null));
+    public void Null_returns_false()
+    {
+        // Arrange
+        object? input = null;
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.False(actual);
+    }
 
     /// <summary>Bool values pass through.</summary>
     [Theory]
@@ -16,7 +26,16 @@ public sealed class MySqlScalarConvertTests
     public void Bool_returns_value(
         bool input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Sbyte zero is false, nonzero is true.</summary>
     [Theory]
@@ -26,7 +45,16 @@ public sealed class MySqlScalarConvertTests
     public void Sbyte_converts_correctly(
         sbyte input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Byte zero is false, nonzero is true.</summary>
     [Theory]
@@ -36,7 +64,16 @@ public sealed class MySqlScalarConvertTests
     public void Byte_converts_correctly(
         byte input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Short zero is false, nonzero is true.</summary>
     [Theory]
@@ -46,7 +83,16 @@ public sealed class MySqlScalarConvertTests
     public void Short_converts_correctly(
         short input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Ushort zero is false, nonzero is true.</summary>
     [Theory]
@@ -55,7 +101,16 @@ public sealed class MySqlScalarConvertTests
     public void Ushort_converts_correctly(
         ushort input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Int zero is false, nonzero is true.</summary>
     [Theory]
@@ -65,7 +120,16 @@ public sealed class MySqlScalarConvertTests
     public void Int_converts_correctly(
         int input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Uint zero is false, nonzero is true.</summary>
     [Theory]
@@ -74,7 +138,16 @@ public sealed class MySqlScalarConvertTests
     public void Uint_converts_correctly(
         uint input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Long zero is false, nonzero is true.</summary>
     [Theory]
@@ -84,7 +157,16 @@ public sealed class MySqlScalarConvertTests
     public void Long_converts_correctly(
         long input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Ulong zero is false, nonzero is true.</summary>
     [Theory]
@@ -93,7 +175,16 @@ public sealed class MySqlScalarConvertTests
     public void Ulong_converts_correctly(
         ulong input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Float zero is false, nonzero is true.</summary>
     [Theory]
@@ -103,7 +194,16 @@ public sealed class MySqlScalarConvertTests
     public void Float_converts_correctly(
         float input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Double zero is false, nonzero is true.</summary>
     [Theory]
@@ -113,15 +213,44 @@ public sealed class MySqlScalarConvertTests
     public void Double_converts_correctly(
         double input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Decimal zero returns false.</summary>
     [Fact]
-    public void Decimal_zero_returns_false() => Assert.False(MySqlScalarConvert.ToBoolean(0m));
+    public void Decimal_zero_returns_false()
+    {
+        // Arrange
+        const decimal input = 0m;
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.False(actual);
+    }
 
     /// <summary>Decimal nonzero returns true.</summary>
     [Fact]
-    public void Decimal_nonzero_returns_true() => Assert.True(MySqlScalarConvert.ToBoolean(1.5m));
+    public void Decimal_nonzero_returns_true()
+    {
+        // Arrange
+        const decimal input = 1.5m;
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.True(actual);
+    }
 
     /// <summary>
     /// String dispatch contract: <c>"1"</c> compares ordinal-equal; every other input
@@ -157,19 +286,43 @@ public sealed class MySqlScalarConvertTests
     public void String_converts_correctly(
         string input,
         bool expected
-    ) => Assert.Equal(expected, MySqlScalarConvert.ToBoolean(input));
+    )
+    {
+        // Arrange: The theory supplies input, expected.
+
+        // Act
+        var actual = MySqlScalarConvert.ToBoolean(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>Unsupported types throw InvalidOperationException.</summary>
     [Fact]
     public void Unsupported_type_throws_invalid_operation_exception()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => MySqlScalarConvert.ToBoolean(new object()));
+        // Arrange
+        Action act = () => MySqlScalarConvert.ToBoolean(new object());
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("System.Object", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>DateTime is not a supported type and should throw.</summary>
     [Fact]
-    public void DateTime_throws_invalid_operation_exception() =>
-        Assert.Throws<InvalidOperationException>(() => MySqlScalarConvert.ToBoolean(DateTime.Now));
+    public void DateTime_throws_invalid_operation_exception()
+    {
+        // Arrange
+        Action act = () => MySqlScalarConvert.ToBoolean(DateTime.Now);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(recordedException);
+    }
 }

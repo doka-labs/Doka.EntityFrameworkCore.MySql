@@ -24,6 +24,7 @@ public sealed class MySqlServerVersionSupportTests
         int minor
     )
     {
+        // Arrange
         var serverVersion = CreateServerVersion(
             isMariaDb,
             new Version(major, minor, 0),
@@ -31,7 +32,11 @@ public sealed class MySqlServerVersionSupportTests
 
         var (extension, options) = CreateOptions(serverVersion);
 
-        extension.Validate(options);
+        // Act
+        var exception = Record.Exception(() => extension.Validate(options));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     /// <summary>
@@ -52,15 +57,20 @@ public sealed class MySqlServerVersionSupportTests
         MySqlServerVersionSupportStatus expectedStatus
     )
     {
+        // Arrange
         var serverVersion = CreateServerVersion(
             isMariaDb,
             new Version(major, minor, 0),
             MySqlServerVersionCompatibilityMode.SupportedOnly);
 
         var (extension, options) = CreateOptions(serverVersion);
+        Action act = () => extension.Validate(options);
 
-        var exception = Assert.Throws<NotSupportedException>(() => extension.Validate(options));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var exception = Assert.IsType<NotSupportedException>(recordedException);
         Assert.Equal(expectedStatus, serverVersion.SupportStatus);
         Assert.Contains(nameof(MySqlServerVersionCompatibilityMode.AllowUnsupported), exception.Message);
         Assert.Contains(ServerVersionSupportPolicy.SupportedMatrix, exception.Message);
@@ -83,6 +93,7 @@ public sealed class MySqlServerVersionSupportTests
         int minor
     )
     {
+        // Arrange
         var serverVersion = CreateServerVersion(
             isMariaDb,
             new Version(major, minor, 0),
@@ -90,7 +101,11 @@ public sealed class MySqlServerVersionSupportTests
 
         var (extension, options) = CreateOptions(serverVersion);
 
-        extension.Validate(options);
+        // Act
+        var exception = Record.Exception(() => extension.Validate(options));
+
+        // Assert
+        Assert.Null(exception);
     }
 
     private static MySqlServerVersion CreateServerVersion(

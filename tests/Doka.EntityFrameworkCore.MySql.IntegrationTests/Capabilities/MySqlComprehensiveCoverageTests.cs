@@ -40,11 +40,12 @@ public sealed class MySqlComprehensiveCoverageTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = GetServerVersion(target);
 
         // Create a schema with diverse column types.
-        await using var setupConn = new MySqlConnector.MySqlConnection(connectionString);
+        await using var setupConn = new MySqlConnection(connectionString);
         await setupConn.OpenAsync();
 
         await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldChild`;");
@@ -82,9 +83,11 @@ public sealed class MySqlComprehensiveCoverageTests
             // Scaffold the database model using the real factory.
             var services = new ServiceCollection();
             services.AddEntityFrameworkDokaMySqlDesignTime();
-            var serviceProvider = services.BuildServiceProvider();
+            await using var serviceProvider = services.BuildServiceProvider();
 
             var factory = serviceProvider.GetRequiredService<IDatabaseModelFactory>();
+
+            // Act
             var model = factory.Create(
                 connectionString,
                 new DatabaseModelFactoryOptions(
@@ -94,7 +97,7 @@ public sealed class MySqlComprehensiveCoverageTests
                         "ScaffoldChild"
                     ]));
 
-            // Verify tables.
+            // Assert
             Assert.Equal(2, model.Tables.Count);
             var parentTable = model.Tables.First(t => t.Name == "ScaffoldParent");
             var childTable = model.Tables.First(t => t.Name == "ScaffoldChild");
@@ -134,6 +137,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public async Task MySql80_crud_and_query_parity()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
         await using var context = new ParityContext(
             CreateOptions<ParityContext>(
@@ -163,35 +167,9 @@ public sealed class MySqlComprehensiveCoverageTests
                     Value = 7.0,
                     CreatedAt = new DateTime(2025, 6, 1, 0, 0, 0)
                 });
+            // Act: This case owns the dependent create/read/update/delete lifecycle.
             await context.SaveChangesAsync();
-
-            Assert.Equal(2, await context.Items.CountAsync());
-
-            // String queries.
-            Assert.Equal(
-                1,
-                await context
-                    .Items.Where(e => e.Name.Contains("Hello"))
-                    .CountAsync());
-            Assert.Equal(
-                1,
-                await context
-                    .Items.Where(e => e.Name.StartsWith("Good"))
-                    .CountAsync());
-
-            // DateTime queries.
-            var added = await context
-                .Items.Select(e => e.CreatedAt.AddDays(10))
-                .FirstAsync();
-
-            Assert.Equal(25, added.Day);
-
-            // Math queries.
-            var abs = await context
-                .Items.Select(e => Math.Abs(e.Value))
-                .FirstAsync();
-
-            Assert.Equal(42.5, abs, 1);
+            var insertedCount = await context.Items.CountAsync();
 
             // Update + Delete.
             var item = await context.Items.FirstAsync();
@@ -199,7 +177,7 @@ public sealed class MySqlComprehensiveCoverageTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
-            Assert.Equal("Updated", (await context.Items.FindAsync(item.Id))!.Name);
+            var updatedName = (await context.Items.FindAsync(item.Id))!.Name;
 
             context.Items.Remove(
                 await context
@@ -207,7 +185,12 @@ public sealed class MySqlComprehensiveCoverageTests
                     .LastAsync());
             await context.SaveChangesAsync();
 
-            Assert.Equal(1, await context.Items.CountAsync());
+            var remainingCount = await context.Items.CountAsync();
+
+            // Assert
+            Assert.Equal(2, insertedCount);
+            Assert.Equal("Updated", updatedName);
+            Assert.Equal(1, remainingCount);
         }
         finally
         {
@@ -218,6 +201,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
     public async Task MySql80_tph_modeling()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
         await using var context = new TphParityContext(
             CreateOptions<TphParityContext>(
@@ -239,10 +223,13 @@ public sealed class MySqlComprehensiveCoverageTests
                     Breed = "Lab"
                 });
             await context.SaveChangesAsync();
+
+            // Act
             var dogs = await context
                 .Animals.OfType<ParityDog>()
                 .ToListAsync();
 
+            // Assert
             Assert.Single(dogs);
             Assert.Equal("Lab", dogs[0].Breed);
         }
@@ -257,57 +244,84 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public async Task MariaDb114_crud_and_query_parity()
-    {
-        var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
-        await using var context = new ParityContext(
-            CreateOptions<ParityContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
+    public Task MariaDb114_crud_and_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "contains", 1);
 
+    /// <summary>Checks the legacy server's substring translation independently from CRUD.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
+    public Task MySql80_contains_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "contains", 1);
+
+    /// <summary>Checks the legacy server's prefix translation independently from substring matching.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
+    public Task MySql80_starts_with_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "starts", 1);
+
+    /// <summary>Checks the legacy server's day arithmetic on one deterministic seeded row.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
+    public Task MySql80_datetime_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "days", 25);
+
+    /// <summary>Checks the legacy server's scalar absolute-value translation.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
+    public Task MySql80_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "absolute", 42.5);
+
+    /// <summary>Checks suffix translation on MariaDB independently from the substring probe.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public Task MariaDb114_ends_with_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "ends", 1);
+
+    /// <summary>Checks absolute-value translation for a negative MariaDB input.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public Task MariaDb114_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "absolute", 5);
+
+    /// <summary>Checks calendar-month translation on one deterministic MariaDB row.</summary>
+    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
+    public Task MariaDb114_datetime_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5);
+
+    private static async Task AssertParityQueryAsync(
+        IntegrationDatabaseTarget target,
+        string scenario,
+        double expected
+    )
+    {
+        // Arrange
+        var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
+        await using var context = new ParityContext(CreateOptions<ParityContext>(connectionString, GetServerVersion(target)));
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `ParityItems`;");
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `ParityItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Value` double NOT NULL, `CreatedAt` datetime(6) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Items.Add(
+            var mariaDb = target == IntegrationDatabaseTarget.MariaDb114;
+            context.Items.AddRange(
                 new ParityItem
                 {
-                    Name = "MariaDB Test",
-                    Value = 99.9,
-                    CreatedAt = new DateTime(2025, 3, 1, 12, 0, 0)
-                });
-            context.Items.Add(
+                    Name = mariaDb ? "MariaDB Test" : "Hello World",
+                    Value = mariaDb ? 99.9 : 42.5,
+                    CreatedAt = mariaDb ? new DateTime(2025, 3, 1, 12, 0, 0) : new DateTime(2025, 1, 15, 10, 0, 0),
+                },
                 new ParityItem
                 {
-                    Name = "Another",
-                    Value = -5.0,
-                    CreatedAt = new DateTime(2025, 7, 20, 8, 0, 0)
+                    Name = mariaDb ? "Another" : "Goodbye",
+                    Value = mariaDb ? -5 : 7,
+                    CreatedAt = mariaDb ? new DateTime(2025, 7, 20, 8, 0, 0) : new DateTime(2025, 6, 1),
                 });
             await context.SaveChangesAsync();
+            var contains = mariaDb ? "MariaDB" : "Hello";
 
-            Assert.Equal(
-                1,
-                await context
-                    .Items.Where(e => e.Name.Contains("MariaDB"))
-                    .CountAsync());
-            Assert.Equal(
-                1,
-                await context
-                    .Items.Where(e => e.Name.EndsWith("Test"))
-                    .CountAsync());
+            // Act
+            var actual = scenario switch
+            {
+                "contains" => await context.Items.CountAsync(item => item.Name.Contains(contains)),
+                "starts" => await context.Items.CountAsync(item => item.Name.StartsWith("Good")),
+                "ends" => await context.Items.CountAsync(item => item.Name.EndsWith("Test")),
+                "days" => (await context.Items.OrderBy(item => item.Id).Select(item => item.CreatedAt.AddDays(10)).FirstAsync()).Day,
+                "months" => (await context.Items.OrderBy(item => item.Id).Select(item => item.CreatedAt.AddMonths(2)).FirstAsync()).Month,
+                "absolute" when mariaDb => await context.Items.Where(item => item.Value < 0).Select(item => Math.Abs(item.Value)).FirstAsync(),
+                "absolute" => await context.Items.OrderBy(item => item.Id).Select(item => Math.Abs(item.Value)).FirstAsync(),
+                _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
+            };
 
-            var abs = await context
-                .Items.Where(e => e.Value < 0)
-                .Select(e => Math.Abs(e.Value))
-                .FirstAsync();
-
-            Assert.Equal(5.0, abs, 1);
-
-            var added = await context
-                .Items.Select(e => e.CreatedAt.AddMonths(2))
-                .FirstAsync();
-
-            Assert.Equal(5, added.Month);
+            // Assert
+            Assert.Equal(expected, actual, 1);
         }
         finally
         {
@@ -318,6 +332,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_tph_and_owned_modeling()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         await using var context = new TphParityContext(
             CreateOptions<TphParityContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
@@ -334,12 +349,12 @@ public sealed class MySqlComprehensiveCoverageTests
                     Name = "Max",
                     Breed = "Poodle"
                 });
+            // Act
             await context.SaveChangesAsync();
+            var dogs = await context.Animals.OfType<ParityDog>().ToListAsync();
 
-            Assert.Single(
-                await context
-                    .Animals.OfType<ParityDog>()
-                    .ToListAsync());
+            // Assert
+            Assert.Single(dogs);
         }
         finally
         {
@@ -350,6 +365,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_regexp_works()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         await using var context = new ParityContext(
             CreateOptions<ParityContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
@@ -377,10 +393,12 @@ public sealed class MySqlComprehensiveCoverageTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
+            // Act
             var count = await context
                 .Items.Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
                 .CountAsync();
 
+            // Assert
             Assert.Equal(1, count);
         }
         finally
@@ -396,6 +414,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task HiLo_generates_block_allocated_ids_on_mysql84()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         // seqName is a compile-time literal used as a HiLo sequence-table suffix;
         // the DDL that interpolates it below is fixture-controlled, not user input.
@@ -431,10 +450,12 @@ public sealed class MySqlComprehensiveCoverageTests
             context.Items.Add(new HiLoE2EItem { Name = "Second" });
             await context.SaveChangesAsync();
 
+            // Act
             var items = await context
                 .Items.OrderBy(e => e.Id)
                 .ToListAsync();
 
+            // Assert
             Assert.Equal(2, items.Count);
             Assert.True(items[0].Id > 0, "First ID should be positive");
             Assert.True(items[1].Id > items[0].Id, "Second ID should be greater than first");
@@ -453,6 +474,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Idempotent_migration_script_executes_on_mysql84()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new SimpleParityContext(
             CreateOptions<SimpleParityContext>(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0))));
@@ -478,11 +500,16 @@ public sealed class MySqlComprehensiveCoverageTests
 
         try
         {
+            // Act: Re-execution is the operation under test for this idempotency contract.
             // Safe: directCommandText is composed from IHistoryRepository's helpers around a literal body.
-            await context.Database.ExecuteSqlRawAsync(directCommandText);
+            var exception = await Record.ExceptionAsync(async () =>
+            {
+                await context.Database.ExecuteSqlRawAsync(directCommandText);
+                await context.Database.ExecuteSqlRawAsync(directCommandText);
+            });
 
-            // Execute again -- should be idempotent (no error).
-            await context.Database.ExecuteSqlRawAsync(directCommandText);
+            // Assert
+            Assert.Null(exception);
         }
         finally
         {
@@ -519,6 +546,7 @@ public sealed class MySqlComprehensiveCoverageTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var testDbName = $"ensure_test_{Guid.NewGuid():N}"[..30];
         var testConnectionString = ReplaceDatabase(baseConnectionString, testDbName);
@@ -532,20 +560,21 @@ public sealed class MySqlComprehensiveCoverageTests
             await using var context =
                 new SimpleParityContext(CreateOptions<SimpleParityContext>(testConnectionString, serverVersion));
 
-            // EnsureCreated creates DB + tables.
+            // Act: The row proves that creation worked before the same database is deleted.
             var created = await context.Database.EnsureCreatedAsync();
-
-            Assert.True(created);
 
             // Insert data to verify tables work.
             context.Items.Add(new SimpleItem { Name = "Test" });
             await context.SaveChangesAsync();
 
-            Assert.Equal(1, await context.Items.CountAsync());
+            var rowCount = await context.Items.CountAsync();
 
             // EnsureDeleted drops the DB.
             var deleted = await context.Database.EnsureDeletedAsync();
 
+            // Assert
+            Assert.True(created);
+            Assert.Equal(1, rowCount);
             Assert.True(deleted);
         }
         finally
@@ -561,6 +590,7 @@ public sealed class MySqlComprehensiveCoverageTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_group_concat_executes()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb114);
         await using var context = new ParityContext(
             CreateOptions<ParityContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 4, 0))));
@@ -593,6 +623,7 @@ public sealed class MySqlComprehensiveCoverageTests
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
+            // Act
             var groups = await context
                 .Items.GroupBy(e => e.Value)
                 .Select(g => new
@@ -603,6 +634,7 @@ public sealed class MySqlComprehensiveCoverageTests
                 .OrderBy(g => g.Val)
                 .ToListAsync();
 
+            // Assert
             Assert.Equal(2, groups.Count);
             Assert.Contains("A1", groups[0].Names, StringComparison.Ordinal);
             Assert.Contains("A2", groups[0].Names, StringComparison.Ordinal);
@@ -625,6 +657,7 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         var b = IntegrationTestDbContextOptions.Create<T>();
         b.UseMySql(cs, sv);
+
         return b.Options;
     }
 
@@ -641,7 +674,8 @@ public sealed class MySqlComprehensiveCoverageTests
         string db
     )
     {
-        var csb = new MySqlConnector.MySqlConnectionStringBuilder(cs) { Database = db };
+        var csb = new MySqlConnectionStringBuilder(cs) { Database = db };
+
         return csb.ConnectionString;
     }
 
@@ -650,14 +684,14 @@ public sealed class MySqlComprehensiveCoverageTests
         string db
     )
     {
-        var csb = new MySqlConnector.MySqlConnectionStringBuilder(cs) { Database = string.Empty };
-        await using var conn = new MySqlConnector.MySqlConnection(csb.ConnectionString);
+        var csb = new MySqlConnectionStringBuilder(cs) { Database = string.Empty };
+        await using var conn = new MySqlConnection(csb.ConnectionString);
         await conn.OpenAsync();
         await ExecuteRawAsync(conn, $"DROP DATABASE IF EXISTS `{db}`;");
     }
 
     private static async Task ExecuteRawAsync(
-        MySqlConnector.MySqlConnection conn,
+        MySqlConnection conn,
         string sql
     )
     {

@@ -28,7 +28,10 @@ public sealed class MySqlMaterializedSourceOwnedTests
         string mapping
     )
     {
+        // Arrange
         using var context = CreateContext(mariaDb, mapping);
+
+        // Act
         var reference = context.Owners.Where(owner => owner.Profile != null && owner.Profile.Name == "selected")
             .Select(owner => new { owner.Id, owner.Profile!.Name, owner.Profile!.Token })
             .OrderBy(row => row.Id)
@@ -41,6 +44,7 @@ public sealed class MySqlMaterializedSourceOwnedTests
 
         var actual = query.ToQueryString();
 
+        // Assert
         AssertReferenceColumns(reference, actual);
         Assert.Contains("WHERE", actual, StringComparison.Ordinal);
         Assert.Contains("ORDER BY", actual, StringComparison.Ordinal);
@@ -62,7 +66,10 @@ public sealed class MySqlMaterializedSourceOwnedTests
         string mapping
     )
     {
+        // Arrange
         using var context = CreateContext(mariaDb, mapping);
+
+        // Act
         var reference = context.Owners.Where(owner => owner.Id > 0).OrderBy(owner => owner.Id).ToQueryString();
         var query = context.Owners.WithMaterializedSource(source => source
             .Where(owner => owner.Id > 0)
@@ -70,6 +77,7 @@ public sealed class MySqlMaterializedSourceOwnedTests
 
         var actual = query.ToQueryString();
 
+        // Assert
         AssertReferenceColumns(reference, actual);
         Assert.Contains(OwnerLabelColumn, reference, StringComparison.Ordinal);
         Assert.Contains(OwnerLabelColumn, actual, StringComparison.Ordinal);
@@ -93,12 +101,14 @@ public sealed class MySqlMaterializedSourceOwnedTests
         string mapping
     )
     {
+        // Arrange
         using var context = CreateContext(mariaDb, mapping);
         // WHY: Ordinary EF forbids tracking an owned result without its owner. Use
         // the same explicitly untracked source for the reference and bound query.
         var source = context.Owners.AsNoTracking().Where(owner => owner.Profile != null)
             .Select(owner => owner.Profile!);
 
+        // Act
         var reference = source.Where(profile => profile.Name == "selected")
             .OrderBy(profile => profile.Name)
             .Select(profile => new { profile.Name, profile.Token })
@@ -110,6 +120,7 @@ public sealed class MySqlMaterializedSourceOwnedTests
 
         var actual = query.ToQueryString();
 
+        // Assert
         AssertReferenceColumns(reference, actual);
         Assert.Contains("WHERE", actual, StringComparison.Ordinal);
         Assert.Contains("ORDER BY", actual, StringComparison.Ordinal);

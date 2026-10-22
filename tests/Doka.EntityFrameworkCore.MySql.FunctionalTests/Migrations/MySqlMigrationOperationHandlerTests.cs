@@ -1,20 +1,20 @@
-using System.Reflection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
-/// Exercises the public migration-operation handler SPI through EF Core's real
-/// scoped runtime service graph.
+/// Verifies migration operation handler contracts.
 /// </summary>
-public sealed class MySqlMigrationOperationHandlerTests
+public sealed partial class MySqlMigrationOperationHandlerTests
 {
+    /// <summary>
+    /// Verifies custom handler preserves command order boundaries and generation context.
+    /// </summary>
     [Theory]
     [MemberData(nameof(GenerationModes))]
     public void Custom_handler_preserves_command_order_boundaries_and_generation_context(
         MigrationsSqlGenerationOptions options
     )
     {
+        // Arrange
         using var serviceProvider = CreateServiceProvider(
             [typeof(BaselineRenderingHandler)],
             registerBeforeProvider: true);
@@ -28,8 +28,10 @@ public sealed class MySqlMigrationOperationHandlerTests
 
         var operation = new FirstCustomOperation("payload-not-telemetry");
 
+        // Act
         var commands = generator.Generate([operation], context.Model, options);
 
+        // Assert
         Assert.Collection(
             commands,
             command =>
@@ -53,12 +55,16 @@ public sealed class MySqlMigrationOperationHandlerTests
             handler.LastContext.Features.GetSupport(MySqlMigrationFeature.Sequences));
     }
 
+    /// <summary>
+    /// Verifies consumed handler emits no command and preserves neighbor boundaries.
+    /// </summary>
     [Theory]
     [MemberData(nameof(GenerationModes))]
     public void Consumed_handler_emits_no_command_and_preserves_neighbor_boundaries(
         MigrationsSqlGenerationOptions options
     )
     {
+        // Arrange
         using var serviceProvider = CreateServiceProvider(
             [typeof(ConsumedHandler)],
             registerBeforeProvider: true);
@@ -69,19 +75,23 @@ public sealed class MySqlMigrationOperationHandlerTests
             .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
             .OfType<ConsumedHandler>()
             .Single();
+
         var first = new SqlOperation
         {
             Sql = "SELECT 1;",
             SuppressTransaction = true,
         };
+
         var second = new SqlOperation { Sql = "SELECT 2;" };
 
+        // Act
         var expected = generator.Generate([first, second], context.Model, options);
         var actual = generator.Generate(
             [first, new ConsumedCustomOperation(), second],
             context.Model,
             options);
 
+        // Assert
         Assert.Equal(expected.Count, actual.Count);
         for (var index = 0; index < expected.Count; index++)
         {
@@ -92,9 +102,35 @@ public sealed class MySqlMigrationOperationHandlerTests
         Assert.NotNull(handler.LastContext);
         Assert.Equal(options, handler.LastContext.Options);
         Assert.Equal(1, handler.LastContext.OperationOrdinal);
-        Assert.Empty(generator.Generate([new ConsumedCustomOperation()], context.Model, options));
     }
 
+    /// <summary>
+    /// A consumed operation succeeds without creating a migration command in every generation mode.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(GenerationModes))]
+    public void Consumed_handler_alone_emits_no_command(
+        MigrationsSqlGenerationOptions options
+    )
+    {
+        // Arrange
+        using var serviceProvider = CreateServiceProvider(
+            [typeof(ConsumedHandler)],
+            registerBeforeProvider: true);
+
+        using var context = CreateContext(serviceProvider);
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
+        var commands = generator.Generate([new ConsumedCustomOperation()], context.Model, options);
+
+        // Assert
+        Assert.Empty(commands);
+    }
+
+    /// <summary>
+    /// Verifies independent handlers coexist and dispatch by exact runtime type.
+    /// </summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -105,6 +141,7 @@ public sealed class MySqlMigrationOperationHandlerTests
         bool reverseHandlerOrder
     )
     {
+        // Arrange
         Type[] handlerTypes = reverseHandlerOrder
             ? [typeof(BaselineRenderingHandler), typeof(SecondHandler)]
             : [typeof(SecondHandler), typeof(BaselineRenderingHandler)];
@@ -124,6 +161,7 @@ public sealed class MySqlMigrationOperationHandlerTests
             .OfType<SecondHandler>()
             .Single();
 
+        // Act
         var commands = generator.Generate(
             [
                 new FirstCustomOperation("first"),
@@ -131,6 +169,7 @@ public sealed class MySqlMigrationOperationHandlerTests
             ],
             context.Model);
 
+        // Assert
         Assert.Equal(3, commands.Count);
         Assert.Equal("SELECT 1;" + Environment.NewLine, commands[0].CommandText);
         Assert.Equal("SELECT 2;", commands[1].CommandText);
@@ -139,9 +178,13 @@ public sealed class MySqlMigrationOperationHandlerTests
         Assert.Equal(1, second.LastContext?.OperationOrdinal);
     }
 
+    /// <summary>
+    /// Verifies handler ownership does not match derived operation types.
+    /// </summary>
     [Fact]
     public void Handler_ownership_does_not_match_derived_operation_types()
     {
+        // Arrange
         using var serviceProvider = CreateServiceProvider(
             [typeof(BaselineRenderingHandler)],
             registerBeforeProvider: true);
@@ -153,1259 +196,59 @@ public sealed class MySqlMigrationOperationHandlerTests
             .OfType<BaselineRenderingHandler>()
             .Single();
 
+        // Act
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             generator.Generate([new DerivedCustomOperation()], context.Model));
 
+        // Assert
         Assert.Equal(MySqlMigrationHandlerFailureCode.UnknownOperationType, exception.FailureCode);
         Assert.Null(handler.LastContext);
     }
 
+    /// <summary>
+    /// Verifies unknown custom operation fails closed.
+    /// </summary>
     [Fact]
     public void Unknown_custom_operation_fails_closed()
     {
+        // Arrange
         using var serviceProvider = CreateServiceProvider([], registerBeforeProvider: true);
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
+        // Act
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             generator.Generate([new FirstCustomOperation("unknown")], context.Model));
 
+        // Assert
         Assert.Equal(MySqlMigrationHandlerFailureCode.UnknownOperationType, exception.FailureCode);
         Assert.Null(exception.HandlerId);
         Assert.Equal(typeof(FirstCustomOperation).FullName, exception.OperationType);
         Assert.Equal(0, exception.OperationOrdinal);
     }
 
+    /// <summary>
+    /// Verifies handler exception is wrapped without copying sensitive text.
+    /// </summary>
     [Fact]
     public void Handler_exception_is_wrapped_without_copying_sensitive_text()
     {
+        // Arrange
         const string sensitiveText = "password=never-log-this";
         const string sensitiveData = "tenant=never-export-this";
         using var serviceProvider = CreateServiceProvider([typeof(ThrowingHandler)], registerBeforeProvider: true);
         using var context = CreateContext(serviceProvider);
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
+        // Act
         var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
             generator.Generate([new FirstCustomOperation("secret")], context.Model));
 
+        // Assert
         Assert.Equal(MySqlMigrationHandlerFailureCode.HandlerFailed, exception.FailureCode);
         var innerException = Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(sensitiveData, innerException.Data["private-context"]);
         Assert.DoesNotContain(sensitiveText, exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(sensitiveData, exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Null_handler_result_fails_before_any_command_is_returned()
-    {
-        using var serviceProvider = CreateServiceProvider([typeof(NullResultHandler)], registerBeforeProvider: true);
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            generator.Generate([new FirstCustomOperation("invalid")], context.Model));
-
-        Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidHandlerResult, exception.FailureCode);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Invalid_staged_command_never_mutates_the_outer_builder(
-        int invalidCommandIndex
-    )
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(InvalidCommandResultHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-
-        var generator = Assert.IsType<MySqlMigrationsSqlGenerator>(context.GetService<IMigrationsSqlGenerator>());
-        var builder = new MigrationCommandListBuilder(context.GetService<MigrationsSqlGeneratorDependencies>());
-        var generate = typeof(MySqlMigrationsSqlGenerator).GetMethod(
-            "Generate",
-            BindingFlags.Instance | BindingFlags.NonPublic,
-            binder: null,
-            [
-                typeof(MigrationOperation),
-                typeof(IModel),
-                typeof(MigrationCommandListBuilder)
-            ],
-            modifiers: null);
-
-        var invocation = Assert.Throws<TargetInvocationException>(() => generate!.Invoke(
-            generator,
-            [
-                new InvalidResultOperation(invalidCommandIndex),
-                context.Model,
-                builder,
-            ]));
-
-        var exception = Assert.IsType<MySqlMigrationOperationHandlerException>(invocation.InnerException);
-
-        Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidHandlerResult, exception.FailureCode);
-        Assert.Empty(builder.GetCommandList());
-    }
-
-    [Fact]
-    public void Stateful_handler_result_is_snapshotted_once_before_validation()
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(StatefulResultHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var handler = context
-            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
-            .OfType<StatefulResultHandler>()
-            .Single();
-
-        var commands = generator.Generate([new StatefulResultOperation()], context.Model);
-
-        Assert.Collection(
-            commands,
-            command => Assert.Equal("SELECT 1;", command.CommandText),
-            command => Assert.Equal("SELECT 2;", command.CommandText));
-        Assert.Equal(1, handler.Commands?.EnumerationCount);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Inconsistent_result_state_fails_before_any_command_is_returned(
-        int shapeValue
-    )
-    {
-        var shape = (MalformedResultShape)shapeValue;
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(MalformedResultHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            generator.Generate([new MalformedResultOperation(shape)], context.Model));
-
-        Assert.Equal(MySqlMigrationHandlerFailureCode.InvalidHandlerResult, exception.FailureCode);
-    }
-
-    [Fact]
-    public void Rendering_context_expires_at_the_handler_boundary()
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(BaselineRenderingHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var handler = context
-            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
-            .OfType<BaselineRenderingHandler>()
-            .Single();
-
-        _ = generator.Generate([new FirstCustomOperation("first")], context.Model);
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            handler.LastContext!.RenderStandardOperation(new SqlOperation { Sql = "SELECT 4;" }));
-
-        Assert.Equal(MySqlMigrationHandlerFailureCode.ContextExpired, exception.FailureCode);
-    }
-
-    [Fact]
-    public void Rendering_context_rejects_custom_operations()
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(CustomRenderingHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(() =>
-            generator.Generate([new FirstCustomOperation("first")], context.Model));
-
-        Assert.Equal(MySqlMigrationHandlerFailureCode.UnknownOperationType, exception.FailureCode);
-    }
-
-    [Fact]
-    public void Baseline_renderer_exposes_provider_owned_command_fragments_without_parsing()
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(BaselineRenderingHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var handler = context
-            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
-            .OfType<BaselineRenderingHandler>()
-            .Single();
-
-        var operation = new AddColumnOperation
-        {
-            Table = "Entries",
-            Name = "Description",
-            ClrType = typeof(string),
-            ColumnType = "varchar(64)",
-            IsNullable = true,
-            Comment = "path\\segment; 'quoted' /* data */",
-        };
-
-        _ = generator.Generate(
-            [new FirstCustomOperation("structured-baseline", operation)],
-            context.Model);
-
-        var command = Assert.Single(handler.LastBaseline!);
-
-        Assert.Collection(
-            command.Fragments,
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
-        Assert.Equal(
-            command.CommandText,
-            string.Concat(command.Fragments.Select(static fragment => fragment.CommandText.ToString())));
-        Assert.Contains(
-            "ALTER TABLE `Entries` ADD `Description` varchar(64) NULL COMMENT",
-            command.Fragments[2].CommandText.ToString(),
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Ordinary_baseline_command_contains_one_body_fragment()
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(BaselineRenderingHandler)],
-            registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var handler = context
-            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
-            .OfType<BaselineRenderingHandler>()
-            .Single();
-
-        _ = generator.Generate(
-            [new FirstCustomOperation("ordinary", new SqlOperation { Sql = "SELECT 4;" })],
-            context.Model);
-
-        var command = Assert.Single(handler.LastBaseline!);
-        var fragment = Assert.Single(command.Fragments);
-
-        Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind);
-        Assert.Equal(command.CommandText, fragment.CommandText.ToString());
-    }
-
-    [Fact]
-    public void Handler_scoped_command_materializes_provider_owned_executor()
-    {
-        using var serviceProvider = CreateServiceProvider([typeof(ScopedCommandHandler)], registerBeforeProvider: true);
-
-        using var context = CreateContext(serviceProvider);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var command = Assert.Single(generator.Generate([new FirstCustomOperation("scoped")], context.Model));
-        var scopedCommand = Assert.IsType<MySqlScopedMigrationCommand>(command);
-
-        Assert.True(command.TransactionSuppressed);
-        Assert.Equal(MySqlMigrationCommandScopeKind.Handler, scopedCommand.Layout.ScopeKind);
-        Assert.Equal(2, scopedCommand.Layout.SetupCommandTexts.Count);
-        Assert.Equal(2, scopedCommand.Layout.CleanupCommandTexts.Count);
-        Assert.Equal("SELECT @first + @second;\n", scopedCommand.Layout.BodyCommandText);
-    }
-
-    [Theory]
-    [InlineData("create")]
-    [InlineData("add")]
-    [InlineData("alter-column")]
-    [InlineData("alter-table")]
-    [InlineData("rename-fallback")]
-    public void Every_comment_wrapper_path_exposes_the_same_structured_scope(
-        string path
-    )
-    {
-        using var serviceProvider = CreateServiceProvider(
-            [typeof(BaselineRenderingHandler)],
-            registerBeforeProvider: true);
-        var serverVersion = path == "rename-fallback"
-            ? MySqlServerVersion.MariaDb(
-                new Version(10, 5, 0),
-                MySqlServerVersionCompatibilityMode.AllowUnsupported)
-            : MySqlServerVersion.MySql(new Version(8, 4, 11));
-
-        using var context = CreateContext(serviceProvider, serverVersion);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-        var handler = context
-            .GetService<IEnumerable<IMySqlMigrationOperationHandler>>()
-            .OfType<BaselineRenderingHandler>()
-            .Single();
-
-        var operation = CreateCommentWrapperOperation(path);
-        var model = context.GetService<IDesignTimeModel>().Model;
-
-        _ = generator.Generate(
-            [new FirstCustomOperation("comment-wrapper", operation)],
-            model);
-
-        var command = Assert.Single(handler.LastBaseline!);
-
-        Assert.Collection(
-            command.Fragments,
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
-            fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
-    }
-
-    [Fact]
-    public void Baseline_renderer_preserves_every_reserved_operation_command_sequence()
-    {
-        foreach (var serverVersion in ActiveLtsServerVersions)
-        {
-            using var serviceProvider = CreateServiceProvider(
-                [typeof(BaselineRenderingHandler)],
-                registerBeforeProvider: true);
-
-            using var context = CreateContext(serviceProvider, serverVersion);
-            var generator = context.GetService<IMigrationsSqlGenerator>();
-            var operations = CreateStandardOperationFixtures();
-
-            Assert.True(
-                operations
-                    .Select(operation => operation.GetType())
-                    .ToHashSet()
-                    .SetEquals(MySqlStandardMigrationOperations.Types),
-                "The baseline-renderer fixture set drifted from the reserved operation set.");
-
-            foreach (var operation in operations)
-            {
-                var expected = generator.Generate([operation], context.Model);
-                var actual = generator.Generate(
-                    [new FirstCustomOperation("baseline-parity", operation)],
-                    context.Model);
-
-                Assert.Equal(expected.Count + 1, actual.Count);
-
-                for (var index = 0; index < expected.Count; index++)
-                {
-                    Assert.Equal(expected[index].CommandText, actual[index].CommandText);
-                    Assert.Equal(expected[index].TransactionSuppressed, actual[index].TransactionSuppressed);
-                }
-
-                Assert.Equal("SELECT 2;", actual[^1].CommandText);
-            }
-        }
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Plugin_options_extension_registers_handler_before_or_after_use_mysql(
-        bool registerBeforeUseMySql
-    )
-    {
-        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
-
-        if (registerBeforeUseMySql)
-        {
-            AddPlugin<SecondHandler>(builder);
-        }
-
-        builder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 11)));
-
-        if (!registerBeforeUseMySql)
-        {
-            AddPlugin<SecondHandler>(builder);
-        }
-
-        using var context = new HandlerContext(builder.Options);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var command = Assert.Single(generator.Generate([new SecondCustomOperation()], context.Model));
-
-        Assert.Equal("SELECT 3;", command.CommandText);
-    }
-
-    [Fact]
-    public void Independent_plugin_options_extensions_compose_in_the_internal_service_graph()
-    {
-        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
-        AddPlugin<BaselineRenderingHandler>(builder);
-        builder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 11)));
-        AddPlugin<SecondHandler>(builder);
-
-        using var context = new HandlerContext(builder.Options);
-        var generator = context.GetService<IMigrationsSqlGenerator>();
-
-        var commands = generator.Generate(
-            [
-                new FirstCustomOperation("first"),
-                new SecondCustomOperation(),
-            ],
-            context.Model);
-
-        Assert.Equal(3, commands.Count);
-    }
-
-    [Theory]
-    [InlineData(typeof(DuplicateIdHandler), MySqlMigrationHandlerFailureCode.DuplicateHandlerId)]
-    [InlineData(typeof(DuplicateOperationHandler), MySqlMigrationHandlerFailureCode.DuplicateOperationOwnership)]
-    public void Conflicting_plugin_options_extensions_fail_service_graph_construction(
-        Type conflictingHandlerType,
-        MySqlMigrationHandlerFailureCode expectedFailureCode
-    )
-    {
-        var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HandlerContext>();
-        AddPlugin<BaselineRenderingHandler>(builder);
-        builder.UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 11)));
-        if (conflictingHandlerType == typeof(DuplicateIdHandler))
-        {
-            AddPlugin<DuplicateIdHandler>(builder);
-        }
-        else
-        {
-            Assert.Equal(typeof(DuplicateOperationHandler), conflictingHandlerType);
-            AddPlugin<DuplicateOperationHandler>(builder);
-        }
-
-        using var context = new HandlerContext(builder.Options);
-
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(context.GetService<IMigrationsSqlGenerator>);
-
-        Assert.Equal(expectedFailureCode, exception.FailureCode);
-    }
-
-    public static TheoryData<MigrationsSqlGenerationOptions> GenerationModes => new()
-    {
-        MigrationsSqlGenerationOptions.Default,
-        MigrationsSqlGenerationOptions.Script,
-        MigrationsSqlGenerationOptions.Idempotent,
-        MigrationsSqlGenerationOptions.NoTransactions,
-        MigrationsSqlGenerationOptions.Script | MigrationsSqlGenerationOptions.Idempotent,
-        MigrationsSqlGenerationOptions.Script | MigrationsSqlGenerationOptions.NoTransactions,
-        MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions,
-        MigrationsSqlGenerationOptions.Script
-        | MigrationsSqlGenerationOptions.Idempotent
-        | MigrationsSqlGenerationOptions.NoTransactions,
-        (MigrationsSqlGenerationOptions)8,
-    };
-
-    private static IReadOnlyList<MySqlServerVersion> ActiveLtsServerVersions =>
-    [
-        MySqlServerVersion.MySql(new Version(8, 4, 11)),
-        MySqlServerVersion.MySql(new Version(9, 7, 2)),
-        MySqlServerVersion.MariaDb(new Version(10, 11, 18)),
-        MySqlServerVersion.MariaDb(new Version(11, 4, 12)),
-        MySqlServerVersion.MariaDb(new Version(11, 8, 8)),
-        MySqlServerVersion.MariaDb(new Version(12, 3, 2)),
-    ];
-
-    private static IReadOnlyList<MigrationOperation> CreateStandardOperationFixtures()
-    {
-        var alterTable = new AlterTableOperation
-        {
-            Name = "Entries",
-            Comment = "new comment",
-            OldTable = { Comment = "old comment" },
-        };
-
-        return
-        [
-            new AddColumnOperation
-            {
-                Table = "Entries",
-                Name = "Value",
-                ClrType = typeof(int),
-                ColumnType = "int",
-                IsNullable = true,
-            },
-            new AddForeignKeyOperation
-            {
-                Name = "FK_Entries_Parents",
-                Table = "Entries",
-                Columns = ["ParentId"],
-                PrincipalTable = "Parents",
-                PrincipalColumns = ["Id"],
-            },
-            new AddPrimaryKeyOperation
-            {
-                Name = "PK_Entries",
-                Table = "Entries",
-                Columns = ["Id"],
-            },
-            new AddUniqueConstraintOperation
-            {
-                Name = "AK_Entries_Code",
-                Table = "Entries",
-                Columns = ["Code"],
-            },
-            new AlterColumnOperation
-            {
-                Table = "Entries",
-                Name = "Value",
-                ClrType = typeof(long),
-                ColumnType = "bigint",
-                IsNullable = true,
-                OldColumn = new AddColumnOperation
-                {
-                    Table = "Entries",
-                    Name = "Value",
-                    ClrType = typeof(int),
-                    ColumnType = "int",
-                    IsNullable = true,
-                },
-            },
-            new AlterDatabaseOperation(),
-            new AlterSequenceOperation
-            {
-                Name = "EntrySequence",
-                IncrementBy = 2,
-            },
-            alterTable,
-            new AddCheckConstraintOperation
-            {
-                Name = "CK_Entries_Value",
-                Table = "Entries",
-                Sql = "`Value` >= 0",
-            },
-            new CreateIndexOperation
-            {
-                Name = "IX_Entries_Code",
-                Table = "Entries",
-                Columns = ["Code"],
-            },
-            new CreateSequenceOperation
-            {
-                Name = "EntrySequence",
-                ClrType = typeof(long),
-                StartValue = 1,
-                IncrementBy = 1,
-            },
-            CreateTableFixture(),
-            new DropColumnOperation
-            {
-                Table = "Entries",
-                Name = "Value",
-            },
-            new DropForeignKeyOperation
-            {
-                Name = "FK_Entries_Parents",
-                Table = "Entries",
-            },
-            new DropIndexOperation
-            {
-                Name = "IX_Entries_Code",
-                Table = "Entries",
-            },
-            new DropPrimaryKeyOperation
-            {
-                Name = "PK_Entries",
-                Table = "Entries",
-            },
-            new DropSchemaOperation { Name = "tenant_database" },
-            new DropSequenceOperation { Name = "EntrySequence" },
-            new DropTableOperation { Name = "Entries" },
-            new DropUniqueConstraintOperation
-            {
-                Name = "AK_Entries_Code",
-                Table = "Entries",
-            },
-            new DropCheckConstraintOperation
-            {
-                Name = "CK_Entries_Value",
-                Table = "Entries",
-            },
-            new EnsureSchemaOperation { Name = "tenant_database" },
-            new RenameColumnOperation
-            {
-                Table = "Entries",
-                Name = "Value",
-                NewName = "RenamedValue",
-            },
-            new RenameIndexOperation
-            {
-                Table = "Entries",
-                Name = "IX_Entries_Code",
-                NewName = "IX_Entries_Value",
-            },
-            new RenameSequenceOperation
-            {
-                Name = "EntrySequence",
-                NewName = "RenamedSequence",
-            },
-            new RenameTableOperation
-            {
-                Name = "Entries",
-                NewName = "RenamedEntries",
-            },
-            new RestartSequenceOperation
-            {
-                Name = "EntrySequence",
-                StartValue = 5,
-            },
-            new SqlOperation
-            {
-                Sql = "SELECT 1;",
-                SuppressTransaction = true,
-            },
-            new InsertDataOperation
-            {
-                Table = "Entries",
-                Columns = ["Id"],
-                ColumnTypes = ["int"],
-                Values = new object[,] { { 1 } },
-            },
-            new DeleteDataOperation
-            {
-                Table = "Entries",
-                KeyColumns = ["Id"],
-                KeyColumnTypes = ["int"],
-                KeyValues = new object[,] { { 1 } },
-            },
-            new UpdateDataOperation
-            {
-                Table = "Entries",
-                Columns = ["Value"],
-                ColumnTypes = ["int"],
-                Values = new object[,] { { 2 } },
-                KeyColumns = ["Id"],
-                KeyColumnTypes = ["int"],
-                KeyValues = new object[,] { { 1 } },
-            },
-        ];
-    }
-
-    private static CreateTableOperation CreateTableFixture()
-    {
-        var operation = new CreateTableOperation { Name = "Entries" };
-        operation.Columns.Add(
-            new AddColumnOperation
-            {
-                Table = operation.Name,
-                Name = "Id",
-                ClrType = typeof(int),
-                ColumnType = "int",
-                IsNullable = false,
-            });
-        operation.PrimaryKey = new AddPrimaryKeyOperation
-        {
-            Name = "PK_Entries",
-            Table = operation.Name,
-            Columns = ["Id"],
-        };
-
-        return operation;
-    }
-
-    private static MigrationOperation CreateCommentWrapperOperation(
-        string path
-    )
-    {
-        const string comment = "path\\segment";
-
-        return path switch
-        {
-            "create" => CreateCommentedTable(comment),
-            "add" => new AddColumnOperation
-            {
-                Table = "Entries",
-                Name = "Value",
-                ClrType = typeof(string),
-                ColumnType = "varchar(64)",
-                IsNullable = true,
-                Comment = comment,
-            },
-            "alter-column" => CreateCommentedAlterColumn(comment),
-            "alter-table" => new AlterTableOperation
-            {
-                Name = "Entries",
-                Comment = comment,
-            },
-            "rename-fallback" => new RenameColumnOperation
-            {
-                Table = "HandlerRenameEntries",
-                Name = "OldValue",
-                NewName = "RenamedValue",
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(path), path, "Unknown comment-wrapper path."),
-        };
-    }
-
-    private static CreateTableOperation CreateCommentedTable(
-        string comment
-    )
-    {
-        var operation = new CreateTableOperation
-        {
-            Name = "Entries",
-            Comment = comment,
-        };
-        operation.Columns.Add(
-            new AddColumnOperation
-            {
-                Table = operation.Name,
-                Name = "Id",
-                ClrType = typeof(int),
-                ColumnType = "int",
-                IsNullable = false,
-            });
-
-        return operation;
-    }
-
-    private static AlterColumnOperation CreateCommentedAlterColumn(
-        string comment
-    )
-    {
-        return new AlterColumnOperation
-        {
-            Table = "Entries",
-            Name = "Value",
-            ClrType = typeof(string),
-            ColumnType = "varchar(64)",
-            IsNullable = true,
-            Comment = comment,
-            OldColumn =
-            {
-                ClrType = typeof(string),
-                ColumnType = "varchar(64)",
-                IsNullable = true,
-            },
-        };
-    }
-
-    private static ServiceProvider CreateServiceProvider(
-        IReadOnlyList<Type> handlerTypes,
-        bool registerBeforeProvider
-    )
-    {
-        var services = new ServiceCollection();
-
-        if (registerBeforeProvider)
-        {
-            RegisterHandlers(services, handlerTypes);
-        }
-
-        services.AddEntityFrameworkDokaMySql();
-
-        if (!registerBeforeProvider)
-        {
-            RegisterHandlers(services, handlerTypes);
-        }
-
-        return services.BuildServiceProvider(validateScopes: true);
-    }
-
-    private static void RegisterHandlers(
-        IServiceCollection services,
-        IEnumerable<Type> handlerTypes
-    )
-    {
-        foreach (var handlerType in handlerTypes)
-        {
-            services.TryAddEnumerable(
-                new ServiceDescriptor(typeof(IMySqlMigrationOperationHandler), handlerType, ServiceLifetime.Scoped));
-        }
-    }
-
-    private static void AddPlugin<THandler>(
-        DbContextOptionsBuilder builder
-    )
-        where THandler : class, IMySqlMigrationOperationHandler =>
-        ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(new HandlerOptionsExtension<THandler>());
-
-    private static HandlerContext CreateContext(
-        IServiceProvider serviceProvider,
-        MySqlServerVersion? serverVersion = null
-    )
-    {
-        var builder = new DbContextOptionsBuilder<HandlerContext>();
-        builder
-            .UseInternalServiceProvider(serviceProvider)
-            .UseMySql(
-                "Server=localhost;Database=doka;User ID=root;Password=password;",
-                serverVersion ?? MySqlServerVersion.MySql(new Version(8, 4, 11)));
-
-        return new HandlerContext(builder.Options);
-    }
-
-    private class FirstCustomOperation : MigrationOperation
-    {
-        public FirstCustomOperation(
-            string payload,
-            MigrationOperation? standardOperation = null
-        )
-        {
-            Payload = payload;
-            StandardOperation = standardOperation;
-        }
-
-        public string Payload { get; }
-
-        public MigrationOperation? StandardOperation { get; }
-    }
-
-    private sealed class DerivedCustomOperation : FirstCustomOperation
-    {
-        public DerivedCustomOperation() : base("derived") { }
-    }
-
-    private sealed class SecondCustomOperation : MigrationOperation;
-
-    private sealed class InvalidResultOperation : MigrationOperation
-    {
-        public InvalidResultOperation(
-            int invalidCommandIndex
-        )
-        {
-            InvalidCommandIndex = invalidCommandIndex;
-        }
-
-        public int InvalidCommandIndex { get; }
-    }
-
-    private sealed class StatefulResultOperation : MigrationOperation;
-
-    private sealed class ConsumedCustomOperation : MigrationOperation;
-
-    private sealed class MalformedResultOperation : MigrationOperation
-    {
-        public MalformedResultOperation(
-            MalformedResultShape shape
-        )
-        {
-            Shape = shape;
-        }
-
-        public MalformedResultShape Shape { get; }
-    }
-
-    private enum MalformedResultShape
-    {
-        UndefinedKind,
-        GeneratedWithoutCommands,
-        ConsumedWithCommands,
-    }
-
-    private sealed class BaselineRenderingHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.baseline";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationContext? LastContext { get; private set; }
-
-        public IReadOnlyList<MySqlMigrationCommandSpec>? LastBaseline { get; private set; }
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            LastContext = context;
-            var operation = (FirstCustomOperation)context.Operation;
-            var baseline = context.RenderStandardOperation(
-                operation.StandardOperation
-                ?? new SqlOperation
-                {
-                    Sql = "SELECT 1;",
-                    SuppressTransaction = true,
-                });
-
-            LastBaseline = baseline;
-
-            return MySqlMigrationOperationResult.Generated(
-                baseline.Append(MySqlMigrationCommandSpec.Create("SELECT 2;")),
-                "generated");
-        }
-    }
-
-    private sealed class SecondHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.second";
-
-        public Type OperationType => typeof(SecondCustomOperation);
-
-        public MySqlMigrationOperationContext? LastContext { get; private set; }
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            LastContext = context;
-            return MySqlMigrationOperationResult.Generated(
-                [MySqlMigrationCommandSpec.Create("SELECT 3;")],
-                "generated");
-        }
-    }
-
-    private sealed class ConsumedHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.consumed";
-
-        public Type OperationType => typeof(ConsumedCustomOperation);
-
-        public MySqlMigrationOperationContext? LastContext { get; private set; }
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            LastContext = context;
-            return MySqlMigrationOperationResult.Consumed("operation_consumed");
-        }
-    }
-
-    private sealed class ScopedCommandHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.scoped";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        ) => MySqlMigrationOperationResult.Generated(
-            [
-                MySqlMigrationCommandSpec.CreateScoped(
-                    [
-                        "SET @first = 1;\n",
-                        "SET @second = 2;\n",
-                    ],
-                    "SELECT @first + @second;\n",
-                    [
-                        "SET @first = NULL;\n",
-                        "SET @second = NULL;\n",
-                    ],
-                    transactionSuppressed: true),
-            ],
-            "generated");
-    }
-
-    private sealed class DuplicateIdHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.baseline";
-
-        public Type OperationType => typeof(SecondCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        ) => throw new NotSupportedException();
-    }
-
-    private sealed class DuplicateOperationHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.duplicate_operation";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        ) => throw new NotSupportedException();
-    }
-
-    private sealed class ThrowingHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.throwing";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var exception = new InvalidOperationException("password=never-log-this")
-            {
-                Data =
-                {
-                    ["private-context"] = "tenant=never-export-this",
-                },
-            };
-
-            throw exception;
-        }
-    }
-
-    private sealed class NullResultHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.null_result";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        ) => null!;
-    }
-
-    private sealed class InvalidCommandResultHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.invalid_command";
-
-        public Type OperationType => typeof(InvalidResultOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var operation = (InvalidResultOperation)context.Operation;
-            var commands = new[]
-            {
-                MySqlMigrationCommandSpec.Create("SELECT 1;"),
-                MySqlMigrationCommandSpec.Create("SELECT 2;"),
-                MySqlMigrationCommandSpec.Create("SELECT 3;"),
-            };
-
-            var commandConstructor = typeof(MySqlMigrationCommandSpec).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                [
-                    typeof(string),
-                    typeof(bool),
-                ],
-                modifiers: null);
-
-            commands[operation.InvalidCommandIndex] = (MySqlMigrationCommandSpec)commandConstructor!.Invoke(
-            [
-                " ",
-                false,
-            ]);
-            var resultConstructor = typeof(MySqlMigrationOperationResult).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                [
-                    typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
-                    typeof(string),
-                    typeof(MySqlMigrationOperationResultKind),
-                ],
-                modifiers: null);
-
-            // The public factories prevent this shape. Reflection models a
-            // hostile plugin so the provider's independent trust-boundary
-            // validation and all-or-nothing append remain directly tested.
-            return (MySqlMigrationOperationResult)resultConstructor!.Invoke(
-            [
-                Array.AsReadOnly(commands),
-                "generated",
-                MySqlMigrationOperationResultKind.Generated,
-            ]);
-        }
-    }
-
-    private sealed class StatefulResultHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.stateful_result";
-
-        public Type OperationType => typeof(StatefulResultOperation);
-
-        public StatefulCommandList? Commands { get; private set; }
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var commandConstructor = typeof(MySqlMigrationCommandSpec).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                [
-                    typeof(string),
-                    typeof(bool),
-                ],
-                modifiers: null);
-
-            var invalidCommand = (MySqlMigrationCommandSpec)commandConstructor!.Invoke([" ", false]);
-
-            Commands = new StatefulCommandList(
-                [
-                    MySqlMigrationCommandSpec.Create("SELECT 1;"),
-                    MySqlMigrationCommandSpec.Create("SELECT 2;"),
-                ],
-                [
-                    MySqlMigrationCommandSpec.Create("SELECT 1;"),
-                    invalidCommand,
-                ]);
-
-            var resultConstructor = typeof(MySqlMigrationOperationResult).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                [
-                    typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
-                    typeof(string),
-                    typeof(MySqlMigrationOperationResultKind),
-                ],
-                modifiers: null);
-
-            // A stateful list models the strongest IReadOnlyList adversary: a
-            // second enumeration yields different data. The provider must copy
-            // once and validate exactly the command snapshot it later appends.
-            return (MySqlMigrationOperationResult)resultConstructor!.Invoke(
-            [
-                Commands,
-                "generated",
-                MySqlMigrationOperationResultKind.Generated,
-            ]);
-        }
-    }
-
-    private sealed class MalformedResultHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.malformed_result";
-
-        public Type OperationType => typeof(MalformedResultOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var operation = (MalformedResultOperation)context.Operation;
-            var commands = operation.Shape == MalformedResultShape.ConsumedWithCommands
-                ? Array.AsReadOnly([MySqlMigrationCommandSpec.Create("SELECT 1;")])
-                : Array.AsReadOnly(Array.Empty<MySqlMigrationCommandSpec>());
-            var kind = operation.Shape switch
-            {
-                MalformedResultShape.UndefinedKind => (MySqlMigrationOperationResultKind)0,
-                MalformedResultShape.GeneratedWithoutCommands => MySqlMigrationOperationResultKind.Generated,
-                MalformedResultShape.ConsumedWithCommands => MySqlMigrationOperationResultKind.Consumed,
-                _ => throw new InvalidOperationException("Unknown malformed-result test shape."),
-            };
-            var resultConstructor = typeof(MySqlMigrationOperationResult).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                binder: null,
-                [
-                    typeof(IReadOnlyList<MySqlMigrationCommandSpec>),
-                    typeof(string),
-                    typeof(MySqlMigrationOperationResultKind),
-                ],
-                modifiers: null);
-
-            return (MySqlMigrationOperationResult)resultConstructor!.Invoke(
-            [
-                commands,
-                "malformed_result",
-                kind,
-            ]);
-        }
-    }
-
-    private sealed class StatefulCommandList : IReadOnlyList<MySqlMigrationCommandSpec>
-    {
-        private readonly IReadOnlyList<MySqlMigrationCommandSpec> _firstEnumeration;
-        private readonly IReadOnlyList<MySqlMigrationCommandSpec> _laterEnumerations;
-
-        public StatefulCommandList(
-            IReadOnlyList<MySqlMigrationCommandSpec> firstEnumeration,
-            IReadOnlyList<MySqlMigrationCommandSpec> laterEnumerations
-        )
-        {
-            _firstEnumeration = firstEnumeration;
-            _laterEnumerations = laterEnumerations;
-        }
-
-        public int EnumerationCount { get; private set; }
-
-        public int Count => _firstEnumeration.Count;
-
-        public MySqlMigrationCommandSpec this[
-            int index
-        ] => _firstEnumeration[index];
-
-        public IEnumerator<MySqlMigrationCommandSpec> GetEnumerator()
-        {
-            EnumerationCount++;
-            return (EnumerationCount == 1 ? _firstEnumeration : _laterEnumerations).GetEnumerator();
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    private sealed class CustomRenderingHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.custom_rendering";
-
-        public Type OperationType => typeof(FirstCustomOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            _ = context.RenderStandardOperation(new SecondCustomOperation());
-            throw new InvalidOperationException("The custom rendering guard did not run.");
-        }
-    }
-
-    private sealed class HandlerContext : DbContext
-    {
-        public HandlerContext(
-            DbContextOptions<HandlerContext> options
-        ) : base(options) { }
-
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<HandlerRenameEntity>(entity =>
-            {
-                entity.ToTable("HandlerRenameEntries");
-                entity.HasKey(item => item.Id);
-                entity
-                    .Property(item => item.RenamedValue)
-                    .HasColumnType("varchar(64)")
-                    .HasComment("path\\segment");
-            });
-        }
-    }
-
-    private sealed class HandlerRenameEntity
-    {
-        public int Id { get; set; }
-
-        public string RenamedValue { get; set; } = string.Empty;
-    }
-
-    private sealed class HandlerOptionsExtension<THandler> : IDbContextOptionsExtension
-        where THandler : class, IMySqlMigrationOperationHandler
-    {
-        private DbContextOptionsExtensionInfo? _info;
-
-        public DbContextOptionsExtensionInfo Info => _info ??= new ExtensionInfo(this);
-
-        public void ApplyServices(
-            IServiceCollection services
-        ) => services.TryAddEnumerable(ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, THandler>());
-
-        public void Validate(
-            IDbContextOptions options
-        )
-        { }
-
-        private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
-        {
-            public ExtensionInfo(
-                IDbContextOptionsExtension extension
-            ) : base(extension) { }
-
-            public override bool IsDatabaseProvider => false;
-
-            public override string LogFragment => $"migration-handler={typeof(THandler).FullName} ";
-
-            public override int GetServiceProviderHashCode() => typeof(THandler).GetHashCode();
-
-            public override void PopulateDebugInfo(
-                IDictionary<string, string> debugInfo
-            ) => debugInfo[$"DokaMySqlMigrationHandler:{typeof(THandler).FullName}"] = "1";
-
-            public override bool ShouldUseSameServiceProvider(
-                DbContextOptionsExtensionInfo other
-            ) => other is ExtensionInfo;
-        }
     }
 }

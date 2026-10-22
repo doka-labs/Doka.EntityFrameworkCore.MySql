@@ -32,12 +32,15 @@ public sealed partial class MySqlStraightJoinTests
     [MemberData(nameof(Shapes))]
     public void Translation_matches_the_corresponding_ordinary_join(bool mariaDb, bool relationalNulls, string shape)
     {
+        // Arrange
         using var context = CreateContext(mariaDb, relationalNulls);
         var ordinary = Query(context, shape, directed: false).ToQueryString();
         var expectedEdges = shape == "repeated" ? 2 : 1;
 
+        // Act
         var actual = Query(context, shape, directed: true).ToQueryString();
 
+        // Assert
         if (shape == "constant-true")
         {
             // WHY: EF simplifies an ordinary TRUE inner join to CROSS JOIN; directed grammar must
@@ -59,11 +62,14 @@ public sealed partial class MySqlStraightJoinTests
     [Fact]
     public void Construction_preserves_provider_and_public_expression_identity()
     {
+        // Arrange
         using var context = CreateContext();
         var source = context.Nodes.Where(value => value.Visible);
 
+        // Act
         var query = source.StraightJoin(source, value => value.Id, value => value.Id, (left, right) => left.Id);
 
+        // Assert
         Assert.Same(source.Provider, query.Provider);
         var call = Assert.IsAssignableFrom<MethodCallExpression>(query.Expression);
         Assert.Equal(MySqlQueryableExtensions.StraightJoinMethod, call.Method.GetGenericMethodDefinition());
@@ -79,15 +85,20 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData("resultSelector")]
     public void Null_arguments_fail_at_the_public_boundary(string argument)
     {
+        // Arrange
         using var context = CreateContext();
         IQueryable<JoinNode>? outer = argument == "outer" ? null : context.Nodes;
         IQueryable<JoinNode>? inner = argument == "inner" ? null : context.Nodes;
         Expression<Func<JoinNode, int>>? outerKey = argument == "outerKeySelector" ? null : value => value.Id;
         Expression<Func<JoinNode, int>>? innerKey = argument == "innerKeySelector" ? null : value => value.Id;
         Expression<Func<JoinNode, JoinNode, int>>? result = argument == "resultSelector" ? null : (left, right) => left.Id;
+        Action act = () => outer!.StraightJoin(inner!, outerKey!, innerKey!, result!);
 
-        var error = Assert.Throws<ArgumentNullException>(() => outer!.StraightJoin(inner!, outerKey!, innerKey!, result!));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var error = Assert.IsType<ArgumentNullException>(recordedException);
         Assert.Equal(argument, error.ParamName);
         Assert.Equal(0, context.Blocker.Openings);
     }
@@ -96,11 +107,16 @@ public sealed partial class MySqlStraightJoinTests
     [Fact]
     public void Enumerable_inputs_are_rejected()
     {
+        // Arrange
         var input = Array.Empty<int>().AsQueryable();
+        Action act = () => input.StraightJoin(input, value => value, value => value,
+            (left, right) => left);
 
-        var error = Assert.Throws<InvalidOperationException>(() => input.StraightJoin(input, value => value, value => value,
-            (left, right) => left));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var error = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("provider", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -108,12 +124,17 @@ public sealed partial class MySqlStraightJoinTests
     [Fact]
     public void Different_provider_instances_are_rejected()
     {
+        // Arrange
         using var first = CreateContext();
         using var second = CreateContext();
+        Action act = () => first.Nodes.StraightJoin(second.Nodes,
+            value => value.Id, value => value.Id, (left, right) => left);
 
-        var error = Assert.Throws<InvalidOperationException>(() => first.Nodes.StraightJoin(second.Nodes,
-            value => value.Id, value => value.Id, (left, right) => left));
+        // Act
+        var recordedException = Record.Exception(act);
 
+        // Assert
+        var error = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("same", error.Message, StringComparison.Ordinal);
         Assert.Equal(0, first.Blocker.Openings + second.Blocker.Openings);
     }
@@ -126,13 +147,19 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(true, true)]
     public async Task Async_query_translates_before_the_blocked_connection(bool mariaDb, bool relationalNulls)
     {
+        // Arrange
         await using var context = CreateContext(mariaDb, relationalNulls);
         var query = context.Nodes.StraightJoin(context.Nodes.Where(value => value.ParentId != null),
             value => value.Id, value => value.ParentId!.Value, (left, right) => new { left.Id, Child = right.Id });
+
         var sql = query.ToQueryString();
+        Func<Task> act = () => query.ToArrayAsync(CancellationToken.None);
 
-        var error = await Assert.ThrowsAsync<ConnectionBlockedException>(() => query.ToArrayAsync(CancellationToken.None));
+        // Act
+        var recordedException = await Record.ExceptionAsync(act);
 
+        // Assert
+        var error = Assert.IsType<ConnectionBlockedException>(recordedException);
         Assert.NotNull(error);
         Assert.Contains("STRAIGHT_JOIN", sql, StringComparison.Ordinal);
         Assert.Equal(1, context.Blocker.Openings);
@@ -144,15 +171,19 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(true)]
     public void Repeated_construction_keeps_fresh_parameter_values(bool mariaDb)
     {
+        // Arrange
         using var context = CreateContext(mariaDb);
         var minimum = 11;
         var first = context.Nodes.Where(value => value.Id >= minimum).StraightJoin(context.Nodes,
             value => value.Id, value => value.Id, (left, right) => left.Id).ToQueryString();
+
         minimum = 29;
 
+        // Act
         var second = context.Nodes.Where(value => value.Id >= minimum).StraightJoin(context.Nodes,
             value => value.Id, value => value.Id, (left, right) => left.Id).ToQueryString();
 
+        // Assert
         Assert.Contains("'11'", first, StringComparison.Ordinal);
         Assert.Contains("'29'", second, StringComparison.Ordinal);
         Assert.Equal(Normalize(first), Normalize(second));

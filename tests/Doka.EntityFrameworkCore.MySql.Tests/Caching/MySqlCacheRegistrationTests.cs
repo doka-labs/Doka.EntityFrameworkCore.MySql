@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Net;
 using Doka.Caching.MySql;
 using Microsoft.Extensions.Caching.Distributed;
@@ -9,7 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>
 /// Covers cache registration, shared ownership, and startup validation.
 /// </summary>
-public sealed class MySqlCacheRegistrationTests
+public sealed partial class MySqlCacheRegistrationTests
 {
     /// <summary>
     /// Verifies that registration preserves the caller's service collection.
@@ -17,22 +16,48 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Registration_returns_the_service_collection()
     {
+        // Arrange
         var services = new ServiceCollection();
 
-        Assert.Same(services, services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions));
+        // Act
+        var result = services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions);
+
+        // Assert
+        Assert.Same(services, result);
     }
 
     /// <summary>
-    /// Verifies that invalid registration arguments fail immediately.
+    /// Verifies that a missing service collection fails immediately.
     /// </summary>
     [Fact]
-    public void Registration_rejects_null_arguments()
+    public void Registration_rejects_a_null_service_collection()
     {
-        Assert.Throws<ArgumentNullException>("services", () =>
+        // Arrange
+        IServiceCollection services = null!;
+
+        // Act
+        var exception = Record.Exception(() =>
             MySqlCacheServiceCollectionExtensions.AddDistributedMySqlCache(
-                null!, MySqlCacheTestFactory.ConfigureValidOptions));
-        Assert.Throws<ArgumentNullException>("configure", () =>
-            new ServiceCollection().AddDistributedMySqlCache(null!));
+                services, MySqlCacheTestFactory.ConfigureValidOptions));
+
+        // Assert
+        Assert.Equal("services", Assert.IsType<ArgumentNullException>(exception).ParamName);
+    }
+
+    /// <summary>
+    /// Verifies that a missing options callback fails immediately.
+    /// </summary>
+    [Fact]
+    public void Registration_rejects_a_null_configuration_callback()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        var exception = Record.Exception(() => services.AddDistributedMySqlCache(null!));
+
+        // Assert
+        Assert.Equal("configure", Assert.IsType<ArgumentNullException>(exception).ParamName);
     }
 
     /// <summary>
@@ -41,16 +66,28 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Both_interfaces_share_one_singleton_across_scopes_and_concurrent_resolution()
     {
+        // Arrange
         using var provider = MySqlCacheTestFactory.CreateProvider();
         var cache = provider.GetRequiredService<IDistributedCache>();
+        var resolutions = new (IDistributedCache Cache, IBufferDistributedCache BufferCache)[32];
 
-        Assert.IsType<IBufferDistributedCache>(cache, exactMatch: false);
-        Assert.Same(cache, provider.GetRequiredService<IBufferDistributedCache>());
-        Parallel.For(0, 32, _ =>
+        // Act
+        var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
+        Parallel.For(0, resolutions.Length, index =>
         {
             using var scope = provider.CreateScope();
-            Assert.Same(cache, scope.ServiceProvider.GetRequiredService<IDistributedCache>());
-            Assert.Same(cache, scope.ServiceProvider.GetRequiredService<IBufferDistributedCache>());
+            resolutions[index] = (
+                scope.ServiceProvider.GetRequiredService<IDistributedCache>(),
+                scope.ServiceProvider.GetRequiredService<IBufferDistributedCache>());
+        });
+
+        // Assert
+        Assert.IsType<IBufferDistributedCache>(cache, exactMatch: false);
+        Assert.Same(cache, bufferCache);
+        Assert.All(resolutions, resolution =>
+        {
+            Assert.Same(cache, resolution.Cache);
+            Assert.Same(cache, resolution.BufferCache);
         });
     }
 
@@ -60,14 +97,21 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Repeated_registration_retains_one_instance_for_each_interface()
     {
+        // Arrange
         var services = new ServiceCollection();
         services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions);
         services.AddDistributedMySqlCache(options => options.TableName = "other_entries");
         using var provider = services.BuildServiceProvider();
 
-        var cache = Assert.Single(provider.GetServices<IDistributedCache>());
-        Assert.Same(cache, Assert.Single(provider.GetServices<IBufferDistributedCache>()));
-        Assert.Equal("other_entries", provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.TableName);
+        // Act
+        var caches = provider.GetServices<IDistributedCache>().ToArray();
+        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
+        var tableName = provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.TableName;
+
+        // Assert
+        var cache = Assert.Single(caches);
+        Assert.Same(cache, Assert.Single(bufferCaches));
+        Assert.Equal("other_entries", tableName);
     }
 
     /// <summary>
@@ -76,6 +120,7 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Earlier_cache_registration_does_not_split_the_interface_instances()
     {
+        // Arrange
         var services = new ServiceCollection();
         var previous = new UnusedCache();
         services.AddSingleton<IDistributedCache>(previous);
@@ -83,11 +128,17 @@ public sealed class MySqlCacheRegistrationTests
         services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions);
         using var provider = services.BuildServiceProvider();
 
+        // Act
         var cache = provider.GetRequiredService<IDistributedCache>();
+        var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
+        var caches = provider.GetServices<IDistributedCache>().ToArray();
+        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
+
+        // Assert
         Assert.NotSame(previous, cache);
-        Assert.Same(cache, provider.GetRequiredService<IBufferDistributedCache>());
-        Assert.Equal(new[] { previous, cache }, provider.GetServices<IDistributedCache>());
-        Assert.Equal(new[] { previous, cache }, provider.GetServices<IBufferDistributedCache>());
+        Assert.Same(cache, bufferCache);
+        Assert.Equal(new[] { previous, cache }, caches);
+        Assert.Equal(new[] { previous, cache }, bufferCaches);
     }
 
     /// <summary>
@@ -96,6 +147,7 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Repeated_registration_preserves_foreign_and_keyed_cache_descriptors()
     {
+        // Arrange
         var services = new ServiceCollection();
         var previous = new UnusedCache();
         var keyed = new UnusedCache();
@@ -113,113 +165,21 @@ public sealed class MySqlCacheRegistrationTests
         });
 
         using var provider = services.BuildServiceProvider();
+
+        // Act
         var cache = provider.GetRequiredService<IDistributedCache>();
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
+        var caches = provider.GetServices<IDistributedCache>().ToArray();
+        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
+        var keyedCache = provider.GetRequiredKeyedService<IDistributedCache>("other");
+        var keyedBufferCache = provider.GetRequiredKeyedService<IBufferDistributedCache>("other");
 
+        // Assert
         Assert.Same(cache, bufferCache);
-        Assert.Equal(new[] { previous, later, cache }, provider.GetServices<IDistributedCache>());
-        Assert.Equal(new[] { previous, later, bufferCache }, provider.GetServices<IBufferDistributedCache>());
-        Assert.Same(keyed, provider.GetRequiredKeyedService<IDistributedCache>("other"));
-        Assert.Same(keyed, provider.GetRequiredKeyedService<IBufferDistributedCache>("other"));
-    }
-
-    /// <summary>
-    /// Verifies alias disposal is idempotent and cannot reopen a disposed cache owner.
-    /// </summary>
-    [Fact]
-    public void Disposing_shared_aliases_is_idempotent_and_rejects_further_database_access()
-    {
-        using var provider = MySqlCacheTestFactory.CreateProvider();
-        var cache = provider.GetRequiredService<IDistributedCache>();
-        var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
-
-        Assert.IsAssignableFrom<IDisposable>(cache).Dispose();
-        Assert.IsAssignableFrom<IDisposable>(bufferCache).Dispose();
-
-        Assert.Throws<ObjectDisposedException>(() => cache.Get("key"));
-    }
-
-    /// <summary>
-    /// Verifies cache disposal rejects every operation while leaving a borrowed data source available.
-    /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Disposed_cache_rejects_operations_without_disposing_a_borrowed_data_source(
-        bool asynchronousDisposal
-    )
-    {
-        await using var dataSource = new MySqlDataSource(
-            "Server=127.0.0.1;Port=1;User ID=cache;AutoEnlist=false;Pooling=false");
-
-        await using var provider = MySqlCacheTestFactory.CreateProvider(options =>
-        {
-            options.ConnectionString = string.Empty;
-            options.DataSource = dataSource;
-        });
-
-        var cache = provider.GetRequiredService<IBufferDistributedCache>();
-        if (asynchronousDisposal)
-        {
-            await Assert
-                .IsAssignableFrom<IAsyncDisposable>(cache)
-                .DisposeAsync();
-        }
-        else
-        {
-            // WHY: The synchronous disposal contract must also preserve caller ownership.
-            // ReSharper disable once MethodHasAsyncOverload
-            Assert
-                .IsAssignableFrom<IDisposable>(cache)
-                .Dispose();
-        }
-
-        var options = new DistributedCacheEntryOptions();
-        var writer = new ArrayBufferWriter<byte>();
-
-        // WHY: All synchronous entry points must reject a disposed owner before using its borrowed pool.
-        // ReSharper disable MethodHasAsyncOverload
-        Assert.Throws<ObjectDisposedException>(() => cache.Get("key"));
-        Assert.Throws<ObjectDisposedException>(() => cache.Set("key", new byte[] { 1 }, options));
-        Assert.Throws<ObjectDisposedException>(() => cache.Set("key", ReadOnlySequence<byte>.Empty, options));
-        Assert.Throws<ObjectDisposedException>(() => cache.TryGet("key", writer));
-        Assert.Throws<ObjectDisposedException>(() => cache.Refresh("key"));
-        Assert.Throws<ObjectDisposedException>(() => cache.Remove("key"));
-        // ReSharper restore MethodHasAsyncOverload
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() => cache.GetAsync("key", CancellationToken.None));
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() => cache.SetAsync(
-                "key",
-                new byte[] { 1 },
-                options,
-                CancellationToken.None));
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() =>
-                cache
-                    .SetAsync("key", ReadOnlySequence<byte>.Empty, options, CancellationToken.None)
-                    .AsTask());
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() =>
-                cache
-                    .TryGetAsync("key", writer, CancellationToken.None)
-                    .AsTask());
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() => cache.RefreshAsync("key", CancellationToken.None));
-
-        await Assert
-            .ThrowsAsync<ObjectDisposedException>(() => cache.RemoveAsync("key", CancellationToken.None));
-
-        await provider
-            .DisposeAsync();
-
-        await using var connection = dataSource.CreateConnection();
-        Assert.Equal(ConnectionState.Closed, connection.State);
+        Assert.Equal(new[] { previous, later, cache }, caches);
+        Assert.Equal(new[] { previous, later, bufferCache }, bufferCaches);
+        Assert.Same(keyed, keyedCache);
+        Assert.Same(keyed, keyedBufferCache);
     }
 
     /// <summary>
@@ -228,23 +188,36 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Startup_validation_rejects_missing_configuration_before_the_first_operation()
     {
+        // Arrange
         var services = new ServiceCollection();
         services.AddDistributedMySqlCache(static _ =>
         {
         });
         using var provider = services.BuildServiceProvider();
 
-        var exception = Assert.Throws<OptionsValidationException>(() =>
+        // Act
+        var exception = Record.Exception(() =>
             provider.GetRequiredService<IStartupValidator>().Validate());
 
-        Assert.Contains(exception.Failures, failure => failure.Contains("ConnectionString", StringComparison.Ordinal));
-        Assert.Contains(exception.Failures, failure => failure.Contains("SchemaName", StringComparison.Ordinal));
-        Assert.Contains(exception.Failures, failure => failure.Contains("TableName", StringComparison.Ordinal));
+        // Assert
+        var validationException = Assert.IsType<OptionsValidationException>(exception);
+        Assert.Contains(
+            validationException.Failures,
+            failure => failure.Contains("ConnectionString", StringComparison.Ordinal));
+
+        Assert.Contains(
+            validationException.Failures,
+            failure => failure.Contains("SchemaName", StringComparison.Ordinal));
+
+        Assert.Contains(
+            validationException.Failures,
+            failure => failure.Contains("TableName", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// Verifies eager validation when either cache interface is first resolved.
     /// </summary>
+    /// <param name="buffered">Whether to resolve the buffer-oriented cache contract.</param>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -252,14 +225,19 @@ public sealed class MySqlCacheRegistrationTests
         bool buffered
     )
     {
+        // Arrange
         using var provider = MySqlCacheTestFactory.CreateProvider(options => options.TableName = string.Empty);
 
-        Assert.Throws<OptionsValidationException>(() =>
+        // Act
+        var exception = Record.Exception(() =>
         {
             _ = buffered
                 ? provider.GetRequiredService<IBufferDistributedCache>()
                 : provider.GetRequiredService<IDistributedCache>();
         });
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
     }
 
     /// <summary>
@@ -268,17 +246,21 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Resolution_forwards_registered_time_provider_to_the_cache_singleton()
     {
+        // Arrange
         var timeProvider = new RecordingTimeProvider();
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions);
         using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(0, timeProvider.TimestampReadCount);
+        var initialTimestampReadCount = timeProvider.TimestampReadCount;
 
+        // Act
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
 
+        // Assert
+        Assert.Equal(0, initialTimestampReadCount);
         Assert.Equal(1, timeProvider.TimestampReadCount);
     }
 
@@ -288,16 +270,19 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public void Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
     {
+        // Arrange
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ConnectionString = $"Server=127.0.0.1;Port={port};User ID=cache;Pooling=false");
 
+        // Act
         provider.GetRequiredService<IStartupValidator>().Validate();
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
 
+        // Assert
         Assert.Null(provider.GetService<TimeProvider>());
         Assert.False(listener.Pending());
     }
@@ -308,6 +293,7 @@ public sealed class MySqlCacheRegistrationTests
     [Fact]
     public async Task External_data_source_supports_DI_configuration_without_startup_network_access()
     {
+        // Arrange
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -327,91 +313,19 @@ public sealed class MySqlCacheRegistrationTests
             .Configure<MySqlDataSource>((options, source) => options.DataSource = source);
 
         await using var provider = services.BuildServiceProvider();
+
+        // Act
         provider
             .GetRequiredService<IStartupValidator>()
             .Validate();
 
-        Assert.Same(
-            provider.GetRequiredService<IDistributedCache>(),
-            provider.GetRequiredService<IBufferDistributedCache>());
+        var cache = provider.GetRequiredService<IDistributedCache>();
+        var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
+        var configuredDataSource = provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.DataSource;
 
-        Assert.Same(dataSource, provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.DataSource);
+        // Assert
+        Assert.Same(cache, bufferCache);
+        Assert.Same(dataSource, configuredDataSource);
         Assert.False(listener.Pending());
-    }
-
-    private sealed class RecordingTimeProvider : TimeProvider
-    {
-        private int _timestampReadCount;
-
-        public int TimestampReadCount => Volatile.Read(ref _timestampReadCount);
-
-        public override long GetTimestamp() => Interlocked.Increment(ref _timestampReadCount);
-    }
-
-    private sealed class UnusedCache : IBufferDistributedCache
-    {
-        public byte[]? Get(
-            string key
-        ) => throw new InvalidOperationException();
-
-        public Task<byte[]?> GetAsync(
-            string key,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
-
-        public void Set(
-            string key,
-            byte[] value,
-            DistributedCacheEntryOptions options
-        ) => throw new InvalidOperationException();
-
-        public Task SetAsync(
-            string key,
-            byte[] value,
-            DistributedCacheEntryOptions options,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
-
-        public void Refresh(
-            string key
-        ) => throw new InvalidOperationException();
-
-        public Task RefreshAsync(
-            string key,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
-
-        public void Remove(
-            string key
-        ) => throw new InvalidOperationException();
-
-        public Task RemoveAsync(
-            string key,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
-
-        public bool TryGet(
-            string key,
-            IBufferWriter<byte> destination
-        ) => throw new InvalidOperationException();
-
-        public ValueTask<bool> TryGetAsync(
-            string key,
-            IBufferWriter<byte> destination,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
-
-        public void Set(
-            string key,
-            ReadOnlySequence<byte> value,
-            DistributedCacheEntryOptions options
-        ) => throw new InvalidOperationException();
-
-        public ValueTask SetAsync(
-            string key,
-            ReadOnlySequence<byte> value,
-            DistributedCacheEntryOptions options,
-            CancellationToken token = default
-        ) => throw new InvalidOperationException();
     }
 }

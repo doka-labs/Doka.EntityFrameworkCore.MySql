@@ -7,15 +7,21 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Execute_update_rejects_a_materialized_source_before_database_io(bool mariaDb)
+    public async Task Execute_update_rejects_a_materialized_source_before_database_io(
+        bool mariaDb
+    )
     {
+        // Arrange
         var connections = new UnexpectedConnectionInterceptor();
         await using var context = CreateContext(mariaDb, connections);
+
+        // Act
         var query = context.Set<MutationNode>().WithMaterializedSource(source => source.Where(node => node.Id > 0));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ExecuteUpdateAsync(
             setters => setters.SetProperty(node => node.Value, 7), CancellationToken.None));
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, connections.OpenAttempts);
     }
@@ -24,21 +30,30 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Execute_delete_rejects_a_materialized_source_before_database_io(bool mariaDb)
+    public async Task Execute_delete_rejects_a_materialized_source_before_database_io(
+        bool mariaDb
+    )
     {
+        // Arrange
         var connections = new UnexpectedConnectionInterceptor();
         await using var context = CreateContext(mariaDb, connections);
+
+        // Act
         var query = context.Set<MutationNode>().WithMaterializedSource(source => source.Where(node => node.Id > 0));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             query.ExecuteDeleteAsync(CancellationToken.None));
 
+        // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, connections.OpenAttempts);
     }
 
     /// <summary>Creates only the services needed to translate a mutation for the configured database family.</summary>
-    private static MutationContext CreateContext(bool mariaDb, UnexpectedConnectionInterceptor connections)
+    private static MutationContext CreateContext(
+        bool mariaDb,
+        UnexpectedConnectionInterceptor connections
+    )
     {
         var version = mariaDb
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
@@ -78,10 +93,9 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
     private sealed class MutationContext(DbContextOptions<MutationContext> options) : DbContext(options)
     {
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<MutationNode>().ToTable("MaterializedMutationNodes");
-        }
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder.Entity<MutationNode>().ToTable("MaterializedMutationNodes");
     }
 
     /// <summary>Supplies a regular mapped target whose mutations would otherwise be supported by EF.</summary>

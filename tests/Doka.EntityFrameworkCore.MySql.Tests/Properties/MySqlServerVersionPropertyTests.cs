@@ -16,6 +16,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 /// </summary>
 public sealed class MySqlServerVersionPropertyTests
 {
+    /// <summary>
+    /// Verifies parse handles real world at version strings.
+    /// </summary>
     [Theory]
     [InlineData("5.7.42", false, 5, 7, 42)]
     [InlineData("5.7.44-log", false, 5, 7, 44)]
@@ -49,35 +52,49 @@ public sealed class MySqlServerVersionPropertyTests
         int expectedBuild
     )
     {
+        // Arrange
+        var expectedVersion = (Major: expectedMajor, Minor: expectedMinor, Build: expectedBuild);
+
+        // Act
         var parsed = MySqlServerVersion.Parse(serverVersion);
 
+        // Assert
         Assert.Equal(expectedIsMariaDb, parsed.IsMariaDb);
-        Assert.Equal(expectedMajor, parsed.Version.Major);
-        Assert.Equal(expectedMinor, parsed.Version.Minor);
-        Assert.Equal(expectedBuild, parsed.Version.Build);
+        Assert.Equal(expectedVersion.Major, parsed.Version.Major);
+        Assert.Equal(expectedVersion.Minor, parsed.Version.Minor);
+        Assert.Equal(expectedVersion.Build, parsed.Version.Build);
     }
 
+    /// <summary>Verifies that generated parser inputs expose only the documented rejection exception family.</summary>
     [Property(MaxTest = 1000)]
     public bool Parse_either_succeeds_or_throws_documented_exception(
         string? raw
     )
     {
+        // Arrange
         if (raw is null)
         {
             return true;
         }
 
+        bool documentedOutcome;
+
+        // Act
         try
         {
             _ = MySqlServerVersion.Parse(raw);
-            return true;
+            documentedOutcome = true;
         }
         catch (ArgumentException)
         {
-            return true;
+            documentedOutcome = true;
         }
+
+        // Assert
+        return documentedOutcome;
     }
 
+    /// <summary>Verifies generated numeric version tokens inside surrounding text.</summary>
     [Property(MaxTest = 1000)]
     public bool Parse_finds_leading_numeric_token_regardless_of_surrounding_text(
         byte major,
@@ -85,14 +102,17 @@ public sealed class MySqlServerVersionPropertyTests
         byte build
     )
     {
+        // Arrange
         var majorComponent = (int)major;
         var minorComponent = (int)minor;
         var buildComponent = (int)build;
         var versionToken = FormattableString.Invariant($"{majorComponent}.{minorComponent}.{buildComponent}");
         var input = $"prefix-text {versionToken} suffix-text";
 
+        // Act
         var parsed = MySqlServerVersion.Parse(input);
 
+        // Assert
         return parsed.Version.Major == majorComponent
             && parsed.Version.Minor == minorComponent
             && parsed.Version.Build == buildComponent;

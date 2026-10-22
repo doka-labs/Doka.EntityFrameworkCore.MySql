@@ -5,7 +5,56 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [10.6.1] - 2026-10-22
+
+Stable patch release correcting GUID store-generation and shared-table default
+handling, with internal architecture and test-maintainability improvements.
+Public APIs, dependency ranges, supported engines, and GUID storage defaults
+are unchanged. All three packages use the same release version.
+
+Review [GUID SQL defaults](docs/operations/migrations.md#guid-sql-defaults)
+before upgrading a model with server-generated GUIDs. MariaDB can read an
+unknown generated key through `RETURNING`; MySQL rejects that insert before
+execution instead of silently supplying a client key. Existing explicit
+client-generation choices remain authoritative, including annotations in older
+snapshots. Keep deployed migration history intact.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.1
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.1
+dotnet package add Doka.Caching.MySql --version 10.6.1
+```
+
+### Fixed
+
+- Honor explicit GUID SQL defaults and computed expressions instead of assigning
+  an implicit client GUID strategy. Preserve deliberate strategies, generator
+  factories, supplied keys, and existing snapshot annotations. MariaDB reads
+  server-generated keys through `RETURNING`; MySQL rejects unknown
+  non-AUTO_INCREMENT generated keys before inserting. Cover migration,
+  snapshot/designer, scaffolding, generated-value readback, and engine-specific
+  DDL restrictions across the supported matrix. See
+  [GUID generation](docs/provider-configuration.md#guid-sql-defaults-and-computed-values).
+- Resolve shared-table defaults before inferring GUID or AUTO_INCREMENT
+  generation. Retain complete MySQL readback predicates for literal-default
+  composite keys, including converted and shared-column defaults.
+
+### Changed
+
+- Separate migration differ and SQL generation, model validation, query
+  translation, scaffolding, and update responsibilities into focused partial
+  files. Nest matching production and test partial families in the IDE with
+  one wildcard per family, without adding runtime abstraction layers.
+- Split mixed test contracts and hidden data/engine loops into independently
+  discoverable cases with one Arrange/Act/Assert flow. Retain shared immutable
+  fixtures where safe, isolate mutable state and schema lifecycles, and explain
+  intentional synchronous calls. Expand positive and negative GUID-generation,
+  migration, snapshot, and scaffolding coverage.
+- Replace the nullable scaffolding type-selection cascade with flat,
+  statically referenced mappings. Preserve all existing type and rejection
+  behavior, verified through direct mapping and generated-code cases.
+- Document responsibility boundaries and the XML documentation, WHY-comment,
+  spacing, and test conventions in the contributor and architecture guides.
 
 ## [10.6.0] - 2026-10-20
 
@@ -1457,7 +1506,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.0...HEAD
+[10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1
 [10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
 [10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0
 [10.4.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.4.4

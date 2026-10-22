@@ -8,23 +8,27 @@ public sealed class MySqlExecutionStrategyTests
     /// <summary>
     /// Verifies that retries stay opt-in and the provider switches execution strategies only when configured.
     /// </summary>
-    [Fact]
-    public void Create_execution_strategy_is_retrying_only_when_retry_is_enabled()
+    /// <param name="enableRetry">Whether retrying execution is explicitly configured.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Create_execution_strategy_is_retrying_only_when_retry_is_enabled(
+        bool enableRetry
+    )
     {
-        using var nonRetryingContext = new ExecutionStrategyContext(CreateOptions(enableRetry: false));
-        using var retryingContext = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
+        // Arrange
+        using var context = new ExecutionStrategyContext(CreateOptions(enableRetry));
 
-        var nonRetryingStrategy = nonRetryingContext.Database.CreateExecutionStrategy();
-        var retryingStrategy = retryingContext.Database.CreateExecutionStrategy();
+        // Act
+        var strategy = context.Database.CreateExecutionStrategy();
 
-        Assert.False(nonRetryingStrategy.RetriesOnFailure);
-        Assert.True(retryingStrategy.RetriesOnFailure);
+        // Assert
+        Assert.Equal(enableRetry, strategy.RetriesOnFailure);
         Assert.StartsWith(
             "MySql",
-            retryingStrategy.GetType()
+            strategy.GetType()
                 .Name,
             StringComparison.Ordinal);
-        Assert.True(retryingStrategy.RetriesOnFailure);
     }
 
     /// <summary>
@@ -33,6 +37,7 @@ public sealed class MySqlExecutionStrategyTests
     [Fact]
     public async Task Retrying_execution_strategy_retries_transient_failures_and_logs_attempts()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var context =
@@ -41,6 +46,7 @@ public sealed class MySqlExecutionStrategyTests
         var strategy = context.Database.CreateExecutionStrategy();
         var attempts = 0;
 
+        // Act
         var result = await strategy.ExecuteAsync(async () =>
         {
             attempts++;
@@ -55,6 +61,7 @@ public sealed class MySqlExecutionStrategyTests
             return 42;
         });
 
+        // Assert
         Assert.Equal(42, result);
         Assert.Equal(3, attempts);
         Assert.Contains(
@@ -69,6 +76,7 @@ public sealed class MySqlExecutionStrategyTests
     [Fact]
     public async Task Retrying_execution_strategy_logs_retry_exhaustion()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var context =
@@ -76,9 +84,12 @@ public sealed class MySqlExecutionStrategyTests
 
         var strategy = context.Database.CreateExecutionStrategy();
 
-        await Assert.ThrowsAsync<RetryLimitExceededException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             strategy.ExecuteAsync<int>(() => throw new SocketException((int)SocketError.ConnectionReset)));
 
+        // Assert
+        Assert.IsType<RetryLimitExceededException>(exception);
         Assert.Contains(
             sink.Entries,
             entry => entry.EventId.Id == MySqlEventId.RetryLimitExceeded.Id
@@ -92,6 +103,7 @@ public sealed class MySqlExecutionStrategyTests
     [Fact]
     public void Retrying_execution_strategy_requires_a_transient_failure_detector()
     {
+        // Arrange
         using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
         var dependencies = context.GetService<ExecutionStrategyDependencies>();
         var singletonOptions = context
@@ -99,27 +111,46 @@ public sealed class MySqlExecutionStrategyTests
             .OfType<MySqlSingletonOptions>()
             .Single();
 
-        var exception = Assert.Throws<ArgumentNullException>(
-            "transientExceptionDetector",
+        // Act
+        var exception = Record.Exception(
             () => new MySqlExecutionStrategy(
                 dependencies,
                 singletonOptions,
                 transientExceptionDetector: null!));
 
-        Assert.Equal("transientExceptionDetector", exception.ParamName);
+        // Assert
+        Assert.Equal("transientExceptionDetector", Assert.IsType<ArgumentNullException>(exception).ParamName);
     }
 
     /// <summary>
-    /// Verifies that timeout and cancellation conditions remain outside the retry classifier.
+    /// Verifies timeout, cancellation and transport timeout classification independently.
     /// </summary>
-    [Fact]
-    public void Transient_detector_does_not_retry_timeout_or_cancellation_paths()
+    /// <param name="scenario">The exception category passed to the detector.</param>
+    /// <param name="expectedRetry">Whether this exception is considered transient.</param>
+    [Theory]
+    [InlineData("timeout", false)]
+    [InlineData("cancellation", false)]
+    [InlineData("socket_timeout", true)]
+    public void Transient_detector_classifies_failure_category(
+        string scenario,
+        bool expectedRetry
+    )
     {
+        // Arrange
         var detector = new MySqlTransientExceptionDetector();
+        Exception exception = scenario switch
+        {
+            "timeout" => new TimeoutException("timeout"),
+            "cancellation" => new OperationCanceledException("canceled"),
+            "socket_timeout" => new SocketException((int)SocketError.TimedOut),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
+        };
 
-        Assert.False(detector.ShouldRetryOn(new TimeoutException("timeout")));
-        Assert.False(detector.ShouldRetryOn(new OperationCanceledException("canceled")));
-        Assert.True(detector.ShouldRetryOn(new SocketException((int)SocketError.TimedOut)));
+        // Act
+        var shouldRetry = detector.ShouldRetryOn(exception);
+
+        // Assert
+        Assert.Equal(expectedRetry, shouldRetry);
     }
 
     /// <summary>
@@ -129,6 +160,7 @@ public sealed class MySqlExecutionStrategyTests
     [Fact]
     public void Retrying_execution_strategy_does_not_replay_wrapped_sync_cancellation()
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true, loggerFactory));
@@ -136,12 +168,17 @@ public sealed class MySqlExecutionStrategyTests
         var attempts = 0;
         var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
 
-        var actual = Assert.Throws<IOException>(() => strategy.Execute<int>(() =>
+        // Act
+        // WHY: cancellation must also bypass retry in the synchronous execution path.
+        // ReSharper disable once MethodHasAsyncOverload
+        var actual = Record.Exception(() => strategy.Execute<int>(() =>
         {
             attempts++;
             throw exception;
         }));
 
+        // Assert
+        Assert.IsType<IOException>(actual);
         Assert.Same(exception, actual);
         Assert.Equal(1, attempts);
         Assert.Contains(
@@ -153,22 +190,27 @@ public sealed class MySqlExecutionStrategyTests
 
     /// <summary>
     /// Verifies that a wrapped cancellation executes the asynchronous delegate
-    /// once while an ordinary I/O failure remains retryable.
+    /// once without treating its transport wrapper as a transient failure.
     /// </summary>
     [Fact]
     public async Task Retrying_execution_strategy_does_not_replay_wrapped_async_cancellation()
     {
+        // Arrange
         await using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
         var strategy = context.Database.CreateExecutionStrategy();
         var attempts = 0;
         var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
 
-        var actual = await Assert.ThrowsAsync<IOException>(() => strategy.ExecuteAsync<int>(() =>
+        // Act
+        var actual = await Record.ExceptionAsync(() => strategy.ExecuteAsync<int>(() =>
         {
             attempts++;
+
             return Task.FromException<int>(exception);
         }));
 
+        // Assert
+        Assert.IsType<IOException>(actual);
         Assert.Same(exception, actual);
         Assert.Equal(1, attempts);
     }

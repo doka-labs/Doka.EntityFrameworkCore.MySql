@@ -96,6 +96,7 @@ public sealed class MySqlSqlModeContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         const string payload = "path\\segment 'quoted'\nemoji:\U0001F680";
         var connectionString =
             new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
@@ -117,11 +118,14 @@ public sealed class MySqlSqlModeContractTests
             .GetService<IRelationalTypeMappingSource>()
             .FindMapping(typeof(string));
 
+        // WHY: A string mapping is the fixture precondition for literal execution.
         Assert.NotNull(mapping);
 
         var literal = mapping.GenerateSqlLiteral(payload);
         var expectedHex = Convert.ToHexString(Encoding.UTF8.GetBytes(payload));
+        var observations = new List<(object? Hex, string ExpectedMode, string RestoredMode)>();
 
+        // Act
         foreach (var sqlMode in s_sqlModes)
         {
             await SetSqlModeAsync(connection, sqlMode)
@@ -132,12 +136,7 @@ public sealed class MySqlSqlModeContractTests
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT HEX({literal})";
 
-            var actualHex = Assert.IsType<string>(
-                await command
-                    .ExecuteScalarAsync(CancellationToken.None)
-                    .ConfigureAwait(false));
-
-            Assert.Equal(expectedHex, actualHex);
+            var actualHex = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
 
             await AssertJsonPathLiteralContractAsync(connection, context)
                 .ConfigureAwait(false);
@@ -148,14 +147,14 @@ public sealed class MySqlSqlModeContractTests
             await AssertFailedMigrationRestoresSessionAsync(connection, context, expectedSqlMode)
                 .ConfigureAwait(false);
 
-            Assert.Equal(
-                expectedSqlMode,
-                await ReadSqlModeAsync(connection)
-                    .ConfigureAwait(false));
+            var restoredMode = await ReadSqlModeAsync(connection).ConfigureAwait(false);
+
+            observations.Add((actualHex, expectedSqlMode, restoredMode));
         }
 
         // Keep a distinct synchronous invocation: the async assertion above cannot
         // qualify MigrationCommand.ExecuteNonQuery and its synchronous cleanup path.
+        // ReSharper disable once MethodHasAsyncOverload
         QualifySynchronousFailedMigrationSessionRestoration(connection, context);
         await AssertCanceledMigrationRestoresSessionAsync(
                 connectionString,
@@ -167,10 +166,17 @@ public sealed class MySqlSqlModeContractTests
         await AssertCleanupFailureEvictsCallerConnectionAsync(connectionString, serverVersion)
             .ConfigureAwait(false);
 
-        // Keep the synchronous pool-eviction path qualified independently from
+        // Keep the synchronous pool-eviction path qualified independently of
         // ExecuteNonQueryAsync and MySqlConnector's asynchronous pool APIs.
         // ReSharper disable once MethodHasAsyncOverload
         QualifySynchronousCleanupFailurePoolEviction(connectionString, serverVersion);
+
+        // Assert
+        Assert.All(observations, observation =>
+        {
+            Assert.Equal(expectedHex, Assert.IsType<string>(observation.Hex));
+            Assert.Equal(observation.ExpectedMode, observation.RestoredMode);
+        });
     }
 
     private static async Task AssertJsonPathLiteralContractAsync(
@@ -178,6 +184,7 @@ public sealed class MySqlSqlModeContractTests
         DbContext context
     )
     {
+        // Arrange
         const string json = """{"has\\back":"backslash","has\"quote":"quote","apo'stroph":"apostrophe"}""";
         (string PropertyName, string Expected)[] cases =
         [
@@ -196,8 +203,13 @@ public sealed class MySqlSqlModeContractTests
                 "EscapeJsonPathPropertyName",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
+        // WHY: The reflected escaping hook is fixture infrastructure, not the
+        // server result being qualified by the following literal roundtrip.
         Assert.NotNull(escapeMethod);
 
+        var observations = new List<(string Expected, object? Actual)>();
+
+        // Act
         foreach (var @case in cases)
         {
             var escapedSegment = Assert.IsType<string>(escapeMethod.Invoke(null, [@case.PropertyName]));
@@ -206,13 +218,14 @@ public sealed class MySqlSqlModeContractTests
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT JSON_UNQUOTE(JSON_EXTRACT({jsonLiteral}, {pathLiteral}));";
 
-            Assert.Equal(
-                @case.Expected,
-                Assert.IsType<string>(
-                    await command
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false)));
+            var actual = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+
+            observations.Add((@case.Expected, actual));
         }
+
+        // Assert
+        Assert.All(observations, observation =>
+            Assert.Equal(observation.Expected, Assert.IsType<string>(observation.Actual)));
     }
 
     private static async Task AssertMigrationLiteralContractAsync(
@@ -220,6 +233,7 @@ public sealed class MySqlSqlModeContractTests
         DbContext context
     )
     {
+        // Arrange
         const string tableComment = "table\\comment 'quoted'";
         const string columnComment = "column\\comment 'quoted'";
         const string alteredTableComment = "altered\\table 'quoted'";
@@ -248,6 +262,9 @@ public sealed class MySqlSqlModeContractTests
 
         try
         {
+            // Act
+            // WHY: Comments and data are observed at each step of one migration
+            // lifecycle while the same caller-selected SQL mode remains active.
             await ExecuteOperationsAsync(
                     generator,
                     context.Model,
@@ -267,26 +284,17 @@ public sealed class MySqlSqlModeContractTests
                     ])
                 .ConfigureAwait(false);
 
-            Assert.Equal(
-                tableComment,
-                await ReadTableCommentAsync(connection, tableName)
-                    .ConfigureAwait(false));
-            Assert.Equal(
-                columnComment,
-                await ReadColumnCommentAsync(connection, tableName, "Value")
-                    .ConfigureAwait(false));
-            Assert.Equal(
-                Convert.ToHexString(Encoding.UTF8.GetBytes(insertedValue)),
-                await ReadStoredValueHexAsync(connection, tableName)
-                    .ConfigureAwait(false));
+            var createdTableComment = await ReadTableCommentAsync(connection, tableName).ConfigureAwait(false);
+            var createdColumnComment = await ReadColumnCommentAsync(connection, tableName, "Value").ConfigureAwait(false);
+            var insertedHex = await ReadStoredValueHexAsync(connection, tableName).ConfigureAwait(false);
 
             var alterTable = new AlterTableOperation
             {
                 Name = tableName,
                 Comment = alteredTableComment,
+                OldTable = { Comment = tableComment },
             };
 
-            alterTable.OldTable.Comment = tableComment;
             var addColumn = new AddColumnOperation
             {
                 Table = tableName,
@@ -307,14 +315,9 @@ public sealed class MySqlSqlModeContractTests
                     ])
                 .ConfigureAwait(false);
 
-            Assert.Equal(
-                alteredTableComment,
-                await ReadTableCommentAsync(connection, tableName)
-                    .ConfigureAwait(false));
-            Assert.Equal(
-                addedColumnComment,
-                await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
-                    .ConfigureAwait(false));
+            var modifiedTableComment = await ReadTableCommentAsync(connection, tableName).ConfigureAwait(false);
+            var additionalColumnComment = await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
+                .ConfigureAwait(false);
 
             var alterColumn = new AlterColumnOperation
             {
@@ -324,20 +327,18 @@ public sealed class MySqlSqlModeContractTests
                 ColumnType = "longtext",
                 IsNullable = true,
                 Comment = alteredColumnComment,
+                OldColumn = { ClrType = typeof(string),
+                    ColumnType = "longtext",
+                    IsNullable = true,
+                    Comment = addedColumnComment,
+                },
             };
-
-            alterColumn.OldColumn.ClrType = typeof(string);
-            alterColumn.OldColumn.ColumnType = "longtext";
-            alterColumn.OldColumn.IsNullable = true;
-            alterColumn.OldColumn.Comment = addedColumnComment;
 
             await ExecuteOperationsAsync(generator, context.Model, context, [alterColumn])
                 .ConfigureAwait(false);
 
-            Assert.Equal(
-                alteredColumnComment,
-                await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
-                    .ConfigureAwait(false));
+            var modifiedColumnComment = await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
+                .ConfigureAwait(false);
 
             await ExecuteOperationsAsync(
                     generator,
@@ -363,10 +364,7 @@ public sealed class MySqlSqlModeContractTests
                     ])
                 .ConfigureAwait(false);
 
-            Assert.Equal(
-                Convert.ToHexString(Encoding.UTF8.GetBytes(updatedValue)),
-                await ReadStoredValueHexAsync(connection, tableName)
-                    .ConfigureAwait(false));
+            var updatedHex = await ReadStoredValueHexAsync(connection, tableName).ConfigureAwait(false);
 
             await ExecuteOperationsAsync(
                     generator,
@@ -389,13 +387,19 @@ public sealed class MySqlSqlModeContractTests
             await using var countCommand = connection.CreateCommand();
             countCommand.CommandText = $"SELECT COUNT(*) FROM `{tableName}`;";
 
-            Assert.Equal(
-                0L,
-                Convert.ToInt64(
-                    await countCommand
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture));
+            var remainingCount = Convert.ToInt64(
+                await countCommand.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
+
+            // Assert
+            Assert.Equal(tableComment, createdTableComment);
+            Assert.Equal(columnComment, createdColumnComment);
+            Assert.Equal(Convert.ToHexString(Encoding.UTF8.GetBytes(insertedValue)), insertedHex);
+            Assert.Equal(alteredTableComment, modifiedTableComment);
+            Assert.Equal(addedColumnComment, additionalColumnComment);
+            Assert.Equal(alteredColumnComment, modifiedColumnComment);
+            Assert.Equal(Convert.ToHexString(Encoding.UTF8.GetBytes(updatedValue)), updatedHex);
+            Assert.Equal(0L, remainingCount);
         }
         finally
         {
@@ -432,6 +436,7 @@ public sealed class MySqlSqlModeContractTests
         string expectedSqlMode
     )
     {
+        // Arrange
         const string callerVariableValue = "caller-owned";
         var missingTable = $"MissingSqlModeTarget_{Guid.NewGuid():N}";
         var connectionId = connection.ServerThread;
@@ -456,6 +461,8 @@ public sealed class MySqlSqlModeContractTests
         }
 
         var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
+
+        // Act
         var exception = await Assert.ThrowsAsync<MySqlException>(async () =>
             await migrationCommand
                 .ExecuteNonQueryAsync(
@@ -463,6 +470,7 @@ public sealed class MySqlSqlModeContractTests
                     cancellationToken: CancellationToken.None)
                 .ConfigureAwait(false));
 
+        // Assert
         Assert.NotEqual(0, exception.Number);
         Assert.Equal(connectionId, connection.ServerThread);
         Assert.Equal(expectedSqlMode, await ReadSqlModeAsync(connection).ConfigureAwait(false));
@@ -484,6 +492,7 @@ public sealed class MySqlSqlModeContractTests
         DbContext context
     )
     {
+        // Arrange
         const string expectedSqlMode = "ANSI_QUOTES,STRICT_TRANS_TABLES";
         using (var setMode = connection.CreateCommand())
         {
@@ -505,7 +514,8 @@ public sealed class MySqlSqlModeContractTests
         };
         var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
 
-        _ = Assert.Throws<MySqlException>(() =>
+        // Act
+        var caught = Record.Exception(() =>
             migrationCommand.ExecuteNonQuery(relationalConnection));
 
         using var verify = connection.CreateCommand();
@@ -513,6 +523,8 @@ public sealed class MySqlSqlModeContractTests
 
         using var reader = verify.ExecuteReader();
 
+        // Assert
+        Assert.IsType<MySqlException>(caught);
         Assert.True(reader.Read());
         Assert.Equal(expectedSqlMode, reader.GetString(0));
         Assert.Equal(1, reader.GetInt32(1));
@@ -524,6 +536,7 @@ public sealed class MySqlSqlModeContractTests
         DbContext context
     )
     {
+        // Arrange
         const string expectedSqlMode = "ANSI_QUOTES,STRICT_TRANS_TABLES";
         var tableName = $"SqlModeCancellation_{Guid.NewGuid():N}";
         await using var blocker = new MySqlConnection(connectionString);
@@ -561,6 +574,8 @@ public sealed class MySqlSqlModeContractTests
             };
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
             using var cancellation = new CancellationTokenSource();
+
+            // Act
             var execution = migrationCommand.ExecuteNonQueryAsync(
                 relationalConnection,
                 cancellationToken: cancellation.Token);
@@ -574,6 +589,7 @@ public sealed class MySqlSqlModeContractTests
                 .WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.Equal(
                 expectedSqlMode,
                 await ReadSqlModeAsync(connection).ConfigureAwait(false));
@@ -631,7 +647,9 @@ public sealed class MySqlSqlModeContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         const string expectedSqlMode = "ANSI_QUOTES,STRICT_TRANS_TABLES";
+
         var pooledConnectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Pooling = true,
@@ -640,8 +658,12 @@ public sealed class MySqlSqlModeContractTests
             ConnectionReset = false,
             ConnectionIdleTimeout = 37,
         }.ConnectionString;
-        var firstConnectionId = 0;
 
+        var firstConnectionId = 0;
+        string firstRestoredMode;
+        Exception? migrationFailure;
+
+        // Act
         await using (var first = new MySqlConnection(pooledConnectionString))
         {
             await MySqlConnection.ClearPoolAsync(first, CancellationToken.None).ConfigureAwait(false);
@@ -665,19 +687,22 @@ public sealed class MySqlSqlModeContractTests
             };
             var command = Assert.Single(generator.Generate([operation], context.Model));
 
-            _ = await Assert.ThrowsAsync<MySqlException>(async () =>
+            migrationFailure = await Record.ExceptionAsync(async () =>
                 await command
                     .ExecuteNonQueryAsync(
                         relationalConnection,
                         cancellationToken: CancellationToken.None)
                     .ConfigureAwait(false));
 
-            Assert.Equal(expectedSqlMode, await ReadSqlModeAsync(first).ConfigureAwait(false));
+            firstRestoredMode = await ReadSqlModeAsync(first).ConfigureAwait(false);
         }
 
         await using var second = new MySqlConnection(pooledConnectionString);
         await second.OpenAsync(CancellationToken.None).ConfigureAwait(false);
 
+        // Assert
+        Assert.IsType<MySqlException>(migrationFailure);
+        Assert.Equal(expectedSqlMode, firstRestoredMode);
         Assert.Equal(firstConnectionId, second.ServerThread);
         Assert.Equal(expectedSqlMode, await ReadSqlModeAsync(second).ConfigureAwait(false));
 
@@ -689,6 +714,7 @@ public sealed class MySqlSqlModeContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var tableName = $"SqlModeCleanupFailure_{Guid.NewGuid():N}";
         var connectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
@@ -731,18 +757,23 @@ public sealed class MySqlSqlModeContractTests
             var relationalConnection = context.GetService<IRelationalConnection>();
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
 
-            var exception = await Assert.ThrowsAsync<MySqlMigrationSessionCleanupException>(async () =>
+            // Act
+            var caught = await Record.ExceptionAsync(async () =>
                 await migrationCommand
                     .ExecuteNonQueryAsync(
                         relationalConnection,
                         cancellationToken: CancellationToken.None)
                     .ConfigureAwait(false));
 
-            Assert.Equal(RestoreFailureInterceptor.FailureMessage, exception.InnerException?.Message);
-            Assert.Equal(ConnectionState.Closed, connection.State);
+            var stateAfterFailure = connection.State;
 
             await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
 
+            // Assert
+            var exception = Assert.IsType<MySqlMigrationSessionCleanupException>(caught);
+
+            Assert.Equal(RestoreFailureInterceptor.FailureMessage, exception.InnerException?.Message);
+            Assert.Equal(ConnectionState.Closed, stateAfterFailure);
             Assert.NotEqual(originalConnectionId, connection.ServerThread);
         }
         finally
@@ -765,6 +796,7 @@ public sealed class MySqlSqlModeContractTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var tableName = $"SyncSqlModeCleanupFailure_{Guid.NewGuid():N}";
         var connectionString = new MySqlConnectionStringBuilder(baseConnectionString)
         {
@@ -807,14 +839,18 @@ public sealed class MySqlSqlModeContractTests
             var relationalConnection = context.GetService<IRelationalConnection>();
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
 
-            var exception = Assert.Throws<MySqlMigrationSessionCleanupException>(() =>
+            // Act
+            var caught = Record.Exception(() =>
                 migrationCommand.ExecuteNonQuery(relationalConnection));
-
-            Assert.Equal(RestoreFailureInterceptor.FailureMessage, exception.InnerException?.Message);
-            Assert.Equal(ConnectionState.Closed, connection.State);
+            var stateAfterFailure = connection.State;
 
             connection.Open();
 
+            // Assert
+            var exception = Assert.IsType<MySqlMigrationSessionCleanupException>(caught);
+
+            Assert.Equal(RestoreFailureInterceptor.FailureMessage, exception.InnerException?.Message);
+            Assert.Equal(ConnectionState.Closed, stateAfterFailure);
             Assert.NotEqual(originalConnectionId, connection.ServerThread);
         }
         finally

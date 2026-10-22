@@ -11,8 +11,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_reads_period_and_primary_constraint()
     {
-        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
-            """
+        // Arrange
+        const string input = """
             CREATE TABLE `IntProbe` (
               `Id` int(11) NOT NULL,
               `BusinessValidFrom` datetime(6) NOT NULL,
@@ -23,8 +23,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
               PRIMARY KEY (`Id`,`SystemValidTo`,`BusinessValidity` WITHOUT OVERLAPS),
               PERIOD FOR SYSTEM_TIME (`SystemValidFrom`, `SystemValidTo`)
             ) ENGINE=InnoDB WITH SYSTEM VERSIONING
-            """);
+            """;
 
+        // Act
+        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            input);
+
+        // Assert
         Assert.NotNull(definition);
         Assert.Equal("BusinessValidity", definition.PeriodName);
         Assert.Equal("BusinessValidFrom", definition.StartColumnName);
@@ -38,16 +43,21 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_unescapes_quoted_identifiers()
     {
-        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
-            """
+        // Arrange
+        const string input = """
             CREATE TABLE `quoted` (
               `start``value` datetime(6) NOT NULL,
               `end``value` datetime(6) NOT NULL,
               PERIOD FOR `business``period` (`start``value`, `end``value`),
               UNIQUE KEY `UX``Period` (`business``period` WITHOUT OVERLAPS)
             ) ENGINE=InnoDB
-            """);
+            """;
 
+        // Act
+        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            input);
+
+        // Assert
         Assert.NotNull(definition);
         Assert.Equal("business`period", definition.PeriodName);
         Assert.Equal("start`value", definition.StartColumnName);
@@ -61,16 +71,21 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_ignores_literals_and_system_time()
     {
-        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
-            """
+        // Arrange
+        const string input = """
             CREATE TABLE `system_only` (
               `Payload` varchar(128) DEFAULT 'PERIOD FOR fake (a, b)',
               `RowStart` timestamp(6) GENERATED ALWAYS AS ROW START,
               `RowEnd` timestamp(6) GENERATED ALWAYS AS ROW END,
               PERIOD FOR SYSTEM_TIME (`RowStart`, `RowEnd`)
             ) COMMENT='WITHOUT OVERLAPS' WITH SYSTEM VERSIONING
-            """);
+            """;
 
+        // Act
+        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            input);
+
+        // Assert
         Assert.Null(definition);
     }
 
@@ -80,7 +95,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_unknown_without_overlaps_period()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        // Arrange
+        Action act = () =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `invalid` (
@@ -89,8 +105,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
                   PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
                   PRIMARY KEY (`OtherPeriod` WITHOUT OVERLAPS)
                 ) ENGINE=InnoDB
-                """));
+                """);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("references unknown period", exception.Message, StringComparison.Ordinal);
     }
 
@@ -100,8 +121,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_handles_nested_parentheses()
     {
-        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
-            """
+        // Arrange
+        const string input = """
             CREATE TABLE `nested` (
               `Code` varchar(32) NOT NULL,
               `Amount` decimal(10,2) NOT NULL,
@@ -110,8 +131,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
               PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
               UNIQUE KEY `UX_Nested` (`Code`(10),`BusinessValidity` WITHOUT OVERLAPS)
             ) ENGINE=InnoDB
-            """);
+            """;
 
+        // Act
+        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            input);
+
+        // Assert
         Assert.NotNull(definition);
         Assert.Equal(["UX_Nested"], definition.WithoutOverlapsConstraints);
     }
@@ -122,7 +148,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_multiple_application_periods()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        // Arrange
+        Action act = () =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `multiple_periods` (
@@ -133,8 +160,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
                   PERIOD FOR `FirstValidity` (`FirstStart`, `FirstEnd`),
                   PERIOD FOR `SecondValidity` (`SecondStart`, `SecondEnd`)
                 ) ENGINE=InnoDB
-                """));
+                """);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("more than one application-time period", exception.Message, StringComparison.Ordinal);
     }
 
@@ -144,15 +176,21 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_without_overlaps_without_period()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        // Arrange
+        Action act = () =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
                 """
                 CREATE TABLE `missing_period` (
                   `Validity` datetime(6) NOT NULL,
                   PRIMARY KEY (`Validity` WITHOUT OVERLAPS)
                 ) ENGINE=InnoDB
-                """));
+                """);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("without an application-time period", exception.Message, StringComparison.Ordinal);
     }
 
@@ -162,14 +200,19 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_does_not_treat_quoted_tokens_as_keywords()
     {
-        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
-            """
+        // Arrange
+        const string input = """
             CREATE TABLE `quoted_keywords` (
               `PERIOD` `FOR` (`start`, `end`),
               `WITHOUT` `OVERLAPS`
             ) ENGINE=InnoDB
-            """);
+            """;
 
+        // Act
+        var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            input);
+
+        // Assert
         Assert.Null(definition);
     }
 
@@ -179,10 +222,16 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_unterminated_literal()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        // Arrange
+        Action act = () =>
             MariaDbTemporalDefinitionParser.ParseApplicationTime(
-                "CREATE TABLE `invalid` (`Value` varchar(32) DEFAULT 'unterminated);"));
+                "CREATE TABLE `invalid` (`Value` varchar(32) DEFAULT 'unterminated);");
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("unterminated quoted literal", exception.Message, StringComparison.Ordinal);
     }
 
@@ -192,9 +241,15 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_unterminated_identifier()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `unterminated (id int);"));
+        // Arrange
+        Action act = () =>
+            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `unterminated (id int);");
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("unterminated quoted identifier", exception.Message, StringComparison.Ordinal);
     }
 
@@ -204,9 +259,15 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_missing_table_definition()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid`;"));
+        // Arrange
+        Action act = () =>
+            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid`;");
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("does not contain a table definition", exception.Message, StringComparison.Ordinal);
     }
 
@@ -216,9 +277,15 @@ public sealed class MariaDbTemporalDefinitionParserTests
     [Fact]
     public void ParseApplicationTime_rejects_unterminated_table_definition()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid` (`Id` int(11)"));
+        // Arrange
+        Action act = () =>
+            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid` (`Id` int(11)");
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("unterminated table definition", exception.Message, StringComparison.Ordinal);
     }
 }

@@ -186,6 +186,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_wkb_roundtrip_preserves_srid_and_coordinates()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
         await ResetSpatialObjectsAsync(connectionString)
@@ -219,10 +220,13 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
+
+            // Act
             var roundtripped = await context
                 .PointEntities.SingleAsync(entity => entity.Id == 1)
                 .ConfigureAwait(false);
 
+            // Assert
             Assert.Equal(4326, roundtripped.Location.SRID);
             Assert.Equal(13.4050, roundtripped.Location.X, 3);
             Assert.Equal(52.5200, roundtripped.Location.Y, 3);
@@ -243,6 +247,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_spatial_index_ddl_creates_index_on_geometry_column()
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
         await ResetSpatialObjectsAsync(connectionString)
@@ -274,11 +279,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
             indexOperation.SetAnnotation(MySqlAnnotationNames.SpatialIndex, true);
 
+            // Act
             var commands = generator.Generate([indexOperation], context.Model);
-
-            Assert.Single(commands);
-            Assert.Contains("SPATIAL INDEX", commands[0].CommandText, StringComparison.OrdinalIgnoreCase);
-
             await context
                 .Database.ExecuteSqlRawAsync(commands[0].CommandText)
                 .ConfigureAwait(false);
@@ -290,6 +292,9 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 $"SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '{PointTableName}' AND index_name = 'IX_Spatial_Location';";
             var indexCount = Convert.ToInt32(await verify.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
 
+            // Assert
+            Assert.Single(commands);
+            Assert.Contains("SPATIAL INDEX", commands[0].CommandText, StringComparison.OrdinalIgnoreCase);
             Assert.True(indexCount > 0);
         }
         finally
@@ -311,6 +316,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     [Fact]
     public async Task TranslateDistance_warns_when_column_and_constant_srids_differ()
     {
+        // Arrange
         var sink = new SridWarningSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
@@ -322,18 +328,21 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 MySqlServerVersion.MySql(new Version(8, 4, 0)),
                 options => options.UseNetTopologySuite());
 
+        // Act
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
             .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 0 }))
             .ToQueryString();
 
+        // Assert
         Assert.Contains(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SpatialSridMismatchDetected.Id);
     }
 
     [Fact]
     public async Task TranslateDistance_does_not_warn_when_column_and_constant_srids_match()
     {
+        // Arrange
         var sink = new SridWarningSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
@@ -345,12 +354,14 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 MySqlServerVersion.MySql(new Version(8, 4, 0)),
                 options => options.UseNetTopologySuite());
 
+        // Act
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
             .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 4326 }))
             .ToQueryString();
 
+        // Assert
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SpatialSridMismatchDetected.Id);
     }
 
@@ -391,7 +402,10 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
         public SridWarningLoggerProvider(
             SridWarningSink sink
-        ) => _sink = sink;
+        )
+        {
+            _sink = sink;
+        }
 
         public ILogger CreateLogger(
             string categoryName

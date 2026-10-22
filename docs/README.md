@@ -5,6 +5,11 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
+For the 10.6.1 patch release, see the [changelog](../CHANGELOG.md#1061---2026-10-22)
+and [GUID SQL-default upgrade guidance](operations/migrations.md#guid-sql-defaults).
+The update preserves the existing public API, dependency ranges, and supported
+engine matrix.
+
 ## Use the Provider
 
 - [Provider Architecture](architecture.md) explains the runtime, design-time,

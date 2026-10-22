@@ -6,6 +6,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationFeatureSetTests
 {
+    /// <summary>
+    /// Verifies active lts profile exposes every feature exactly once.
+    /// </summary>
     [Theory]
     [MemberData(nameof(ActiveProfiles))]
     public void Active_lts_profile_exposes_every_feature_exactly_once(
@@ -13,11 +16,15 @@ public sealed class MySqlMigrationFeatureSetTests
         IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport> expected
     )
     {
+        // Arrange
         var features = new MySqlMigrationFeatureSet(serverVersion.Profile);
+
+        // Act
         var actual = Enum
             .GetValues<MySqlMigrationFeature>()
             .ToDictionary(feature => feature, features.GetSupport);
 
+        // Assert
         Assert.Equal(
             Enum.GetValues<MySqlMigrationFeature>()
                 .Length,
@@ -25,14 +32,24 @@ public sealed class MySqlMigrationFeatureSetTests
         Assert.Equal(expected, actual);
     }
 
+    /// <summary>
+    /// Verifies undefined feature fails closed.
+    /// </summary>
     [Fact]
     public void Undefined_feature_fails_closed()
     {
+        // Arrange
         var features = new MySqlMigrationFeatureSet(
             MySqlServerVersion.MySql(new Version(8, 4, 11))
                 .Profile);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => features.GetSupport((MySqlMigrationFeature)int.MaxValue));
+        Action act = () => features.GetSupport((MySqlMigrationFeature)int.MaxValue);
+
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(recordedException);
     }
 
     public static TheoryData<

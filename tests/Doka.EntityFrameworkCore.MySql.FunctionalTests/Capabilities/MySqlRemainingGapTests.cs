@@ -13,12 +13,15 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void UseHiLo_on_guid_property_throws_when_the_value_generator_is_selected()
     {
+        // Arrange
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<HiLoGuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         using var context = new HiLoGuidContext(builder.Options);
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(HiLoGuidEntity))
             ?? throw new InvalidOperationException("HiLoGuidEntity metadata was not created.");
 
@@ -30,6 +33,7 @@ public sealed class MySqlRemainingGapTests
         var exception = Assert.Throws<InvalidOperationException>(
             () => selector.TrySelect(property, entityType, out _));
 
+        // Assert
         Assert.Equal(
             "Hi/Lo value generation is not supported for properties of type 'Guid'.",
             exception.Message);
@@ -45,11 +49,14 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void JsonTypeMapping_generates_sql_literal_for_json_element()
     {
+        // Arrange
         var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
         var element = JsonElement.Parse("""{"key":"value"}""");
 
+        // Act
         var literal = mapping.GenerateSqlLiteral(element);
 
+        // Assert
         Assert.Contains("{\"key\":\"value\"}", literal, StringComparison.Ordinal);
         Assert.StartsWith("'", literal, StringComparison.Ordinal);
         Assert.EndsWith("'", literal, StringComparison.Ordinal);
@@ -58,12 +65,15 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void JsonTypeMapping_escapes_single_quotes_in_literal()
     {
+        // Arrange
         var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
         // Build JSON with a single-quote in a value using a raw JSON string.
-        var doc = System.Text.Json.JsonDocument.Parse("{\"key\":\"it's here\"}");
+        using var doc = JsonDocument.Parse("{\"key\":\"it's here\"}");
 
+        // Act
         var literal = mapping.GenerateSqlLiteral(doc.RootElement);
 
+        // Assert
         // The single quote in the JSON value must be doubled for MySQL SQL literals.
         Assert.Contains("it''s here", literal, StringComparison.Ordinal);
     }
@@ -75,12 +85,16 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void JsonTypeMapping_uses_mode_independent_hex_for_backslashes()
     {
+        // Arrange
         const string rawJson = "{\"path\":\"C:\\\\data\"}";
         using var document = JsonDocument.Parse(rawJson);
+
+        // Act
         var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
 
         var literal = mapping.GenerateSqlLiteral(document.RootElement);
 
+        // Assert
         Assert.Equal(
             $"_utf8mb4 X'{Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(rawJson))}'",
             literal);
@@ -95,19 +109,23 @@ public sealed class MySqlRemainingGapTests
     [Fact]
     public void Varchar36_guid_property_gets_correct_column_type()
     {
+        // Arrange
         var builder = MySqlFunctionalTestOptions.CreateTransientBuilder<Varchar36GuidContext>();
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         using var context = new Varchar36GuidContext(builder.Options);
+
+        // Act
         var property =
             context.Model.FindEntityType(typeof(Varchar36GuidEntity))!.FindProperty(
                 nameof(Varchar36GuidEntity.ExternalId))!;
 
         var columnType = property.GetColumnType();
 
-        Assert.Contains("varchar(36)", columnType!, StringComparison.OrdinalIgnoreCase);
+        // Assert
+        Assert.Contains("varchar(36)", columnType, StringComparison.OrdinalIgnoreCase);
     }
 
     // -- Entities / Contexts --
@@ -150,10 +168,7 @@ public sealed class MySqlRemainingGapTests
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<SimpleEntity>(e => { e.HasKey(x => x.Id); });
-        }
+        ) => modelBuilder.Entity<SimpleEntity>(e => e.HasKey(x => x.Id));
     }
 
     private sealed class Varchar36GuidEntity

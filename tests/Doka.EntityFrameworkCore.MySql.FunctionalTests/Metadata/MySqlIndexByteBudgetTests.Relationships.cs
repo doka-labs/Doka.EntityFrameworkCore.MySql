@@ -20,14 +20,17 @@ public sealed partial class MySqlIndexByteBudgetTests
         int expectedLength
     )
     {
+        // Arrange
         using var context = CreateRelationshipContext(scenario);
 
+        // Act
         var model = context.GetService<IDesignTimeModel>().Model;
         var entity = model.FindEntityType(typeof(RelationshipBudgetNode))!;
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
         var ddl = context.Database.GenerateCreateScript();
 
+        // Assert
         Assert.Equal(expectedLength, principal.GetMaxLength());
         Assert.Equal(expectedLength, dependent.GetMaxLength());
         Assert.Equal(principal.GetColumnType(), dependent.GetColumnType());
@@ -62,12 +65,15 @@ public sealed partial class MySqlIndexByteBudgetTests
         string dependentStoreType
     )
     {
+        // Arrange
         using var context = CreateRelationshipContext(scenario);
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
 
+        // Assert
         Assert.Equal(254, principal.GetMaxLength());
         Assert.Equal(dependentLength, dependent.GetMaxLength());
         Assert.Equal(dependentStoreType, dependent.GetColumnType());
@@ -84,12 +90,15 @@ public sealed partial class MySqlIndexByteBudgetTests
         string scenario
     )
     {
+        // Arrange
         using var context = CreateRelationshipContext(scenario);
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
 
+        // Assert
         Assert.Equal(scenario == "explicit-principal" ? 100 : null, principal.GetMaxLength());
         Assert.Equal("varchar(100)", principal.GetColumnType());
         Assert.Equal("varchar(100)", dependent.GetColumnType());
@@ -102,10 +111,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Explicit_relationship_asymmetry_remains_unchanged()
     {
+        // Arrange
         using var context = CreateRelationshipContext("explicit-both");
 
+        // Act
         var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
 
+        // Assert
         Assert.Equal(120, entity.FindProperty(nameof(RelationshipBudgetNode.Id))!.GetMaxLength());
         Assert.Equal(100, entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!.GetMaxLength());
     }
@@ -117,10 +129,13 @@ public sealed partial class MySqlIndexByteBudgetTests
     [Fact]
     public void Relationship_minima_that_exceed_the_complete_budget_are_rejected()
     {
+        // Arrange
         using var context = CreateRelationshipContext("impossible");
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => _ = context.Model);
 
+        // Assert
         Assert.Contains("minimum implicit lengths", exception.Message, StringComparison.Ordinal);
         Assert.Contains("3072", exception.Message, StringComparison.Ordinal);
     }

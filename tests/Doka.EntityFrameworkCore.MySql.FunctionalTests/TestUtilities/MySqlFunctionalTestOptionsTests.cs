@@ -17,8 +17,8 @@ public sealed class MySqlFunctionalTestOptionsTests
         "Infrastructure/MySqlOptionsRegistrationTests.cs:Generic_data_source_builder_overload_returns_the_same_builder_instance",
         "Infrastructure/MySqlOptionsRegistrationTests.cs:Repeated_UseMySql_calls_keep_a_single_extension_instance",
         "Infrastructure/MySqlOptionsRegistrationTests.cs:Repeated_UseMySql_calls_replace_the_connection_path_consistently",
-        "Migrations/MySqlMigrationOperationHandlerTests.cs:CreateContext",
-        "Query/MySqlPrimitiveCollectionParameterTests.cs:CreateContext",
+        "Migrations/MySqlMigrationOperationHandlerTests.Infrastructure.cs:CreateContext",
+        "Query/MySqlPrimitiveCollectionParameterTests.Infrastructure.cs:CreateContext",
         "Specification/CrossCutting/Infrastructure/MySqlLoggingSpecificationTests.cs:CreateOptionsBuilder",
         "Specification/Query/RelationalModelQueryMySqlTests.cs:CreateContext",
         "Specification/Update/TransactionMySqlTest.cs:CreateContextWithConnectionString",
@@ -45,6 +45,7 @@ public sealed class MySqlFunctionalTestOptionsTests
     [Fact]
     public void Transient_provider_policy_is_narrow_and_does_not_cache_providers()
     {
+        // Arrange
         var optionsBuilder = new DbContextOptionsBuilder()
             .ConfigureWarnings(warnings => warnings.Default(WarningBehavior.Throw))
             .UseTransientInternalServiceProvider();
@@ -53,10 +54,13 @@ public sealed class MySqlFunctionalTestOptionsTests
 
         using var firstContext = new DbContext(optionsBuilder.Options);
         using var secondContext = new DbContext(optionsBuilder.Options);
+
+        // Act
         var firstProvider = ((IInfrastructure<IServiceProvider>)firstContext).Instance;
         var secondProvider = ((IInfrastructure<IServiceProvider>)secondContext).Instance;
         var loggingOptions = firstProvider.GetRequiredService<ILoggingOptions>();
 
+        // Assert
         Assert.NotSame(firstProvider, secondProvider);
         Assert.Equal(
             WarningBehavior.Log,
@@ -73,9 +77,11 @@ public sealed class MySqlFunctionalTestOptionsTests
     [Fact]
     public void Seeding_context_uses_the_transient_provider_policy()
     {
+        // Arrange
         var optionsBuilder =
             new DbContextOptionsBuilder().ConfigureWarnings(warnings => warnings.Default(WarningBehavior.Throw));
 
+        // Act
         SeedingMySqlTest.ConfigureTransientOptions(
             optionsBuilder,
             "Server=127.0.0.1;Database=doka_seeding_options;User ID=root;Password=root_password;",
@@ -83,6 +89,7 @@ public sealed class MySqlFunctionalTestOptionsTests
 
         var coreOptions = optionsBuilder.Options.FindExtension<CoreOptionsExtension>();
 
+        // Assert
         Assert.NotNull(coreOptions);
         Assert.False(coreOptions.ServiceProviderCachingEnabled);
         Assert.Equal(
@@ -100,7 +107,11 @@ public sealed class MySqlFunctionalTestOptionsTests
     [Fact]
     public void Raw_options_builder_sites_have_explicit_provider_ownership()
     {
+        // Arrange
         var projectRoot = Path.Combine(FindRepositoryRoot(), "tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests");
+        var expected = s_expectedRawBuilderSites.Order(StringComparer.Ordinal).ToArray();
+
+        // Act
         var actual = EnumerateSourceTrees(projectRoot)
             .SelectMany(item => item
                 .Root
@@ -115,10 +126,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var expected = s_expectedRawBuilderSites
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
+        // Assert
         Assert.True(
             expected.SequenceEqual(actual, StringComparer.Ordinal),
             $"Expected raw builder sites:{Environment.NewLine}{string.Join(Environment.NewLine, expected)}"
@@ -133,7 +141,10 @@ public sealed class MySqlFunctionalTestOptionsTests
     [Fact]
     public void On_configuring_provider_paths_use_the_transient_policy()
     {
+        // Arrange
         var projectRoot = Path.Combine(FindRepositoryRoot(), "tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests");
+
+        // Act
         var unprotected = EnumerateSourceTrees(projectRoot)
             .SelectMany(item => item
                 .Root
@@ -153,6 +164,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
+        // Assert
         Assert.Empty(unprotected);
     }
 
@@ -163,7 +175,11 @@ public sealed class MySqlFunctionalTestOptionsTests
     [Fact]
     public void UseMySql_sites_without_a_transient_policy_have_registered_owners()
     {
+        // Arrange
         var projectRoot = Path.Combine(FindRepositoryRoot(), "tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests");
+        var expected = s_expectedNonTransientUseMySqlSites.Order(StringComparer.Ordinal).ToArray();
+
+        // Act
         var actual = EnumerateSourceTrees(projectRoot)
             .SelectMany(item => item
                 .Root
@@ -184,10 +200,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var expected = s_expectedNonTransientUseMySqlSites
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
+        // Assert
         Assert.True(
             expected.SequenceEqual(actual, StringComparer.Ordinal),
             $"Expected externally owned UseMySql sites:{Environment.NewLine}{string.Join(Environment.NewLine, expected)}"

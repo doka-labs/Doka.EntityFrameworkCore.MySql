@@ -15,12 +15,15 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         int expectedTableAccesses
     )
     {
+        // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         var command = new TestCommand([], hasReadResults);
         var batch = context.GetService<IModificationCommandBatchFactory>().Create();
 
+        // Act
         var added = batch.TryAddCommand(command);
 
+        // Assert
         Assert.True(added);
         Assert.Equal(expectedTableAccesses, command.ReadbackTableAccesses);
         Assert.Single(batch.ModificationCommands);
@@ -32,17 +35,22 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [Fact]
     public void RepeatedKeyReadbackBytesCloseTheBatchBeforeThePacketBudget()
     {
+        // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         var commands = CreatePacketCommands(context, count: 1000);
         var batch = context.GetService<IModificationCommandBatchFactory>().Create();
 
+        // Act
         var accepted = AddUntilFull(batch, commands);
+        var countBeforeRejection = batch.ModificationCommands.Count;
         var repeatedRejection = accepted < commands.Length && batch.TryAddCommand(commands[accepted]);
+        var countAfterRejection = batch.ModificationCommands.Count;
 
+        // Assert
         Assert.InRange(accepted, 1, 999);
-        Assert.Equal(accepted, batch.ModificationCommands.Count);
+        Assert.Equal(accepted, countBeforeRejection);
         Assert.False(repeatedRejection);
-        Assert.Equal(accepted, batch.ModificationCommands.Count);
+        Assert.Equal(accepted, countAfterRejection);
     }
 
     /// <summary>
@@ -51,14 +59,17 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [Fact]
     public void RejectedPacketProjectionDoesNotConsumeTheRemainingBudget()
     {
+        // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         var commands = CreatePacketCommands(context, count: 1000);
         var smaller = CreatePacketCommand(context, [255]);
         var batch = context.GetService<IModificationCommandBatchFactory>().Create();
         var accepted = AddUntilFull(batch, commands);
 
+        // Act
         var added = batch.TryAddCommand(smaller);
 
+        // Assert
         Assert.InRange(accepted, 1, 999);
         Assert.True(added);
         Assert.Equal(accepted + 1, batch.ModificationCommands.Count);
@@ -71,13 +82,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [Fact]
     public void TransactionOptOutDoesNotChargeInactiveKeyedReadback()
     {
+        // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
         var commands = CreatePacketCommands(context, count: 1000);
         var batch = context.GetService<IModificationCommandBatchFactory>().Create();
 
+        // Act
         var accepted = AddUntilFull(batch, commands);
 
+        // Assert
         Assert.Equal(1000, accepted);
         Assert.Equal(1000, batch.ModificationCommands.Count);
     }

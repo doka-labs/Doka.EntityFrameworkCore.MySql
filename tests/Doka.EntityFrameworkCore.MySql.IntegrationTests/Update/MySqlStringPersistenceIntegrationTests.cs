@@ -14,7 +14,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
     /// <summary>
     /// Provides independently reported quote cases under both SQL modes.
     /// </summary>
-    public static TheoryData<bool, string> QuoteCases => CreateCases(
+    public static TheoryData<string, bool, string> QuoteCases => CreateCases(
         "Hallo 'Test'",
         "Hallo \"Test\"",
         MixedQuoteValue);
@@ -22,7 +22,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
     /// <summary>
     /// Provides independently reported escaping and UTF-8 cases under both SQL modes.
     /// </summary>
-    public static TheoryData<bool, string> SpecialCases => CreateCases(
+    public static TheoryData<string, bool, string> SpecialCases => CreateCases(
         "path\\segment",
         "line one\nline two",
         "gr\u00FCn \U0001F680",
@@ -30,70 +30,77 @@ public sealed class MySqlStringPersistenceIntegrationTests
         string.Empty);
 
     /// <summary>
+    /// Reports each selected engine and SQL mode as a separate set-based update case.
+    /// </summary>
+    public static TheoryData<string, bool> SqlModeCases => CreateSqlModeCases();
+
+    /// <summary>
     /// Checks that parameterized entity inserts store each quote variant byte-for-byte.
     /// </summary>
     [Theory]
     [MemberData(nameof(QuoteCases))]
-    public async Task Insert_preserves_single_and_double_quotes(bool noBackslashEscapes, string value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertInsertPreservesValueAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Insert_preserves_single_and_double_quotes(
+        string targetName,
+        bool noBackslashEscapes,
+        string value
+    ) => AssertInsertPreservesValueAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks that parameterized entity updates do not substitute one quote kind for another.
     /// </summary>
     [Theory]
     [MemberData(nameof(QuoteCases))]
-    public async Task Update_preserves_single_and_double_quotes(bool noBackslashEscapes, string value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertUpdatePreservesValueAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Update_preserves_single_and_double_quotes(
+        string targetName,
+        bool noBackslashEscapes,
+        string value
+    ) => AssertUpdatePreservesValueAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks that tracked inserts preserve text requiring escaping or UTF-8 encoding.
     /// </summary>
     [Theory]
     [MemberData(nameof(SpecialCases))]
-    public async Task Insert_preserves_special_string_values(bool noBackslashEscapes, string value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertInsertPreservesValueAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Insert_preserves_special_string_values(
+        string targetName,
+        bool noBackslashEscapes,
+        string value
+    ) => AssertInsertPreservesValueAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks that tracked updates preserve text requiring escaping or UTF-8 encoding.
     /// </summary>
     [Theory]
     [MemberData(nameof(SpecialCases))]
-    public async Task Update_preserves_special_string_values(bool noBackslashEscapes, string value)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertUpdatePreservesValueAsync(target, noBackslashEscapes, value);
-        }
-    }
+    public Task Update_preserves_special_string_values(
+        string targetName,
+        bool noBackslashEscapes,
+        string value
+    ) => AssertUpdatePreservesValueAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes,
+        value);
 
     /// <summary>
     /// Checks the separate set-based update path while another row remains unchanged.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ExecuteUpdate_preserves_quotes(bool noBackslashEscapes)
-    {
-        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
-        {
-            await AssertExecuteUpdatePreservesQuotesAsync(target, noBackslashEscapes);
-        }
-    }
+    [MemberData(nameof(SqlModeCases))]
+    public Task ExecuteUpdate_preserves_quotes(
+        string targetName,
+        bool noBackslashEscapes
+    ) => AssertExecuteUpdatePreservesQuotesAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        noBackslashEscapes);
 
     private static async Task AssertInsertPreservesValueAsync(
         IntegrationDatabaseTarget target,
@@ -101,6 +108,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
         string value
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -113,8 +121,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
                 Value = value,
             });
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredValuesAsync(connection, [value]);
         }
         finally
@@ -129,6 +139,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
         string value
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -153,8 +164,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
             context.Attach(item);
             context.Entry(item).Property(entry => entry.Value).IsModified = true;
 
+            // Act
             await context.SaveChangesAsync(CancellationToken.None);
 
+            // Assert
             await AssertStoredValuesAsync(connection, [value, "unchanged"]);
         }
         finally
@@ -168,6 +181,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
         bool noBackslashEscapes
     )
     {
+        // Arrange
         await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
         await CreateTemporaryTableAsync(connection);
 
@@ -181,12 +195,15 @@ public sealed class MySqlStringPersistenceIntegrationTests
             }
 
             await using var context = CreateContext(connection, target);
+
+            // Act
             var affected = await context.Items
                 .Where(item => item.Id == 1)
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(item => item.Value, MixedQuoteValue),
                     CancellationToken.None);
 
+            // Assert
             Assert.Equal(1, affected);
             await AssertStoredValuesAsync(connection, [MixedQuoteValue, "unchanged"]);
         }
@@ -232,7 +249,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
-    private static async Task CreateTemporaryTableAsync(MySqlConnection connection)
+    private static async Task CreateTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         // A session-local table avoids permanent schema changes and keeps
         // concurrent test processes independent.
@@ -242,7 +261,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
         _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
-    private static async Task DropTemporaryTableAsync(MySqlConnection connection)
+    private static async Task DropTemporaryTableAsync(
+        MySqlConnection connection
+    )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TEMPORARY TABLE `{TableName}`;";
@@ -256,8 +277,15 @@ public sealed class MySqlStringPersistenceIntegrationTests
     {
         // Read database bytes without EF materialization so a read converter
         // cannot hide write-side changes to quotation or special characters.
+
+        // Arrange
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT HEX(`Value`) FROM `{TableName}` ORDER BY `Id`;";
+        var expectedHex = expectedValues
+            .Select(value => Convert.ToHexString(Encoding.UTF8.GetBytes(value)))
+            .ToArray();
+
+        // Act
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         var actualHex = new List<string>();
 
@@ -266,10 +294,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
             actualHex.Add(reader.GetString(0));
         }
 
-        var expectedHex = expectedValues
-            .Select(value => Convert.ToHexString(Encoding.UTF8.GetBytes(value)))
-            .ToArray();
-
+        // Assert
         Assert.Equal(expectedHex, actualHex);
     }
 
@@ -281,14 +306,34 @@ public sealed class MySqlStringPersistenceIntegrationTests
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
-    private static TheoryData<bool, string> CreateCases(params string[] values)
+    private static TheoryData<string, bool, string> CreateCases(
+        params string[] values
+    )
     {
-        var cases = new TheoryData<bool, string>();
+        var cases = new TheoryData<string, bool, string>();
 
-        foreach (var value in values)
+        // WHY: The target enum is internal, but xUnit requires public theory
+        // methods. Names keep each engine visible without widening that contract.
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
         {
-            cases.Add(false, value);
-            cases.Add(true, value);
+            foreach (var value in values)
+            {
+                cases.Add(target.ToString(), false, value);
+                cases.Add(target.ToString(), true, value);
+            }
+        }
+
+        return cases;
+    }
+
+    private static TheoryData<string, bool> CreateSqlModeCases()
+    {
+        var cases = new TheoryData<string, bool>();
+
+        foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+        {
+            cases.Add(target.ToString(), false);
+            cases.Add(target.ToString(), true);
         }
 
         return cases;
@@ -307,7 +352,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
 
         public DbSet<StringValue> Items => Set<StringValue>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<StringValue>(entity =>
             {

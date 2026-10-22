@@ -246,7 +246,12 @@ publication authorization, and public package and GitHub release readback. Never
 ## Code Style
 
 - Follow the existing naming, formatting, and layout conventions in the codebase.
+- Use the repository `.editorconfig` and existing Rider-formatted code as the layout reference. Do not run `dotnet format whitespace`; its output does not match the repository's Rider layout.
 - All code comments must be in English.
+- Document public APIs with XML comments and add documentation for internal APIs when it helps IDE users understand a non-obvious contract. Explain non-obvious implementation choices with short WHY comments rather than narrating the code.
+- Leave a blank line after control-flow blocks and multiline variable
+  initializations. Leave a blank line before `return`, except in a block
+  containing only two lines of code. Use blank lines to separate logical groups.
 - `<Nullable>enable</Nullable>`, `TreatWarningsAsErrors`, trim analysis, AOT analysis, and build-enforced code-style analyzers are configured solution-wide via `Directory.Build.props`.
 - Do not add third-party library dependencies without first opening an issue to discuss the rationale.
 - Engine differences must flow through the internal `EngineProfile` model; avoid ad-hoc version checks across unrelated subsystems.
@@ -275,7 +280,33 @@ changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 
 ## Test Conventions
 
-- Every integration test class that uses a live database MUST belong to `IntegrationDatabaseTestGroup`. Every target-specific method MUST use `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`, not `[Fact]`, so a scoped matrix run only executes tests for provisioned targets. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute is the source of truth.
+- Every integration test class that uses a live database MUST carry `[IntegrationDatabaseTest]`. A fixed target uses `[RequiresDatabaseTargetFact(IntegrationDatabaseTarget.X)]`; a selected-target theory uses `[MemberData]`, plus `[RequiresSupportedDatabaseTargetTheory]` when it excludes unsupported targets. Do not use an unconditional `[Fact]` for target-specific work, so a scoped matrix run only executes tests for provisioned targets. Method-name suffix `_on_<target>` is the usual but not mandatory cue; the attribute or theory data is the source of truth.
+- New and changed tests should separate `// Arrange`, `// Act`, and `// Assert` with blank lines. Keep one behavior and one Act phase per test; use separate tests for distinct positive and negative cases. Share expensive database setup through a fixture only when each test remains independent and filtered runs still work.
+- Add a short WHY comment when a non-obvious test setup, ordering constraint, or provider behavior would otherwise be easy to break. Do not add comments that merely restate the next statement.
+- Use `[MemberData]` or `[InlineData]` for independently repeatable inputs so
+  Rider reports and reruns each case. A roundtrip or cancellation-recovery test
+  may require several dependent steps: keep those steps in one Act phase and
+  explain the dependency. Multiple assertions on the same result are expected.
+- A thin engine-selection wrapper may delegate the entire scenario to a helper.
+  Keep the meaningful AAA phases in that helper rather than adding empty phases
+  to the wrapper. Exception-capture assertions such as `Assert.Throws` may serve
+  as the single Act; inspect the captured exception in Assert.
+- When synchronous behavior is the contract under test, keep that call and put
+  `// ReSharper disable once MethodHasAsyncOverload` immediately before it,
+  together with a short WHY comment. Do not suppress an entire file or method.
+- Prefer an existing typed `DbSet<TEntity>` for homogeneous entity arrays.
+  This avoids the covariant `TEntity[]` to `object[]` conversion of
+  `DbContext.AddRange(params object[])` without copying the array.
+- Organize large test classes into topic partials and separate their fixtures,
+  model definitions, and infrastructure. Preserve the test class identity and
+  fixture lifetime. Centralize `IntegrationTestEnvironment.GetConnectionString`
+  calls: its caller file owns the isolated schema, so moving only one call to
+  a new partial can accidentally create a second schema.
+- Shared fixtures initialize only the requested engine and retain failed setup
+  tasks. Tests may share immutable seed data, but must own mutable state and
+  cleanup. Filtered Rider runs must work without another test running first.
+- Keep inherited EF specification tests aligned with their upstream contracts.
+  Review Doka overrides and helpers individually when changing test structure.
 - Any raw-SQL helper that interpolates an identifier into backticked DDL (e.g. `` $"DROP TABLE IF EXISTS `{name}`;" ``) must backtick-escape the interpolated value with `name.Replace("`", "``", StringComparison.Ordinal)` so the helper is safe-by-construction, regardless of caller-supplied input. The `EF1002` analyzer is enforced in unit and functional tests; it is suppressed only under `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/**` where fixture-controlled DDL is expected.
 - Culture-sensitive string comparison analyzers (`CA1304/1307/1309/1311`) are enforced in all test projects. When a test deliberately uses `string.ToUpper()` / `ToLower()` / `Equals` inside an `IQueryable` expression tree (where EF translates the call server-side and the CLR culture never applies), suppress the warnings per-line with `#pragma warning disable CA1304, CA1311` + `#pragma warning restore CA1304, CA1311` plus a short rationale comment.
 

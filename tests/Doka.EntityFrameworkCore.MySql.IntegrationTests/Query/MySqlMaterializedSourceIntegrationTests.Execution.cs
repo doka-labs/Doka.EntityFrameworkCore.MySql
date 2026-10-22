@@ -6,8 +6,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var minimum = 31;
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
             .OrderBy(id => id);
@@ -18,6 +21,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([31, 32], previous);
         Assert.Equal([32], actual);
         Assert.Contains(32, fixture.Probe.ParameterValues);
@@ -28,15 +32,20 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id == 1)
             .Select(_ => Guid.NewGuid())
             .WithMaterializedSource(source => source);
+
         var previous = await query.SingleAsync(CancellationToken.None);
         fixture.Probe.Reset();
 
         var actual = await query.SingleAsync(CancellationToken.None);
 
+        // Assert
         Assert.NotEqual(Guid.Empty, actual);
         Assert.NotEqual(previous, actual);
         Assert.Equal(1, fixture.Probe.Count);
@@ -46,7 +55,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = EF.CompileAsyncQuery<BindingContext, int, int>((context, minimum) => context.Items
             .Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
@@ -54,6 +66,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await ReadAsync(query(fixture.Context, 31));
 
+        // Assert
         Assert.Equal([31, 32], actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
@@ -76,7 +89,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
@@ -87,6 +103,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 2], actual.Select(item => item.Id));
         Assert.Equal(2, fixture.Context.ChangeTracker.Entries<BoundItem>().Count());
         Assert.All(actual, item => Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(item).State));
@@ -97,7 +114,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id <= 3)
             .WithMaterializedSource(source => source.Select(item => new CollectionResult
             {
@@ -108,6 +128,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([1, 2, 3], actual.Select(item => item.Id));
         Assert.Equal(["child-1", "child-1b"], actual[0].Children);
         Assert.Equal(["child-2"], actual[1].Children);
@@ -119,15 +140,19 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var interceptor = new CommandCancellationProbeInterceptor();
         await using var context = CreateContext(target, interceptor);
         using var cancellation = new CancellationTokenSource();
+
+        // Act
         var query = context.Items.WithMaterializedSource(source => source.Where(item => item.Id <= 2));
 
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => query.ToArrayAsync(cancellation.Token));
 
+        // Assert
         Assert.Equal(cancellation.Token, exception.CancellationToken);
         Assert.Equal(cancellation.Token, interceptor.ReceivedCancellationToken);
         Assert.Equal(1, interceptor.InvocationCount);
@@ -137,8 +162,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
 
+        // Act
         var query = fixture.Context.Items.Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
@@ -147,6 +174,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 (left, _) => left))
             .ToQueryString();
 
+        // Assert
         Assert.Contains("WITH RECURSIVE", query, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, fixture.Probe.Count);
         Assert.Empty(fixture.Context.ChangeTracker.Entries());
@@ -156,12 +184,16 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Select(item => ClientOnlyProjection(item.Name))
             .WithMaterializedSource(source => source);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
 
+        // Assert
         Assert.Equal(0, fixture.Probe.Count);
     }
 
@@ -173,7 +205,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.Items.Select(item => new CollectionResult
             {
                 Id = item.Id,
@@ -183,6 +218,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
 
+        // Assert
         Assert.Equal(0, fixture.Probe.Count);
     }
 
@@ -190,9 +226,12 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFixtureAsync(target);
         var foreignProbe = new BindingCommandProbe();
         await using var foreign = CreateContext(target, foreignProbe);
+
+        // Act
         var query = fixture.Context.Items.WithMaterializedSource(source => source.Join(
             foreign.Items,
             local => local.Id,
@@ -201,6 +240,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
 
+        // Assert
         Assert.Equal(0, fixture.Probe.Count);
         Assert.Equal(0, foreignProbe.Count);
     }

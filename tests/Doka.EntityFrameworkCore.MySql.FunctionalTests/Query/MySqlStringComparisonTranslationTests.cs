@@ -11,8 +11,10 @@ public sealed class MySqlStringComparisonTranslationTests
     [Fact]
     public void Supported_string_comparisons_translate_server_side()
     {
+        // Arrange
         using var context = new StringComparisonContext(CreateOptions());
 
+        // Act
         var sql = context
             .Entities.Where(entity =>
                 entity.Name.Contains("alp")
@@ -21,6 +23,7 @@ public sealed class MySqlStringComparisonTranslationTests
                 || entity.Name == "alp")
             .ToQueryString();
 
+        // Assert
         MySqlSqlAssert.ContainsFunction(sql, "LOCATE");
         MySqlSqlAssert.ContainsFunction(sql, "LEFT");
         MySqlSqlAssert.ContainsFunction(sql, "RIGHT");
@@ -34,12 +37,15 @@ public sealed class MySqlStringComparisonTranslationTests
     [Fact]
     public void Collate_escape_hatch_remains_translatable()
     {
+        // Arrange
         using var context = new StringComparisonContext(CreateOptions());
 
+        // Act
         var sql = context
             .Entities.Where(entity => EF.Functions.Collate(entity.Name, "utf8mb4_bin") == "alp")
             .ToQueryString();
 
+        // Assert
         Assert.Contains("COLLATE", sql, StringComparison.Ordinal);
         Assert.Contains("utf8mb4_bin", sql, StringComparison.Ordinal);
     }
@@ -56,11 +62,14 @@ public sealed class MySqlStringComparisonTranslationTests
         UnsupportedStringComparisonOperation operation
     )
     {
+        // Arrange
         using var context = new StringComparisonContext(CreateOptions());
 
+        // Act
         var exception = Assert.Throws<InvalidOperationException>(() => BuildUnsupportedQuery(context, operation)
             .ToQueryString());
 
+        // Assert
         Assert.Contains("could not be translated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 

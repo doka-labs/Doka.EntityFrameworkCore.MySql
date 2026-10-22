@@ -8,9 +8,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Sequence_in_model_is_accepted()
     {
+        // Arrange
         using var context = new SequenceContext(CreateOptions<SequenceContext>());
+
+        // Act
         var sequence = context.Model.FindSequence("OrderNumbers");
 
+        // Assert
         Assert.NotNull(sequence);
         Assert.Equal(1000L, sequence.StartValue);
     }
@@ -21,11 +25,15 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Global_query_filter_produces_where_clause()
     {
+        // Arrange
         using var context = new QueryFilterContext(CreateOptions<QueryFilterContext>());
+
+        // Act
         var sql = context
             .Set<SoftDeleteEntity>()
             .ToQueryString();
 
+        // Assert
         Assert.Contains("IsDeleted", sql, StringComparison.Ordinal);
     }
 
@@ -35,7 +43,10 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Ignore_query_filters_removes_filter_from_where()
     {
+        // Arrange
         using var context = new QueryFilterContext(CreateOptions<QueryFilterContext>());
+
+        // Act
         var filteredSql = context
             .Set<SoftDeleteEntity>()
             .ToQueryString();
@@ -46,6 +57,8 @@ public sealed partial class MySqlModelingBaselineTests
             .ToQueryString();
 
         // Filtered SQL should have WHERE with IsDeleted.
+
+        // Assert
         Assert.Contains("WHERE", filteredSql, StringComparison.OrdinalIgnoreCase);
 
         // Unfiltered SQL should NOT have WHERE clause at all (or at least no IsDeleted filter).
@@ -58,10 +71,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Default_value_sql_is_preserved_in_model()
     {
+        // Arrange
         using var context = new DefaultValueContext(CreateOptions<DefaultValueContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(DefaultValueEntity))!;
         var property = entityType.FindProperty(nameof(DefaultValueEntity.CreatedAt))!;
 
+        // Assert
         Assert.Equal("CURRENT_TIMESTAMP", property.GetDefaultValueSql());
     }
 
@@ -72,15 +89,18 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Check_constraint_is_preserved_in_model()
     {
+        // Arrange
         using var context = new CheckConstraintContext(CreateOptions<CheckConstraintContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
 
+        // Act
         var entityType = designModel.FindEntityType(typeof(PricedItem))!;
         var checkConstraints = entityType
             .GetCheckConstraints()
             .ToList();
 
+        // Assert
         Assert.Single(checkConstraints);
         Assert.Equal("CK_Price_Positive", checkConstraints[0].Name);
         Assert.Contains("Price", checkConstraints[0].Sql, StringComparison.Ordinal);
@@ -89,15 +109,18 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Multi_column_check_constraint_is_preserved()
     {
+        // Arrange
         using var context = new CheckConstraintContext(CreateOptions<CheckConstraintContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
 
+        // Act
         var entityType = designModel.FindEntityType(typeof(DateRangeItem))!;
         var checkConstraints = entityType
             .GetCheckConstraints()
             .ToList();
 
+        // Assert
         Assert.Single(checkConstraints);
         Assert.Contains("StartDate", checkConstraints[0].Sql, StringComparison.Ordinal);
         Assert.Contains("EndDate", checkConstraints[0].Sql, StringComparison.Ordinal);
@@ -106,10 +129,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Enum_default_produces_int_column()
     {
+        // Arrange
         using var context = new EnumContext(CreateOptions<EnumContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(EnumEntity))!;
         var columnType = entityType.FindProperty(nameof(EnumEntity.Priority))!.GetColumnType();
 
+        // Assert
         Assert.Equal("int", columnType);
     }
 
@@ -119,10 +146,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Enum_to_string_conversion_produces_varchar_column()
     {
+        // Arrange
         using var context = new EnumContext(CreateOptions<EnumContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(EnumEntity))!;
         var columnType = entityType.FindProperty(nameof(EnumEntity.StatusText))!.GetColumnType();
 
+        // Assert
         Assert.Contains("varchar", columnType, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -132,9 +163,13 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Keyless_entity_is_modeled_without_key()
     {
+        // Arrange
         using var context = new KeylessContext(CreateOptions<KeylessContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(KeylessView))!;
 
+        // Assert
         Assert.Null(entityType.FindPrimaryKey());
     }
 
@@ -144,10 +179,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Non_nullable_property_is_modeled_as_required()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(Animal))!;
         var nameProperty = entityType.FindProperty(nameof(Animal.Name))!;
 
+        // Assert
         Assert.False(nameProperty.IsNullable);
     }
 
@@ -342,15 +381,18 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Has_data_seed_configuration_is_preserved()
     {
+        // Arrange
         using var context = new SeedDataContext(CreateOptions<SeedDataContext>());
         var designModel = context.GetService<IDesignTimeModel>()
             .Model;
 
+        // Act
         var entityType = designModel.FindEntityType(typeof(SeedEntity))!;
         var seedData = entityType
             .GetSeedData()
             .ToList();
 
+        // Assert
         Assert.Equal(2, seedData.Count);
     }
 
@@ -361,13 +403,17 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Compiled_query_produces_valid_model()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
         // Verify that a compiled query can be created without error.
+
+        // Act
         var compiledQuery = EF.CompileQuery((
             TphContext ctx,
             int id
         ) => ctx.Animals.Where(a => a.Id == id));
 
+        // Assert
         Assert.NotNull(compiledQuery);
     }
 
@@ -378,17 +424,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Sequence_value_generator_produces_correct_mysql_sql()
     {
-        // Verify the MySQL table-based sequence SQL pattern is well-formed.
-        // The actual runtime execution requires a live DB, but we verify the SQL structure.
-        var sequenceName = "TestSeq";
-        var tableName = $"__efsequence_{sequenceName}";
-        var expectedUpdate = $"UPDATE `{tableName}` SET `value` = LAST_INSERT_ID(`value` + 1)";
-        var expectedSelect = "SELECT LAST_INSERT_ID()";
+        // Arrange
+        const string sequenceName = "TestSeq";
 
-        // These are the SQL patterns used by MySqlSequenceValueGenerator.
-        Assert.Contains("LAST_INSERT_ID", expectedUpdate, StringComparison.Ordinal);
-        Assert.Contains("LAST_INSERT_ID", expectedSelect, StringComparison.Ordinal);
-        Assert.Contains(tableName, expectedUpdate, StringComparison.Ordinal);
+        // Act
+        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: false);
+
+        // Assert
+        Assert.Contains("UPDATE `__efsequence_TestSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("LAST_INSERT_ID(IF(`is_called`, `value` + 1, `value`))", sql, StringComparison.Ordinal);
+        Assert.Contains("SELECT LAST_INSERT_ID();", sql, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -397,11 +442,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Sequence_value_generator_produces_correct_mariadb_sql()
     {
-        var sequenceName = "TestSeq";
-        var expectedSql = $"SELECT NEXT VALUE FOR `{sequenceName}`";
+        // Arrange
+        const string sequenceName = "TestSeq";
 
-        Assert.Contains("NEXT VALUE FOR", expectedSql, StringComparison.Ordinal);
-        Assert.Contains(sequenceName, expectedSql, StringComparison.Ordinal);
+        // Act
+        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: true);
+
+        // Assert
+        Assert.Equal("SELECT NEXT VALUE FOR `TestSeq`;", sql);
     }
 
 
@@ -411,11 +459,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Has_default_value_literal_is_preserved()
     {
+        // Arrange
         using var context = new DefaultValueContext(CreateOptions<DefaultValueContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(DefaultValueEntity))!;
         var idProperty = entityType.FindProperty(nameof(DefaultValueEntity.Id))!;
 
         // Int PK with auto-increment uses ValueGenerated.OnAdd.
+
+        // Assert
         Assert.Equal(ValueGenerated.OnAdd, idProperty.ValueGenerated);
     }
 
@@ -426,12 +479,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Has_db_function_is_preserved_in_model()
     {
+        // Arrange
         using var context = new DbFunctionContext(CreateOptions<DbFunctionContext>());
+
+        // Act
         var model = context.Model;
         var function = model
             .GetDbFunctions()
             .FirstOrDefault(f => f.Name == "CalculateDiscount");
 
+        // Assert
         Assert.NotNull(function);
         Assert.Equal(typeof(decimal), function.ReturnType);
     }
@@ -442,11 +499,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Modification_command_batch_respects_max_batch_size()
     {
+        // Arrange
         using var context = new TphContext(CreateOptions<TphContext>());
         var batchFactory = context.GetService<IModificationCommandBatchFactory>();
+
+        // Act
         var batch = batchFactory.Create();
 
         // The batch should be created successfully.
+
+        // Assert
         Assert.NotNull(batch);
         Assert.IsType<MySqlModificationCommandBatch>(batch);
     }

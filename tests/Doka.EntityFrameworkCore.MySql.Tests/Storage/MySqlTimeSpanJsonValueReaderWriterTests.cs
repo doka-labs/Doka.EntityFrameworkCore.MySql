@@ -20,28 +20,38 @@ public sealed class MySqlTimeSpanJsonValueReaderWriterTests
         int hours
     )
     {
+        // Arrange
         var readerWriter = MySqlTimeSpanJsonValueReaderWriter.Instance;
         var expected = TimeSpan.FromHours(hours);
 
+        // Act
         var json = readerWriter.ToJsonString(expected);
         var actual = readerWriter.FromJsonString(json);
 
+        // Assert
         Assert.Equal(expected, actual);
     }
 
     /// <summary>
     /// Verifies both exact signed server boundaries remain transportable.
     /// </summary>
-    [Fact]
-    public void Exact_server_boundaries_are_accepted()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void Exact_server_boundaries_are_accepted(
+        int direction
+    )
     {
+        // Arrange
         var readerWriter = MySqlTimeSpanJsonValueReaderWriter.Instance;
+        var expected = direction > 0 ? s_maximum : -s_maximum;
 
-        var positiveJson = readerWriter.ToJsonString(s_maximum);
-        var negativeJson = readerWriter.ToJsonString(-s_maximum);
+        // Act
+        var json = readerWriter.ToJsonString(expected);
+        var actual = readerWriter.FromJsonString(json);
 
-        Assert.Equal(s_maximum, readerWriter.FromJsonString(positiveJson));
-        Assert.Equal(-s_maximum, readerWriter.FromJsonString(negativeJson));
+        // Assert
+        Assert.Equal(expected, actual);
     }
 
     /// <summary>
@@ -55,13 +65,19 @@ public sealed class MySqlTimeSpanJsonValueReaderWriterTests
         int direction
     )
     {
+        // Arrange
         var readerWriter = MySqlTimeSpanJsonValueReaderWriter.Instance;
         var value = direction > 0
             ? s_maximum + TimeSpan.FromTicks(1)
             : -s_maximum - TimeSpan.FromTicks(1);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => readerWriter.ToJsonString(value));
+        Action act = () => readerWriter.ToJsonString(value);
 
+        // Act
+        var recordedException = Record.Exception(act);
+
+        // Assert
+        var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("exceeds the MySQL TIME range", exception.Message, StringComparison.Ordinal);
     }
 

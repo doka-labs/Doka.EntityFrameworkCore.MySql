@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// Verifies every version boundary that changes an engine capability consumed
 /// by provider behavior.
 /// </summary>
-public sealed class EngineProfileTableTests
+public sealed partial class EngineProfileTableTests
 {
     /// <summary>
     /// Preserves stable profile references for repeated exact versions so the
@@ -13,11 +13,14 @@ public sealed class EngineProfileTableTests
     [Fact]
     public void Repeated_exact_version_returns_the_same_profile_reference()
     {
+        // Arrange
         var version = new Version(8, 4, 101);
 
+        // Act
         var first = EngineProfileTable.Resolve(EngineFamily.MySql, version);
         var second = EngineProfileTable.Resolve(EngineFamily.MySql, new Version(8, 4, 101));
 
+        // Assert
         Assert.Same(first, second);
         Assert.Equal(version, first.Version);
     }
@@ -29,9 +32,11 @@ public sealed class EngineProfileTableTests
     [Fact]
     public void Evicted_exact_version_preserves_structural_profile_identity()
     {
+        // Arrange
         var version = new Version(8, 4, 102);
         var first = EngineProfileTable.Resolve(EngineFamily.MySql, version);
 
+        // Act
         for (var versionIndex = 0; versionIndex <= EngineProfileTable.Capacity; versionIndex++)
         {
             _ = EngineProfileTable.Resolve(EngineFamily.MySql, new Version(3000 + versionIndex, 0));
@@ -39,6 +44,7 @@ public sealed class EngineProfileTableTests
 
         var second = EngineProfileTable.Resolve(EngineFamily.MySql, new Version(8, 4, 102));
 
+        // Assert
         Assert.NotSame(first, second);
         Assert.Equal(first, second);
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
@@ -51,14 +57,16 @@ public sealed class EngineProfileTableTests
     [Fact]
     public void High_cardinality_version_input_stays_within_cache_capacity()
     {
-        for (var versionIndex = 0; versionIndex < EngineProfileTable.Capacity * 4; versionIndex++)
-        {
-            var version = new Version(1000 + versionIndex, 0);
-            var profile = EngineProfileTable.Resolve(EngineFamily.MySql, version);
+        // Arrange
+        var versions = Enumerable.Range(0, EngineProfileTable.Capacity * 4)
+            .Select(versionIndex => new Version(1000 + versionIndex, 0))
+            .ToArray();
 
-            Assert.Equal(version, profile.Version);
-        }
+        // Act
+        var profiles = versions.Select(version => EngineProfileTable.Resolve(EngineFamily.MySql, version)).ToArray();
 
+        // Assert
+        Assert.All(versions.Zip(profiles), pair => Assert.Equal(pair.First, pair.Second.Version));
         Assert.InRange(EngineProfileTable.Count, 1, EngineProfileTable.Capacity);
     }
 
@@ -68,130 +76,53 @@ public sealed class EngineProfileTableTests
     [Fact]
     public void Concurrent_high_cardinality_version_input_stays_within_cache_capacity()
     {
+        // Arrange
+        var versions = Enumerable.Range(0, EngineProfileTable.Capacity * 8)
+            .Select(versionIndex => new Version(2000 + versionIndex, 0))
+            .ToArray();
+
+        var profiles = new EngineProfile[versions.Length];
+
+        // Act
         Parallel.For(
             0,
-            EngineProfileTable.Capacity * 8,
+            versions.Length,
             versionIndex =>
             {
-                var version = new Version(2000 + versionIndex, 0);
-                var profile = EngineProfileTable.Resolve(EngineFamily.MariaDb, version);
-
-                Assert.Equal(version, profile.Version);
+                profiles[versionIndex] = EngineProfileTable.Resolve(EngineFamily.MariaDb, versions[versionIndex]);
             });
 
+        // Assert
+        Assert.All(versions.Zip(profiles), pair => Assert.Equal(pair.First, pair.Second.Version));
         Assert.InRange(EngineProfileTable.Count, 1, EngineProfileTable.Capacity);
     }
 
     /// <summary>
-    /// Ensures engine capabilities become active at their documented release
-    /// boundary and not before it.
+    /// Ensures each engine capability becomes active at its documented release boundary and not before it.
     /// </summary>
-    [Fact]
-    public void Versioned_capabilities_follow_their_documented_boundaries()
+    /// <param name="family">The engine family name.</param>
+    /// <param name="version">The exact server version at the boundary.</param>
+    /// <param name="capability">The capability name to resolve.</param>
+    /// <param name="expected">Whether that exact version must advertise the capability.</param>
+    [Theory]
+    [MemberData(nameof(CapabilityBoundaryCases))]
+    public void Versioned_capabilities_follow_their_documented_boundaries(
+        string family,
+        string version,
+        string capability,
+        bool expected
+    )
     {
-        var cases = new (EngineFamily Family, string Version, EngineCapability Capability, bool Expected)[]
-        {
-            (EngineFamily.MySql, "5.6.99", EngineCapability.IndexPrefixLengths, false),
-            (EngineFamily.MySql, "5.7.0", EngineCapability.IndexPrefixLengths, true),
-            (EngineFamily.MySql, "5.6.99", EngineCapability.PreparedDdl, false),
-            (EngineFamily.MySql, "5.7.0", EngineCapability.PreparedDdl, true),
-            (EngineFamily.MySql, "5.7.0", EngineCapability.RenameIndex, false),
-            (EngineFamily.MySql, "5.7.1", EngineCapability.RenameIndex, true),
-            (EngineFamily.MySql, "5.7.5", EngineCapability.VirtualGeneratedColumns, false),
-            (EngineFamily.MySql, "5.7.6", EngineCapability.VirtualGeneratedColumns, true),
-            (EngineFamily.MySql, "5.7.5", EngineCapability.StoredGeneratedColumns, false),
-            (EngineFamily.MySql, "5.7.6", EngineCapability.StoredGeneratedColumns, true),
-            (EngineFamily.MySql, "5.7.5", EngineCapability.GeneratedColumnNullabilityClause, false),
-            (EngineFamily.MySql, "5.7.6", EngineCapability.GeneratedColumnNullabilityClause, true),
-            (EngineFamily.MySql, "5.7.5", EngineCapability.SpatialIsValidFunction, false),
-            (EngineFamily.MySql, "5.7.6", EngineCapability.SpatialIsValidFunction, true),
-            (EngineFamily.MySql, "5.7.6", EngineCapability.SpatialBufferStrategies, false),
-            (EngineFamily.MySql, "5.7.7", EngineCapability.SpatialBufferStrategies, true),
-            (EngineFamily.MySql, "5.7.7", EngineCapability.NativeJsonType, false),
-            (EngineFamily.MySql, "5.7.8", EngineCapability.NativeJsonType, true),
-            (EngineFamily.MySql, "8.0.0", EngineCapability.CommonTableExpressions, false),
-            (EngineFamily.MySql, "8.0.1", EngineCapability.CommonTableExpressions, true),
-            (EngineFamily.MySql, "8.0.0", EngineCapability.SpatialWktAxisOrderOptions, false),
-            (EngineFamily.MySql, "8.0.1", EngineCapability.SpatialWktAxisOrderOptions, true),
-            (EngineFamily.MySql, "7.99.99", EngineCapability.AtomicDdl, false),
-            (EngineFamily.MySql, "8.0.0", EngineCapability.AtomicDdl, true),
-            (EngineFamily.MySql, "8.0.0", EngineCapability.DescendingIndexes, false),
-            (EngineFamily.MySql, "8.0.1", EngineCapability.DescendingIndexes, true),
-            (EngineFamily.MySql, "8.0.2", EngineCapability.RenameColumnSyntax, false),
-            (EngineFamily.MySql, "8.0.3", EngineCapability.RenameColumnSyntax, true),
-            (EngineFamily.MySql, "8.0.2", EngineCapability.SpatialColumnSridAttribute, false),
-            (EngineFamily.MySql, "8.0.3", EngineCapability.SpatialColumnSridAttribute, true),
-            (EngineFamily.MySql, "8.0.3", EngineCapability.RegexpLikeFunction, false),
-            (EngineFamily.MySql, "8.0.4", EngineCapability.RegexpLikeFunction, true),
-            (EngineFamily.MySql, "8.0.3", EngineCapability.JsonTableExistsRequiresWorkaround, false),
-            (EngineFamily.MySql, "8.0.4", EngineCapability.JsonTableExistsRequiresWorkaround, true),
-            (EngineFamily.MySql, "8.0.12", EngineCapability.FunctionalIndexExpressionMetadata, false),
-            (EngineFamily.MySql, "8.0.13", EngineCapability.FunctionalIndexExpressionMetadata, true),
-            (EngineFamily.MySql, "8.0.12", EngineCapability.FunctionalIndexes, false),
-            (EngineFamily.MySql, "8.0.13", EngineCapability.FunctionalIndexes, true),
-            (EngineFamily.MySql, "8.0.12", EngineCapability.ExpressionDefaults, false),
-            (EngineFamily.MySql, "8.0.13", EngineCapability.ExpressionDefaults, true),
-            (EngineFamily.MySql, "8.0.13", EngineCapability.LateralDerivedTables, false),
-            (EngineFamily.MySql, "8.0.14", EngineCapability.LateralDerivedTables, true),
-            (EngineFamily.MySql, "8.0.15", EngineCapability.CheckConstraints, false),
-            (EngineFamily.MySql, "8.0.16", EngineCapability.CheckConstraints, true),
-            (EngineFamily.MySql, "8.0.23", EngineCapability.SpatialCollectAggregate, false),
-            (EngineFamily.MySql, "8.0.24", EngineCapability.SpatialCollectAggregate, true),
-            (EngineFamily.MySql, "9.7.2", EngineCapability.ColumnCommentPrecedesVisibilityAttribute, false),
-            (EngineFamily.MariaDb, "5.1.99", EngineCapability.ColumnCommentPrecedesVisibilityAttribute, true),
-            (EngineFamily.MariaDb, "5.1.99", EngineCapability.VirtualGeneratedColumns, false),
-            (EngineFamily.MariaDb, "5.2.0", EngineCapability.VirtualGeneratedColumns, true),
-            (EngineFamily.MariaDb, "5.1.99", EngineCapability.StoredGeneratedColumns, false),
-            (EngineFamily.MariaDb, "5.2.0", EngineCapability.StoredGeneratedColumns, true),
-            (EngineFamily.MariaDb, "5.1.99", EngineCapability.StoredGeneratedColumnUsesPersistentKeyword, false),
-            (EngineFamily.MariaDb, "5.2.0", EngineCapability.StoredGeneratedColumnUsesPersistentKeyword, true),
-            (EngineFamily.MariaDb, "5.1.99", EngineCapability.IndexPrefixLengths, false),
-            (EngineFamily.MariaDb, "5.2.0", EngineCapability.IndexPrefixLengths, true),
-            (EngineFamily.MariaDb, "10.2.0", EngineCapability.StoredGeneratedColumnUsesPersistentKeyword, true),
-            (EngineFamily.MariaDb, "10.2.1", EngineCapability.StoredGeneratedColumnUsesPersistentKeyword, false),
-            (EngineFamily.MariaDb, "10.2.0", EngineCapability.CheckConstraints, false),
-            (EngineFamily.MariaDb, "10.2.1", EngineCapability.CheckConstraints, true),
-            (EngineFamily.MariaDb, "10.2.0", EngineCapability.SpatialSridCheckConstraint, false),
-            (EngineFamily.MariaDb, "10.2.1", EngineCapability.SpatialSridCheckConstraint, true),
-            (EngineFamily.MariaDb, "10.2.0", EngineCapability.ExpressionDefaults, false),
-            (EngineFamily.MariaDb, "10.2.1", EngineCapability.ExpressionDefaults, true),
-            (EngineFamily.MariaDb, "10.2.1", EngineCapability.CommonTableExpressions, false),
-            (EngineFamily.MariaDb, "10.2.2", EngineCapability.CommonTableExpressions, true),
-            (EngineFamily.MariaDb, "10.2.2", EngineCapability.JsonValidationFunction, false),
-            (EngineFamily.MariaDb, "10.2.3", EngineCapability.JsonValidationFunction, true),
-            (EngineFamily.MariaDb, "10.2.99", EngineCapability.NativeSequences, false),
-            (EngineFamily.MariaDb, "10.3.0", EngineCapability.NativeSequences, true),
-            (EngineFamily.MariaDb, "10.3.3", EngineCapability.SystemVersionedTables, false),
-            (EngineFamily.MariaDb, "10.3.4", EngineCapability.SystemVersionedTables, true),
-            (EngineFamily.MariaDb, "10.4.99", EngineCapability.ReturningClause, false),
-            (EngineFamily.MariaDb, "10.5.0", EngineCapability.ReturningClause, true),
-            (EngineFamily.MariaDb, "10.5.1", EngineCapability.RenameColumnSyntax, false),
-            (EngineFamily.MariaDb, "10.5.2", EngineCapability.RenameColumnSyntax, true),
-            (EngineFamily.MariaDb, "10.5.1", EngineCapability.RenameIndex, false),
-            (EngineFamily.MariaDb, "10.5.2", EngineCapability.RenameIndex, true),
-            (EngineFamily.MariaDb, "10.6.0", EngineCapability.AtomicDdl, false),
-            (EngineFamily.MariaDb, "10.6.1", EngineCapability.AtomicDdl, true),
-            (EngineFamily.MariaDb, "10.6.1", EngineCapability.PreparedDdl, false),
-            (EngineFamily.MariaDb, "10.6.2", EngineCapability.PreparedDdl, true),
-            (EngineFamily.MariaDb, "10.7.99", EngineCapability.DescendingIndexes, false),
-            (EngineFamily.MariaDb, "10.8.0", EngineCapability.DescendingIndexes, true),
-            (EngineFamily.MariaDb, "10.10.0", EngineCapability.SharedUca1400Collations, false),
-            (EngineFamily.MariaDb, "10.10.1", EngineCapability.SharedUca1400Collations, true),
-            (EngineFamily.MySql, "10.10.1", EngineCapability.SharedUca1400Collations, false),
-            (EngineFamily.MariaDb, "11.8.99", EngineCapability.SpatialIsValidFunction, false),
-            (EngineFamily.MariaDb, "12.0.0", EngineCapability.SpatialIsValidFunction, true),
-            (EngineFamily.MariaDb, "11.8.99", EngineCapability.SpatialCollectAggregate, false),
-            (EngineFamily.MariaDb, "12.0.0", EngineCapability.SpatialCollectAggregate, true),
-            (EngineFamily.MariaDb, "12.3.2", EngineCapability.SpatialBufferStrategies, false),
-            (EngineFamily.MariaDb, "12.3.2", EngineCapability.SpatialWktAxisOrderOptions, false),
-        };
+        // Arrange
+        var engineFamily = Enum.Parse<EngineFamily>(family);
+        var engineVersion = Version.Parse(version);
+        var engineCapability = Enum.Parse<EngineCapability>(capability);
 
-        foreach (var testCase in cases)
-        {
-            var profile = EngineProfileTable.Resolve(testCase.Family, Version.Parse(testCase.Version));
+        // Act
+        var profile = EngineProfileTable.Resolve(engineFamily, engineVersion);
 
-            Assert.Equal(testCase.Expected, profile.Has(testCase.Capability));
-        }
+        // Assert
+        Assert.Equal(expected, profile.Has(engineCapability));
     }
 
     /// <summary>
@@ -201,8 +132,13 @@ public sealed class EngineProfileTableTests
     [Fact]
     public void Undefined_engine_family_fails_closed()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => EngineProfileTable.Resolve(
-            (EngineFamily)int.MaxValue,
-            new Version(1, 0)));
+        // Arrange
+        var family = (EngineFamily)int.MaxValue;
+
+        // Act
+        var exception = Record.Exception(() => EngineProfileTable.Resolve(family, new Version(1, 0)));
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(exception);
     }
 }

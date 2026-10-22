@@ -1,5 +1,3 @@
-using System.Linq.Expressions;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -7,406 +5,422 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// JSON collections before filtering or materialization.
 /// </summary>
 [IntegrationDatabaseTest]
-public sealed class MySqlJsonCollectionFacetIntegrationTests
+public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
+    IClassFixture<MySqlJsonCollectionFacetIntegrationTests.SeededDatabaseFixture>
 {
-    private const string TableName = "IntJsonCollectionFacetOwners";
+    private readonly SeededDatabaseFixture _fixture;
 
-    /// <summary>
-    /// Verifies owned-JSON extraction on MySQL 8.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MySql84);
+    /// <summary>Returns the selected engines in the supported six-engine contract.</summary>
+    // WHY: the legacy MySQL 8.0 opt-in target is outside this supported-engine matrix.
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
+        .Select(target => new object[] { target.ToString() });
 
-    /// <summary>
-    /// Verifies owned-JSON extraction on MySQL 9.7.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MySql97);
+    /// <summary>Creates an independent test case sharing only immutable seeded rows.</summary>
+    /// <param name="fixture">The class-owned per-engine database fixture.</param>
+    public MySqlJsonCollectionFacetIntegrationTests(
+        SeededDatabaseFixture fixture
+    ) => _fixture = fixture;
 
-    /// <summary>
-    /// Verifies owned-JSON extraction on MariaDB 10.11.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb1011);
-
-    /// <summary>
-    /// Verifies owned-JSON extraction on MariaDB 11.4.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb114);
-
-    /// <summary>
-    /// Verifies owned-JSON extraction on MariaDB 11.8.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb118);
-
-    /// <summary>
-    /// Verifies owned-JSON extraction on MariaDB 12.3.
-    /// </summary>
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_owned_json_values_before_comparison() =>
-        AssertOwnedJsonValuesRemainLosslessAsync(IntegrationDatabaseTarget.MariaDb123);
-
-    private static async Task AssertOwnedJsonValuesRemainLosslessAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Full JSON text matches despite short relational facet on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Full_json_text_matches_despite_short_relational_facet(
+        string targetName
     )
     {
-        var builder = IntegrationTestDbContextOptions.Create<JsonCollectionFacetContext>();
-        builder.UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target));
-        await using var context = new JsonCollectionFacetContext(builder.Options);
-        await DropTableAsync(context);
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        const string exactText = "alphabet";
-        const decimal exactAmount = 123.456m;
-        var exactDateTime = new DateTime(2026, 9, 19, 12, 34, 56, DateTimeKind.Unspecified)
-            .AddTicks(1234560);
-        var exactDate = new DateTime(2026, 9, 19, 12, 0, 0, DateTimeKind.Unspecified);
-        var exactTime = new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1234560));
-        var exactDuration = TimeSpan.FromHours(27).Add(TimeSpan.FromTicks(1234560));
-        var exactConvertedTimestamp = new DateTimeOffset(
-            2026,
-            9,
-            19,
-            10,
-            0,
-            0,
-            TimeSpan.Zero);
-        var exactGuid = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
-        var positiveOutOfRangeDuration = TimeSpan.FromHours(839);
-        var negativeOutOfRangeDuration = TimeSpan.FromHours(-839);
-        byte[] exactPayload = [1, 2, 3, 4];
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
 
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(
-                context.Database.GenerateCreateScript(),
-                CancellationToken.None);
-            context.AddRange(
-                new JsonCollectionFacetOwner
-                {
-                    Id = 1,
-                    Values =
-                    [
-                        new JsonCollectionFacetValue
-                        {
-                            Marker = 1,
-                            Text = exactText,
-                            Amount = exactAmount,
-                            OccurredAt = exactDateTime,
-                            DateValue = exactDate,
-                            StartsAt = exactTime,
-                            Status = CollectionStatus.Active,
-                            ConvertedAmount = new PriceValue(exactAmount),
-                            Duration = exactDuration,
-                            ConvertedDuration = new ElapsedValue(exactDuration),
-                            ConvertedTimestamp = exactConvertedTimestamp,
-                            ConvertedPayload = new BinaryValue("alpha"),
-                            GuidValue = exactGuid,
-                            CharGuidValue = exactGuid,
-                            Payload = exactPayload,
-                        },
-                    ],
-                },
-                new JsonCollectionFacetOwner
-                {
-                    Id = 2,
-                    Values =
-                    [
-                        new JsonCollectionFacetValue
-                        {
-                            Marker = 2,
-                            Duration = positiveOutOfRangeDuration,
-                            ConvertedDuration = new ElapsedValue(positiveOutOfRangeDuration),
-                            ConvertedPayload = new BinaryValue(string.Empty),
-                        },
-                        new JsonCollectionFacetValue
-                        {
-                            Marker = 3,
-                            Duration = negativeOutOfRangeDuration,
-                            ConvertedDuration = new ElapsedValue(negativeOutOfRangeDuration),
-                            ConvertedPayload = new BinaryValue(string.Empty),
-                        },
-                    ],
-                });
-            await context.SaveChangesAsync(CancellationToken.None);
-            context.ChangeTracker.Clear();
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.Text == ExactText);
 
-            var results = new JsonCollectionFacetResults(
-                await SelectMarkersAsync(context, value => value.Text == exactText),
-                await SelectMarkersAsync(context, value => value.Text == "alph"),
-                await SelectMarkersAsync(context, value => value.Amount == exactAmount),
-                await SelectMarkersAsync(context, value => value.Amount == 123.5m),
-                await SelectMarkersAsync(context, value => value.OccurredAt == exactDateTime),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.OccurredAt == new DateTime(2026, 9, 19, 12, 34, 56)),
-                await SelectMarkersAsync(context, value => value.DateValue == exactDate),
-                await SelectMarkersAsync(context, value => value.DateValue == exactDate.Date),
-                await SelectMarkersAsync(context, value => value.StartsAt == exactTime),
-                await SelectMarkersAsync(context, value => value.StartsAt == new TimeOnly(12, 34, 56)),
-                await SelectMarkersAsync(context, value => value.Status == CollectionStatus.Active),
-                await SelectMarkersAsync(context, value => value.Status == (CollectionStatus)42),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedAmount == new PriceValue(exactAmount)),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedAmount == new PriceValue(123.5m)),
-                await SelectMarkersAsync(context, value => value.Duration == exactDuration),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.Duration == TimeSpan.FromHours(27)),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedDuration == new ElapsedValue(exactDuration)),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedDuration
-                        == new ElapsedValue(exactDuration.Add(TimeSpan.FromMilliseconds(500)))),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedTimestamp == exactConvertedTimestamp),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedTimestamp == exactConvertedTimestamp.AddMilliseconds(500)),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedPayload == new BinaryValue("alpha")),
-                await SelectMarkersAsync(
-                    context,
-                    value => value.ConvertedPayload == new BinaryValue("missing")),
-                await SelectMarkersAsync(context, value => value.GuidValue == exactGuid),
-                await SelectMarkersAsync(context, value => value.GuidValue == Guid.Empty),
-                await SelectMarkersAsync(context, value => value.CharGuidValue == exactGuid),
-                await SelectMarkersAsync(context, value => value.CharGuidValue == Guid.Empty),
-                await context.Owners
-                    .AsNoTracking()
-                    .Where(owner => owner.Id == 1)
-                    .SelectMany(owner => owner.Values)
-                    .Select(value => value.Payload)
-                    .SingleAsync(CancellationToken.None),
-                await context.Owners
-                    .AsNoTracking()
-                    .SingleAsync(owner => owner.Id == 2, CancellationToken.None));
-
-            Assert.Equal([1], results.ExactText);
-            Assert.Empty(results.TruncatedText);
-            Assert.Equal([1], results.ExactAmount);
-            Assert.Empty(results.RoundedAmount);
-            Assert.Equal([1], results.ExactDateTime);
-            Assert.Empty(results.TruncatedDateTime);
-            Assert.Equal([1], results.ExactDate);
-            Assert.Empty(results.TruncatedDate);
-            Assert.Equal([1], results.ExactTime);
-            Assert.Empty(results.TruncatedTime);
-            Assert.Equal([1], results.ExactConvertedValue);
-            Assert.Empty(results.AbsentConvertedValue);
-            Assert.Equal([1], results.ExactConvertedAmount);
-            Assert.Empty(results.RoundedConvertedAmount);
-            Assert.Equal([1], results.ExactDuration);
-            Assert.Empty(results.TruncatedDuration);
-            Assert.Equal([1], results.ExactConvertedDuration);
-            Assert.Empty(results.TruncatedConvertedDuration);
-            Assert.Equal([1], results.ExactConvertedTimestamp);
-            Assert.Empty(results.TruncatedConvertedTimestamp);
-            Assert.Equal([1], results.ExactConvertedPayload);
-            Assert.Empty(results.AbsentConvertedPayload);
-            Assert.Equal([1], results.ExactGuid);
-            Assert.Empty(results.AbsentGuid);
-            Assert.Equal([1], results.ExactCharGuid);
-            Assert.Empty(results.AbsentCharGuid);
-            Assert.Equal(exactPayload, results.MaterializedPayload);
-            Assert.Equal(
-                [positiveOutOfRangeDuration, negativeOutOfRangeDuration],
-                results.OutOfRangeOwner.Values.Select(value => value.Duration));
-            Assert.Equal(
-                [positiveOutOfRangeDuration, negativeOutOfRangeDuration],
-                results.OutOfRangeOwner.Values.Select(value => value.ConvertedDuration.Value));
-        }
-        finally
-        {
-            await DropTableAsync(context);
-        }
+        // Assert
+        Assert.Equal([1], ids);
     }
 
-    private static async Task<int[]> SelectMarkersAsync(
-        JsonCollectionFacetContext context,
-        Expression<Func<JsonCollectionFacetValue, bool>> predicate
-    ) => await context.Owners
-        .Where(owner => owner.Id == 1)
-        .SelectMany(owner => owner.Values)
-        .Where(predicate)
-        .Select(value => value.Marker)
-        .ToArrayAsync(CancellationToken.None);
-
-    private static async Task DropTableAsync(
-        JsonCollectionFacetContext context
-    ) => await context.Database.ExecuteSqlRawAsync(
-        $"DROP TABLE IF EXISTS `{TableName}`;",
-        CancellationToken.None);
-
-    private sealed record JsonCollectionFacetResults(
-        int[] ExactText,
-        int[] TruncatedText,
-        int[] ExactAmount,
-        int[] RoundedAmount,
-        int[] ExactDateTime,
-        int[] TruncatedDateTime,
-        int[] ExactDate,
-        int[] TruncatedDate,
-        int[] ExactTime,
-        int[] TruncatedTime,
-        int[] ExactConvertedValue,
-        int[] AbsentConvertedValue,
-        int[] ExactConvertedAmount,
-        int[] RoundedConvertedAmount,
-        int[] ExactDuration,
-        int[] TruncatedDuration,
-        int[] ExactConvertedDuration,
-        int[] TruncatedConvertedDuration,
-        int[] ExactConvertedTimestamp,
-        int[] TruncatedConvertedTimestamp,
-        int[] ExactConvertedPayload,
-        int[] AbsentConvertedPayload,
-        int[] ExactGuid,
-        int[] AbsentGuid,
-        int[] ExactCharGuid,
-        int[] AbsentCharGuid,
-        byte[] MaterializedPayload,
-        JsonCollectionFacetOwner OutOfRangeOwner
-    );
-
-    private sealed class JsonCollectionFacetContext(
-        DbContextOptions<JsonCollectionFacetContext> options
-    ) : DbContext(options)
+    /// <summary>Truncated JSON text does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Truncated_json_text_does_not_match(
+        string targetName
+    )
     {
-        public DbSet<JsonCollectionFacetOwner> Owners => Set<JsonCollectionFacetOwner>();
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<JsonCollectionFacetOwner>(entity =>
-            {
-                entity.ToTable(TableName);
-                entity.HasKey(owner => owner.Id);
-                entity
-                    .Property(owner => owner.Id)
-                    .ValueGeneratedNever();
-                entity.OwnsMany(owner => owner.Values, owned =>
-                {
-                    owned.ToJson();
-                    owned
-                        .Property(value => value.Text)
-                        .HasMaxLength(4);
-                    owned
-                        .Property(value => value.Amount)
-                        .HasPrecision(5, 1);
-                    owned
-                        .Property(value => value.OccurredAt)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.DateValue)
-                        .HasColumnType("date");
-                    owned
-                        .Property(value => value.StartsAt)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.Status)
-                        .HasConversion<string>()
-                        .HasMaxLength(4);
-                    owned
-                        .Property(value => value.ConvertedAmount)
-                        .HasConversion(
-                            value => value.Value,
-                            value => new PriceValue(value))
-                        .HasPrecision(5, 1);
-                    owned
-                        .Property(value => value.Duration)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedDuration)
-                        .HasConversion(
-                            value => value.Value,
-                            value => new ElapsedValue(value))
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedTimestamp)
-                        .HasConversion(
-                            value => value.UtcDateTime,
-                            value => new DateTimeOffset(value, TimeSpan.Zero))
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedPayload)
-                        .HasConversion(
-                            value => System.Text.Encoding.UTF8.GetBytes(value.Value),
-                            value => new BinaryValue(System.Text.Encoding.UTF8.GetString(value)))
-                        .HasColumnType("varbinary(8)");
-                    owned
-                        .Property(value => value.CharGuidValue)
-                        .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-                });
-            });
-        }
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.Text == "alph");
+
+        // Assert
+        Assert.Empty(ids);
     }
 
-    private sealed class JsonCollectionFacetOwner
+    /// <summary>Full JSON decimal precision matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Full_json_decimal_precision_matches(
+        string targetName
+    )
     {
-        public int Id { get; set; }
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        public List<JsonCollectionFacetValue> Values { get; set; } = [];
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.Amount == ExactAmount);
+
+        // Assert
+        Assert.Equal([1], ids);
     }
 
-    private sealed class JsonCollectionFacetValue
+    /// <summary>Rounded JSON decimal does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Rounded_json_decimal_does_not_match(
+        string targetName
+    )
     {
-        public int Marker { get; set; }
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        public string Text { get; set; } = string.Empty;
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
 
-        public decimal Amount { get; set; }
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.Amount == 123.5m);
 
-        public DateTime OccurredAt { get; set; }
-
-        public DateTime DateValue { get; set; }
-
-        public TimeOnly StartsAt { get; set; }
-
-        public CollectionStatus Status { get; set; }
-
-        public PriceValue ConvertedAmount { get; set; }
-
-        public TimeSpan Duration { get; set; }
-
-        public ElapsedValue ConvertedDuration { get; set; }
-
-        public DateTimeOffset ConvertedTimestamp { get; set; }
-
-        public BinaryValue ConvertedPayload { get; set; }
-
-        public Guid GuidValue { get; set; }
-
-        public Guid CharGuidValue { get; set; }
-
-        public byte[] Payload { get; set; } = [];
+        // Assert
+        Assert.Empty(ids);
     }
 
-    private enum CollectionStatus
+    /// <summary>Fractional JSON DateTime matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_json_datetime_matches(
+        string targetName
+    )
     {
-        Inactive,
-        Active,
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDateTime = s_exactDateTime;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.OccurredAt == exactDateTime);
+
+        // Assert
+        Assert.Equal([1], ids);
     }
 
-    private readonly record struct PriceValue(decimal Value);
+    /// <summary>Truncated JSON DateTime does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Truncated_json_datetime_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-    private readonly record struct ElapsedValue(TimeSpan Value);
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
 
-    private readonly record struct BinaryValue(string Value);
+        // Act
+        var ids = await SelectMarkersAsync(
+            context,
+            value => value.OccurredAt == new DateTime(2026, 9, 19, 12, 34, 56));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Time bearing JSON date matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Time_bearing_json_date_matches(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDate = s_exactDate;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate);
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Truncated JSON date does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Truncated_json_date_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDate = s_exactDate;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate.Date);
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Fractional JSON TimeOnly matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_json_timeonly_matches(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactTime = s_exactTime;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.StartsAt == exactTime);
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Truncated JSON TimeOnly does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Truncated_json_timeonly_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.StartsAt == new TimeOnly(12, 34, 56));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Fractional JSON duration matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Fractional_json_duration_matches(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactDuration = s_exactDuration;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.Duration == exactDuration);
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Truncated JSON duration does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Truncated_json_duration_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(
+            context,
+            value => value.Duration == TimeSpan.FromHours(27));
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Binary GUID JSON value matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Binary_guid_json_value_matches(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactGuid = s_exactGuid;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.GuidValue == exactGuid);
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Absent binary GUID JSON value does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Absent_binary_guid_json_value_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.GuidValue == Guid.Empty);
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>Char GUID JSON value matches on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Char_guid_json_value_matches(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+        var exactGuid = s_exactGuid;
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == exactGuid);
+
+        // Assert
+        Assert.Equal([1], ids);
+    }
+
+    /// <summary>Absent char GUID JSON value does not match on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Absent_char_guid_json_value_does_not_match(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == Guid.Empty);
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>JSON binary payload materializes without narrowing on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Json_binary_payload_materializes_without_narrowing(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var payload = await context.Owners
+            .AsNoTracking()
+            .Where(owner => owner.Id == 1)
+            .SelectMany(owner => owner.Values)
+            .Select(value => value.Payload)
+            .SingleAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(s_exactPayload, payload);
+    }
+
+    /// <summary>JSON durations outside MySQL time range materialize losslessly on each selected supported engine.</summary>
+    /// <param name="targetName">The selected database engine name.</param>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SelectedTargets))]
+    public async Task Json_durations_outside_mysql_time_range_materialize_losslessly(
+        string targetName
+    )
+    {
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+
+        await _fixture.EnsureSeededAsync(target);
+        await using var context = CreateContext(target);
+
+        // Act
+        var owner = await context.Owners
+            .AsNoTracking()
+            .SingleAsync(owner => owner.Id == 2, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(
+            [s_positiveOutOfRangeDuration, s_negativeOutOfRangeDuration],
+            owner.Values.Select(value => value.Duration));
+        Assert.Equal(
+            [s_positiveOutOfRangeDuration, s_negativeOutOfRangeDuration],
+            owner.Values.Select(value => value.ConvertedDuration.Value));
+    }
 }

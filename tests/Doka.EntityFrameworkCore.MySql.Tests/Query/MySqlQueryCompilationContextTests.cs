@@ -11,11 +11,14 @@ public sealed class MySqlQueryCompilationContextTests
     [Fact]
     public void Provider_registers_its_query_compilation_context_factory()
     {
+        // Arrange
         using var context = CreateContext(QuerySplittingBehavior.SingleQuery);
 
+        // Act
         var factory = context.GetService<
             Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
 
+        // Assert
         Assert.IsType<MySqlQueryCompilationContextFactory>(factory);
     }
 
@@ -29,9 +32,13 @@ public sealed class MySqlQueryCompilationContextTests
         bool async
     )
     {
+        // Arrange
         using var context = CreateContext(QuerySplittingBehavior.SingleQuery);
+
+        // Act
         var compilationContext = CreateCompilationContext(context, async);
 
+        // Assert
         Assert.False(compilationContext.IsBuffering);
     }
 
@@ -45,9 +52,13 @@ public sealed class MySqlQueryCompilationContextTests
         bool async
     )
     {
+        // Arrange
         using var context = CreateContext(QuerySplittingBehavior.SplitQuery);
+
+        // Act
         var compilationContext = CreateCompilationContext(context, async);
 
+        // Assert
         Assert.True(compilationContext.IsBuffering);
     }
 
@@ -62,12 +73,17 @@ public sealed class MySqlQueryCompilationContextTests
         bool async
     )
     {
+        // Arrange
         using var context = CreateContext(QuerySplittingBehavior.SplitQuery);
         var factory = context.GetService<
             Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
 
+        // Act
+        var actual = factory.CreatePrecompiled(async);
+
+        // Assert
         var compilationContext = Assert.IsType<MySqlQueryCompilationContext>(
-            factory.CreatePrecompiled(async));
+            actual);
 
         Assert.True(compilationContext.SupportsPrecompiledQuery);
         Assert.True(compilationContext.IsBuffering);

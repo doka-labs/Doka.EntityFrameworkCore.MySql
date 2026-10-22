@@ -10,7 +10,10 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Many_to_many_produces_implicit_junction_table()
     {
+        // Arrange
         using var context = new ManyToManyContext(CreateOptions<ManyToManyContext>());
+
+        // Act
         var model = context.Model;
 
         // The implicit join entity type should exist.
@@ -25,6 +28,7 @@ public sealed partial class MySqlModelingBaselineTests
                     ?.Contains("Course", StringComparison.Ordinal)
                 == true);
 
+        // Assert
         Assert.NotNull(joinEntityType);
     }
 
@@ -36,12 +40,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Cascade_delete_is_configured_on_required_relationship()
     {
+        // Arrange
         using var context = new CascadeContext(CreateOptions<CascadeContext>());
         var postType = context.Model.FindEntityType(typeof(Post))!;
+
+        // Act
         var fk = postType
             .GetForeignKeys()
             .First();
 
+        // Assert
         Assert.Equal(DeleteBehavior.Cascade, fk.DeleteBehavior);
     }
 
@@ -50,12 +58,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Self_referencing_fk_produces_valid_model()
     {
+        // Arrange
         using var context = new SelfRefContext(CreateOptions<SelfRefContext>());
         var employeeType = context.Model.FindEntityType(typeof(Employee))!;
+
+        // Act
         var fk = employeeType
             .GetForeignKeys()
             .First();
 
+        // Assert
         Assert.Equal(typeof(Employee), fk.PrincipalEntityType.ClrType);
         Assert.Equal(typeof(Employee), fk.DeclaringEntityType.ClrType);
     }
@@ -66,10 +78,14 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Shadow_fk_property_produces_correct_column()
     {
+        // Arrange
         using var context = new CascadeContext(CreateOptions<CascadeContext>());
         var postType = context.Model.FindEntityType(typeof(Post))!;
+
+        // Act
         var blogIdProperty = postType.FindProperty(nameof(Post.BlogId))!;
 
+        // Assert
         Assert.Equal("int", blogIdProperty.GetColumnType());
     }
 
@@ -79,12 +95,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Include_then_include_produces_valid_sql()
     {
+        // Arrange
         using var context = new CascadeContext(CreateOptions<CascadeContext>());
+
+        // Act
         var sql = context
             .Set<Blog>()
             .Include(b => b.Posts)
             .ToQueryString();
 
+        // Assert
         Assert.Contains("JOIN", sql, StringComparison.OrdinalIgnoreCase);
     }
     /// <summary>
@@ -94,20 +114,28 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Model_accepts_navigation_properties()
     {
+        // Arrange
         using var context = new CascadeContext(CreateOptions<CascadeContext>());
         var blogType = context.Model.FindEntityType(typeof(Blog))!;
+
+        // Act
         var navigation = blogType.FindNavigation(nameof(Blog.Posts));
 
+        // Assert
         Assert.NotNull(navigation);
         Assert.True(navigation.IsCollection);
     }
     [Fact]
     public void Nullable_property_is_modeled_as_optional()
     {
+        // Arrange
         using var context = new SelfRefContext(CreateOptions<SelfRefContext>());
+
+        // Act
         var entityType = context.Model.FindEntityType(typeof(Employee))!;
         var managerIdProperty = entityType.FindProperty(nameof(Employee.ManagerId))!;
 
+        // Assert
         Assert.True(managerIdProperty.IsNullable);
     }
     /// <summary>
@@ -116,12 +144,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Set_null_delete_behavior_is_configured()
     {
+        // Arrange
         using var context = new SetNullContext(CreateOptions<SetNullContext>());
         var commentType = context.Model.FindEntityType(typeof(CommentWithNullablePost))!;
+
+        // Act
         var fk = commentType
             .GetForeignKeys()
             .First();
 
+        // Assert
         Assert.Equal(DeleteBehavior.SetNull, fk.DeleteBehavior);
     }
 
@@ -131,12 +163,16 @@ public sealed partial class MySqlModelingBaselineTests
     [Fact]
     public void Restrict_delete_behavior_is_configured()
     {
+        // Arrange
         using var context = new SelfRefContext(CreateOptions<SelfRefContext>());
         var employeeType = context.Model.FindEntityType(typeof(Employee))!;
+
+        // Act
         var fk = employeeType
             .GetForeignKeys()
             .First();
 
+        // Assert
         Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior);
     }
 

@@ -11,14 +11,17 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void MySql_model_metadata_preserves_json_and_generated_column_configuration()
     {
+        // Arrange
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
 
+        // Act
         var entityType = context.Model.FindEntityType(typeof(JsonEntity))!;
         var payload = entityType.FindProperty(nameof(JsonEntity.Payload))!;
         var virtualKind = entityType.FindProperty(nameof(JsonEntity.VirtualKind))!;
         var storedCount = entityType.FindProperty(nameof(JsonEntity.StoredCount))!;
 
+        // Assert
         Assert.Equal("json", payload.GetColumnType());
         Assert.Equal("JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))", virtualKind.GetComputedColumnSql());
         Assert.False(virtualKind.GetIsStored());
@@ -32,11 +35,14 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void MySql_migrations_sql_generator_emits_native_json_and_generated_column_sql()
     {
+        // Arrange
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
 
+        // Act
         var sql = GenerateJsonCreateTableSql(context);
 
+        // Assert
         Assert.Contains("`Payload` json NOT NULL", sql, StringComparison.Ordinal);
         Assert.Contains(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
@@ -54,11 +60,14 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void MariaDb_migrations_sql_generator_emits_json_alias_and_generated_column_sql()
     {
+        // Arrange
         using var context = new MariaDbJsonContext(
             CreateOptions<MariaDbJsonContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
+        // Act
         var sql = GenerateJsonCreateTableSql(context);
 
+        // Assert
         Assert.Contains(
             "`Payload` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Payload`))",
             sql,
@@ -88,6 +97,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void Legacy_mariadb_uses_persistent_generated_column_syntax()
     {
+        // Arrange
         using var context = new MariaDbJsonContext(
             CreateOptions<MariaDbJsonContext>(
                 MySqlServerVersion.MariaDb(
@@ -95,12 +105,15 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operation = CreateJsonTableOperation();
 
         operation.Columns.RemoveAt(0);
 
         var command = Assert.Single(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS "
             + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL",
@@ -119,6 +132,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void Legacy_mariadb_without_json_validation_rejects_json_columns()
     {
+        // Arrange
         using var context = new MariaDbJsonContext(
             CreateOptions<MariaDbJsonContext>(
                 MySqlServerVersion.MariaDb(
@@ -126,11 +140,14 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operation = CreateJsonTableOperation();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("JSON", exception.Message, StringComparison.Ordinal);
     }
 
@@ -140,6 +157,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void Legacy_mysql_rejects_native_json_columns_explicitly()
     {
+        // Arrange
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(
                 MySqlServerVersion.MySql(
@@ -147,10 +165,13 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operation = CreateJsonTableOperation();
 
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("native JSON", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -160,6 +181,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void Legacy_mysql_rejects_generated_columns_explicitly()
     {
+        // Arrange
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(
                 MySqlServerVersion.MySql(
@@ -167,12 +189,15 @@ public sealed class MySqlJsonAndGeneratedColumnTests
                     MySqlServerVersionCompatibilityMode.AllowUnsupported)));
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operation = CreateJsonTableOperation();
 
         operation.Columns.RemoveAt(0);
 
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains("generated columns", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -183,16 +208,20 @@ public sealed class MySqlJsonAndGeneratedColumnTests
     [Fact]
     public void Generated_columns_without_an_explicit_variant_are_virtual()
     {
+        // Arrange
         using var context = new MySqlJsonContext(
             CreateOptions<MySqlJsonContext>(MySqlServerVersion.MySql(new Version(8, 4, 0))));
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
+
+        // Act
         var operation = CreateJsonTableOperation();
 
         operation.Columns[1].IsStored = null;
 
         var command = Assert.Single(generator.Generate([operation], context.Model));
 
+        // Assert
         Assert.Contains(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS "
                 + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",

@@ -1,212 +1,165 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Verifies GUID formatting, matching, and generated values against the stored
-/// representation on every supported database engine.
+/// Verifies GUID formatting, matching, and generated values against stored
+/// representations on every supported database engine.
 /// </summary>
 [IntegrationDatabaseTest]
-public sealed class MySqlGuidTextIntegrationTests
+public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlGuidTextIntegrationTests.GuidFixture>
 {
-    private const string TableName = "IntGuidTextItems";
-    private const string MatchingText = "00112233-4455-6677-8899-aabbccddeeff";
-    private static readonly Guid s_matchingGuid = new(MatchingText);
-
-    private static readonly string[] s_properties =
+    private readonly GuidFixture _fixture;
+    private static readonly string[] s_matchingOperations =
     [
-        "DefaultToken",
-        "BinaryToken",
-        "TextToken",
-        "BinaryColumnToken",
-        "CharColumnToken",
-        "VarCharColumnToken",
-        "ConvertedTextToken",
+        "TextEqual", "TextNotEqual", "LikeMatch", "LikeNoMatch",
+        "OptionalLikeMatch", "OptionalWildcard", "OptionalNoMatch",
+        "OptionalNullPattern", "OptionalEscaped",
     ];
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MySql84);
-
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MySql97);
-
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MariaDb1011);
-
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MariaDb114);
-
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MariaDb118);
-
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_guid_text_mapping_contracts() =>
-        AssertGuidTextContractsAsync(IntegrationDatabaseTarget.MariaDb123);
-
-    private static async Task AssertGuidTextContractsAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>
+    /// Uses the per-format immutable datasets shared by this class's independent cases.
+    /// </summary>
+    public MySqlGuidTextIntegrationTests(
+        GuidFixture fixture
     )
     {
-        foreach (var defaultFormat in new[] { MySqlGuidFormat.Binary16, MySqlGuidFormat.Char36 })
-        {
-            var builder = IntegrationTestDbContextOptions.Create<GuidContext>();
-            builder
-                .EnableServiceProviderCaching(false)
-                .UseMySql(
-                    IntegrationTestEnvironment.GetConnectionString(target),
-                    IntegrationTestEnvironment.GetServerVersion(target),
-                    options => options.DefaultGuidFormat(defaultFormat));
-
-            await using var context = new GuidContext(builder.Options);
-            await DropTableAsync(context);
-
-            try
-            {
-                await context.Database
-                    .ExecuteSqlRawAsync(
-                        context.Database
-                            .GenerateCreateScript(),
-                        CancellationToken.None);
-
-                foreach (var id in new[] { 1, 2 })
-                {
-                    var entry = context.Add(new GuidItem
-                    {
-                        Id = id,
-                        Pattern = "00112233-%-aabbccddeeff",
-                    });
-
-                    foreach (var propertyName in s_properties)
-                    {
-                        entry.Property(propertyName).CurrentValue = id == 1 ? s_matchingGuid : Guid.Empty;
-                        entry.Property($"Optional{propertyName}").CurrentValue = id == 1 ? s_matchingGuid : null;
-                    }
-                }
-
-                await context.SaveChangesAsync(CancellationToken.None);
-                context.ChangeTracker
-                    .Clear();
-
-                foreach (var propertyName in s_properties)
-                {
-                    await AssertPropertyAsync(context, propertyName);
-                }
-
-                await AssertUnboundValuesAsync(context);
-                await AssertStoredTextCollationAsync(context);
-            }
-            finally
-            {
-                await DropTableAsync(context);
-            }
-        }
+        _fixture = fixture;
     }
 
-    private static async Task AssertPropertyAsync(
-        GuidContext context,
+    /// <summary>
+    /// Identifies each configured default and explicit property mapping.
+    /// </summary>
+    public static IEnumerable<object[]> PropertyCases =>
+        from target in SelectedTargets()
+        from format in s_defaultFormats
+        from property in s_properties
+        select new object[] { target.ToString(), format, property };
+
+    /// <summary>
+    /// Identifies each matching operation independently of other operations.
+    /// </summary>
+    public static IEnumerable<object[]> MatchingCases =>
+        from target in SelectedTargets()
+        from format in s_defaultFormats
+        from property in s_properties
+        from operation in s_matchingOperations
+        select new object[] { target.ToString(), format, property, operation };
+
+    /// <summary>
+    /// Identifies the selected engine and default-format pairs.
+    /// </summary>
+    public static IEnumerable<object[]> FormatCases =>
+        from target in SelectedTargets()
+        from format in s_defaultFormats
+        select new object[] { target.ToString(), format };
+
+    /// <summary>
+    /// Verifies canonical projection for one property mapping and configured default.
+    /// </summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(PropertyCases))]
+    public async Task Guid_projection_uses_canonical_text(
+        string target,
+        MySqlGuidFormat defaultFormat,
         string propertyName
     )
     {
-        var formattedValues = await context
-            .Set<GuidItem>()
+        // Arrange
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            defaultFormat);
+
+        var query = context.Set<GuidItem>()
             .OrderBy(item => item.Id)
-            .Select(item => EF
-                .Property<Guid>(item, propertyName)
-                .ToString())
-            .ToArrayAsync(CancellationToken.None);
+            .Select(item => EF.Property<Guid>(item, propertyName).ToString());
 
-        Assert.Equal([MatchingText, Guid.Empty.ToString()], formattedValues);
+        // Act
+        var actual = await query.ToArrayAsync(CancellationToken.None);
 
-        var matchingIds = await context
-            .Set<GuidItem>()
-            .Where(item => EF
-                .Property<Guid>(item, propertyName)
-                .ToString() == MatchingText)
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
-
-        var nonMatchingIds = await context
-            .Set<GuidItem>()
-            .Where(item => EF
-                .Property<Guid>(item, propertyName)
-                .ToString() != MatchingText)
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
-
-        Assert.Equal([1], matchingIds);
-        Assert.Equal([2], nonMatchingIds);
-
-        await AssertLikeAsync<Guid>(context, propertyName, "00112233-%-aabbccddeeff", [1]);
-        await AssertLikeAsync<Guid>(context, propertyName, "ffffffff-%", []);
-
-        var optionalName = $"Optional{propertyName}";
-        await AssertLikeAsync<Guid?>(context, optionalName, "00112233-%-aabbccddeeff", [1]);
-        await AssertLikeAsync<Guid?>(context, optionalName, "%", [1]);
-        await AssertLikeAsync<Guid?>(context, optionalName, "ffffffff-%", []);
-        await AssertLikeAsync<Guid?>(context, optionalName, null, []);
-
-        var escapedIds = await context
-            .Set<GuidItem>()
-            .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, optionalName), "00112233-%", "!"))
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
-
-        Assert.Equal([1], escapedIds);
+        // Assert
+        Assert.Equal([MatchingText, Guid.Empty.ToString()], actual);
     }
 
-    private static async Task AssertUnboundValuesAsync(
-        GuidContext context
+    /// <summary>
+    /// Verifies one predicate operation without hiding later failures behind earlier queries.
+    /// </summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(MatchingCases))]
+    public async Task Guid_text_predicate_preserves_matching_and_null_semantics(
+        string target,
+        MySqlGuidFormat defaultFormat,
+        string propertyName,
+        string operation
     )
     {
-        var token = s_matchingGuid;
-        Guid? optionalToken = token;
-        var matchingIds = await context
-            .Set<GuidItem>()
-            .Where(item => EF.Functions.Like(token, item.Pattern)
-                && EF.Functions.Like(optionalToken, item.Pattern))
-            .OrderBy(item => item.Id)
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
+        // Arrange
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            defaultFormat);
 
-        Assert.Equal([1, 2], matchingIds);
+        var query = CreateMatchingQuery(context, propertyName, operation);
+        var expected = operation switch
+        {
+            "TextNotEqual" => new[] { 2 },
+            "LikeNoMatch" or "OptionalNoMatch" or "OptionalNullPattern" => [],
+            _ => [1],
+        };
 
-        optionalToken = null;
+        // Act
+        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(CancellationToken.None);
 
-        Assert.Empty(await context
-            .Set<GuidItem>()
-            .Where(item => EF.Functions.Like(optionalToken, item.Pattern))
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None));
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
-        var constantMatches = await context
-            .Set<GuidItem>()
-            .Where(item => EF.Functions.Like(new Guid(MatchingText), item.Pattern))
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
+    /// <summary>
+    /// Verifies that server-generated GUIDs are nonempty and distinct per row.
+    /// </summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(FormatCases))]
+    public async Task Generated_guids_are_distinct_and_nonempty(
+        string target,
+        MySqlGuidFormat defaultFormat
+    )
+    {
+        // Arrange
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            defaultFormat);
 
-        Assert.Equal([1, 2], constantMatches.Order());
+        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid());
 
-        var generatedValues = await context
-            .Set<GuidItem>()
-            .Select(item => Guid.NewGuid())
-            .ToArrayAsync(CancellationToken.None);
+        // Act
+        var actual = await query.ToArrayAsync(CancellationToken.None);
 
-        Assert.Equal(2, generatedValues.Length);
-        Assert.All(generatedValues, value => Assert.NotEqual(Guid.Empty, value));
-        Assert.NotEqual(generatedValues[0], generatedValues[1]);
+        // Assert
+        Assert.Equal(2, actual.Length);
+        Assert.All(actual, value => Assert.NotEqual(Guid.Empty, value));
+        Assert.NotEqual(actual[0], actual[1]);
+    }
 
-        var generatedText = await context
-            .Set<GuidItem>()
-            .Select(item => Guid
-                .NewGuid()
-                .ToString())
-            .ToArrayAsync(CancellationToken.None);
+    /// <summary>
+    /// Verifies canonical server-generated GUID text independently of GUID materialization.
+    /// </summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(FormatCases))]
+    public async Task Generated_guid_text_is_canonical_and_nonempty(
+        string target,
+        MySqlGuidFormat defaultFormat
+    )
+    {
+        // Arrange
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            defaultFormat);
 
-        Assert.Equal(2, generatedText.Length);
-        Assert.All(generatedText, value =>
+        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid().ToString());
+
+        // Act
+        var actual = await query.ToArrayAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, actual.Length);
+        Assert.All(actual, value =>
         {
             Assert.True(Guid.TryParseExact(value, "D", out var guid));
             Assert.NotEqual(Guid.Empty, guid);
@@ -214,100 +167,36 @@ public sealed class MySqlGuidTextIntegrationTests
         });
     }
 
-    private static async Task AssertStoredTextCollationAsync(
-        GuidContext context
-    )
-    {
-        await context.Database
-            .ExecuteSqlRawAsync(
-                $"UPDATE `{TableName}` SET `CharColumnToken` = UPPER(`CharColumnToken`) WHERE `Id` = 1;",
-                CancellationToken.None);
-
-        var text = await context
-            .Set<GuidItem>()
-            .Where(item => item.Id == 1)
-            .Select(item => EF
-                .Property<Guid>(item, "CharColumnToken")
-                .ToString())
-            .SingleAsync(CancellationToken.None);
-
-        Assert.Equal(MatchingText, text);
-        await AssertLikeAsync<Guid>(context, "CharColumnToken", "%AABBCCDDEEFF", [1]);
-        await AssertLikeAsync<Guid>(context, "CharColumnToken", "%aabbccddeeff", []);
-    }
-
-    private static async Task AssertLikeAsync<T>(
+    private static IQueryable<GuidItem> CreateMatchingQuery(
         GuidContext context,
         string propertyName,
-        string? pattern,
-        int[] expected
+        string operation
     )
     {
-        var actual = await context
-            .Set<GuidItem>()
-            .Where(item => EF.Functions.Like(EF.Property<T>(item, propertyName), pattern))
-            .OrderBy(item => item.Id)
-            .Select(item => item.Id)
-            .ToArrayAsync(CancellationToken.None);
-
-        Assert.Equal(expected, actual);
-    }
-
-    private static Task<int> DropTableAsync(
-        GuidContext context
-    ) => context.Database
-        .ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;", CancellationToken.None);
-
-    private sealed class GuidContext : DbContext
-    {
-        public GuidContext(
-            DbContextOptions<GuidContext> options
-        ) : base(options) { }
-
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
+        var optionalName = $"Optional{propertyName}";
+        var pattern = operation switch
         {
-            modelBuilder.HasCharSet("utf8mb4");
-            var entity = modelBuilder.Entity<GuidItem>();
-            entity.ToTable(TableName);
+            "LikeNoMatch" or "OptionalNoMatch" => "ffffffff-%",
+            "OptionalWildcard" => "%",
+            "OptionalNullPattern" => null,
+            "OptionalEscaped" => "00112233-%",
+            _ => "00112233-%-aabbccddeeff",
+        };
 
-            foreach (var prefix in new[] { string.Empty, "Optional" })
-            {
-                var type = prefix.Length == 0 ? typeof(Guid) : typeof(Guid?);
-
-                entity.Property(type, $"{prefix}DefaultToken");
-                entity
-                    .Property(type, $"{prefix}BinaryToken")
-                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-
-                entity
-                    .Property(type, $"{prefix}TextToken")
-                    .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-
-                entity
-                    .Property(type, $"{prefix}BinaryColumnToken")
-                    .HasColumnType("binary(16)");
-
-                entity
-                    .Property(type, $"{prefix}CharColumnToken")
-                    .HasColumnType("char(36)")
-                    .UseCollation("utf8mb4_bin");
-
-                entity
-                    .Property(type, $"{prefix}VarCharColumnToken")
-                    .HasColumnType("varchar(36)");
-
-                entity
-                    .Property(type, $"{prefix}ConvertedTextToken")
-                    .HasConversion<Microsoft.EntityFrameworkCore.Storage.ValueConversion.GuidToStringConverter>();
-            }
-        }
-    }
-
-    private sealed class GuidItem
-    {
-        public int Id { get; set; }
-        public string Pattern { get; set; } = string.Empty;
+        return operation switch
+        {
+            "TextEqual" => context.Set<GuidItem>()
+                .Where(item => EF.Property<Guid>(item, propertyName).ToString() == MatchingText),
+            "TextNotEqual" => context.Set<GuidItem>()
+                .Where(item => EF.Property<Guid>(item, propertyName).ToString() != MatchingText),
+            "LikeMatch" or "LikeNoMatch" => context.Set<GuidItem>()
+                .Where(item => EF.Functions.Like(EF.Property<Guid>(item, propertyName), pattern)),
+            "OptionalLikeMatch" or "OptionalWildcard" or "OptionalNoMatch" or "OptionalNullPattern" =>
+                context.Set<GuidItem>()
+                    .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, optionalName), pattern)),
+            "OptionalEscaped" => context.Set<GuidItem>()
+                .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, optionalName), "00112233-%", "!")),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
     }
 }

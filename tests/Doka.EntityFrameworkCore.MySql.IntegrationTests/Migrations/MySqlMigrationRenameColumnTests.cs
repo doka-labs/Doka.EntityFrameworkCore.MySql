@@ -110,6 +110,7 @@ public sealed class MySqlMigrationRenameColumnTests
         bool expectFallback
     )
     {
+        // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new RenameContext(CreateOptions<RenameContext>(connectionString, serverVersion));
 
@@ -137,24 +138,11 @@ public sealed class MySqlMigrationRenameColumnTests
             };
 
             var designTimeModel = context.GetService<IDesignTimeModel>().Model;
+
+            // Act
             var commands = generator.Generate([operation], designTimeModel);
 
-            Assert.Single(commands);
-
             var emitted = commands[0].CommandText;
-            if (expectFallback)
-            {
-                Assert.Contains("CHANGE COLUMN", emitted, StringComparison.Ordinal);
-                Assert.DoesNotContain("RENAME COLUMN", emitted, StringComparison.Ordinal);
-                Assert.Contains("/*! SET @__doka_previous_sql_mode", emitted, StringComparison.Ordinal);
-                Assert.Contains("NO_BACKSLASH_ESCAPES", emitted, StringComparison.Ordinal);
-            }
-            else
-            {
-                Assert.Contains("RENAME COLUMN", emitted, StringComparison.Ordinal);
-                Assert.DoesNotContain("CHANGE COLUMN", emitted, StringComparison.Ordinal);
-            }
-
             await commands[0]
                 .ExecuteNonQueryAsync(
                     context.GetService<IRelationalConnection>(),
@@ -176,19 +164,30 @@ public sealed class MySqlMigrationRenameColumnTests
                 }
             }
 
-            Assert.Equal(["alpha", "beta", "gamma"], roundtripped);
-
             verifyCommand.CommandText = "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
                 + "WHERE TABLE_SCHEMA = DATABASE() "
                 + "AND TABLE_NAME = 'RenameItems' "
                 + "AND COLUMN_NAME = 'Renamed';";
 
-            Assert.Equal(
-                ColumnComment,
-                Assert.IsType<string>(
-                    await verifyCommand
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false)));
+            var comment = await verifyCommand.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+
+            // Assert
+            Assert.Single(commands);
+            if (expectFallback)
+            {
+                Assert.Contains("CHANGE COLUMN", emitted, StringComparison.Ordinal);
+                Assert.DoesNotContain("RENAME COLUMN", emitted, StringComparison.Ordinal);
+                Assert.Contains("/*! SET @__doka_previous_sql_mode", emitted, StringComparison.Ordinal);
+                Assert.Contains("NO_BACKSLASH_ESCAPES", emitted, StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Contains("RENAME COLUMN", emitted, StringComparison.Ordinal);
+                Assert.DoesNotContain("CHANGE COLUMN", emitted, StringComparison.Ordinal);
+            }
+
+            Assert.Equal(["alpha", "beta", "gamma"], roundtripped);
+            Assert.Equal(ColumnComment, Assert.IsType<string>(comment));
         }
         finally
         {
@@ -206,23 +205,38 @@ public sealed class MySqlMigrationRenameColumnTests
     {
         var builder = IntegrationTestDbContextOptions.Create<T>();
         builder.UseMySql(connectionString, serverVersion);
+
         return builder.Options;
     }
 
     private sealed class RenameEntity
     {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
         public int Id { get; set; }
+
+        /// <summary>
+        /// Gets or sets the renamed.
+        /// </summary>
         public string Renamed { get; set; } = string.Empty;
     }
 
     private sealed class RenameContext : DbContext
     {
+        /// <summary>
+        /// Initializes the RenameContext fixture.
+        /// </summary>
         public RenameContext(
             DbContextOptions<RenameContext> options
         ) : base(options) { }
 
+        /// <summary>
+        /// Verifies set.
+        /// </summary>
         public DbSet<RenameEntity> Items => Set<RenameEntity>();
 
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )

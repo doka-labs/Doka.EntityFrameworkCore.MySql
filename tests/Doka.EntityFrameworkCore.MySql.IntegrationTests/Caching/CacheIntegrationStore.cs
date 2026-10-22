@@ -48,6 +48,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
             DateTimeKind = MySqlDateTimeKind.Unspecified,
             MaximumPoolSize = 16,
         };
+
         var store = new CacheIntegrationStore(
             builder.ConnectionString,
             builder.Database,
@@ -55,6 +56,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
             + Guid
                 .NewGuid()
                 .ToString("N"));
+
         try
         {
             await store
@@ -158,6 +160,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
         var value = await command
             .ExecuteScalarAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         return Assert.IsType<DateTime>(value);
     }
 
@@ -209,6 +212,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     public async Task<long> CountTablesAsync()
     {
         await using var command = CreateTableMetadataCommand("COUNT(*)");
+
         return Convert.ToInt64(
             await command
                 .ExecuteScalarAsync(CancellationToken.None)
@@ -219,6 +223,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     public async Task<string> ReadTableCommentAsync()
     {
         await using var command = CreateTableMetadataCommand("TABLE_COMMENT");
+
         return Assert.IsType<string>(
             await command
                 .ExecuteScalarAsync(CancellationToken.None)
@@ -270,6 +275,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         command.Parameters.AddWithValue("@schema", SchemaName);
         command.Parameters.AddWithValue("@table", TableName);
+
         return command;
     }
 
@@ -314,6 +320,7 @@ internal class ExactBufferWriter : IBufferWriter<byte>
     {
         BufferRequests++;
         Assert.InRange(sizeHint, 1, _buffer.Length - WrittenCount);
+
         return _buffer.AsMemory(WrittenCount);
     }
 
@@ -365,6 +372,7 @@ internal sealed class CacheSequenceSegment : ReadOnlySequenceSegment<byte>
     {
         var segment = new CacheSequenceSegment(memory) { RunningIndex = RunningIndex + Memory.Length };
         Next = segment;
+
         return segment;
     }
 }

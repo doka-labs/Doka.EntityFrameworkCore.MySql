@@ -6,12 +6,17 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFilterFixtureAsync(target);
+
+        // Act
         var query = CreateFilteredTripleQuery(fixture.Context);
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
         AssertFilteredTriples(actual, 2, 4, 6);
+
+        // Assert
         Assert.Equal(3, fixture.Probe.ParameterValues.Length);
         Assert.Contains(2, fixture.Probe.ParameterValues);
         Assert.Contains(4, fixture.Probe.ParameterValues);
@@ -23,7 +28,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFilterFixtureAsync(target);
+
+        // Act
         var query = CreateFilteredTripleQuery(fixture.Context);
         var previous = await query.ToArrayAsync(CancellationToken.None);
         fixture.Context.MinimumAValue = 3;
@@ -34,6 +42,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         AssertFilteredTriples(previous, 2, 4, 6);
         AssertFilteredTriples(actual, 3, 5, 6);
+
+        // Assert
         Assert.Equal(3, fixture.Probe.ParameterValues.Length);
         Assert.Contains(3, fixture.Probe.ParameterValues);
         Assert.Contains(5, fixture.Probe.ParameterValues);
@@ -76,7 +86,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
+        // Arrange
         await using var fixture = await CreateFilterFixtureAsync(target);
+
+        // Act
         var query = fixture.Context.SourceA.OrderBy(row => row.Id)
             .Skip(1)
             .Take(2)
@@ -89,6 +102,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
+        // Assert
         Assert.Equal([3, 4], actual.Select(row => row.Id));
         // WHY: Reapplying this deterministic filter would keep the same rows; the
         // executed SQL must also prove it appears only once before source paging.
@@ -101,6 +115,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         bool ignoreOnSource
     )
     {
+        // Arrange
         await using var fixture = await CreateFilterFixtureAsync(target);
         IQueryable<FilterSourceA> source = fixture.Context.SourceA;
 
@@ -110,6 +125,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
 
         var context = fixture.Context;
+
+        // Act
         var query = source.OrderBy(row => row.Id)
             .Skip(1)
             .Take(2)
@@ -131,6 +148,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var expected = Enumerable.Range(2, 2)
             .SelectMany(_ => Enumerable.Range(1, 6), (first, third) => (first, third));
 
+        // Assert
         Assert.Equal(expected, actual.Select(row => (row.AId, row.CId)));
         Assert.DoesNotContain(">=", fixture.Probe.CommandText, StringComparison.Ordinal);
         Assert.Equal(1, fixture.Probe.Count);

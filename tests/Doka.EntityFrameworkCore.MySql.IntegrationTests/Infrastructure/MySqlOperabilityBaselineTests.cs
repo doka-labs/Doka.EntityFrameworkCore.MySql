@@ -158,16 +158,19 @@ public sealed class MySqlOperabilityBaselineTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await using var context = new OperabilityContext(CreateOptions(connectionString, serverVersion, loggerFactory));
         context.Database.SetCommandTimeout(1);
+
         var query = context.Database.SqlQueryRaw<int>(LongRunningBenchmarkSql);
 
-        var exception = await Assert
-            .ThrowsAsync<MySqlException>(() => query.SingleAsync())
+        // Act
+        var caught = await Record
+            .ExceptionAsync(() => query.SingleAsync())
             .ConfigureAwait(false);
 
         var timeoutEntries = sink
@@ -181,6 +184,9 @@ public sealed class MySqlOperabilityBaselineTests
             .Select(entry => $"{entry.EventId.Id}:{entry.Message}")
             .ToList();
 
+        // Assert
+        var exception = Assert.IsType<MySqlException>(caught);
+
         Assert.Equal(MySqlErrorCode.CommandTimeoutExpired, exception.ErrorCode);
         Assert.True(
             timeoutEntries.Count == 1,
@@ -193,6 +199,7 @@ public sealed class MySqlOperabilityBaselineTests
         MySqlServerVersion serverVersion
     )
     {
+        // Arrange
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         var connectionStringBuilder = new MySqlConnectionStringBuilder(
@@ -205,12 +212,16 @@ public sealed class MySqlOperabilityBaselineTests
             CreateOptions(connectionStringBuilder.ConnectionString, serverVersion, loggerFactory));
 
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
         var query = context.Database.SqlQueryRaw<int>(LongRunningBenchmarkSql);
 
-        await Assert
-            .ThrowsAnyAsync<OperationCanceledException>(() => query.SingleAsync(cancellationTokenSource.Token))
+        // Act
+        var exception = await Record
+            .ExceptionAsync(() => query.SingleAsync(cancellationTokenSource.Token))
             .ConfigureAwait(false);
 
+        // Assert
+        Assert.IsAssignableFrom<OperationCanceledException>(exception);
         Assert.Contains(
             sink.Entries,
             entry => (entry.EventId.Id == MySqlEventId.SoftCancellation.Id

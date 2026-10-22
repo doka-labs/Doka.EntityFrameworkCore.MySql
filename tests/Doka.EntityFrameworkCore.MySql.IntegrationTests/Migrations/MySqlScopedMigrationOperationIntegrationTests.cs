@@ -1,5 +1,3 @@
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -9,198 +7,227 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 [Trait("Category", "MigrationContract")]
 [Trait("VerificationLane", "FullIntegration")]
-public sealed class MySqlScopedMigrationOperationIntegrationTests
+public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 {
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MySql84);
+    private static readonly ScopedScenario[] s_executionScenarios =
+        [ScopedScenario.Success, ScopedScenario.BodyFailure];
+    private static readonly ScopedScenario[] s_setupScenarios =
+        [ScopedScenario.FirstSetupFailure, ScopedScenario.LaterSetupFailure];
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MySql97);
+    private static readonly bool[] s_connectionResetModes = [false, true];
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+    /// <summary>Identifies each selected supported engine.</summary>
+    public static IEnumerable<object[]> TargetCases =>
+        SelectedTargets().Select(target => new object[] { target.ToString() });
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MariaDb114);
+    /// <summary>Identifies independent successful and failed command executions.</summary>
+    public static IEnumerable<object[]> ExecutionCases =>
+        from target in SelectedTargets()
+        from scenario in s_executionScenarios
+        select new object[] { target.ToString(), scenario.ToString() };
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MariaDb118);
+    /// <summary>Identifies the first and later setup failure boundaries independently.</summary>
+    public static IEnumerable<object[]> SetupFailureCases =>
+        from target in SelectedTargets()
+        from scenario in s_setupScenarios
+        select new object[] { target.ToString(), scenario.ToString() };
 
-    [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_executes_scoped_handler_contract() =>
-        AssertScopedHandlerContractAsync(IntegrationDatabaseTarget.MariaDb123);
+    /// <summary>Identifies pooled-session reuse with and without connector reset.</summary>
+    public static IEnumerable<object[]> PoolReuseCases =>
+        from target in SelectedTargets()
+        from reset in s_connectionResetModes
+        select new object[] { target.ToString(), reset };
 
-    private static async Task AssertScopedHandlerContractAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Verifies async command result/error and complete session cleanup.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(ExecutionCases))]
+    public async Task Asynchronous_scoped_command_restores_session(
+        string target,
+        string scenario
     )
     {
-        await AssertAsyncSuccessAndFailureAsync(target)
-            .ConfigureAwait(false);
-        AssertSynchronousSuccessAndFailure(target);
-        await AssertSetupFailuresStillCleanAsync(target)
-            .ConfigureAwait(false);
-        await AssertPreparedBodyFailureStillCleansAsync(target)
-            .ConfigureAwait(false);
-        await AssertCancellationStillCleansAsync(target)
-            .ConfigureAwait(false);
-        await AssertCleanupFailureClosesUnsafeConnectionAsync(target)
-            .ConfigureAwait(false);
-        await AssertBodyAndCleanupFailureRetainsBothAsync(target)
-            .ConfigureAwait(false);
-        await AssertPoolReuseIsCleanAsync(target, connectionReset: false)
-            .ConfigureAwait(false);
-        await AssertPoolReuseIsCleanAsync(target, connectionReset: true)
-            .ConfigureAwait(false);
-    }
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        var execution = Enum.Parse<ScopedScenario>(scenario);
+        var bodyFailure = execution == ScopedScenario.BodyFailure;
+        await using var connection = CreateConnection(engine, pooling: false);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
+        var generated = GenerateCommand(context, execution, transactionSuppressed: bodyFailure);
 
-    private static async Task AssertAsyncSuccessAndFailureAsync(
-        IntegrationDatabaseTarget target
-    )
-    {
-        await using var connection = CreateConnection(target, pooling: false);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
+        // Act
+        int? result = null;
+        MySqlException? exception = null;
 
-        await using (var context = CreateContext(connection, target))
+        if (bodyFailure)
         {
-            var success = GenerateCommand(context, ScopedScenario.Success, transactionSuppressed: false);
-            var result = await success
-                .Command
-                .ExecuteNonQueryAsync(
-                    context.GetService<IRelationalConnection>(),
-                    cancellationToken: CancellationToken.None)
-                .ConfigureAwait(false);
+            exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
+                context.GetService<IRelationalConnection>(),
+                cancellationToken: CancellationToken.None));
+        }
+        else
+        {
+            result = await generated.Command.ExecuteNonQueryAsync(
+                context.GetService<IRelationalConnection>(),
+                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+        }
 
+        var state = connection.State;
+        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
+
+        // Assert
+        Assert.Equal(bodyFailure, generated.Command.TransactionSuppressed);
+        Assert.Equal(ConnectionState.Open, state);
+        AssertCleanSession(session);
+
+        if (bodyFailure)
+        {
+            Assert.Equal(1062, exception!.Number);
+        }
+        else
+        {
             Assert.Equal(1, result);
-            Assert.False(success.Command.TransactionSuppressed);
-            Assert.Equal(ConnectionState.Open, connection.State);
-            await AssertSessionCleanAsync(connection, success.Operation)
-                .ConfigureAwait(false);
-        }
-
-        await using (var context = CreateContext(connection, target))
-        {
-            var failure = GenerateCommand(context, ScopedScenario.BodyFailure, transactionSuppressed: true);
-            var exception = await Assert.ThrowsAsync<MySqlException>(() => failure.Command.ExecuteNonQueryAsync(
-                context.GetService<IRelationalConnection>(),
-                cancellationToken: CancellationToken.None));
-
-            Assert.Equal(1062, exception.Number);
-            Assert.True(failure.Command.TransactionSuppressed);
-            Assert.Equal(ConnectionState.Open, connection.State);
-            await AssertSessionCleanAsync(connection, failure.Operation)
-                .ConfigureAwait(false);
         }
     }
 
-    private static void AssertSynchronousSuccessAndFailure(
-        IntegrationDatabaseTarget target
+    /// <summary>Verifies the synchronous command executor separately from its async counterpart.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(ExecutionCases))]
+    public void Synchronous_scoped_command_restores_session(
+        string target,
+        string scenario
     )
     {
-        using var connection = CreateConnection(target, pooling: false);
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        var execution = Enum.Parse<ScopedScenario>(scenario);
+        var bodyFailure = execution == ScopedScenario.BodyFailure;
+        using var connection = CreateConnection(engine, pooling: false);
+
+        // WHY: This case qualifies the synchronous connection and command path.
+        // ReSharper disable once MethodHasAsyncOverload
         connection.Open();
+        using var context = CreateContext(connection, engine);
+        var generated = GenerateCommand(context, execution, transactionSuppressed: false);
 
-        using (var context = CreateContext(connection, target))
+        // Act
+        int? result = null;
+        MySqlException? exception = null;
+
+        if (bodyFailure)
         {
-            var success = GenerateCommand(context, ScopedScenario.Success, transactionSuppressed: false);
-
-            Assert.Equal(1, success.Command.ExecuteNonQuery(context.GetService<IRelationalConnection>()));
-            Assert.Equal(ConnectionState.Open, connection.State);
-            AssertSessionClean(connection, success.Operation);
+            // WHY: This row qualifies the synchronous exception/cleanup path.
+            // ReSharper disable once MethodHasAsyncOverload
+            exception = Assert.Throws<MySqlException>(() =>
+                generated.Command.ExecuteNonQuery(context.GetService<IRelationalConnection>()));
+        }
+        else
+        {
+            // WHY: This case qualifies the synchronous executor explicitly.
+            // ReSharper disable once MethodHasAsyncOverload
+            result = generated.Command.ExecuteNonQuery(context.GetService<IRelationalConnection>());
         }
 
-        using (var context = CreateContext(connection, target))
-        {
-            var failure = GenerateCommand(context, ScopedScenario.BodyFailure, transactionSuppressed: false);
-            var exception = Assert.Throws<MySqlException>(() =>
-                failure.Command.ExecuteNonQuery(context.GetService<IRelationalConnection>()));
+        var state = connection.State;
+        var session = ObserveSession(connection, generated.Operation);
 
-            Assert.Equal(1062, exception.Number);
-            Assert.Equal(ConnectionState.Open, connection.State);
-            AssertSessionClean(connection, failure.Operation);
+        // Assert
+        Assert.Equal(ConnectionState.Open, state);
+        AssertCleanSession(session);
+
+        if (bodyFailure)
+        {
+            Assert.Equal(1062, exception!.Number);
         }
-    }
-
-    private static async Task AssertSetupFailuresStillCleanAsync(
-        IntegrationDatabaseTarget target
-    )
-    {
-        await using var connection = CreateConnection(target, pooling: false);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        foreach (var scenario in new[]
-                 {
-                     ScopedScenario.FirstSetupFailure,
-                     ScopedScenario.LaterSetupFailure
-                 })
+        else
         {
-            await using var context = CreateContext(connection, target);
-            var generated = GenerateCommand(context, scenario, transactionSuppressed: false);
-            var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
-                context.GetService<IRelationalConnection>(),
-                cancellationToken: CancellationToken.None));
-
-            Assert.Equal(1644, exception.Number);
-            Assert.Equal(ConnectionState.Open, connection.State);
-            await AssertSessionCleanAsync(connection, generated.Operation)
-                .ConfigureAwait(false);
+            Assert.Equal(1, result);
         }
     }
 
-    private static async Task AssertPreparedBodyFailureStillCleansAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Verifies session cleanup after one setup failure boundary.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(SetupFailureCases))]
+    public async Task Failed_setup_still_cleans_session(
+        string target,
+        string scenario
     )
     {
-        await using var connection = CreateConnection(target, pooling: false);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        await using var connection = CreateConnection(engine, pooling: false);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
+        var generated = GenerateCommand(context, Enum.Parse<ScopedScenario>(scenario), transactionSuppressed: false);
 
-        await using var context = CreateContext(connection, target);
-        var generated = GenerateCommand(context, ScopedScenario.PreparedBodyFailure, transactionSuppressed: true);
-
+        // Act
         var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: CancellationToken.None));
+        var state = connection.State;
+        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
 
-        Assert.Equal(1062, exception.Number);
-        await AssertSessionCleanAsync(connection, generated.Operation)
-            .ConfigureAwait(false);
+        // Assert
+        Assert.Equal(1644, exception.Number);
+        Assert.Equal(ConnectionState.Open, state);
+        AssertCleanSession(session);
+    }
 
+    /// <summary>Verifies a failed prepared body releases its prepared statement and session state.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(TargetCases))]
+    public async Task Prepared_body_failure_deallocates_statement(
+        string target
+    )
+    {
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        await using var connection = CreateConnection(engine, pooling: false);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
+        var generated = GenerateCommand(context, ScopedScenario.PreparedBodyFailure, transactionSuppressed: true);
         await using var deallocate = connection.CreateCommand();
         deallocate.CommandText = $"DEALLOCATE PREPARE {generated.Operation.PreparedStatementName};";
+
+        // Act
+        var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
+            context.GetService<IRelationalConnection>(),
+            cancellationToken: CancellationToken.None));
+        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
         var deallocateException = await Assert.ThrowsAsync<MySqlException>(() =>
             deallocate.ExecuteNonQueryAsync(CancellationToken.None));
 
+        // Assert
+        Assert.Equal(1062, exception.Number);
+        AssertCleanSession(session);
         Assert.Equal(1243, deallocateException.Number);
     }
 
-    private static async Task AssertCancellationStillCleansAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Verifies cancellation still completes the scoped cleanup contract.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(TargetCases))]
+    public async Task Cancellation_still_cleans_session(
+        string target
     )
     {
-        await using var connection = CreateConnection(target, pooling: false);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        await using var context = CreateContext(connection, target);
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        await using var connection = CreateConnection(engine, pooling: false);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.Cancellation, transactionSuppressed: false);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
 
+        // Act
         var exception = await Record.ExceptionAsync(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: cancellation.Token));
+        var state = connection.State;
+        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
 
+        // Assert
         Assert.NotNull(exception);
+
         if (exception is MySqlException mySqlException)
         {
             Assert.Equal(1317, mySqlException.Number);
@@ -210,511 +237,155 @@ public sealed class MySqlScopedMigrationOperationIntegrationTests
             Assert.IsType<OperationCanceledException>(exception, exactMatch: false);
         }
 
-        Assert.Equal(ConnectionState.Open, connection.State);
-        await AssertSessionCleanAsync(connection, generated.Operation)
-            .ConfigureAwait(false);
+        Assert.Equal(ConnectionState.Open, state);
+        AssertCleanSession(session);
     }
 
-    private static async Task AssertCleanupFailureClosesUnsafeConnectionAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Verifies unsafe cleanup closes its connection and excludes that session from the pool.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(TargetCases))]
+    public async Task Cleanup_failure_quarantines_session_and_continues_cleanup(
+        string target
     )
     {
-        var connectionString = CreateConnectionString(target, pooling: true, connectionReset: false);
-
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        var connectionString = CreateConnectionString(engine, pooling: true, connectionReset: false);
         await using var connection = new MySqlConnection(connectionString);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        var unsafeConnectionId = await ReadConnectionIdAsync(connection)
-            .ConfigureAwait(false);
-
-        await using var context = CreateContext(connection, target);
-        var (migrationCommand, operation) = GenerateCommand(
-            context,
-            ScopedScenario.CleanupFailure,
-            transactionSuppressed: true);
-
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        var unsafeConnectionId = await ReadConnectionIdAsync(connection).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
+        var generated = GenerateCommand(context, ScopedScenario.CleanupFailure, transactionSuppressed: true);
+        var operation = generated.Operation;
         await ExecuteNonQueryAsync(
-                connection,
-                $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine)
+            connection,
+            $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine)
             .ConfigureAwait(false);
-
-        var exception = await Assert.ThrowsAsync<MySqlMigrationSessionCleanupException>(() =>
-            migrationCommand.ExecuteNonQueryAsync(
-                context.GetService<IRelationalConnection>(),
-                cancellationToken: CancellationToken.None));
-
-        Assert.Equal(
-            1644,
-            Assert.IsType<MySqlException>(exception.InnerException)
-                .Number);
-        Assert.Equal(ConnectionState.Closed, connection.State);
 
         await using var replacementConnection = new MySqlConnection(connectionString);
-        await replacementConnection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
 
         try
         {
-            Assert.NotEqual(
-                unsafeConnectionId,
-                await ReadConnectionIdAsync(replacementConnection)
-                    .ConfigureAwait(false));
+            // Act
+            var exception = await Assert.ThrowsAsync<MySqlMigrationSessionCleanupException>(() =>
+                generated.Command.ExecuteNonQueryAsync(
+                    context.GetService<IRelationalConnection>(),
+                    cancellationToken: CancellationToken.None));
+            var state = connection.State;
+            long? replacementId = null;
+            long? cleanupCount = null;
 
-            await using var audit = replacementConnection.CreateCommand();
-            audit.CommandText = $"SELECT COUNT(*) FROM `{operation.CleanupAuditTableName}`;";
+            // WHY: If quarantine regresses, opening a second connection against
+            // the one-slot pool would hide the state failure behind pool timeout.
+            if (state == ConnectionState.Closed)
+            {
+                await replacementConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+                replacementId = await ReadConnectionIdAsync(replacementConnection).ConfigureAwait(false);
+                await using var audit = replacementConnection.CreateCommand();
+                audit.CommandText = $"SELECT COUNT(*) FROM `{operation.CleanupAuditTableName}`;";
+                cleanupCount = Convert.ToInt64(
+                    await audit.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                    CultureInfo.InvariantCulture);
+            }
 
-            Assert.Equal(
-                1L,
-                Convert.ToInt64(
-                    await audit
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture));
+            // Assert
+            Assert.Equal(1644, Assert.IsType<MySqlException>(exception.InnerException).Number);
+            Assert.Equal(ConnectionState.Closed, state);
+            Assert.NotEqual(unsafeConnectionId, replacementId);
+            Assert.Equal(1L, cleanupCount);
         }
         finally
         {
-            await ExecuteNonQueryAsync(
-                    replacementConnection,
-                    $"DROP TABLE IF EXISTS `{operation.CleanupAuditTableName}`;" + Environment.NewLine)
-                .ConfigureAwait(false);
+            var dropSql = $"DROP TABLE IF EXISTS `{operation.CleanupAuditTableName}`;" + Environment.NewLine;
+
+            if (replacementConnection.State == ConnectionState.Open)
+            {
+                await ExecuteNonQueryAsync(replacementConnection, dropSql).ConfigureAwait(false);
+            }
+            else
+            {
+                // WHY: Teardown must not need a slot retained by an unsafe session
+                // when the quarantine assertion itself fails.
+                await using var cleanupConnection = CreateConnection(engine, pooling: false);
+                await cleanupConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+                await ExecuteNonQueryAsync(cleanupConnection, dropSql).ConfigureAwait(false);
+            }
         }
     }
 
-    private static async Task AssertBodyAndCleanupFailureRetainsBothAsync(
-        IntegrationDatabaseTarget target
+    /// <summary>Preserves both the body and cleanup failures in their original order.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(TargetCases))]
+    public async Task Body_and_cleanup_failure_retains_both_errors(
+        string target
     )
     {
-        await using var connection = CreateConnection(target, pooling: true);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        await using var context = CreateContext(connection, target);
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        await using var connection = CreateConnection(engine, pooling: true);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.BodyAndCleanupFailure, transactionSuppressed: true);
 
+        // Act
         var exception = await Assert.ThrowsAsync<MySqlMigrationSessionCleanupException>(() =>
             generated.Command.ExecuteNonQueryAsync(
                 context.GetService<IRelationalConnection>(),
                 cancellationToken: CancellationToken.None));
+        var state = connection.State;
 
-        var failures = Assert.IsType<AggregateException>(exception.InnerException)
-            .InnerExceptions;
+        // Assert
+        var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
 
         Assert.Collection(
             failures,
-            primary => Assert.Equal(
-                1062,
-                Assert.IsType<MySqlException>(primary)
-                    .Number),
-            cleanup => Assert.Equal(
-                1644,
-                Assert.IsType<MySqlException>(cleanup)
-                    .Number));
-        Assert.Equal(ConnectionState.Closed, connection.State);
+            primary => Assert.Equal(1062, Assert.IsType<MySqlException>(primary).Number),
+            cleanup => Assert.Equal(1644, Assert.IsType<MySqlException>(cleanup).Number));
+        Assert.Equal(ConnectionState.Closed, state);
     }
 
-    private static async Task AssertPoolReuseIsCleanAsync(
-        IntegrationDatabaseTarget target,
+    /// <summary>Verifies command failure leaves the same physical pooled session clean for reuse.</summary>
+    [RequiresSupportedDatabaseTargetTheory]
+    [MemberData(nameof(PoolReuseCases))]
+    public async Task Reused_pooled_session_is_clean(
+        string target,
         bool connectionReset
     )
     {
-        var connectionString = CreateConnectionString(target, pooling: true, connectionReset: connectionReset);
+        // Arrange
+        var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
+        var connectionString = CreateConnectionString(engine, pooling: true, connectionReset: connectionReset);
         long initialConnectionId;
-        ScopedHandlerOperation operation;
 
         await using (var seedConnection = new MySqlConnection(connectionString))
         {
-            await seedConnection
-                .OpenAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-            initialConnectionId = await ReadConnectionIdAsync(seedConnection)
-                .ConfigureAwait(false);
+            await seedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+            initialConnectionId = await ReadConnectionIdAsync(seedConnection).ConfigureAwait(false);
         }
 
-        await using (var context = CreateContext(connectionString, target))
+        ScopedHandlerOperation operation;
+        MySqlException exception;
+
+        // WHY: Disposal is part of this lifecycle: the command-owning context
+        // must return its connection before the same physical session is reopened.
+        // Act
+        await using (var context = CreateContext(connectionString, engine))
         {
             var generated = GenerateCommand(context, ScopedScenario.BodyFailure, transactionSuppressed: false);
             operation = generated.Operation;
-            var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
+            exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
                 context.GetService<IRelationalConnection>(),
                 cancellationToken: CancellationToken.None));
-
-            Assert.Equal(1062, exception.Number);
         }
 
         await using var reusedConnection = new MySqlConnection(connectionString);
-        await reusedConnection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
+        await reusedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        var reusedConnectionId = await ReadConnectionIdAsync(reusedConnection).ConfigureAwait(false);
+        var session = await ObserveSessionAsync(reusedConnection, operation).ConfigureAwait(false);
 
-        Assert.Equal(
-            initialConnectionId,
-            await ReadConnectionIdAsync(reusedConnection)
-                .ConfigureAwait(false));
-        await AssertSessionCleanAsync(reusedConnection, operation)
-            .ConfigureAwait(false);
-    }
-
-    private static GeneratedCommand GenerateCommand(
-        ScopedHandlerContext context,
-        ScopedScenario scenario,
-        bool transactionSuppressed
-    )
-    {
-        var operation = new ScopedHandlerOperation(
-            scenario,
-            Guid
-                .NewGuid()
-                .ToString("N", CultureInfo.InvariantCulture),
-            transactionSuppressed);
-        var command = Assert.Single(
-            context
-                .GetService<IMigrationsSqlGenerator>()
-                .Generate([operation], context.Model));
-
-        Assert.IsType<MySqlScopedMigrationCommand>(command);
-
-        return new GeneratedCommand(command, operation);
-    }
-
-    private static async Task AssertSessionCleanAsync(
-        MySqlConnection connection,
-        ScopedHandlerOperation operation
-    )
-    {
-        await using var variable = connection.CreateCommand();
-        variable.CommandText = $"SELECT {operation.VariableName} IS NULL;";
-
-        Assert.Equal(
-            1L,
-            Convert.ToInt64(
-                await variable
-                    .ExecuteScalarAsync(CancellationToken.None)
-                    .ConfigureAwait(false),
-                CultureInfo.InvariantCulture));
-
-        await using var table = connection.CreateCommand();
-        table.CommandText = $"SELECT COUNT(*) FROM `{operation.TableName}`;";
-        var exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            table.ExecuteScalarAsync(CancellationToken.None));
-
-        Assert.Equal(1146, exception.Number);
-    }
-
-    private static void AssertSessionClean(
-        MySqlConnection connection,
-        ScopedHandlerOperation operation
-    )
-    {
-        using var variable = connection.CreateCommand();
-        variable.CommandText = $"SELECT {operation.VariableName} IS NULL;";
-
-        Assert.Equal(1L, Convert.ToInt64(variable.ExecuteScalar(), CultureInfo.InvariantCulture));
-
-        using var table = connection.CreateCommand();
-        table.CommandText = $"SELECT COUNT(*) FROM `{operation.TableName}`;";
-        var exception = Assert.Throws<MySqlException>(table.ExecuteScalar);
-
-        Assert.Equal(1146, exception.Number);
-    }
-
-    private static async Task<long> ReadConnectionIdAsync(
-        MySqlConnection connection
-    )
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT CONNECTION_ID();";
-
-        return Convert.ToInt64(
-            await command
-                .ExecuteScalarAsync(CancellationToken.None)
-                .ConfigureAwait(false),
-            CultureInfo.InvariantCulture);
-    }
-
-    private static async Task ExecuteNonQueryAsync(
-        MySqlConnection connection,
-        string commandText
-    )
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        _ = await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static MySqlConnection CreateConnection(
-        IntegrationDatabaseTarget target,
-        bool pooling
-    ) => new(CreateConnectionString(target, pooling));
-
-    private static string CreateConnectionString(
-        IntegrationDatabaseTarget target,
-        bool pooling,
-        bool connectionReset = false
-    ) => new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
-    {
-        AllowUserVariables = true,
-        ConnectionReset = connectionReset,
-        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
-        MinimumPoolSize = pooling ? 1u : 0u,
-        MaximumPoolSize = pooling ? 1u : 100u,
-        Pooling = pooling,
-    }.ConnectionString;
-
-    private static ScopedHandlerContext CreateContext(
-        MySqlConnection connection,
-        IntegrationDatabaseTarget target
-    )
-    {
-        var builder = IntegrationTestDbContextOptions
-            .Create<ScopedHandlerContext>()
-            .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target));
-
-        AddHandlerExtension(builder);
-
-        return new ScopedHandlerContext(builder.Options);
-    }
-
-    private static ScopedHandlerContext CreateContext(
-        string connectionString,
-        IntegrationDatabaseTarget target
-    )
-    {
-        var builder = IntegrationTestDbContextOptions
-            .Create<ScopedHandlerContext>()
-            .UseMySql(connectionString, IntegrationTestEnvironment.GetServerVersion(target));
-
-        AddHandlerExtension(builder);
-
-        return new ScopedHandlerContext(builder.Options);
-    }
-
-    private static void AddHandlerExtension(
-        DbContextOptionsBuilder<ScopedHandlerContext> builder
-    ) => ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(new ScopedHandlerOptionsExtension());
-
-    private readonly record struct GeneratedCommand(
-        MigrationCommand Command,
-        ScopedHandlerOperation Operation
-    );
-
-    private enum ScopedScenario
-    {
-        Success,
-        BodyFailure,
-        FirstSetupFailure,
-        LaterSetupFailure,
-        PreparedBodyFailure,
-        Cancellation,
-        CleanupFailure,
-        BodyAndCleanupFailure,
-    }
-
-    private sealed class ScopedHandlerOperation : MigrationOperation
-    {
-        public ScopedHandlerOperation(
-            ScopedScenario scenario,
-            string suffix,
-            bool transactionSuppressed
-        )
-        {
-            Scenario = scenario;
-            Suffix = suffix;
-            TransactionSuppressed = transactionSuppressed;
-        }
-
-        public string PreparedStatementName => $"doka_scope_statement_{Suffix}";
-
-        public string CleanupAuditTableName => $"DokaScopeAudit_{Suffix}";
-
-        public ScopedScenario Scenario { get; }
-
-        public string Suffix { get; }
-
-        public string TableName => $"DokaScope_{Suffix}";
-
-        public bool TransactionSuppressed { get; }
-
-        public string VariableName => $"@doka_scope_{Suffix}";
-    }
-
-    private sealed class ScopedHandler : IMySqlMigrationOperationHandler
-    {
-        public string HandlerId => "tests.scoped.runtime";
-
-        public Type OperationType => typeof(ScopedHandlerOperation);
-
-        public MySqlMigrationOperationResult Generate(
-            MySqlMigrationOperationContext context
-        )
-        {
-            var operation = (ScopedHandlerOperation)context.Operation;
-            var command = operation.Scenario switch
-            {
-                ScopedScenario.Success =>
-                    StandardCommand(operation, $"INSERT INTO `{operation.TableName}` (`Id`) VALUES (1);"),
-                ScopedScenario.BodyFailure =>
-                    StandardCommand(operation, $"INSERT INTO `{operation.TableName}` (`Id`) VALUES (1), (1);"),
-                ScopedScenario.FirstSetupFailure =>
-                    MySqlMigrationCommandSpec.CreateScoped(
-                        ["SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 1644, MESSAGE_TEXT = 'setup failure';"],
-                        $"SET {operation.VariableName} = 2;",
-                        [$"SET {operation.VariableName} = NULL;"],
-                        operation.TransactionSuppressed),
-                ScopedScenario.LaterSetupFailure =>
-                    MySqlMigrationCommandSpec.CreateScoped(
-                        [
-                            CreateTemporaryTable(operation),
-                            "SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 1644, MESSAGE_TEXT = 'setup failure';",
-                        ],
-                        $"SET {operation.VariableName} = 2;",
-                        StandardCleanup(operation),
-                        operation.TransactionSuppressed),
-                ScopedScenario.PreparedBodyFailure => MySqlMigrationCommandSpec.CreateScoped(
-                    [
-                        CreateTemporaryTable(operation),
-                        $"SET {operation.VariableName} = "
-                        + $"'INSERT INTO `{operation.TableName}` (`Id`) VALUES (1), (1)';",
-                        $"PREPARE {operation.PreparedStatementName} FROM {operation.VariableName};",
-                    ],
-                    $"EXECUTE {operation.PreparedStatementName};",
-                    [
-                        $"DROP TEMPORARY TABLE IF EXISTS `{operation.TableName}`;",
-                        $"SET {operation.VariableName} = NULL;",
-                        $"DEALLOCATE PREPARE {operation.PreparedStatementName};",
-                    ],
-                    operation.TransactionSuppressed),
-                ScopedScenario.Cancellation => CancellationCommand(operation),
-                ScopedScenario.CleanupFailure => FailingCleanupCommand(
-                    operation,
-                    $"INSERT INTO `{operation.TableName}` (`Id`) VALUES (1);",
-                    recordCleanupContinuation: true),
-                ScopedScenario.BodyAndCleanupFailure => FailingCleanupCommand(
-                    operation,
-                    $"INSERT INTO `{operation.TableName}` (`Id`) VALUES (1), (1);",
-                    recordCleanupContinuation: false),
-                _ => throw new InvalidOperationException(
-                    $"Unknown scoped migration test scenario '{operation.Scenario}'."),
-            };
-
-            return MySqlMigrationOperationResult.Generated([command], "scoped_runtime");
-        }
-
-        private static MySqlMigrationCommandSpec StandardCommand(
-            ScopedHandlerOperation operation,
-            string body
-        ) => MySqlMigrationCommandSpec.CreateScoped(
-            [
-                CreateTemporaryTable(operation),
-                $"SET {operation.VariableName} = 1;",
-            ],
-            body,
-            StandardCleanup(operation),
-            operation.TransactionSuppressed);
-
-        private static MySqlMigrationCommandSpec FailingCleanupCommand(
-            ScopedHandlerOperation operation,
-            string body,
-            bool recordCleanupContinuation
-        )
-        {
-            var cleanup = new List<string>();
-
-            if (recordCleanupContinuation)
-            {
-                cleanup.Add($"INSERT INTO `{operation.CleanupAuditTableName}` (`Id`) VALUES (1);");
-            }
-
-            cleanup.Add("SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 1644, MESSAGE_TEXT = 'cleanup failure';");
-            cleanup.Add($"DROP TEMPORARY TABLE IF EXISTS `{operation.TableName}`;");
-            cleanup.Add($"SET {operation.VariableName} = NULL;");
-
-            return MySqlMigrationCommandSpec.CreateScoped(
-                [
-                    CreateTemporaryTable(operation),
-                    $"SET {operation.VariableName} = 1;",
-                ],
-                body,
-                cleanup,
-                operation.TransactionSuppressed);
-        }
-
-        private static MySqlMigrationCommandSpec CancellationCommand(
-            ScopedHandlerOperation operation
-        ) => MySqlMigrationCommandSpec.CreateScoped(
-            [
-                CreateTemporaryTable(operation),
-                $"SET {operation.VariableName} = 1;",
-                $"INSERT INTO `{operation.TableName}` (`Id`) VALUES (1);",
-            ],
-            $"SELECT 1 FROM `{operation.TableName}` WHERE SLEEP(30) = 0;",
-            StandardCleanup(operation),
-            operation.TransactionSuppressed);
-
-        private static string CreateTemporaryTable(
-            ScopedHandlerOperation operation
-        ) => $"CREATE TEMPORARY TABLE `{operation.TableName}` (`Id` int NOT NULL PRIMARY KEY);";
-
-        private static string[] StandardCleanup(
-            ScopedHandlerOperation operation
-        ) =>
-        [
-            $"DROP TEMPORARY TABLE IF EXISTS `{operation.TableName}`;",
-            $"SET {operation.VariableName} = NULL;",
-        ];
-    }
-
-    private sealed class ScopedHandlerOptionsExtension : IDbContextOptionsExtension
-    {
-        private DbContextOptionsExtensionInfo? _info;
-
-        public DbContextOptionsExtensionInfo Info => _info ??= new ExtensionInfo(this);
-
-        public void ApplyServices(
-            IServiceCollection services
-        ) => services.TryAddEnumerable(ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, ScopedHandler>());
-
-        public void Validate(
-            IDbContextOptions options
-        )
-        {
-            if (options.FindExtension<MySqlOptionsExtension>() is null)
-            {
-                throw new InvalidOperationException("The scoped handler tests require the Doka MySQL provider.");
-            }
-        }
-
-        private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
-        {
-            public ExtensionInfo(
-                IDbContextOptionsExtension extension
-            ) : base(extension) { }
-
-            public override bool IsDatabaseProvider => false;
-
-            public override string LogFragment => "scoped-handler-tests ";
-
-            public override int GetServiceProviderHashCode() => 0;
-
-            public override void PopulateDebugInfo(
-                IDictionary<string, string> debugInfo
-            ) => debugInfo["Doka:ScopedHandlerTests"] = "1";
-
-            public override bool ShouldUseSameServiceProvider(
-                DbContextOptionsExtensionInfo other
-            ) => other is ExtensionInfo;
-        }
-    }
-
-    private sealed class ScopedHandlerContext : DbContext
-    {
-        public ScopedHandlerContext(
-            DbContextOptions<ScopedHandlerContext> options
-        ) : base(options) { }
+        // Assert
+        Assert.Equal(1062, exception.Number);
+        Assert.Equal(initialConnectionId, reusedConnectionId);
+        AssertCleanSession(session);
     }
 }

@@ -6,6 +6,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 public sealed class IntegrationDatabaseTargetContractTests
 {
+    /// <summary>Returns every supported profile independently of the selected live-engine subset.</summary>
+    public static IEnumerable<object[]> SupportedTargets => IntegrationTestEnvironment
+        .GetSupportedTargets()
+        .Select(target => new object[] { target.ToString() });
+
+    /// <summary>Verifies stable schema identity and separation across owners and runs.</summary>
     [Fact]
     public void Class_database_names_are_stable_for_one_owner_and_distinct_for_another()
     {
@@ -30,6 +36,9 @@ public sealed class IntegrationDatabaseTargetContractTests
         Assert.True(firstName.Length <= 64);
     }
 
+    /// <summary>Verifies schema names reject an incomplete run or owner identity.</summary>
+    /// <param name="runId">The supplied run identity.</param>
+    /// <param name="ownerFilePath">The supplied test-class owner identity.</param>
     [Theory]
     [InlineData("", "/tests/FirstIntegrationTests.cs")]
     [InlineData("0123456789ab", "")]
@@ -38,36 +47,46 @@ public sealed class IntegrationDatabaseTargetContractTests
         string ownerFilePath
     )
     {
+        // Arrange
+        Action createName = () => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
+
         // Act
-        var action = () => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
+        var exception = Record.Exception(createName);
 
         // Assert
-        Assert.Throws<ArgumentException>(action);
+        Assert.IsType<ArgumentException>(exception);
     }
 
     /// <summary>
     /// Guards capability selection against drifting away from a target's
     /// independently declared supported line.
     /// </summary>
-    [Fact]
-    public void Active_lts_server_profiles_match_supported_lines()
+    /// <param name="targetName">The independently reported supported engine profile.</param>
+    [Theory]
+    [MemberData(nameof(SupportedTargets))]
+    public void Active_lts_server_profiles_match_supported_lines(
+        string targetName
+    )
     {
-        foreach (var target in IntegrationTestEnvironment.GetSupportedTargets())
-        {
-            var request = IntegrationTestEnvironment.CreateRequest(target);
-            var separator = request.ServerVersionToken.IndexOf(':');
+        // Arrange
+        var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
+        var request = IntegrationTestEnvironment.CreateRequest(target);
+        var separator = request.ServerVersionToken.IndexOf(':');
 
-            Assert.True(
-                separator > 0,
-                $"Target '{target}' has an invalid server-version token: {request.ServerVersionToken}");
+        // WHY: The declared request token supplies the independent expected line;
+        // validate its shape before parsing that fixture value.
+        Assert.True(
+            separator > 0,
+            $"Target '{target}' has an invalid server-version token: {request.ServerVersionToken}");
 
-            var supportedLine = Version.Parse(request.ServerVersionToken[(separator + 1)..]);
-            var profileVersion = IntegrationTestEnvironment.GetServerVersion(target)
-                .Version;
+        var supportedLine = Version.Parse(request.ServerVersionToken[(separator + 1)..]);
 
-            Assert.Equal(supportedLine.Major, profileVersion.Major);
-            Assert.Equal(supportedLine.Minor, profileVersion.Minor);
-        }
+        // Act
+        var profileVersion = IntegrationTestEnvironment.GetServerVersion(target).Version;
+
+        // Assert
+        Assert.Equal(supportedLine.Major, profileVersion.Major);
+        Assert.Equal(supportedLine.Minor, profileVersion.Minor);
     }
 
     /// <summary>
@@ -82,7 +101,17 @@ public sealed class IntegrationDatabaseTargetContractTests
         int major,
         int minor,
         int build
-    ) => Assert.Equal(new Version(major, minor, build), IntegrationTestEnvironment.ParsePinnedImageVersion(image));
+    )
+    {
+        // Arrange
+        var expected = new Version(major, minor, build);
+
+        // Act
+        var actual = IntegrationTestEnvironment.ParsePinnedImageVersion(image);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
 
     /// <summary>
     /// Verifies that unpinned and floating image references cannot enter a
@@ -94,5 +123,15 @@ public sealed class IntegrationDatabaseTargetContractTests
     [InlineData("mysql:latest@sha256:abcdef")]
     public void Pinned_image_version_parser_rejects_invalid_references(
         string image
-    ) => Assert.Throws<InvalidOperationException>(() => IntegrationTestEnvironment.ParsePinnedImageVersion(image));
+    )
+    {
+        // Arrange
+        Action parse = () => IntegrationTestEnvironment.ParsePinnedImageVersion(image);
+
+        // Act
+        var exception = Record.Exception(parse);
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
+    }
 }
