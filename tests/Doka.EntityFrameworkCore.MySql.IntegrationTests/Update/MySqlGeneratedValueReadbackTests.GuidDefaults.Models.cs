@@ -8,6 +8,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     private const string GuidComputedValueTable = "GuidComputedReadbackValues";
     private const string GuidDefaultLiteralKeyTable = "GuidDefaultLiteralKeyRows";
     private const string GuidDefaultSharedTable = "GuidDefaultSharedRows";
+    private const string GuidSplitGeneratedPrincipalTable = "GuidSplitGeneratedPrincipals";
+    private const string GuidSplitGeneratedSecondaryTable = "GuidSplitGeneratedDetails";
 
     private static DbContext CreateGuidDefaultsContext<TMode>(
         IntegrationDatabaseTarget target,
@@ -58,7 +60,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // WHY: Dependents must be removed first because the previous case can
         // leave a real FK constraint, even when the next model has no relationship.
         await context.Database.ExecuteSqlRawAsync(
-            $"DROP TABLE IF EXISTS `{GuidDefaultDependentTable}`, `{GuidDefaultPrincipalTable}`, "
+            $"DROP TABLE IF EXISTS `{GuidSplitGeneratedSecondaryTable}`, `{GuidSplitGeneratedPrincipalTable}`, "
+            + $"`{GuidDefaultDependentTable}`, `{GuidDefaultPrincipalTable}`, "
             + $"`{GuidDefaultValueTable}`, `{GuidComputedValueTable}`, `{GuidDefaultLiteralKeyTable}`, "
             + $"`{GuidDefaultSharedTable}`;",
             CancellationToken.None);
@@ -86,6 +89,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         DbContextOptions<GuidDefaultsContext<TMapping, TMode>> options
     ) : DbContext(options)
     {
+        /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -163,6 +167,38 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 dependent.Property(row => row.Id).ValueGeneratedOnAdd();
                 dependent.Property(row => row.Payload).HasColumnName("DependentPayload").HasMaxLength(64);
             }
+            else if (typeof(TMode) == typeof(GuidDefaultsSplitValueMode)
+                     || typeof(TMode) == typeof(GuidDefaultsSplitComputedMode))
+            {
+                var entity = modelBuilder.Entity<GuidSplitGeneratedRow>();
+                entity.ToTable(GuidSplitGeneratedPrincipalTable);
+                entity.UseStorageEngine("InnoDB");
+                entity.HasKey(row => row.Id);
+                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity.Property(row => row.Payload).HasMaxLength(64);
+
+                // WHY: Generated outputs belong only to the secondary store;
+                // integer keys let both engines read them back without guessing UUID keys.
+                entity.SplitToTable(GuidSplitGeneratedSecondaryTable, split =>
+                {
+                    split.Property(row => row.Input);
+                    split.Property(row => row.RequiredValue);
+                    split.Property(row => row.NullableValue);
+                });
+
+                if (typeof(TMode) == typeof(GuidDefaultsSplitValueMode))
+                {
+                    entity.Property(row => row.RequiredValue).HasDefaultValueSql(GuidDefaultSql(format));
+                    entity.Property(row => row.NullableValue).HasDefaultValueSql(GuidDefaultSql(format));
+                }
+                else
+                {
+                    var expression = GuidComputedSql(format);
+                    entity.Property(row => row.RequiredValue).HasComputedColumnSql(expression, stored: true);
+                    entity.Property(row => row.NullableValue).HasComputedColumnSql(
+                        $"CASE WHEN MOD(`Input`, 2) = 0 THEN NULL ELSE {expression} END", stored: true);
+                }
+            }
             else
             {
                 var expression = GuidComputedSql(format);
@@ -232,6 +268,24 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         public long Stamp { get; set; }
     }
 
+    private sealed class GuidSplitGeneratedRow
+    {
+        /// <summary>Gets or sets the supplied key shared by both fragments.</summary>
+        public int Id { get; set; }
+
+        /// <summary>Gets or sets the main fragment's independent payload.</summary>
+        public string Payload { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the secondary fragment's computation input.</summary>
+        public int Input { get; set; }
+
+        /// <summary>Gets or sets the required generated secondary GUID.</summary>
+        public Guid RequiredValue { get; set; }
+
+        /// <summary>Gets or sets the nullable generated secondary GUID.</summary>
+        public Guid? NullableValue { get; set; }
+    }
+
     private sealed class GuidDefaultSharedPrincipal
     {
         public Guid Id { get; set; }
@@ -265,4 +319,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     private sealed class GuidDefaultsLiteralKeyMode { }
 
     private sealed class GuidDefaultsSharedTableMode { }
+
+    private sealed class GuidDefaultsSplitValueMode { }
+
+    private sealed class GuidDefaultsSplitComputedMode { }
 }

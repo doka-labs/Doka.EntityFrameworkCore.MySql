@@ -63,6 +63,20 @@ projects that execute Doka translation markers do not report a false positive.
 The provider's functional and integration tests remain the executable proof
 that each documented marker translates or fails through EF Core.
 
+## Local specification-test target
+
+The functional-test project selects MariaDB 12.3 (`mariadb123`) through
+`LocalMariaDb123.runsettings` when `DOKA_SPEC_TEST_TARGET` is not set. This is
+the version-controlled local execution default, including for Rider runs that
+use the project's runsettings. The fixture starts its own database container;
+no separately installed MariaDB server is required.
+
+To select another supported profile, set `DOKA_SPEC_TEST_TARGET`, for example
+`mysql84`, before the runner evaluates the project. An explicit target bypasses
+the local settings file. A manually selected runsettings file can also change
+the runner's settings. The six-engine CI and release matrix is unchanged; one
+local profile is not complete matrix evidence.
+
 ## Integration test parallelism in Rider
 
 The integration test assembly runs independent classes as separate xUnit

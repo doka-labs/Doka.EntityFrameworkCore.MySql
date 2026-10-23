@@ -53,7 +53,7 @@ The specification suite has a zero provider-gap budget.
 
 Live specification execution requires a target in the test-host environment.
 The functional-test project supplies the version-controlled local default
-`mariadb118` through `LocalMariaDb118.runsettings`; explicit environment targets
+`mariadb123` through `LocalMariaDb123.runsettings`; explicit environment targets
 from CI and operators bypass that file. The database fixture still refuses to
 start without a resolved target, and an external endpoint must declare a
 server-version token from the selected target's engine and major/minor line.

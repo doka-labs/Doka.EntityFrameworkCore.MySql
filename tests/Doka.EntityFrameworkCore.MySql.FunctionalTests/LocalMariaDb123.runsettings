@@ -2,7 +2,7 @@
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
-      <DOKA_SPEC_TEST_TARGET>mariadb118</DOKA_SPEC_TEST_TARGET>
+      <DOKA_SPEC_TEST_TARGET>mariadb123</DOKA_SPEC_TEST_TARGET>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

@@ -486,6 +486,14 @@ Shared-table properties inherit their physical root's defaults without having
 to repeat annotations; those defaults also prevent a dependent key from
 incorrectly inheriting client GUID or AUTO_INCREMENT generation.
 
+Default resolution follows the property's actual table mappings, including
+secondary Entity Splitting fragments. A GUID column need not exist on the
+entity's primary table. Shared SQL/computed expressions and literal defaults
+are resolved from the same physical column, not another column on a shared
+table. Explicit generation choices still take precedence. The development
+correction for the 10.6.1 secondary-fragment regression changes metadata lookup,
+not the physical schema; keep deployed migrations intact.
+
 Explicit `UseMySqlClientGuidValueGeneration()`,
 `HasMySqlValueGenerationStrategy(...)`, application generator factories, and
 `ValueGeneratedNever()` remain authoritative. A literal `HasDefaultValue(Guid)`

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pending release
+
+### Fixed
+
+- Correct a 10.6.1 regression that prevented model initialization when a GUID
+  property belonged only to a secondary Entity Splitting table. Resolve SQL,
+  computed and literal defaults through actual property mappings in both the
+  generation convention and GUID generator selector. Preserve inherited shared
+  defaults and explicit generation strategies without changing GUID storage or
+  requiring a schema migration. Cover nullable properties, supported GUID
+  formats, shared secondary columns, migration DDL and live generated-value
+  readback on MySQL and MariaDB.
+
 ## [10.6.1] - 2026-10-22
 
 Stable patch release correcting GUID store-generation and shared-table default
