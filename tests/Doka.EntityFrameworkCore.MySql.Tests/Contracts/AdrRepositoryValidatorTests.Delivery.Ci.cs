@@ -2,6 +2,58 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class AdrRepositoryValidatorTests
 {
+    /// <summary>Verifies every hosted job uses the deliberately selected Ubuntu image.</summary>
+    /// <param name="fileName">The checked-in workflow to inspect.</param>
+    [Theory]
+    [InlineData("ci.yml")]
+    [InlineData("benchmark.yml")]
+    [InlineData("container-matrix.yml")]
+    [InlineData("release-candidate.yml")]
+    [InlineData("security-audit.yml")]
+    [InlineData("dependency-review.yml")]
+    [InlineData("scorecard.yml")]
+    public void Hosted_workflows_use_the_explicit_ubuntu_runner(
+        string fileName
+    )
+    {
+        // Arrange
+        var workflowPath = Path.Combine(FindRepositoryRoot(), ".github", "workflows", fileName);
+
+        // Act
+        var workflow = File.ReadAllText(workflowPath);
+        var runners = workflow.Split('\n')
+            .Select(static line => line.Trim())
+            .Where(static line => line.StartsWith("runs-on:", StringComparison.Ordinal))
+            .Select(static line => line["runs-on:".Length..].Trim())
+            .ToArray();
+
+        // Assert
+        Assert.NotEmpty(runners);
+        Assert.All(runners, static runner => Assert.Equal("ubuntu-26.04", runner));
+    }
+
+    /// <summary>Verifies benchmark evidence names the image that executes the workload.</summary>
+    [Fact]
+    public void Benchmark_runner_identity_matches_its_hosted_image()
+    {
+        // Arrange
+        var workflowPath = Path.Combine(FindRepositoryRoot(), ".github", "workflows", "benchmark.yml");
+
+        // Act
+        var workflow = File.ReadAllText(workflowPath);
+        var benchmark = GetWorkflowJob(workflow, "benchmark");
+        var runner = benchmark.Split('\n')
+            .Select(static line => line.Trim())
+            .Single(static line => line.StartsWith("runs-on:", StringComparison.Ordinal))
+            ["runs-on:".Length..].Trim();
+
+        // Assert
+        Assert.Contains(
+            $"DOKA_BENCHMARK_RUNNER_CLASS: github-{runner}-x64",
+            benchmark,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>Verifies CI invokes the shared repository quality-gate entrypoint.</summary>
     [Fact]
     public void Ci_uses_the_repository_quality_gate_entrypoint()

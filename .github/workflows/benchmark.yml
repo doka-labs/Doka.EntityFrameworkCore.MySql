@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   schedule-identity:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Normal execution remains nonpublishing
@@ -64,7 +64,7 @@ jobs:
 
   scheduled-release-lines:
     if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 240
     permissions:
       contents: read
@@ -88,7 +88,7 @@ jobs:
 
   resolve-targets:
     needs: schedule-identity
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
 
     outputs:
@@ -119,7 +119,7 @@ jobs:
 
   benchmark:
     needs: resolve-targets
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -150,7 +150,7 @@ jobs:
           DOKA_BENCHMARK_EVALUATION: allocations-only
           DOKA_BENCHMARK_PROFILE: ${{ needs.resolve-targets.outputs.profile }}
           DOKA_BENCHMARK_RUN_ID: github-${{ github.run_id }}-${{ matrix.target }}
-          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-24.04-x64
+          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-26.04-x64
           DOKA_BENCHMARK_TARGET: ${{ matrix.target }}
         run: |
           diagnostic="artifacts/benchmarks/${DOKA_BENCHMARK_TARGET}/diagnostics/${DOKA_BENCHMARK_RUN_ID}.log"

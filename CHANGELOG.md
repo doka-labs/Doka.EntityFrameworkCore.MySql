@@ -35,6 +35,14 @@ dotnet package add Doka.Caching.MySql --version 10.6.2
   requiring a schema migration. Cover nullable properties, supported GUID
   formats, shared secondary columns, migration DDL and live generated-value
   readback on MySQL and MariaDB.
+- Create the integration runner's isolation parent on fresh checkouts even
+  when build and evidence outputs are redirected. Isolate its regression tests
+  from existing workspace artifacts; preserve unrelated outputs and reject an
+  unusable parent before starting target workers.
+- Preserve already converted physical-key literals during readback packet
+  costing and AUTO_INCREMENT zero checks. Convert parameterized model values
+  once; cover exact literal SQL, incompatible operation shapes and invalid
+  physical-key descriptors without weakening coverage thresholds.
 
 ### Added
 
@@ -71,6 +79,10 @@ dotnet package add Doka.Caching.MySql --version 10.6.2
   [evaluation policy](docs/operations/performance-evidence-reference.md#evaluation-policy).
 - Default local Rider/specification test execution to MariaDB 12.3 while
   retaining explicit engine-target overrides and the full supported matrix.
+- Pin every GitHub-hosted workflow to Ubuntu 26.04 and align benchmark runner
+  identity. Retain exact SDK selection and application requirements; register
+  the new label through Actionlint's native configuration without disabling
+  unknown-label checks.
 
 ## [10.6.1] - 2026-10-22
 

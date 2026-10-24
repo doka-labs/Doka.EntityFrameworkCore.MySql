@@ -123,7 +123,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
                 sqlCharacters += key.ParameterName!.Length + 1;
             }
 
-            var value = key.TypeMapping?.Converter?.ConvertToProvider(key.Value) ?? key.Value;
+            var value = GetProviderKeyValue(key);
             var valueBytes = value switch
             {
                 string text => (2L * Encoding.UTF8.GetByteCount(text)) + 2,
@@ -300,6 +300,21 @@ internal sealed partial class MySqlUpdateSqlGenerator
         return key;
     }
 
+    /// <summary>Respects EF's model-value and provider-literal descriptor boundary.</summary>
+    private static object? GetProviderKeyValue(
+        IColumnModification modification
+    )
+    {
+        var value = modification.Value;
+
+        // WHY: Parameterized descriptors carry model values, while EF's literal
+        // SQL generation already requires provider values. Converting those twice
+        // can throw or change the physical key used for readback.
+        return modification.UseCurrentValueParameter
+            ? modification.TypeMapping?.Converter?.ConvertToProvider(value) ?? value
+            : value;
+    }
+
     private static bool IsImplicitIdentityValue(
         IColumn column,
         IColumnModification modification
@@ -312,7 +327,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
         // WHY: A custom EF sentinel can make zero a written, non-temporary value.
         // MySQL still generates AUTO_INCREMENT for zero unless the session opts out.
-        var value = modification.TypeMapping?.Converter?.ConvertToProvider(modification.Value) ?? modification.Value;
+        var value = GetProviderKeyValue(modification);
 
         return value is (sbyte)0 or (byte)0 or (short)0 or (ushort)0 or 0 or 0U or 0L or 0UL;
     }

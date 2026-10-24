@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   schedule-identity:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Normal execution remains nonpublishing
@@ -48,7 +48,7 @@ jobs:
 
   scheduled-release-lines:
     if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 240
     permissions:
       contents: read
@@ -72,7 +72,7 @@ jobs:
 
   compatibility-matrix:
     needs: schedule-identity
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
 
     permissions:

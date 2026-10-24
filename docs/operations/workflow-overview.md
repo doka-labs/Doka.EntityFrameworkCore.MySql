@@ -39,6 +39,28 @@ grants a feature branch release authority.
 repository-wide supply-chain practices. It is not framework qualification or
 publication authority, and is not duplicated for each maintained platform line.
 
+### Hosted Runner Baseline
+
+All checked-in hosted jobs explicitly use `ubuntu-26.04` on x64, including
+release, security and benchmark jobs. The benchmark runner identity records
+the same image line. The OS label is deliberate; it does not freeze every
+tool or patch in GitHub's rolling image. `setup-dotnet` still selects the exact
+SDK in `global.json`, independent of the image's preinstalled SDKs. This CI
+host change does not raise application runtime or operating-system requirements.
+
+Ubuntu 26.04 is generally available and supported by .NET 10. See the
+[GitHub image announcement](https://github.com/actions/runner-images/issues/14747),
+[image inventory](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md)
+and [.NET 10 support table](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md).
+
+The pinned Actionlint 1.7.12 predates that label. Its
+[native label configuration](https://github.com/rhysd/actionlint/blob/v1.7.12/docs/config.md)
+registers only `ubuntu-26.04` in `.github/actionlint.yaml`. Despite the setting's
+`self-hosted-runner` name, it only extends the linter catalogue; GitHub still
+selects its hosted image. Unknown labels remain errors. Remove this entry when
+the pinned linter recognizes the label itself. Synthetic linter-only jobs and
+detached test fixtures are not hosted jobs and may retain older sample labels.
+
 ## 2. Schedules: Detect Drift Without Publishing
 
 | Cadence | Workflow | Purpose |

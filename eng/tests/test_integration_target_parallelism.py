@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -16,12 +17,24 @@ class IntegrationTargetParallelismTests(unittest.TestCase):
     """Exercise the real matrix script with a deterministic dotnet substitute."""
 
     def setUp(self) -> None:
-        """Give each case independent tool, event, and evidence paths."""
+        """Give each case independent repository, tool, event, and evidence paths."""
         temporary_directory = tempfile.TemporaryDirectory(prefix="doka-integration-targets-")
         self.addCleanup(temporary_directory.cleanup)
 
         self.root = Path(temporary_directory.name)
-        self.repository = Path(__file__).resolve().parents[2]
+        source_repository = Path(__file__).resolve().parents[2]
+        self.repository = self.root / "repository"
+        # WHY: Existing build outputs in the developer checkout must not hide
+        # initialization failures that a fresh CI checkout would expose.
+        for relative_path in (
+            "global.json",
+            "eng/testing/test-integration.sh",
+            "eng/common/verify-dotnet.sh",
+        ):
+            destination = self.repository / relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_repository / relative_path, destination)
+
         self.artifacts = self.root / "artifacts"
         self.events = self.root / "events.txt"
         self.barrier = self.root / "barrier"
@@ -168,6 +181,9 @@ esac
 
     def test_runs_two_targets_concurrently_without_exceeding_the_limit(self) -> None:
         """Overlap independent targets and preserve complete merged evidence."""
+        # Arrange
+        self.assertFalse((self.repository / "artifacts").exists())
+
         # Act
         result = self._run()
 
@@ -181,6 +197,39 @@ esac
             ["mariadb1011", "mariadb114", "mysql84"],
             [target["targetId"] for target in evidence["testDatabase"]["targets"]],
         )
+
+    def test_existing_artifact_root_preserves_unrelated_outputs(self) -> None:
+        """Remove only this run's isolated binaries from an existing artifact tree."""
+        # Arrange
+        artifact_root = self.repository / "artifacts"
+        artifact_root.mkdir()
+        sentinel = artifact_root / "unrelated-output.txt"
+        sentinel.write_text("preserve this output\n", encoding="ascii")
+
+        # Act
+        result = self._run()
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self._assert_isolated_outputs()
+        self.assertEqual("preserve this output\n", sentinel.read_text(encoding="ascii"))
+        self.assertEqual([sentinel], list(artifact_root.iterdir()))
+
+    def test_artifact_root_file_fails_before_starting_target_workers(self) -> None:
+        """Reject an unusable isolation parent without replacing existing content."""
+        # Arrange
+        artifact_root = self.repository / "artifacts"
+        artifact_root.write_text("existing file\n", encoding="ascii")
+
+        # Act
+        result = self._run()
+
+        # Assert
+        # WHY: mkdir diagnostics vary by platform; assert our failure contract
+        # through the exit status, no worker startup and the preserved file.
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertFalse(self.events.exists())
+        self.assertEqual("existing file\n", artifact_root.read_text(encoding="ascii"))
 
     def test_failed_target_does_not_skip_other_targets_or_report_success(self) -> None:
         """Wait for every child and retain its failure after evidence merging."""

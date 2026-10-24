@@ -312,6 +312,8 @@ internal static partial class EngineeringSurfaceContract
             }
         }
 
+        // WHY: This synthetic job is only a linter input and never selects a
+        // hosted runner. Keep a label the pinned linter knows in isolated fixtures.
         wrapper.Append("jobs:\n  composite:\n    runs-on: ubuntu-24.04\n    steps:\n");
         for (var index = steps + 1; index < lines.Length; index++)
         {

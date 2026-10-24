@@ -31,7 +31,7 @@ env:
 
 jobs:
   preflight:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     outputs:
@@ -119,7 +119,7 @@ jobs:
 
   foundation:
     needs: preflight
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 35
 
     env:
@@ -171,7 +171,7 @@ jobs:
     needs:
       - preflight
       - foundation
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
@@ -240,7 +240,7 @@ jobs:
     needs:
       - preflight
       - foundation
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     permissions:
@@ -299,7 +299,7 @@ jobs:
       - foundation
       - engine-contracts
       - sbom
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
 
     permissions:
@@ -428,7 +428,7 @@ jobs:
     needs:
       - preflight
       - assemble
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     outputs:
@@ -553,7 +553,7 @@ jobs:
       - preflight
       - assemble
       - attest
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     concurrency:
       group: doka-publication

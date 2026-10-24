@@ -200,6 +200,13 @@ public sealed partial class MySqlGeneratedValueSqlTests
                 .HasConversion(new ValueConverter<ConvertedKey, int>(
                     key => key.Value,
                     value => new ConvertedKey(value)));
+
+            AddTable<ConvertedKey>(modelBuilder, "ConvertedIdentityRows").Property<ConvertedKey>("Id")
+                .HasConversion(new ValueConverter<ConvertedKey, int>(
+                    key => key.Value,
+                    value => new ConvertedKey(value)))
+                .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.AutoIncrement);
+
             AddNumericIdentityTable<sbyte>(modelBuilder, "SByteIdentityRows");
             AddNumericIdentityTable<byte>(modelBuilder, "ByteIdentityRows");
             AddNumericIdentityTable<short>(modelBuilder, "Int16IdentityRows");
