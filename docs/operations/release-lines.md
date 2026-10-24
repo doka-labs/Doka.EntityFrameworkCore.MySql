@@ -1,6 +1,6 @@
 # Release Lines
 
-Doka uses one release process for independently maintained framework lines.
+Doka 10.6.2 prepares one release process for independently maintained framework lines.
 [D-030](../decisions/D-030-release-lines-and-monotonic-publication.md) records
 the decision. The [workflow overview](workflow-overview.md) maps PR checks,
 schedules and publication; [release governance](../release-governance.md)

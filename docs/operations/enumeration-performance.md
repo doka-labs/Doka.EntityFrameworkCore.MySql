@@ -5,6 +5,10 @@ show useful savings. This is not a general preference for `for`: concrete array,
 string, JSON DOM, dictionary, and stack enumerators remain unchanged. Some
 interface enumerations are already allocation-free under the .NET 10 JIT.
 
+The retained optimizations are included in
+[10.6.2](../../CHANGELOG.md#1062---2026-10-24). The measurements below retain
+their original baseline, execution date and verification scope.
+
 ## Measurement conditions
 
 The 2026-10-22 experiment compared baseline

@@ -490,9 +490,9 @@ Default resolution follows the property's actual table mappings, including
 secondary Entity Splitting fragments. A GUID column need not exist on the
 entity's primary table. Shared SQL/computed expressions and literal defaults
 are resolved from the same physical column, not another column on a shared
-table. Explicit generation choices still take precedence. The development
-correction for the 10.6.1 secondary-fragment regression changes metadata lookup,
-not the physical schema; keep deployed migrations intact.
+table. Explicit generation choices still take precedence. Version 10.6.2
+corrects the 10.6.1 secondary-fragment regression through metadata lookup,
+not a physical schema change; keep deployed migrations intact.
 
 Explicit `UseMySqlClientGuidValueGeneration()`,
 `HasMySqlValueGenerationStrategy(...)`, application generator factories, and

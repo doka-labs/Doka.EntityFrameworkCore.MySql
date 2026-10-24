@@ -98,7 +98,13 @@ spatial store type, including store types with modifiers.
 ### GUID SQL defaults
 
 Version 10.6.1 corrects implicit client generation that could bypass a GUID SQL
-default. Before upgrading from 10.6.0 or earlier:
+default. Use 10.6.2 or later to also include the correction for secondary Entity
+Splitting tables and shared-column defaults. A GUID property does not need a
+column in the entity's primary table. Version 10.6.2 resolves defaults through
+the property's actual physical table mappings without changing the schema or
+requiring deployed migrations to be replaced.
+
+Before upgrading from 10.6.0 or earlier:
 
 1. Decide whether each affected property should use server or client generation.
    Explicit client strategies and application generator factories are preserved;

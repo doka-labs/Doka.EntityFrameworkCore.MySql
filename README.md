@@ -114,23 +114,28 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.1` fixes GUID SQL defaults and computed-value generation without adding
-public APIs or changing GUID storage defaults. Explicit client-generation
-choices remain authoritative. MariaDB reads server-generated UUID keys through
-`RETURNING`; MySQL rejects an insert whose generated key cannot be read back
-unambiguously. Review the [GUID generation and upgrade guidance][guid-sql-defaults]
-when upgrading a model with SQL-generated GUIDs or older snapshots.
+`10.6.2` corrects a 10.6.1 model-initialization regression for GUID properties
+in secondary Entity Splitting tables and preserves shared-column defaults.
+The correction requires no physical schema migration. Review the
+[GUID generation and upgrade guidance][guid-sql-defaults] for explicit
+client-generation choices, SQL defaults and existing snapshots.
 
-The release also separates large implementation and test classes by
-responsibility and adds independent regression cases. EF Core requirements,
-supported engines, and the multiple-parameter collection default are unchanged.
+Measured hot-path changes reduce enumeration allocations in write, query and
+migration-command processing without changing SQL or result semantics. The
+[measurement report][enumeration-performance] records the
+tested methods and limits; it does not promise application-wide latency gains.
+
+Release tooling supports the independently maintained lines described above.
+Hosted benchmark timing remains diagnostic, while allocation and resource
+checks remain enforced. Public APIs, EF Core requirements, supported engines,
+GUID storage defaults and the multiple-parameter collection default are unchanged.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.1 before upgrading the provider.
+its published dependency range includes 10.6.2 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.2
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -587,6 +592,7 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [migrating-from-pomelo]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migrating-from-pomelo.md
 [openssf-best-practices]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/openssf-best-practices.md
 [performance-evidence]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-evidence.md
+[enumeration-performance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/enumeration-performance.md
 [project-governance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/GOVERNANCE.md
 [project-roadmap]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/ROADMAP.md
 [provider-architecture]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/architecture.md

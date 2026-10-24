@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Pending release
+## [10.6.2] - 2026-10-24
+
+Stable patch release correcting GUID generation metadata for Entity Splitting
+and shared defaults, with measured hot-path allocation reductions. Public APIs,
+dependency ranges, supported engines, GUID storage defaults, and collection
+parameter defaults remain unchanged. All three packages use the same version.
+
+The GUID correction changes model metadata lookup, not the physical schema;
+keep deployed migration history intact. Performance measurements concern the
+documented complete provider methods and do not establish application-wide
+latency or database-throughput improvements. See
+[GUID SQL defaults](docs/operations/migrations.md#guid-sql-defaults) and the
+[enumeration measurements](docs/operations/enumeration-performance.md).
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.2
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.2
+dotnet package add Doka.Caching.MySql --version 10.6.2
+```
 
 ### Fixed
 
@@ -17,6 +35,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   requiring a schema migration. Cover nullable properties, supported GUID
   formats, shared secondary columns, migration DDL and live generated-value
   readback on MySQL and MariaDB.
+
+### Added
+
+- Prepare independently qualified framework release lines through the existing
+  release workflow, with exact branch, version, channel and toolchain checks.
+  Main remains active; `maintenance/10.x` and optional `preview/11.x` remain
+  inactive until separately introduced. Preserve personal signed tags, the
+  existing `nuget` environment, single-maintainer approval and administrator
+  bypass. See [release lines](docs/operations/release-lines.md).
+- Add branch-native scheduled checks, daily direct/transitive NuGet advisory
+  audits and line-aware Dependabot targets for active lines. Add an exact public
+  RC consumer fixture for downstream preparation without activating a preview
+  route or publishing an RC. See
+  [dependency audits](docs/security/dependency-audits.md).
+
+### Changed
+
+- Reduce measured enumeration allocations in write-command costing and SQL
+  generation, stored-procedure output propagation, JSON path rendering,
+  parameter-dependent limit processing and scoped migration-command validation.
+  Retain existing snapshots and SQL/result semantics; use indexed access only
+  where complete-method measurements justify it. No general loop-style rule or
+  portable latency guarantee is introduced.
+- Bind publication to current protected-main release authority and the exact
+  qualified candidate. Preserve same-run, exact-byte recovery; serialize
+  publishers and prevent older stable releases from replacing a higher stable
+  GitHub Latest version. Add qualification-only execution and document the
+  release, retry and later line-activation procedures.
+- Treat hosted benchmark timing, GC frequency, process-memory growth and
+  throughput thresholds as diagnostics. Continue enforcing allocation budgets,
+  complete evidence, correctness and explicit resource-ownership invariants.
+  Local full-mode investigations retain timing thresholds; infrastructure
+  failures and timeouts can still fail either mode. See the
+  [evaluation policy](docs/operations/performance-evidence-reference.md#evaluation-policy).
+- Default local Rider/specification test execution to MariaDB 12.3 while
+  retaining explicit engine-target overrides and the full supported matrix.
 
 ## [10.6.1] - 2026-10-22
 
@@ -1519,6 +1573,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
+[10.6.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.2
 [10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1
 [10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
 [10.5.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.5.0
