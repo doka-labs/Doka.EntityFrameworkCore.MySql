@@ -115,6 +115,7 @@ runs:
           --observation-output "${publication_evidence}/authorization-observation.json"
 
     # WHY: Persist admission before the first remote write so retries cannot gain new authority.
+    # The repository caps this evidence at 30 days, like other release artifacts.
     - name: Freeze publication admission for same-run recovery
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
@@ -123,7 +124,7 @@ runs:
           artifacts/release-publication/publication-admission.json
           artifacts/release-publication/authorization-observation.json
         if-no-files-found: error
-        retention-days: 90
+        retention-days: 30
 
     - name: Recheck current authority before publication binding
       env:

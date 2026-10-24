@@ -84,13 +84,14 @@ jobs:
             exit 1
           fi
 
+      # WHY: Frozen authority must respect the repository's 30-day artifact cap.
       - name: Upload frozen line authorization
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.authority.outputs.line_artifact_name }}
           path: artifacts/release-lines
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
 
       - name: Verify imported repository qualification
         env:

@@ -115,7 +115,7 @@ public sealed partial class AdrRepositoryValidatorTests
         // Assert
         Assert.True(admission >= 0 && durableAdmission > admission);
         Assert.True(binding > durableAdmission && draft > binding && login > draft);
-        Assert.Contains("retention-days: 90", publisher, StringComparison.Ordinal);
+        Assert.Contains("retention-days: 30", publisher[durableAdmission..binding], StringComparison.Ordinal);
         Assert.Contains("authorization-observation.json", publisher, StringComparison.Ordinal);
         Assert.Contains("current-authorization-observation.json", publisher, StringComparison.Ordinal);
         Assert.DoesNotContain("secrets.NUGET_API_KEY", publisher, StringComparison.Ordinal);
