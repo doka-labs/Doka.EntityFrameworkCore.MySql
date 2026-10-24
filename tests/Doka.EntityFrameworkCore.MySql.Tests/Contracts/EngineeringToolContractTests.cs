@@ -7,6 +7,82 @@ public sealed class EngineeringToolContractTests
 {
     private static readonly string[] s_auditSources = ["https://api.nuget.org/v3/index.json"];
 
+    /// <summary>Uses the repository coverage tool and preserves errors even when a global tool exists.</summary>
+    /// <param name="restoreExitCode">The declared local tool's restore result.</param>
+    /// <param name="generatorExitCode">The declared local generator's result.</param>
+    /// <param name="expectedExitCode">The expected merge-script result.</param>
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(7, 0, 7)]
+    [InlineData(0, 17, 17)]
+    public void Coverage_merge_uses_the_manifest_tool_and_preserves_failures(
+        int restoreExitCode,
+        int generatorExitCode,
+        int expectedExitCode
+    )
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var repositoryRoot = FindRepositoryRoot();
+        using var directory = new TemporaryDirectory();
+        var input = Path.Combine(directory.Path, "input");
+        var output = Path.Combine(directory.Path, "output");
+        Directory.CreateDirectory(input);
+        File.WriteAllText(Path.Combine(input, "coverage.cobertura.xml"), "<coverage />");
+        WriteExecutable(Path.Combine(directory.Path, "dotnet"), $$"""
+            #!/usr/bin/env bash
+            set -euo pipefail
+            tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            case "$*" in
+                "run --project "*) exit 0 ;;
+                "tool restore")
+                    echo restore >> "${tool_root}/events"
+                    exit {{restoreExitCode}}
+                    ;;
+                "tool run reportgenerator "*)
+                    echo manifest-generator >> "${tool_root}/events"
+                    if [[ "{{generatorExitCode}}" != "0" ]]; then
+                        exit {{generatorExitCode}}
+                    fi
+
+                    for argument in "$@"; do
+                        if [[ "${argument}" == -targetdir:* ]]; then
+                            printf '<coverage />' > "${argument#-targetdir:}/Cobertura.xml"
+                        fi
+                    done
+                    ;;
+                *) exit 42 ;;
+            esac
+            """);
+        WriteExecutable(Path.Combine(directory.Path, "reportgenerator"), """
+            #!/usr/bin/env bash
+            tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            echo global-generator >> "${tool_root}/events"
+            exit 99
+            """);
+
+        // Act
+        var result = Run(
+            repositoryRoot,
+            Path.Combine(repositoryRoot, "eng/quality/merge-coverage.sh"),
+            ("PATH", directory.Path + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH")),
+            input,
+            output);
+
+        // Assert
+        Assert.Equal(expectedExitCode, result.ExitCode);
+        var events = File.ReadAllText(Path.Combine(directory.Path, "events"));
+
+        Assert.DoesNotContain("global-generator", events, StringComparison.Ordinal);
+        Assert.Contains("restore", events, StringComparison.Ordinal);
+        Assert.Equal(restoreExitCode == 0, events.Contains("manifest-generator", StringComparison.Ordinal));
+        Assert.Equal(expectedExitCode == 0, File.Exists(Path.Combine(output, "coverage.cobertura.xml")));
+    }
+
     /// <summary>Verifies hosted results preserve both benchmark failures and diagnostic-write failures.</summary>
     /// <param name="benchmarkExitCode">The benchmark process result.</param>
     /// <param name="teeExitCode">The diagnostic writer result.</param>

@@ -11,6 +11,8 @@ questions and private reporting channels are routed through
   pinned in [`global.json`](global.json)
 - [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
 - [ShellCheck](https://www.shellcheck.net) -- required by the quality gate, which the `pre-commit` hook runs
+- Python 3.11 or later with `venv` and `pip` -- required when automatically
+  provisioning the pinned Zizmor workflow auditor
 
 ```bash
 brew install shellcheck        # macOS

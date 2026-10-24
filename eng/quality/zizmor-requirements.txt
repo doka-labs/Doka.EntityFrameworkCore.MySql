@@ -6,7 +6,7 @@
 #
 # Refresh procedure when the version changes:
 #   python3 -c "import json,urllib.request;d=json.loads(urllib.request.urlopen('https://pypi.org/pypi/zizmor/<version>/json').read());[print(f['filename'],f['digests']['sha256']) for f in d['urls']]"
-zizmor==1.29.0 \
-    --hash=sha256:ea72f84d610643d57f96430c655a3780d0b874e477d32e14eae8e910f6cce1fd \
-    --hash=sha256:5aafe617d7b1e0c0c15d58fdf20495f360f74a791dfa136f76630b4cc06c2a34 \
-    --hash=sha256:587b99c2e1b34575c6c8565c2bfde415ca8bc0310f5589f19bc948c8dea10a20
+zizmor==1.31.1 \
+    --hash=sha256:58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410 \
+    --hash=sha256:4a70ee3c2721122aff04d5bbad5e448d15384f45de2ecb3c9493fe9dac2bc95f \
+    --hash=sha256:9696d3c10919a3a2eb086c102f1bc10717f53ef3700a0d6c55a709c274995476
