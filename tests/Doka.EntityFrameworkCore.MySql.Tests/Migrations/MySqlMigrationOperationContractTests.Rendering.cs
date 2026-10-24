@@ -3,6 +3,14 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>Verifies recursive rendering, concurrent rendering, and context deactivation leases.</summary>
 public sealed partial class MySqlMigrationOperationContractTests
 {
+    // WHY: Blocking lease probes must leave the runner's shared thread pool
+    // available for the test coordinator, including on small CI runners.
+    private static readonly TaskFactory s_renderWorkers = new(
+        CancellationToken.None,
+        TaskCreationOptions.LongRunning,
+        TaskContinuationOptions.None,
+        TaskScheduler.Default);
+
     /// <summary>
     /// Verifies recursive standard rendering is rejected.
     /// </summary>
@@ -55,32 +63,37 @@ public sealed partial class MySqlMigrationOperationContractTests
             {
                 rendererEntered.TrySetResult();
 
-                // Rendering is a synchronous provider contract. Hold this worker
-                // deliberately while the async test probes the concurrent caller.
-                return releaseRenderer.Wait(TimeSpan.FromSeconds(5))
-                    ? [MySqlMigrationCommandSpec.Create("SELECT 1;")]
-                    : throw new TimeoutException("The concurrent-render test did not release its first renderer.");
+                // WHY: The owner releases this synchronous callback in finally;
+                // an independent deadline would race a delayed test continuation.
+                releaseRenderer.Wait();
+
+                return [MySqlMigrationCommandSpec.Create("SELECT 1;")];
             });
 
-        // Act
-        var activeRender = Task.Run(
-            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }),
-            CancellationToken.None);
-
+        Task<Exception?>? concurrentProbe = null;
         Exception? recordedException;
+
+        // Act
+        var activeRender = s_renderWorkers.StartNew(
+            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }));
 
         try
         {
             await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            recordedException = Record.Exception(() =>
-                context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 2;" }));
+            // WHY: A broken concurrency guard can enter the blocking callback.
+            // Keep the coordinator free to time out and release both renderers.
+            concurrentProbe = s_renderWorkers.StartNew<Exception?>(() => Record.Exception(() =>
+                context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 2;" })));
+
+            recordedException = await concurrentProbe.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         }
         finally
         {
-            // WHY: A failed coordination step must release and drain the first
-            // synchronous render before its wait handle is disposed.
+            // WHY: A failed coordination step must release and drain both
+            // synchronous renderers before their wait handle is disposed.
             releaseRenderer.Set();
-            _ = await activeRender;
+            await Task.WhenAll(activeRender, concurrentProbe ?? Task.CompletedTask)
+                .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         }
 
         // Assert
@@ -97,7 +110,6 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var rendererEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var releaseRenderer = new ManualResetEventSlim();
-        var deactivationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 11));
         var context = new MySqlMigrationOperationContext(
             new CustomOperation(),
@@ -111,17 +123,15 @@ public sealed partial class MySqlMigrationOperationContractTests
             {
                 rendererEntered.TrySetResult();
 
-                // Rendering is a synchronous provider contract. Hold this worker
-                // deliberately until the async test observes the expiring lease.
-                if (!releaseRenderer.Wait(TimeSpan.FromSeconds(5)))
-                {
-                    throw new TimeoutException("The deactivation test did not release its renderer.");
-                }
+                // WHY: The lease remains contested until its owner releases it;
+                // only the coordinator's waits and cleanup have deadlines.
+                releaseRenderer.Wait();
 
                 return [MySqlMigrationCommandSpec.Create("SELECT 1;")];
             });
 
         Task? deactivation = null;
+        Task<bool>? expirationProbe = null;
         Task? prematureCompletion;
         MySqlMigrationOperationHandlerException? expiredException = null;
         bool observedExpiration;
@@ -129,25 +139,16 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Act
         // WHY: Observing the expiring lease and blocking deactivation needs one
         // active render; releasing it earlier would skip the contested state.
-        var activeRender = Task.Run(
-            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }),
-            CancellationToken.None);
+        var activeRender = s_renderWorkers.StartNew(
+            () => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" }));
 
         try
         {
             await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            deactivation = Task.Run(() =>
-            {
-                deactivationStarted.TrySetResult();
-                context.Deactivate();
-            }, CancellationToken.None);
-
-            await deactivationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            prematureCompletion = await Task.WhenAny(
-                deactivation,
-                Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None));
-
-            observedExpiration = SpinWait.SpinUntil(
+            deactivation = s_renderWorkers.StartNew(context.Deactivate);
+            // WHY: Probe the actual closed lease rather than a signal emitted
+            // before Deactivate enters it. A broken guard must not block cleanup.
+            expirationProbe = s_renderWorkers.StartNew(() => SpinWait.SpinUntil(
                 () =>
                 {
                     try
@@ -169,25 +170,23 @@ public sealed partial class MySqlMigrationOperationContractTests
                         return true;
                     }
                 },
-                TimeSpan.FromSeconds(1));
+                TimeSpan.FromSeconds(1)));
+
+            observedExpiration = await expirationProbe.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            prematureCompletion = await Task.WhenAny(
+                deactivation,
+                Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None));
         }
         finally
         {
-            // WHY: Both workers must finish even if the contested-state probe
-            // times out, so a failing test cannot leave a blocked render behind.
+            // WHY: Release every callback before draining the owned workers.
+            // A missing monitor pulse must fail within a bound instead of hanging.
             releaseRenderer.Set();
-
-            try
-            {
-                _ = await activeRender;
-            }
-            finally
-            {
-                if (deactivation is not null)
-                {
-                    await deactivation;
-                }
-            }
+            await Task.WhenAll(
+                    activeRender,
+                    deactivation ?? Task.CompletedTask,
+                    expirationProbe ?? Task.CompletedTask)
+                .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         }
 
         // Assert

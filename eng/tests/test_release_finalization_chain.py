@@ -68,6 +68,34 @@ def shell_commands(path: Path, module: str) -> list[list[str]]:
 class ReleaseLineWorkflowSeamTests(unittest.TestCase):
     """Exercise the actual publisher/qualifier command and artifact boundaries."""
 
+    def test_artifact_retention_respects_the_repository_limit(self) -> None:
+        """Reject upload durations GitHub would clamp below the requested lifetime."""
+        # Arrange
+        # WHY: D-025 records the hosted 30-day cap; longer retention requires
+        # an approved repository policy change before workflow values increase.
+        maximum_days = 30
+        paths = sorted(
+            path
+            for directory in (REPOSITORY_ROOT / ".github/workflows", REPOSITORY_ROOT / ".github/actions")
+            for pattern in ("*.yml", "*.yaml")
+            for path in directory.rglob(pattern)
+        )
+
+        # Act
+        # WHY: Quoting or commenting a duration must not hide it from the cap;
+        # non-literal values fail conversion instead of being silently ignored.
+        retention = [
+            (str(path.relative_to(REPOSITORY_ROOT)), int(value.partition("#")[0].strip().strip("'\"")))
+            for path in paths
+            for value in re.findall(r"(?m)^[ \t]*retention-days:[ \t]*([^\r\n]*)$", path.read_text(encoding="ascii"))
+        ]
+
+        excessive = [(path, days) for path, days in retention if days > maximum_days]
+
+        # Assert
+        self.assertTrue(retention)
+        self.assertEqual([], excessive)
+
     def test_release_lines_add_no_handoff_controller_or_readiness_subsystem(self) -> None:
         """The ordinary release entry must not require the withdrawn operations framework."""
         # Arrange

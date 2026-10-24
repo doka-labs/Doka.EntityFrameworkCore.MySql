@@ -27,6 +27,12 @@ dotnet package add Doka.Caching.MySql --version 10.6.2
 
 ### Fixed
 
+- Isolate blocking migration-render lease probes from the test runner's thread
+  pool. Release callbacks through owner-controlled cleanup and bound all probes
+  and worker draining, preserving concurrency and deactivation regressions.
+- Align frozen release-line authorization and publication-admission uploads
+  with the repository's 30-day artifact limit. Avoid retention-clamping warnings
+  without changing the effective evidence lifetime or exact-byte retry checks.
 - Correct a 10.6.1 regression that prevented model initialization when a GUID
   property belonged only to a secondary Entity Splitting table. Resolve SQL,
   computed and literal defaults through actual property mappings in both the
