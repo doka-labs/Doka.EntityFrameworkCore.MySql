@@ -75,6 +75,17 @@ Building the repository itself requires the exact .NET SDK declared in
 [`global.json`][global-json]. Docker is required only for live integration,
 example, benchmark, and release-qualification runs.
 
+The current stable line remains .NET 10. The prepared release-line contract
+reserves `maintenance/10.x` for later 10.x servicing and optional `preview/11.x`
+for independently qualified platform RCs; both routes are initially inactive.
+It does not activate .NET 11 publication or change application requirements.
+The same release workflow selects an authorized branch and canonical version;
+personal signed tags, single-maintainer approval and administrator bypass stay
+unchanged, using the existing `nuget` environment. Ordinary releases need
+no manual inventory or new configuration ceremony.
+See [release lines][release-lines] and the
+[support policy][support] for activation, exact RC consumption and lifecycle.
+
 ## Install
 
 The following .NET 10 command installs the latest stable provider package and
@@ -531,6 +542,7 @@ ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
 - [Security policy][security-policy]
 - [Security assurance case][security-assurance-case]
 - [Release verification][release-verification]
+- [Release lines][release-lines]
 - [Project governance][project-governance]
 - [Project roadmap][project-roadmap]
 - [OpenSSF Best Practices evidence][openssf-best-practices]
@@ -581,6 +593,7 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [provider-configuration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md
 [query-functions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/query-functions.md
 [release-verification]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/release-verification.md
+[release-lines]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md
 [runnable-examples]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/examples/README.md
 [security-assurance-case]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/assurance-case.md
 [security-policy]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SECURITY.md

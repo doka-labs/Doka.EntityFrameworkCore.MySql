@@ -2,6 +2,31 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class AdrRepositoryValidatorTests
 {
+    /// <summary>Verifies scheduled and manual hosted benchmarks retain the non-timing policy.</summary>
+    /// <param name="replacement">The evaluation policy to validate.</param>
+    /// <param name="accepted">Whether the policy preserves hosted safety.</param>
+    [Theory]
+    [InlineData("allocations-only", true)]
+    [InlineData("full", false)]
+    [InlineData("", false)]
+    public void Hosted_benchmark_contract_rejects_hardware_sensitive_enforcement(
+        string replacement,
+        bool accepted
+    )
+    {
+        // Arrange
+        var path = Path.Combine(FindRepositoryRoot(), ".github", "workflows", "benchmark.yml");
+        var workflow = File.ReadAllText(path).Replace(
+            "DOKA_BENCHMARK_EVALUATION: allocations-only",
+            $"DOKA_BENCHMARK_EVALUATION: {replacement}", StringComparison.Ordinal);
+
+        // Act
+        var errors = EngineeringSurfaceContract.ValidateHostedBenchmarkWorkflow(workflow);
+
+        // Assert
+        Assert.Equal(accepted, errors.Count == 0);
+    }
+
     /// <summary>Verifies benchmark ratios use a target-specific evidence directory.</summary>
     [Fact]
     public void Benchmark_gate_reads_target_scoped_reports()

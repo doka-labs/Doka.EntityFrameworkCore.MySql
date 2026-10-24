@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -22,11 +23,14 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from . import evidence as release_evidence
+from . import lines as release_lines
 from . import nuget as nuget_publication
+from . import publication as release_publication
 from . import provenance as release_provenance
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+LEGACY_SCHEMA_VERSION = 3
 GITHUB_API_VERSION = "2022-11-28"
 READBACK_DELAY_SECONDS = 2.0
 SHA1 = re.compile(r"[0-9a-f]{40}")
@@ -94,6 +98,12 @@ class ReleaseClient(Protocol):
 
     def is_latest(self, repository: str, release_id: int) -> bool:
         """Return whether GitHub exposes the release as the latest release."""
+
+    def get_latest(self, repository: str) -> dict[str, Any] | None:
+        """Read the complete current Latest identity, not merely one ID match."""
+
+    def resolve_tag(self, repository: str, tag: str) -> str:
+        """Resolve an annotated remote release tag to its immutable commit."""
 
 
 def read_json(path: Path, label: str) -> dict[str, Any]:
@@ -545,13 +555,16 @@ def validate_staged_evidence(
     trust = read_json(trust_path, "release tag trust-root receipt")
     if (
         sha256_file(trust_path) != receipt["tagTrustRootSha256"]
-        or trust.get("schemaVersion") != 2
+        or trust.get("schemaVersion") != (3 if "releaseLine" in receipt else 2)
         or trust.get("kind") != "release-tag-trust-root"
         or trust.get("repository") != receipt["repository"]
         or trust.get("tag") != receipt["releaseTag"]
         or trust.get("commit") != receipt["sourceCommit"]
     ):
         raise GitHubReleaseError("Release tag trust-root evidence is invalid.")
+
+    if "releaseLine" in receipt and trust.get("releaseLine") != receipt["releaseLine"]:
+        raise GitHubReleaseError("Release tag trust root belongs to a different release line.")
 
     symbol_manifest = read_json(
         paths["symbol-readback-manifest.json"],
@@ -625,6 +638,10 @@ def validate_staged_evidence(
             paths[release_provenance.PORTABLE_PROVENANCE_NAME],
             provenance_subjects,
             require_exact=False,
+            release_manifest=(
+                read_json(candidate_root / release_evidence.MANIFEST_NAME, "release manifest")
+                if "releaseLine" in receipt else None
+            ),
         )
     except release_provenance.ProvenanceError as exception:
         raise GitHubReleaseError(
@@ -676,7 +693,7 @@ def build_release_plan(
         manifest.get("releaseCandidateRunId") != candidate_run_id
         or manifest.get("releaseVersion") != version
         or manifest.get("expectedReleaseTag") != tag
-        or source.get("ref") != "refs/heads/main"
+        or source.get("ref") != receipt.get("sourceRef")
         or source.get("tag") is not None
         or source.get("commit") != source_commit
         or nuget_publication.normalize_repository(str(source.get("repository", "")))
@@ -760,8 +777,9 @@ def build_release_plan(
 
     notes = extract_release_notes(changelog.resolve(), version)
     prerelease = "-" in version
-    return {
-        "schemaVersion": SCHEMA_VERSION,
+    current_schema = receipt.get("schemaVersion") == nuget_publication.PUBLICATION_RECEIPT_SCHEMA_VERSION
+    plan = {
+        "schemaVersion": SCHEMA_VERSION if current_schema else LEGACY_SCHEMA_VERSION,
         "phase": "staged",
         "repository": repository,
         "releaseTag": tag,
@@ -769,11 +787,25 @@ def build_release_plan(
         "sourceCommit": source_commit,
         "name": f"Doka.EntityFrameworkCore.MySql {version}",
         "prerelease": prerelease,
-        "latest": not prerelease,
+        "latest": False if current_schema else not prerelease,
         "notes": notes,
         "notesSha256": sha256_bytes(notes.encode("utf-8")),
         "assets": assets,
     }
+    if current_schema:
+        plan.update(
+            {
+                "releaseLine": receipt["releaseLine"],
+                "sourceRef": receipt["sourceRef"],
+                "workflowRef": receipt["workflowRef"],
+                "toolchain": receipt["toolchain"],
+                "publicationAdmission": receipt["publicationAdmission"],
+                "publicationAuthority": receipt["publicationAuthority"],
+                "promotionIntent": "never" if prerelease else "monotonic-stable",
+            }
+        )
+
+    return plan
 
 
 def validate_plan(plan: dict[str, Any]) -> None:
@@ -782,16 +814,21 @@ def validate_plan(plan: dict[str, Any]) -> None:
     tag = str(plan.get("releaseTag", ""))
     source_commit = str(plan.get("sourceCommit", ""))
     notes = str(plan.get("notes", ""))
+    schema = plan.get("schemaVersion")
     if (
-        plan.get("schemaVersion") != SCHEMA_VERSION
+        type(schema) is not int
+        or schema not in (LEGACY_SCHEMA_VERSION, SCHEMA_VERSION)
         or plan.get("phase") != "staged"
         or not REPOSITORY.fullmatch(str(plan.get("repository", "")))
         or tag != f"v{version}"
         or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(tag)
         or not SHA1.fullmatch(source_commit)
         or plan.get("name") != f"Doka.EntityFrameworkCore.MySql {version}"
+        or type(plan.get("prerelease")) is not bool
+        or type(plan.get("latest")) is not bool
         or plan.get("prerelease") != ("-" in version)
-        or plan.get("latest") != ("-" not in version)
+        or (schema == LEGACY_SCHEMA_VERSION and plan.get("latest") != ("-" not in version))
+        or (schema == SCHEMA_VERSION and plan.get("latest") is not False)
         or not notes
         or plan.get("notesSha256") != sha256_bytes(notes.encode("utf-8"))
     ):
@@ -818,6 +855,70 @@ def validate_plan(plan: dict[str, Any]) -> None:
         ):
             raise GitHubReleaseError(f"GitHub release plan asset is invalid: {name}")
         names.add(name)
+
+    if schema == LEGACY_SCHEMA_VERSION:
+        if any(field in plan for field in (
+            "releaseLine", "promotionIntent", "publicationAdmission", "publicationAuthority"
+        )):
+            raise GitHubReleaseError("Historical GitHub plan cannot discard release-line identity.")
+
+        return
+
+    if plan.get("promotionIntent") != ("never" if plan["prerelease"] else "monotonic-stable"):
+        raise GitHubReleaseError("GitHub release promotion intent conflicts with its release class.")
+
+    publication_receipt, candidate_root = plan_publication_identity(plan)
+    for field in (
+        "releaseTag", "releaseVersion", "sourceCommit", "releaseLine", "sourceRef",
+        "workflowRef", "toolchain", "publicationAdmission", "publicationAuthority",
+    ):
+        if publication_receipt.get(field) != plan.get(field):
+            raise GitHubReleaseError(f"GitHub plan and publication {field} disagree.")
+
+    validate_candidate_receipt(publication_receipt, str(plan["repository"]), candidate_root)
+
+
+def plan_publication_identity(plan: dict[str, Any]) -> tuple[dict[str, Any], Path]:
+    """Locate the already checksum-bound publication identity in the staged plan."""
+    paths = {asset["name"]: Path(asset["path"]) for asset in plan["assets"]}
+    if "release-publication-receipt.json" not in paths or release_evidence.MANIFEST_NAME not in paths:
+        raise GitHubReleaseError("GitHub plan is missing its publication identity assets.")
+
+    receipt = read_json(paths["release-publication-receipt.json"], "release publication receipt")
+
+    return receipt, paths[release_evidence.MANIFEST_NAME].parent
+
+
+def validate_current_plan_authority(
+    args: argparse.Namespace, plan: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Check supplied current authority without changing any frozen plan asset."""
+    if plan["schemaVersion"] == LEGACY_SCHEMA_VERSION:
+        return None
+
+    receipt, candidate_root = plan_publication_identity(plan)
+    try:
+        nuget_publication.validate_current_publication(
+            argparse.Namespace(
+                candidate_root=candidate_root,
+                admission=getattr(args, "admission", None),
+                authority=getattr(args, "authority", None),
+            ),
+            receipt,
+        )
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(f"Current publication authority is invalid: {exception}") from exception
+
+    return read_json(args.authority, "current publication authority")
+
+
+def require_publisher_lock(plan: dict[str, Any]) -> None:
+    """Fail closed when a new publisher bypasses the shared cross-line lock."""
+    if plan["schemaVersion"] == SCHEMA_VERSION and (
+        os.environ.get("DOKA_PUBLICATION_LOCK_GROUP") != "doka-publication"
+        or os.environ.get("DOKA_PUBLICATION_LOCK_HELD") != "1"
+    ):
+        raise GitHubReleaseError("Release-line publication requires the shared publisher lock.")
 
 
 def run_git(repo: Path, *arguments: str) -> str:
@@ -911,6 +1012,13 @@ class GitHubCliClient:
         return matches[0] if matches else None
 
     def verify_tag(self, repository: str, tag: str, commit: str) -> None:
+        """Require the annotated remote tag to identify the expected commit."""
+        if self.resolve_tag(repository, tag) != commit:
+            raise GitHubReleaseError(
+                "GitHub release tag does not identify the planned source commit."
+            )
+
+    def resolve_tag(self, repository: str, tag: str) -> str:
         """Resolve the remote annotated tag chain to its final commit."""
         value = self._run_text("api", f"/repos/{repository}/git/ref/tags/{tag}")
         try:
@@ -952,11 +1060,13 @@ class GitHubCliClient:
             target = tag_object["object"]
             target_type = target.get("type")
             if target_type == "commit":
-                if target.get("sha") != commit:
+                commit = str(target.get("sha", ""))
+                if not SHA1.fullmatch(commit):
                     raise GitHubReleaseError(
-                        "GitHub release tag does not identify the planned source commit."
+                        "GitHub release tag commit identity is invalid."
                     )
-                return
+
+                return commit
             if target_type != "tag":
                 raise GitHubReleaseError(
                     "GitHub release tag must ultimately identify a commit."
@@ -989,8 +1099,9 @@ class GitHubCliClient:
             ]
             if plan["prerelease"]:
                 arguments.append("--prerelease")
-            if not plan["latest"]:
-                arguments.append("--latest=false")
+            # WHY: Staging must never promote a release before the serialized
+            # publisher has compared it with the current canonical Latest.
+            arguments.append("--latest=false")
             self._run_text(*arguments)
 
     def upload_assets(
@@ -1046,20 +1157,108 @@ class GitHubCliClient:
 
     def is_latest(self, repository: str, release_id: int) -> bool:
         """Compare the release with GitHub's canonical latest-release endpoint."""
+        latest = self.get_latest(repository)
+
+        return latest is not None and latest.get("id") == release_id
+
+    def get_latest(self, repository: str) -> dict[str, Any] | None:
+        """Read the complete Latest identity, distinguishing only HTTP 404."""
         value = self._run_text(
             "api",
             f"/repos/{repository}/releases/latest",
             allow_not_found=True,
         )
         if value is None:
-            return False
+            return None
+
         try:
             latest = json.loads(value)
         except json.JSONDecodeError as exception:
             raise GitHubReleaseError("GitHub returned invalid latest-release JSON.") from exception
         if not isinstance(latest, dict):
             raise GitHubReleaseError("GitHub returned an invalid latest-release object.")
-        return latest.get("id") == release_id
+
+        return latest
+
+
+def decide_latest(
+    plan: dict[str, Any],
+    client: ReleaseClient,
+    authority: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Compare stable identities immediately before a lock-protected publish."""
+    repository = str(plan["repository"])
+    latest = client.get_latest(repository)
+    if latest is None:
+        return {
+            "schemaVersion": 1,
+            "observedLatest": None,
+            "comparison": None,
+            "disposition": "not-promoted" if plan["prerelease"] else "promoted",
+            "authorization": authority,
+        }
+
+    release_id = latest.get("id")
+    tag = str(latest.get("tag_name", ""))
+    if (
+        isinstance(release_id, bool)
+        or not isinstance(release_id, int)
+        or release_id <= 0
+        or not tag.startswith("v")
+        or latest.get("draft") is not False
+        or latest.get("prerelease") is not False
+        or latest.get("immutable") is not True
+    ):
+        raise GitHubReleaseError("Current Latest release identity is invalid.")
+
+    try:
+        current = release_lines.parse_version(tag[1:])
+        order = release_lines.compare_versions(str(plan["releaseVersion"]), tag[1:])
+    except release_lines.LinePolicyError as exception:
+        raise GitHubReleaseError("Current Latest release identity is not canonical.") from exception
+
+    if current.is_prerelease:
+        raise GitHubReleaseError("Current Latest release identity is a prerelease.")
+
+    # WHY: target_commitish may name a mutable branch. Resolve the signed-tag
+    # identity instead, including when a newer major prevents promotion.
+    commit = client.resolve_tag(repository, tag)
+    if not SHA1.fullmatch(commit):
+        raise GitHubReleaseError("Current Latest release commit identity is invalid.")
+
+    if order == 0:
+        # WHY: An exact already-published identity is reconciled before this
+        # draft-only branch. A second release with its version is a conflict.
+        raise GitHubReleaseError("Current Latest conflicts with the draft release identity.")
+
+    return {
+        "schemaVersion": 1,
+        "observedLatest": {
+            "releaseId": release_id,
+            "releaseTag": tag,
+            "releaseVersion": tag[1:],
+            "sourceCommit": commit,
+        },
+        "comparison": order,
+        "disposition": "promoted" if not plan["prerelease"] and order > 0 else "not-promoted",
+        "authorization": authority,
+    }
+
+
+def verify_historical_classification(
+    release: dict[str, Any],
+    plan: dict[str, Any],
+    client: ReleaseClient,
+) -> None:
+    """Preserve immutable history without requiring a stable release to stay Latest."""
+    release_id = release.get("id")
+    if isinstance(release_id, bool) or not isinstance(release_id, int) or release_id <= 0:
+        raise GitHubReleaseError("Published GitHub release identity is invalid.")
+
+    # WHY: Stable releases legitimately cease to be Latest. A preview must
+    # never gain that role, even during historical retry reconciliation.
+    if plan["prerelease"] and client.is_latest(str(plan["repository"]), release_id):
+        raise GitHubReleaseError("Published GitHub release latest status conflicts.")
 
 
 def verify_release_metadata(
@@ -1161,6 +1360,9 @@ def wait_for_complete_assets(
 def build_receipt(
     release: dict[str, Any],
     plan: dict[str, Any],
+    latest: bool | None = None,
+    *,
+    promotion: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the durable finalization receipt from verified remote state."""
     release_id = release.get("id")
@@ -1180,8 +1382,15 @@ def build_receipt(
         raise GitHubReleaseError("Published GitHub release identity is incomplete.")
 
     remote_assets = {asset["name"]: asset for asset in release["assets"]}
-    return {
-        "schemaVersion": SCHEMA_VERSION,
+    if latest is None:
+        observed_latest = plan["latest"] if plan["schemaVersion"] == LEGACY_SCHEMA_VERSION else False
+        latest_decision = "historical-no-promotion"
+    else:
+        observed_latest = latest
+        latest_decision = "promoted" if latest else "not-promoted"
+
+    receipt = {
+        "schemaVersion": plan["schemaVersion"],
         "status": "published-and-verified",
         "repository": plan["repository"],
         "releaseId": release_id,
@@ -1192,7 +1401,7 @@ def build_receipt(
         "publishedAt": published_at,
         "immutable": True,
         "prerelease": plan["prerelease"],
-        "latest": plan["latest"],
+        "latest": observed_latest,
         "notesSha256": plan["notesSha256"],
         "assets": [
             {
@@ -1204,6 +1413,20 @@ def build_receipt(
             for asset in plan["assets"]
         ],
     }
+    if plan["schemaVersion"] == SCHEMA_VERSION:
+        if promotion is None:
+            raise GitHubReleaseError("Current GitHub readback requires durable promotion evidence.")
+
+        receipt.update(
+            {
+                "releaseLine": plan["releaseLine"],
+                "promotionIntent": plan["promotionIntent"],
+                "latestDecision": latest_decision,
+                "promotion": promotion,
+            }
+        )
+
+    return receipt
 
 
 def finalize_release(
@@ -1211,6 +1434,8 @@ def finalize_release(
     client: ReleaseClient,
     sleep: Callable[[float], None] = time.sleep,
     readback_attempts: int = 6,
+    *,
+    authority: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Finalize one immutable release without replacing remote state.
 
@@ -1220,6 +1445,19 @@ def finalize_release(
     state cannot become release evidence.
     """
     validate_plan(plan)
+    require_publisher_lock(plan)
+    if plan["schemaVersion"] == SCHEMA_VERSION:
+        publication_receipt, candidate_root = plan_publication_identity(plan)
+        if authority is None:
+            raise GitHubReleaseError("Current publication authority is required at promotion time.")
+
+        try:
+            nuget_publication.validate_publication_authority(
+                publication_receipt, candidate_root, authority=authority
+            )
+        except nuget_publication.PublicationError as exception:
+            raise GitHubReleaseError(f"Promotion authority is invalid: {exception}") from exception
+
     if plan["phase"] != "staged":
         raise GitHubReleaseError("Only the verified staged plan may be published.")
     repository = str(plan["repository"])
@@ -1248,15 +1486,15 @@ def finalize_release(
             raise GitHubReleaseError("Published GitHub release is missing planned assets.")
         if release.get("immutable") is not True:
             raise GitHubReleaseError("Published GitHub release is not immutable.")
-        release_id = release.get("id")
-        if (
-            isinstance(release_id, bool)
-            or not isinstance(release_id, int)
-            or client.is_latest(repository, release_id) != plan["latest"]
-        ):
-            raise GitHubReleaseError("Published GitHub release latest status conflicts.")
+        verify_historical_classification(release, plan, client)
         client.verify_tag(repository, tag, str(plan["sourceCommit"]))
-        return build_receipt(release, plan)
+        return build_receipt(release, plan, promotion={
+            "schemaVersion": 1,
+            "observedLatest": None,
+            "comparison": None,
+            "disposition": "historical-no-promotion",
+            "authorization": authority,
+        })
 
     client.upload_assets(repository, tag, missing)
     release = wait_for_complete_assets(
@@ -1274,7 +1512,9 @@ def finalize_release(
         )
 
     client.verify_tag(repository, tag, str(plan["sourceCommit"]))
-    client.publish_release(plan)
+    promotion = decide_latest(plan, client, authority)
+    effective_plan = {**plan, "latest": promotion["disposition"] == "promoted"}
+    client.publish_release(effective_plan)
     for attempt in range(readback_attempts):
         release = client.get_release(repository, tag)
         if release is not None:
@@ -1288,13 +1528,13 @@ def finalize_release(
                 if (
                     isinstance(release_id, bool)
                     or not isinstance(release_id, int)
-                    or client.is_latest(repository, release_id) != plan["latest"]
+                    or client.is_latest(repository, release_id) != effective_plan["latest"]
                 ):
                     raise GitHubReleaseError(
                         "Published GitHub release latest status conflicts."
                     )
                 client.verify_tag(repository, tag, str(plan["sourceCommit"]))
-                return build_receipt(release, plan)
+                return build_receipt(release, plan, bool(effective_plan["latest"]), promotion=promotion)
         if attempt + 1 < readback_attempts:
             sleep(READBACK_DELAY_SECONDS)
 
@@ -1311,6 +1551,7 @@ def stage_release(
 ) -> dict[str, Any]:
     """Create or reconcile a complete draft without publishing it."""
     validate_plan(plan)
+    require_publisher_lock(plan)
     if plan["phase"] != "staged":
         raise GitHubReleaseError("Only a staged release plan may create a draft.")
 
@@ -1342,16 +1583,10 @@ def stage_release(
             )
         if release.get("immutable") is not True:
             raise GitHubReleaseError("Published GitHub release is not immutable.")
-        release_id = release.get("id")
-        if (
-            isinstance(release_id, bool)
-            or not isinstance(release_id, int)
-            or client.is_latest(repository, release_id) != plan["latest"]
-        ):
-            raise GitHubReleaseError("Published GitHub release latest status conflicts.")
+        verify_historical_classification(release, plan, client)
         client.verify_tag(repository, tag, str(plan["sourceCommit"]))
         return {
-            "schemaVersion": SCHEMA_VERSION,
+            "schemaVersion": plan["schemaVersion"],
             "status": "release-already-published",
             "repository": repository,
             "releaseTag": tag,
@@ -1377,7 +1612,7 @@ def stage_release(
     client.verify_tag(repository, tag, str(plan["sourceCommit"]))
 
     return {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": plan["schemaVersion"],
         "status": "draft-staged-and-verified",
         "repository": repository,
         "releaseTag": tag,
@@ -1398,7 +1633,8 @@ def validate_release_receipt(
     )
     release_id = receipt.get("releaseId")
     if (
-        receipt.get("schemaVersion") != SCHEMA_VERSION
+        type(receipt.get("schemaVersion")) is not int
+        or receipt.get("schemaVersion") != plan["schemaVersion"]
         or receipt.get("status") != "published-and-verified"
         or isinstance(release_id, bool)
         or not isinstance(release_id, int)
@@ -1410,10 +1646,23 @@ def validate_release_receipt(
         or receipt.get("releaseUrl") != expected_url
         or receipt.get("immutable") is not True
         or receipt.get("prerelease") != plan["prerelease"]
-        or receipt.get("latest") != plan["latest"]
+        or type(receipt.get("latest")) is not bool
+        or (plan["prerelease"] and receipt.get("latest") is not False)
         or receipt.get("notesSha256") != plan["notesSha256"]
     ):
         raise GitHubReleaseError("GitHub release readback identity is invalid.")
+
+    if plan["schemaVersion"] == SCHEMA_VERSION and (
+        receipt.get("releaseLine") != plan["releaseLine"]
+        or receipt.get("promotionIntent") != plan["promotionIntent"]
+        or receipt.get("latestDecision") not in ("promoted", "not-promoted", "historical-no-promotion")
+        or (receipt.get("latestDecision") == "promoted") != receipt["latest"]
+    ):
+        raise GitHubReleaseError("GitHub release readback promotion identity is invalid.")
+
+    if plan["schemaVersion"] == SCHEMA_VERSION:
+        validate_promotion_observation(receipt.get("promotion"), plan, str(receipt["latestDecision"]))
+
     require_timestamp(receipt.get("publishedAt"), "GitHub release readback")
 
     raw_assets = receipt.get("assets")
@@ -1455,6 +1704,70 @@ def validate_release_receipt(
         raise GitHubReleaseError(
             "GitHub release readback asset inventory conflicts with the plan."
         )
+
+
+def validate_promotion_observation(
+    observation: Any,
+    plan: dict[str, Any],
+    disposition: str,
+) -> None:
+    """Reconcile durable Latest and current-authority evidence during completion."""
+    if (
+        not isinstance(observation, dict)
+        or set(observation) != {"schemaVersion", "observedLatest", "comparison", "disposition", "authorization"}
+        or type(observation.get("schemaVersion")) is not int
+        or observation["schemaVersion"] != 1
+        or observation.get("disposition") != disposition
+    ):
+        raise GitHubReleaseError("GitHub promotion observation is invalid.")
+
+    publication_receipt, candidate_root = plan_publication_identity(plan)
+    try:
+        release_publication.validate_authority(observation.get("authorization"))
+        nuget_publication.validate_publication_authority(
+            publication_receipt, candidate_root, authority=observation["authorization"]
+        )
+    except (release_publication.PublicationAdmissionError, nuget_publication.PublicationError) as exception:
+        raise GitHubReleaseError(f"Recorded promotion authorization is invalid: {exception}") from exception
+
+    latest = observation["observedLatest"]
+    comparison = observation["comparison"]
+    if disposition == "historical-no-promotion":
+        if latest is not None or comparison is not None:
+            raise GitHubReleaseError("Historical readback must not invent a new Latest observation.")
+
+        return
+
+    if latest is None:
+        if comparison is not None or disposition != ("not-promoted" if plan["prerelease"] else "promoted"):
+            raise GitHubReleaseError("Absent Latest promotion evidence is contradictory.")
+
+        return
+
+    if (
+        not isinstance(latest, dict)
+        or set(latest) != {"releaseId", "releaseTag", "releaseVersion", "sourceCommit"}
+        or isinstance(latest.get("releaseId"), bool)
+        or not isinstance(latest.get("releaseId"), int)
+        or latest["releaseId"] <= 0
+        or latest.get("releaseTag") != f"v{latest.get('releaseVersion')}"
+        or not SHA1.fullmatch(str(latest.get("sourceCommit", "")))
+        or type(comparison) is not int
+    ):
+        raise GitHubReleaseError("Recorded Latest release identity is invalid.")
+
+    try:
+        version = release_lines.parse_version(latest["releaseVersion"])
+        expected_order = release_lines.compare_versions(str(plan["releaseVersion"]), latest["releaseVersion"])
+    except release_lines.LinePolicyError as exception:
+        raise GitHubReleaseError(f"Recorded Latest version is invalid: {exception}") from exception
+
+    if version.is_prerelease or comparison != expected_order or comparison == 0:
+        raise GitHubReleaseError("Recorded Latest version comparison is contradictory.")
+
+    expected_disposition = "promoted" if not plan["prerelease"] and comparison > 0 else "not-promoted"
+    if disposition != expected_disposition:
+        raise GitHubReleaseError("Recorded Latest promotion violates monotonic precedence.")
 
 
 def build_completion_receipt(
@@ -1515,6 +1828,7 @@ def prepare_command(args: argparse.Namespace) -> None:
         args.publication_evidence,
         args.changelog,
     )
+    validate_current_plan_authority(args, plan)
     write_json(args.output.resolve(), plan)
 
 
@@ -1522,8 +1836,9 @@ def publish_command(args: argparse.Namespace) -> None:
     """Finalize one planned release and persist its verified receipt."""
     plan = read_json(args.plan.resolve(), "GitHub release plan")
     validate_plan(plan)
+    authority = validate_current_plan_authority(args, plan)
     verify_local_tag(args.repo.resolve(), plan)
-    receipt = finalize_release(plan, GitHubCliClient())
+    receipt = finalize_release(plan, GitHubCliClient(), authority=authority)
     write_json(args.output.resolve(), receipt)
 
 
@@ -1531,6 +1846,7 @@ def stage_command(args: argparse.Namespace) -> None:
     """Stage one planned draft and persist its verified receipt."""
     plan = read_json(args.plan.resolve(), "GitHub release plan")
     validate_plan(plan)
+    validate_current_plan_authority(args, plan)
     verify_local_tag(args.repo.resolve(), plan)
     receipt = stage_release(plan, GitHubCliClient())
     write_json(args.output.resolve(), receipt)
@@ -1538,6 +1854,13 @@ def stage_command(args: argparse.Namespace) -> None:
 
 def complete_command(args: argparse.Namespace) -> None:
     """Persist one validated post-publication completion receipt."""
+    plan = build_release_plan(
+        args.repository,
+        args.candidate_root.resolve(),
+        args.publication_evidence.resolve(),
+        args.changelog.resolve(),
+    )
+    validate_current_plan_authority(args, plan)
     receipt = build_completion_receipt(
         args.repository,
         args.candidate_root.resolve(),
@@ -1558,18 +1881,24 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--publication-evidence", type=Path, required=True)
     prepare.add_argument("--changelog", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--admission", type=Path)
+    prepare.add_argument("--authority", type=Path)
     prepare.set_defaults(handler=prepare_command)
 
     stage = subparsers.add_parser("stage")
     stage.add_argument("--repo", type=Path, required=True)
     stage.add_argument("--plan", type=Path, required=True)
     stage.add_argument("--output", type=Path, required=True)
+    stage.add_argument("--admission", type=Path)
+    stage.add_argument("--authority", type=Path)
     stage.set_defaults(handler=stage_command)
 
     publish = subparsers.add_parser("publish")
     publish.add_argument("--repo", type=Path, required=True)
     publish.add_argument("--plan", type=Path, required=True)
     publish.add_argument("--output", type=Path, required=True)
+    publish.add_argument("--admission", type=Path)
+    publish.add_argument("--authority", type=Path)
     publish.set_defaults(handler=publish_command)
 
     complete = subparsers.add_parser("complete")
@@ -1578,6 +1907,8 @@ def build_parser() -> argparse.ArgumentParser:
     complete.add_argument("--publication-evidence", type=Path, required=True)
     complete.add_argument("--changelog", type=Path, required=True)
     complete.add_argument("--output", type=Path, required=True)
+    complete.add_argument("--admission", type=Path)
+    complete.add_argument("--authority", type=Path)
     complete.set_defaults(handler=complete_command)
 
     return parser

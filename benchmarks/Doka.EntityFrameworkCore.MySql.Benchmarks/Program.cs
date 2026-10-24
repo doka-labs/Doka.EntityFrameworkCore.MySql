@@ -1,9 +1,13 @@
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
+/// <summary>Runs benchmark measurements and evaluates retained raw performance evidence.</summary>
 public static class Program
 {
     private const int InvalidEvidenceExitCode = 78;
 
+    /// <summary>Executes measurements, soak collection, or the selected evidence evaluation mode.</summary>
+    /// <param name="args">BenchmarkDotNet arguments or the explicit evaluation/soak command.</param>
+    /// <returns>Zero on success, one for a regression, or 78 for invalid evidence or execution.</returns>
     public static async Task<int> Main(
         string[] args
     )
@@ -18,7 +22,8 @@ public static class Program
                     args[2],
                     args[3],
                     args[4],
-                    args.Length == 6 ? args[5] : null);
+                    args.Length == 6 ? args[5] : null,
+                    PerformanceEvaluationPolicy.Current);
             }
 
             if (TryReadOutputArgument(args, "--soak", out var soakOutput))

@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 
 from eng.release import qualification
+from eng.tests.test_release_evidence import release_line
 
 
 REPOSITORY = "doka-labs/Doka.EntityFrameworkCore.MySql"
@@ -234,7 +235,7 @@ class ManifestTests(unittest.TestCase):
             entry["workflowPath"] = gate["producerWorkflow"]
             self.results.append(entry)
 
-    def assemble(self) -> dict[str, object]:
+    def assemble(self, line: dict[str, object] | None = None) -> dict[str, object]:
         """Assemble the canonical manifest from the prepared results."""
         return qualification.assemble_manifest(
             self.results,
@@ -245,7 +246,63 @@ class ManifestTests(unittest.TestCase):
             release_version="10.0.0-rc.8",
             assembling_attempt=1,
             policy=self.policy,
+            release_line=line,
         )
+
+    def test_new_manifest_freezes_the_exact_line(self) -> None:
+        """Record line authorization alongside the frozen gate identities."""
+        # Arrange
+        line = {**release_line(), "channel": "prerelease"}
+        for result in self.results:
+            if result["gate"] == "repository-qualification":
+                result["baseBranch"] = "main"
+
+        # Act
+        manifest = self.assemble(line)
+        qualification.verify_manifest(manifest, policy=self.policy, release_line=line)
+
+        # Assert
+        self.assertEqual(3, manifest["schemaVersion"])
+        self.assertEqual(line, manifest["releaseLine"])
+
+    def test_new_manifest_rejects_cross_line_gate_policy(self) -> None:
+        """A maintenance grant cannot import a main PR qualification."""
+        # Arrange
+        line = {**release_line("refs/heads/maintenance/10.x"), "channel": "prerelease"}
+
+        # Act / Assert
+        with self.assertRaisesRegex(qualification.QualificationError, "own release-line PR base"):
+            self.assemble(line)
+
+    def test_historical_manifest_cannot_gain_a_line_snapshot(self) -> None:
+        """Do not broaden old schema-two proof by appending new authority."""
+        # Arrange
+        manifest = self.assemble()
+        manifest["releaseLine"] = release_line()
+
+        # Act / Assert
+        with self.assertRaisesRegex(qualification.QualificationError, "main-only"):
+            qualification.verify_manifest(manifest, policy=self.policy)
+
+    def test_unknown_manifest_schema_remains_rejected(self) -> None:
+        """Future formats require an explicit reader, not optimistic parsing."""
+        # Arrange
+        manifest = self.assemble()
+        manifest["schemaVersion"] = 999
+
+        # Act / Assert
+        with self.assertRaisesRegex(qualification.QualificationError, "schema version"):
+            qualification.verify_manifest(manifest, policy=self.policy)
+
+    def test_noninteger_manifest_schema_is_not_a_historical_reader(self) -> None:
+        """JSON numeric equality must not turn a float into a known format."""
+        # Arrange
+        manifest = self.assemble()
+        manifest["schemaVersion"] = 2.0
+
+        # Act / Assert
+        with self.assertRaisesRegex(qualification.QualificationError, "schema version"):
+            qualification.verify_manifest(manifest, policy=self.policy)
 
     def test_every_declared_gate_is_pinned_once(self) -> None:
         """Produce exactly one selection per declared gate."""

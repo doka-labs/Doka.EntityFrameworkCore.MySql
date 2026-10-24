@@ -41,9 +41,16 @@ public sealed partial class AdrRepositoryValidatorTests
         string jobName
     )
     {
-        var jobStart = workflow.IndexOf($"  {jobName}:\n", StringComparison.Ordinal);
+        var jobsStart = workflow.IndexOf("\njobs:\n", StringComparison.Ordinal);
 
-        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
+        Assert.True(jobsStart >= 0, "Workflow jobs block is missing.");
+
+        // WHY: Dispatch inputs can share a job name; only exact job-scope headers are producers.
+        var jobHeader = workflow.IndexOf($"\n  {jobName}:\n", jobsStart, StringComparison.Ordinal);
+
+        Assert.True(jobHeader >= 0, $"Workflow job '{jobName}' is missing.");
+
+        var jobStart = jobHeader + 1;
 
         var nextJob = workflow.IndexOf("\n  ", jobStart + 1, StringComparison.Ordinal);
 
@@ -93,7 +100,9 @@ public sealed partial class AdrRepositoryValidatorTests
             $"Workflow job '{jobName}' must not have multiple job conditions.");
         Assert.All(
             jobConditions,
-            condition => Assert.Equal("    if: github.event_name != 'schedule'", condition));
+            condition => Assert.Equal(
+                "    if: github.event_name != 'schedule' && !inputs.maintenance",
+                condition));
     }
 
     private static void AssertShellGate(

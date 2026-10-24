@@ -319,8 +319,39 @@ require_executable() {
 
 actionlint_binary="$(resolve_actionlint)"
 require_executable "${actionlint_binary}" "actionlint"
+
+# WHY: actionlint 1.7.12 predates queue and $/ self-repository references.
+# Validate queue semantics first, then normalize only validated references in
+# a disposable metadata mirror. Callee and composite-step checks stay enabled;
+# no unsupported-reference diagnostics are hidden from the original sources.
+# Source: https://docs.github.com/en/actions/using-jobs/using-concurrency
+# Source: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
+# Remove the compatibility adapter when the actionlint pin supports both features.
+actionlint_root="$(mktemp -d "${TMPDIR:-/tmp}/doka-actionlint.XXXXXX")"
+
+cleanup_actionlint_snapshot() {
+    rm -r -- "${actionlint_root:?}"
+}
+
+trap cleanup_actionlint_snapshot EXIT
+echo "Validating workflow compatibility and preparing the actionlint snapshot..."
+if ! dotnet run \
+    --project "eng/tools/Doka.EntityFrameworkCore.MySql.RepositoryContract" \
+    --configuration Release \
+    --no-restore \
+    -- \
+    --actionlint-snapshot "${actionlint_root}" \
+    --root "${repo_root}"; then
+    echo "Workflow compatibility validation failed; actionlint was not run on an incomplete snapshot." >&2
+    exit 1
+fi
+
 echo "Running actionlint ${actionlint_version}..."
-if ! "${actionlint_binary}" -color; then
+if ! (
+    cd "${actionlint_root}"
+    "${actionlint_binary}" -color \
+        -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
+); then
     log_failure "actionlint reported findings."
 fi
 
@@ -329,7 +360,7 @@ require_executable "${zizmor_binary}" "zizmor"
 echo "Running zizmor ${zizmor_version}..."
 # Offline keeps the gate deterministic and free of a GitHub token; the audits
 # that need network access are the ones already covered by branch rulesets.
-if ! "${zizmor_binary}" --offline --persona=regular .github/workflows; then
+if ! "${zizmor_binary}" --offline --persona=regular .github/workflows .github/actions; then
     log_failure "zizmor reported findings."
 fi
 

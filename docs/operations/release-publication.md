@@ -1,8 +1,17 @@
 # Release Publication Operations
 
-This runbook defines the only supported path from a reviewed `main` commit to
+This runbook defines the current supported path from a reviewed `main` commit to
 NuGet.org and an immutable GitHub release. Release evidence requirements remain
 authoritative in [Release Governance](../release-governance.md).
+
+The [release-line runbook](release-lines.md) extends this same entry to approved
+exact branch roles. All authorized lines use the existing `nuget` environment;
+`maintenance/10.x` and `preview/11.x` remain inactive. Do not apply the
+main-only examples below to an inactive branch by substituting a ref. Prepared
+qualification, current authorization and separately approved activation must
+be completed first. The single entry remains `release-candidate.yml`; its
+branch selector and version identify the candidate. No hosted change or
+public RC execution is implied by the repository implementation.
 
 The current release package set is `Doka.EntityFrameworkCore.MySql`,
 `Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and `Doka.Caching.MySql` at
@@ -12,10 +21,11 @@ retroactively added to older two-package releases.
 
 ## One-time configuration
 
-The GitHub environment is named `nuget`. It is restricted to deployments from
+The existing GitHub environment is named `nuget`. Initially it permits only
 `main`, requires maintainer approval, and contains only `NUGET_USER`, the
-NuGet.org user that owns the packages. Administrator bypass is disabled when a
-second release maintainer is available.
+NuGet.org user that owns the packages. Release-line support preserves the
+single-maintainer review/self-review arrangement and administrator bypass;
+it neither changes those settings nor requires bypass to be disabled.
 
 Create one NuGet.org Trusted Publishing policy for this repository:
 
@@ -47,6 +57,14 @@ IDs, including the new cache ID. Repository configuration and this procedure
 do not prove the account's hosted permissions; no such permission check is
 implied by a green local build.
 
+Adding a release line uses the same workflow, environment and Trusted Publishing
+identity. Separately approve and verify its branch protections, exact deployment
+grant and policy activation; do not create a new credential generation or change
+administrator bypass. A prepared line can qualify before receiving publication
+rights. See [Prepare or activate a line](release-lines.md#prepare-or-activate-a-line).
+Complete an affected publication before disabling or reassigning its line. The
+feature does not automatically inventory or revoke historical workflow runs.
+
 Verify the repository-level release control with an administrator token before
 starting a candidate. A successful response contains `"enabled": true`; GitHub
 returns `404` when repository-level immutability is not enabled:
@@ -63,6 +81,12 @@ gh api \
 
 `release_version` never includes a leading `v`. `release_tag` is the same
 version with a leading `v`. Select an unused version before starting.
+The canonical suffix selects RC or stable stage; there is no separate RC flag.
+Normal version-only dispatch keeps `qualification_only=false`, so the same
+run qualifies once and waits for the personal signed tag and protected approval.
+There is no manual run/digest inventory, policy PR or new grant form per release.
+Protected preparation uses `qualification_only=true` through the same entry
+and never requests a publisher environment, publication credentials or tag.
 
 ### 1. Establish a release-ready main commit
 
@@ -124,9 +148,12 @@ and provide:
 version: <release_version>
 ```
 
-The workflow refuses a side branch, stale `main`, malformed version, dirty
-candidate identity, or any semantic version tag already pointing at the source
-commit. It then performs the complete reversible qualification phase:
+For this currently active main/10 route, the workflow refuses an unauthorized
+side branch, stale `main`, malformed version, dirty candidate identity, or any
+semantic version tag already pointing at the source commit. An activated
+maintenance/preview line uses its own exact branch and package-major/channel
+authority, not main's source or toolchain. The same entry then performs the
+complete applicable reversible qualification phase:
 
 Assembly requires exactly six required stage receipts: package, SBOM, migration
 deployment, runtime posture, EF Core patch matrix, and MySqlConnector patch
@@ -190,7 +217,8 @@ release_version="<release_version>"
 release_tag="v${release_version}"
 
 test "$(git rev-parse HEAD)" = "${release_commit}"
-test "$(git rev-parse origin/main)" = "${release_commit}"
+git fetch origin main
+git merge-base --is-ancestor "${release_commit}" origin/main
 git tag -s "${release_tag}" "${release_commit}" \
   -m "Doka.EntityFrameworkCore.MySql ${release_version}"
 git tag -v "${release_tag}"
@@ -273,7 +301,9 @@ Before considering the release complete, confirm:
 - the GitHub release points at `release_tag` and is immutable;
 - the GitHub release contains `release-provenance.intoto.jsonl`;
 - prereleases are marked prerelease and are not `latest`;
-- stable releases are not prereleases and are `latest`; and
+- stable releases are not prereleases; their Latest disposition follows the
+  monotonic version decision, so an older completed release need not remain
+  `latest`; and
 - `release-publication-<version>-attempt-<attempt>` contains candidate binding,
   tag trust, both preflights, public readback, signature verification, staged
   release plan, GitHub release readback, and publication completion receipt.

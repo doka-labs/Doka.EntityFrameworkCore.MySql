@@ -1229,6 +1229,95 @@ class TrustRootCompletionTests(unittest.TestCase):
             self.establish(workflowPath=gate["producerWorkflow"] + ".other")
 
 
+class ReleaseLineTrustTests(unittest.TestCase):
+    """Keep line ancestry and PR qualification attached to the same grant."""
+
+    def setUp(self) -> None:
+        """Prepare a maintenance policy without bypassing any identity checks."""
+        from eng.tests.test_release_evidence import release_line
+
+        self.line = release_line("refs/heads/maintenance/10.x")
+        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        self.policy["trustedTagSigners"]["requireLocalVerification"] = False
+        for gate in self.policy["gates"]:
+            if gate["kind"] == "protected-check":
+                gate["requiredBaseBranch"] = "maintenance/10.x"
+            else:
+                gate["producerWorkflow"] = self.line["workflowPath"]
+
+    def establish(
+        self,
+        *,
+        protected_ref: str = "refs/remotes/origin/maintenance/10.x",
+        base_branch: str = "maintenance/10.x",
+    ) -> dict[str, object]:
+        """Exercise the orchestration with external probes replaced by fixed observations."""
+        with mock.patch.object(trust, "verify_commit_is_on_protected_branch") as ancestry:
+            with mock.patch.object(trust, "run_git", return_value=subprocess.CompletedProcess([], 0, TREE, "")):
+                result = trust.verify_trust_root(
+                    repo=Path("/qualification-fixture"),
+                    tag="v10.6.2",
+                    commit=COMMIT,
+                    repository=self.line["repository"],
+                    api_verification={"verified": True, "reason": "valid"},
+                    policy=self.policy,
+                    qualification_receipt=qualification(baseBranch=base_branch),
+                    protected_ref=protected_ref,
+                    release_line=self.line,
+                )
+
+        ancestry.assert_called_once_with(Path("/qualification-fixture"), COMMIT, protected_ref)
+
+        return result
+
+    def test_maintenance_trust_root_freezes_its_own_line(self) -> None:
+        """A valid own-line qualification emits the new receipt format."""
+        # Arrange
+        expected = dict(self.line)
+
+        # Act
+        result = self.establish()
+
+        # Assert
+        self.assertEqual(3, result["schemaVersion"])
+        self.assertEqual(expected, result["releaseLine"])
+        self.assertEqual("refs/remotes/origin/maintenance/10.x", result["protectedRef"])
+
+    def test_maintenance_trust_root_rejects_main_ancestry(self) -> None:
+        """A commit common to two lines still needs its admitted ancestry proof."""
+        # Arrange
+        protected_ref = "refs/remotes/origin/main"
+
+        # Act / Assert
+        with self.assertRaisesRegex(trust.TrustRootError, "admitted release line"):
+            self.establish(protected_ref=protected_ref)
+
+    def test_maintenance_trust_root_rejects_main_pr_evidence(self) -> None:
+        """Correct ancestry cannot repair a protected check from another PR base."""
+        # Arrange
+        base_branch = "main"
+
+        # Act / Assert
+        with self.assertRaises(trust.TrustRootError):
+            self.establish(base_branch=base_branch)
+
+    def test_legacy_trust_root_cannot_import_maintenance_pr_policy(self) -> None:
+        """Historical schema-two output retains its original main proof."""
+        # Arrange
+        policy = self.policy
+
+        # Act / Assert
+        with self.assertRaisesRegex(trust.TrustRootError, "main PR qualification"):
+            trust.verify_trust_root(
+                repo=Path("/qualification-fixture"),
+                tag="v10.6.2",
+                commit=COMMIT,
+                policy=policy,
+                api_verification={"verified": True, "reason": "valid"},
+                qualification_receipt=qualification(baseBranch="maintenance/10.x"),
+            )
+
+
 class TrustRootOrderTests(unittest.TestCase):
     """Prove the cheapest check decides first."""
 

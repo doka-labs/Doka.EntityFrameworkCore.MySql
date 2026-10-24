@@ -22,13 +22,14 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from eng.release import gate_results, qualification
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = REPOSITORY_ROOT / "eng" / "release" / "evidence-policy.json"
-REPOSITORY = "kdominic89/Doka.EntityFrameworkCore.MySql"
+REPOSITORY = "doka-labs/Doka.EntityFrameworkCore.MySql"
 RELEASE_TAG = "v10.0.0-contract"
 RELEASE_VERSION = "10.0.0-contract"
 WORKFLOW_RUN_ID = 4242
@@ -169,6 +170,17 @@ class ReleaseQualificationChainTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Build a git repository and a complete synthetic run inside it."""
+        # WHY: this isolated run owns its admission fixture; the Actions job
+        # running the suite is not the candidate described by these receipts.
+        environment = mock.patch.dict("os.environ", {
+            "GITHUB_ACTIONS": "false",
+            "GITHUB_REF": "",
+            "DOKA_RELEASE_EXPECTED_REF": "",
+            "DOKA_RELEASE_LINE_FILE": "",
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
+
         self.directory = tempfile.TemporaryDirectory()
         root = Path(self.directory.name)
         self.repo = root / "repository"

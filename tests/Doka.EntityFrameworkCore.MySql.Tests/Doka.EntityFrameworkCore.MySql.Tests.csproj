@@ -48,6 +48,9 @@
     <Compile Update="Contracts/AdrRepositoryValidatorTests.*.cs">
       <DependentUpon>AdrRepositoryValidatorTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="Contracts/DependencySecurityAuditTests.*.cs">
+      <DependentUpon>DependencySecurityAuditTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Contracts/MySqlRuntimeBaselineTests.*.cs">
       <DependentUpon>MySqlRuntimeBaselineTests.cs</DependentUpon>
     </Compile>

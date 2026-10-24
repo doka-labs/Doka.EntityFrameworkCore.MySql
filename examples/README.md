@@ -17,6 +17,13 @@ The runner uses dynamic loopback ports and removes its test-owned containers
 and volumes. Narrow `DOKA_EXAMPLE_TARGETS` only for local diagnosis; release
 qualification always requires all six supported targets.
 
+The separate source-only [PublicRcConsumer](PublicRcConsumer/README.md) fixture
+is not another live example or a locally referenced provider project.
+After separately approved platform RC publication, its command materializes
+an exact NuGet.org consumer outside this repository and runs restore/build/
+executable assertions. The preview route remains inactive initially; ordinary
+example gates do not claim a public RC has been restored.
+
 ## Prerequisites
 
 - .NET 10 SDK

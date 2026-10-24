@@ -17,9 +17,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Sequence
+
+if __package__:
+    from . import lines as release_lines
+else:  # pragma: no cover - direct execution path
+    import lines as release_lines
 
 
 POLICY_PATH = Path(__file__).resolve().parent / "evidence-policy.json"
@@ -30,6 +36,43 @@ GATE_MANIFEST_KIND = "gate-evidence-manifest"
 
 class QualificationError(RuntimeError):
     """Evidence cannot qualify a release."""
+
+
+def load_release_line(path: Path | None = None) -> dict[str, Any] | None:
+    """Read the admission snapshot explicitly handed to this workflow attempt.
+
+    This is frozen qualification identity, not publication authority. Hosted
+    publication independently re-observes the protected control branch.
+    """
+    configured = path or os.environ.get("DOKA_RELEASE_LINE_FILE")
+    if not configured:
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            raise QualificationError("Hosted qualification requires a release-line admission snapshot.")
+
+        return None
+
+    try:
+        value = json.loads(Path(configured).read_text(encoding="utf-8"))
+
+        return release_lines.validate_snapshot(value)
+    except (OSError, json.JSONDecodeError, release_lines.LinePolicyError) as error:
+        raise QualificationError(f"Release-line snapshot is invalid: {error}") from error
+
+
+def validate_line_policy(policy: dict[str, Any], snapshot: dict[str, Any]) -> None:
+    """Keep framework-specific gate ownership on the admitted source line."""
+    try:
+        release_lines.validate_snapshot(snapshot)
+    except release_lines.LinePolicyError as error:
+        raise QualificationError(str(error)) from error
+
+    base_branch = snapshot["sourceRef"].removeprefix("refs/heads/")
+    for gate in policy["gates"]:
+        if gate["kind"] == "protected-check":
+            if gate.get("requiredBaseBranch") != base_branch:
+                raise QualificationError("Protected qualification must use its own release-line PR base.")
+        elif gate["producerWorkflow"] != snapshot["workflowPath"]:
+            raise QualificationError("Candidate gate producer differs from the admitted caller workflow.")
 
 
 def load_policy(path: Path | None = None) -> dict[str, Any]:
@@ -205,6 +248,7 @@ def assemble_manifest(
     release_version: str,
     assembling_attempt: int,
     policy: dict[str, Any] | None = None,
+    release_line: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Select every required gate once and freeze the chosen identities.
 
@@ -219,6 +263,15 @@ def assemble_manifest(
 
     resolved = policy or load_policy()
     digest = policy_digest(resolved)
+    if release_line is not None:
+        try:
+            release_lines.validate_snapshot(
+                release_line, version=release_version, repository=repository
+            )
+        except release_lines.LinePolicyError as error:
+            raise QualificationError(str(error)) from error
+
+        validate_line_policy(resolved, release_line)
 
     selections = []
     for gate in resolved["gates"]:
@@ -230,6 +283,9 @@ def assemble_manifest(
             digest=digest,
             assembling_attempt=assembling_attempt,
         )
+        if release_line is not None and "releaseLine" in selected and selected["releaseLine"] != release_line:
+            raise QualificationError("Selected gate evidence belongs to a different release line.")
+
         entry = {"gate": gate["id"], "kind": gate["kind"]}
         for field in gate["boundIdentities"]:
             if field not in selected:
@@ -240,8 +296,8 @@ def assemble_manifest(
             entry[field] = selected[field]
         selections.append(entry)
 
-    return {
-        "schemaVersion": 2,
+    manifest = {
+        "schemaVersion": 3 if release_line is not None else 2,
         "kind": MANIFEST_KIND,
         "policyVersion": resolved["policyVersion"],
         "policyDigest": digest,
@@ -255,6 +311,10 @@ def assemble_manifest(
         "requiredProtectedChecks": list(resolved["requiredProtectedChecks"]),
         "gates": selections,
     }
+    if release_line is not None:
+        manifest["releaseLine"] = dict(release_line)
+
+    return manifest
 
 
 def verify_manifest(
@@ -265,6 +325,7 @@ def verify_manifest(
     commit: str | None = None,
     tree_id: str | None = None,
     expected_release_tag: str | None = None,
+    release_line: dict[str, Any] | None = None,
 ) -> None:
     """Re-check a manifest without reselecting any evidence.
 
@@ -290,8 +351,34 @@ def verify_manifest(
             "Manifest was assembled under a different selection rule version."
         )
 
-    if manifest.get("schemaVersion") != 2:
+    schema = manifest.get("schemaVersion")
+    if type(schema) is not int or schema not in (2, 3):
         raise QualificationError("Manifest schema version is not supported.")
+
+    if schema == 3:
+        snapshot = manifest.get("releaseLine")
+        try:
+            release_lines.validate_snapshot(
+                snapshot,
+                version=manifest.get("releaseVersion"),
+                repository=manifest.get("repository"),
+            )
+        except release_lines.LinePolicyError as error:
+            raise QualificationError(str(error)) from error
+
+        validate_line_policy(resolved, snapshot)
+        if release_line is not None and snapshot != release_line:
+            raise QualificationError("Qualification and release evidence freeze different release lines.")
+    else:
+        # WHY: old manifests predate line grants. Their proof remains main-only;
+        # adding modern fields must never upgrade historical evidence authority.
+        if "releaseLine" in manifest or manifest.get("sourceRef", "refs/heads/main") != "refs/heads/main":
+            raise QualificationError("Historical qualification evidence is main-only.")
+        if release_line is not None:
+            raise QualificationError("Historical qualification cannot bind a new release-line snapshot.")
+        for gate in resolved["gates"]:
+            if gate["kind"] == "protected-check" and gate.get("requiredBaseBranch", "main") != "main":
+                raise QualificationError("Historical qualification evidence is main-only.")
 
     for field, expected_value in (
         ("repository", repository),
@@ -339,6 +426,12 @@ def verify_manifest(
 
     for entry in entries:
         gate = declared[entry["gate"]]
+        if schema == 3:
+            if entry.get("workflowPath") != gate["producerWorkflow"]:
+                raise QualificationError("Frozen gate workflow differs from its line evidence policy.")
+            if gate["kind"] == "protected-check" and entry.get("baseBranch") != gate["requiredBaseBranch"]:
+                raise QualificationError("Frozen protected check belongs to another release-line PR base.")
+
         if entry.get("kind") != gate["kind"]:
             raise QualificationError(
                 f"Manifest pins gate '{gate['id']}' as {entry.get('kind')!r} "
@@ -430,6 +523,19 @@ def _assemble(arguments: argparse.Namespace) -> dict[str, Any]:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         results.extend(payload if isinstance(payload, list) else [payload])
 
+    line = load_release_line(getattr(arguments, "release_line", None))
+    if line is None:
+        source_ref = os.environ.get("DOKA_RELEASE_EXPECTED_REF") or os.environ.get("GITHUB_REF") or "refs/heads/main"
+        if source_ref != "refs/heads/main":
+            raise QualificationError("Non-main assembly requires an explicit admitted release line.")
+
+        try:
+            line = release_lines.freeze_line(
+                release_lines.load_policy(), source_ref, arguments.release_version
+            )
+        except release_lines.LinePolicyError as error:
+            raise QualificationError(f"Release-line assembly is not admitted: {error}") from error
+
     manifest = assemble_manifest(
         results,
         commit=arguments.commit,
@@ -439,6 +545,7 @@ def _assemble(arguments: argparse.Namespace) -> dict[str, Any]:
         release_version=arguments.release_version,
         assembling_attempt=arguments.assembling_attempt,
         policy=load_policy(arguments.policy),
+        release_line=line,
     )
 
     # The inventory covers the payload that is actually published, not the
@@ -481,6 +588,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     assemble.add_argument("--root", type=Path)
     assemble.add_argument("--inventory-root-name", default="packages")
     assemble.add_argument("--policy", type=Path)
+    assemble.add_argument("--release-line", type=Path)
     assemble.add_argument("--output", required=True, type=Path)
 
     verify = subparsers.add_parser("verify")

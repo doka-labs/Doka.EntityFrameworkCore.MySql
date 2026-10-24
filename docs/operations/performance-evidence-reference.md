@@ -4,6 +4,29 @@ The source of truth is `benchmarks/performance-contract.json`. BenchmarkDotNet
 produces the raw measurements; `PerformanceGate` reads those reports once and
 returns one of three outcomes.
 
+## Evaluation Policy
+
+Evaluation mode is selected separately from profile breadth:
+
+- `DOKA_BENCHMARK_EVALUATION=full` is the default for local execution. It
+  enforces allocation/resource and hardware-sensitive thresholds, with local
+  CPU-headroom admission before measurement.
+- `DOKA_BENCHMARK_EVALUATION=allocations-only` enforces allocations and explicit
+  correctness/resource-ownership invariants. Median/p95/p99 times, timing
+  ratios, Gen2 frequency, working-set/managed-heap soak growth and throughput
+  retention are retained diagnostics rather than regression reasons.
+- `GITHUB_ACTIONS=true` always resolves to `allocations-only`, including an
+  explicit `full` request. The workflow pins this mode and skips CPU-headroom
+  admission. Unknown selector spellings fail rather than selecting a default.
+
+Both modes validate the complete raw evidence, including diagnostic metrics.
+No report, scenario or failed execution is ignored; there is no
+`continue-on-error`. Allocation regressions and bounded-cache, pool-return,
+connection and migration-lock cleanup failures remain enforced on hosted
+runners. Process-memory growth alone is a noisy observation, not a substitute
+for those explicit resource-ownership assertions. Genuine infrastructure
+failures and timeouts can still fail either mode.
+
 ## Profiles
 
 | Profile | Provider workloads | Soak |
@@ -44,8 +67,8 @@ The performance executable uses these exit codes:
 
 | Exit | Meaning |
 | ---: | --- |
-| `0` | Complete evidence satisfies every budget. |
-| `1` | Complete evidence violates at least one budget. |
+| `0` | Complete evidence satisfies every enforced budget/invariant; diagnostic thresholds may be exceeded. |
+| `1` | Complete evidence violates at least one enforced budget/invariant. |
 | `78` | Evidence or infrastructure is invalid, so no performance verdict is possible. |
 
 Provider evidence is invalid when any expected workload is missing, duplicated,
@@ -57,8 +80,10 @@ same-run control cannot be resolved exactly once.
 For every workload, the gate recomputes median, p95, and p99 from
 BenchmarkDotNet `OriginalValues`. It divides time and allocation by the
 contract-owned operation batch and compares the result with the workload
-family's absolute budgets. It also evaluates the named BenchmarkDotNet
-allocation and same-run ratio controls.
+family's absolute budgets. Allocation ceilings and allocation-ratio controls
+are enforced in both modes. Timing and Gen2-frequency threshold violations are
+diagnostic in hosted/allocations-only mode and enforced in local full mode;
+their raw values and evidence completeness are validated in both.
 
 Each control declares either one `maximum` for every engine target or a
 `maximumByTarget` map covering exactly the contract's `requiredTargets`.
@@ -67,13 +92,15 @@ limits are invalid evidence; the gate never falls back to another target's
 limit. `meanRatio` divides the measured method's mean by its named baseline
 method's mean from the same run. Both methods must be reported exactly once.
 
-The parallel sliding-cache control compares sixteen reads of one sliding key
+The parallel sliding-cache timing control compares sixteen reads of one sliding key
 with sixteen absolute-only reads of the same value size. It guards relative
 end-to-end refresh overhead, including database transactions and round trips,
 not isolated lock duration. Engine-specific limits reflect different costs;
 relative comparison reduces some shared host effects but is not independent
 of hardware, network, engine configuration, or measurement noise. Both paths
-slowing together can leave the ratio unchanged.
+slowing together can leave the ratio unchanged. Its threshold is diagnostic on
+GitHub Actions; same-run timing ratios are not treated as hardware-independent
+allocation or resource-ownership contracts.
 
 There is no historical host-to-host comparison. This deliberately removes the
 false precision and control-plane state required to match, retry, confirm, and
@@ -86,11 +113,12 @@ rows with a 10,000-value GUID collection. It runs explicit `EF.Parameter(...)`
 (JSON), `EF.MultipleParameters(...)`, and `EF.Constant(...)` for both `Binary16`
 and `Char36`. Setup and corpus creation occur outside the measured methods.
 
-The controls compare methods from the same BenchmarkDotNet run. Throughput is
-guarded only where both calibrated engine families show a material advantage;
-allocation ratios also guard the JSON opt-in against constant expansion. No
-absolute elapsed-time budget is used, because host CPU capacity is not a
-portable performance contract.
+The controls compare methods from the same BenchmarkDotNet run. Timing ratios
+are local full-mode thresholds only where both calibrated engine families show
+a material advantage; on hosted runners they are diagnostic. Allocation ratios
+continue to guard the JSON opt-in against constant expansion in both modes. No
+absolute elapsed-time budget is used for these collection controls, because
+host CPU capacity is not a portable performance contract.
 
 Each ratio below divides the explicit JSON method by the named baseline.
 
@@ -111,8 +139,10 @@ measurement iterations per method.
 
 Ratios are rounded to three decimals for documentation; the contract ceilings
 are reviewed values with headroom, not a statistical confidence bound. A red
-ratio requires diagnosis of the query shape, engine, runtime, and host before
-any ceiling changes.
+allocation ratio or local full-mode timing ratio requires diagnosis of the
+query shape, engine, runtime, and host before any ceiling changes. The time
+columns remain diagnostic on GitHub Actions; this historical calibration does
+not turn those timing ceilings back into hosted gates.
 
 ### Selective Membership Check
 
@@ -190,14 +220,16 @@ unit. The displayed ratios are rounded to six decimal places. These are
 reviewed contract values, not a statistical confidence bound or an automatic
 budget-update rule.
 
-All eighteen retained normal ratios pass. Doubling only the sliding mean,
+All eighteen retained normal ratios pass the full-mode threshold. Doubling only the sliding mean,
 while leaving the absolute-read mean and allocation unchanged, exceeds the
 target ceiling in every retained run. This is an arithmetic sensitivity
 analysis of measured data, not an injected lock-delay experiment or proof
 that every real slowdown will be detected. The ratio measures end-to-end
 refresh overhead, not pure lock duration; shared slowdowns can cancel out.
 It is not hardware independent. Hosted Ubuntu/x64 evidence remains a separate
-validation surface from these local Arm64 runs.
+diagnostic surface from these local Arm64 runs. Exceeding this timing ceiling
+does not fail hosted allocations-only evaluation; allocation/resource checks
+remain enforced independently.
 
 The original evidence is retained under
 `artifacts/benchmarks/cache-followup-20260826/<target>/run-<1..3>/`.
@@ -336,9 +368,19 @@ these budgets automatically.
 - `soak.concurrent-throughput-retention`.
 
 The gate validates the report identity and recomputes every maximum or minimum
-from the scenario metrics and the current contract. The working-set scenario
-checks both working-set growth and managed-heap growth. An omitted or non-finite
-metric is invalid evidence; a finite budget violation is a regression.
+from the scenario metrics and the current contract. All six scenarios and all
+finite metrics remain required in both evaluation modes. Bounded HiLo cache,
+pooled-buffer return, connection cleanup and migration-lock cleanup are enforced
+resource invariants in both modes. Working-set growth, managed-heap growth and
+concurrent throughput retention are diagnostic on GitHub Actions and enforced
+only in local full mode.
+
+An omitted or non-finite metric is invalid evidence even when its threshold
+would be diagnostic. A finite violation is a regression only for an enforced
+budget/invariant. The wrapper permits a raw soak threshold exit of `1` to reach
+the single combined evaluator with the complete report; missing reports,
+crashes and unexpected exit codes remain failures. It does not convert invalid
+soak execution into a successful diagnostic run.
 
 ## Primary Sources
 

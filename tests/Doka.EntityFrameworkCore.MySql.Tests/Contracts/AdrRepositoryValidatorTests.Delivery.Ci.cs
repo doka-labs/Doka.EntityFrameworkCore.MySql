@@ -227,6 +227,41 @@ public sealed partial class AdrRepositoryValidatorTests
     }
 
     /// <summary>
+    /// Keeps maintenance dispatch nonpublishing and branch-native without
+    /// adding another required pull-request qualification gate.
+    /// </summary>
+    [Theory]
+    [InlineData("ci.yml")]
+    [InlineData("container-matrix.yml")]
+    [InlineData("benchmark.yml")]
+    public void Scheduled_lines_dispatch_branch_native_producers(
+        string workflowName
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        var workflowPath = Path.Combine(repositoryRoot, ".github", "workflows", workflowName);
+
+        // Act
+        var workflow = File.ReadAllText(workflowPath);
+        var coordinator = GetWorkflowJob(workflow, "scheduled-release-lines");
+        var guard = GetWorkflowJob(workflow, "schedule-identity");
+        var ordinaryJobs = workflow.Replace(coordinator, string.Empty, StringComparison.Ordinal);
+
+        // Assert
+        Assert.Contains("# release-line-schedule:", workflow, StringComparison.Ordinal);
+        Assert.Contains("if: github.event_name == 'schedule'", coordinator, StringComparison.Ordinal);
+        Assert.Contains($"schedules.py run --workflow {workflowName}", coordinator, StringComparison.Ordinal);
+        Assert.Contains("actions: write", coordinator, StringComparison.Ordinal);
+        Assert.DoesNotContain("actions: write", ordinaryJobs, StringComparison.Ordinal);
+        Assert.Contains($"validate-child --workflow {workflowName}", guard, StringComparison.Ordinal);
+        Assert.Contains("inputs.expected_commit", guard, StringComparison.Ordinal);
+        Assert.Contains("inputs.schedule_correlation", guard, StringComparison.Ordinal);
+        Assert.DoesNotContain("id-token: write", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ref: ${{ inputs.", workflow, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Keeps local hooks opt-in while sharing one quality-gate implementation
     /// with hosted CI and protecting contributor-owned Git configuration.
     /// </summary>

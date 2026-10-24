@@ -171,10 +171,10 @@ validate_release_source() {
         exit 1
     fi
 
-    if [[ "${release_source_ref}" != "refs/heads/main" ]]; then
-        echo "Release candidates must run from refs/heads/main, found ${release_source_ref}." >&2
-        exit 1
-    fi
+    python3 -m eng.release.evidence source-check \
+        --repo "${repo_root}" \
+        --source-ref "${release_source_ref}" \
+        --release-version "${release_version_override}"
 }
 
 # A run identifier owns one immutable evidence directory. Reusing a non-empty

@@ -23,8 +23,14 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
+if __package__:
+    from . import lines as release_lines
+    from . import qualification as release_qualification
+else:  # pragma: no cover - direct execution path
+    import lines as release_lines
+    import qualification as release_qualification
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MANIFEST_NAME = "release-candidate-evidence.json"
 CHECKSUM_NAME = "release-candidate-evidence.sha256"
 REQUIRED_ENGINE_TARGETS = (
@@ -90,7 +96,7 @@ def run_command(*arguments: str, cwd: Path | None = None) -> str:
     return result.stdout.strip()
 
 
-def approved_dotnet_sdk(repo: Path) -> str:
+def approved_dotnet_sdk(repo: Path, release_line: dict[str, Any] | None = None) -> str:
     """Return the exact SDK identity approved by the repository contract."""
     path = repo / "global.json"
 
@@ -102,11 +108,16 @@ def approved_dotnet_sdk(repo: Path) -> str:
     sdk = payload.get("sdk", {})
     version = sdk.get("version")
 
-    if not isinstance(version, str) or re.fullmatch(r"[0-9]+[.][0-9]+[.][0-9]+", version) is None:
+    preview = release_line is not None and release_line.get("upstreamStage") != "ga"
+    pattern = (
+        r"[0-9]+[.][0-9]+[.][0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
+        if preview else r"[0-9]+[.][0-9]+[.][0-9]+"
+    )
+    if not isinstance(version, str) or re.fullmatch(pattern, version) is None:
         raise EvidenceError("global.json must declare one exact stable .NET SDK version.")
     if sdk.get("rollForward") != "disable":
         raise EvidenceError("global.json must disable .NET SDK roll-forward.")
-    if sdk.get("allowPrerelease") is not False:
+    if sdk.get("allowPrerelease") is not preview:
         raise EvidenceError("global.json must reject prerelease .NET SDK selection.")
 
     return version
@@ -641,7 +652,12 @@ def validate_release_packages(artifacts: list[dict[str, Any]], release_version: 
         raise EvidenceError(f"Release package inventory mismatch. Missing={missing}; unexpected={unexpected}")
 
 
-def git_source(repo: Path, expected_ref: str) -> dict[str, Any]:
+def git_source(
+    repo: Path,
+    expected_ref: str,
+    *,
+    release_line: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Validate and return the untagged candidate source identity."""
     commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
     dirty = run_command("git", "status", "--porcelain", "--untracked-files=all", cwd=repo)
@@ -666,7 +682,12 @@ def git_source(repo: Path, expected_ref: str) -> dict[str, Any]:
         actual_ref = run_command("git", "symbolic-ref", "-q", "HEAD", cwd=repo)
     if expected_ref and actual_ref != expected_ref:
         raise EvidenceError(f"Expected release ref {expected_ref}, found {actual_ref}.")
-    if actual_ref != "refs/heads/main":
+    if release_line is not None:
+        try:
+            release_lines.validate_snapshot(release_line, source_ref=actual_ref)
+        except release_lines.LinePolicyError as error:
+            raise EvidenceError(f"Release source ref is not admitted: {error}") from error
+    elif actual_ref != "refs/heads/main":
         raise EvidenceError(
             f"Release candidate evidence must run from refs/heads/main, found {actual_ref}."
         )
@@ -681,7 +702,12 @@ def git_source(repo: Path, expected_ref: str) -> dict[str, Any]:
     }
 
 
-def workflow_identity(run_id: str) -> dict[str, Any]:
+def workflow_identity(
+    run_id: str,
+    *,
+    release_line: dict[str, Any] | None = None,
+    source_commit: str | None = None,
+) -> dict[str, Any]:
     """Capture hosted workflow and runner identities or an explicit local identity.
 
     A hosted run fails closed when GitHub omits an identity field needed to
@@ -695,6 +721,8 @@ def workflow_identity(run_id: str) -> dict[str, Any]:
             "runAttempt": "1",
             "workflow": "local-release-candidate",
             "workflowRef": "local",
+            "signerWorkflowRef": "local",
+            "signerDigest": source_commit,
             "repository": "local",
             "runnerName": "local",
             "runnerOs": platform.system(),
@@ -711,12 +739,28 @@ def workflow_identity(run_id: str) -> dict[str, Any]:
     if missing:
         raise EvidenceError(f"Hosted workflow identity is incomplete: {', '.join(missing)}")
 
+    workflow_ref = os.environ["GITHUB_WORKFLOW_REF"]
+    repository = os.environ["GITHUB_REPOSITORY"]
+    if release_line is not None:
+        expected = f"{repository}/{release_line['workflowPath']}@{release_line['sourceRef']}"
+        if workflow_ref != expected:
+            raise EvidenceError("Hosted caller workflow differs from the admitted release line.")
+
+    # WHY: source/caller metadata and the cryptographic signer are independently
+    # bound, even when the same public workflow supplies both identities.
+    signer_ref = (
+        f"{repository}/.github/workflows/release-candidate.yml@{release_line['sourceRef']}"
+        if release_line else workflow_ref
+    )
+
     return {
         "provider": "github-actions",
         "runId": os.environ["GITHUB_RUN_ID"],
         "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
         "workflow": os.environ.get("GITHUB_WORKFLOW", "local-release-candidate"),
-        "workflowRef": os.environ["GITHUB_WORKFLOW_REF"],
+        "workflowRef": workflow_ref,
+        "signerWorkflowRef": signer_ref,
+        "signerDigest": source_commit,
         "repository": os.environ["GITHUB_REPOSITORY"],
         "runnerName": os.environ.get("RUNNER_NAME", "local"),
         "runnerOs": os.environ.get("RUNNER_OS", platform.system()),
@@ -728,6 +772,7 @@ def validate_qualification_manifest(
     root: Path,
     source_commit: str,
     release_version: str,
+    release_line: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind this document to the manifest that selected the gates.
 
@@ -759,6 +804,10 @@ def validate_qualification_manifest(
             f"The qualification manifest describes version "
             f"{manifest.get('releaseVersion')}, not {release_version}."
         )
+    if release_line is not None and (
+        manifest.get("schemaVersion") != 3 or manifest.get("releaseLine") != release_line
+    ):
+        raise EvidenceError("Qualification and artifact evidence must freeze the same release line.")
     gates = manifest.get("gates")
     if not isinstance(gates, list) or not gates:
         raise EvidenceError("The qualification manifest pins no gates.")
@@ -771,6 +820,68 @@ def validate_qualification_manifest(
         "expectedReleaseTag": manifest["expectedReleaseTag"],
         "gates": sorted(entry["gate"] for entry in gates),
     }
+
+
+def admitted_release_line(
+    repo: Path,
+    source_ref: str,
+    version: str,
+    *,
+    snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve qualification identity without granting publication authority."""
+    try:
+        selected = snapshot or release_qualification.load_release_line()
+        if selected is None:
+            # WHY: local qualification may inspect the reviewed main contract;
+            # only the protected control observation can authorize publication.
+            if source_ref != "refs/heads/main":
+                raise EvidenceError("Non-main qualification requires an explicit admitted release line.")
+
+            selected = release_lines.freeze_line(
+                release_lines.load_policy(), source_ref, version
+            )
+
+        release_lines.validate_snapshot(selected, source_ref=source_ref, version=version)
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            authority_path = os.environ.get("DOKA_RELEASE_LINE_AUTHORITY")
+            policy_path = os.environ.get("DOKA_RELEASE_LINES_POLICY")
+            if not authority_path or not policy_path:
+                raise EvidenceError(
+                    "Hosted qualification requires the protected-main authority observation and policy."
+                )
+
+            if __package__:
+                from . import publication
+            else:  # pragma: no cover - direct execution path
+                import publication
+
+            try:
+                authority = publication.validate_authority(
+                    json.loads(Path(authority_path).read_text(encoding="utf-8"))
+                )
+                publication.validate_qualification_authority(
+                    authority,
+                    selected,
+                    source_ref=source_ref,
+                    version=version,
+                    workflow_path=os.environ.get("DOKA_RELEASE_WORKFLOW_PATH"),
+                )
+            except publication.PublicationAdmissionError as error:
+                raise EvidenceError(f"Protected-main qualification authority is invalid: {error}") from error
+
+            supplied_policy = release_lines.load_policy(Path(policy_path))
+            if release_lines.policy_digest(supplied_policy) != selected["authorizationDigest"]:
+                raise EvidenceError("Admission policy differs from the frozen authority digest.")
+
+        return selected
+    except (
+        release_lines.LinePolicyError,
+        release_qualification.QualificationError,
+        OSError,
+        json.JSONDecodeError,
+    ) as error:
+        raise EvidenceError(f"Release-line admission failed: {error}") from error
 
 
 def write_manifest(args: argparse.Namespace) -> None:
@@ -791,7 +902,11 @@ def write_manifest(args: argparse.Namespace) -> None:
         raise EvidenceError(
             "Expected release tag does not match the candidate version."
         )
-    source = git_source(repo, args.expected_ref)
+    source_ref = args.expected_ref or os.environ.get("GITHUB_REF") or run_command(
+        "git", "symbolic-ref", "-q", "HEAD", cwd=repo
+    )
+    line = admitted_release_line(repo, source_ref, args.release_version, snapshot=getattr(args, "release_line", None))
+    source = git_source(repo, args.expected_ref, release_line=line)
     artifacts = collect_artifacts(root)
     validate_release_packages(artifacts, args.release_version)
     engines = collect_engines(root)
@@ -801,13 +916,17 @@ def write_manifest(args: argparse.Namespace) -> None:
     # than repeated here. Requiring them in this document is what made the
     # release manifest ask for evidence the tag never produces.
     qualification = validate_qualification_manifest(
-        root, source["commit"], args.release_version
+        root, source["commit"], args.release_version, line
     )
     validate_efcore_patch_matrix(root, qualification["gates"])
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
-    approved_sdk = approved_dotnet_sdk(repo)
+    approved_sdk = approved_dotnet_sdk(repo, line)
     dotnet_sdk = run_command("dotnet", "--version", cwd=repo)
+    try:
+        toolchain = release_lines.inspect_toolchain(repo, line, resolved_packages=dependencies)
+    except release_lines.LinePolicyError as error:
+        raise EvidenceError(f"Release toolchain is incompatible: {error}") from error
 
     if dotnet_sdk != approved_sdk:
         raise EvidenceError(
@@ -834,8 +953,10 @@ def write_manifest(args: argparse.Namespace) -> None:
         "releaseVersion": args.release_version,
         "expectedReleaseTag": args.expected_release_tag,
         "source": source,
-        "workflow": workflow_identity(args.run_id),
+        "releaseLine": line,
+        "workflow": workflow_identity(args.run_id, release_line=line, source_commit=source["commit"]),
         "toolchain": {
+            **toolchain,
             "approvedDotnetSdk": approved_sdk,
             "dotnetSdk": dotnet_sdk,
             "resolvedPackages": dependencies,
@@ -870,24 +991,84 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
     except (OSError, json.JSONDecodeError) as exception:
         raise EvidenceError("The release evidence manifest or checksum is unreadable.") from exception
 
-    if manifest.get("schemaVersion") != SCHEMA_VERSION:
+    schema = manifest.get("schemaVersion")
+    if type(schema) is not int or schema not in (3, SCHEMA_VERSION):
         raise EvidenceError(f"Unsupported release evidence schema: {manifest.get('schemaVersion')}")
     if manifest.get("expectedReleaseTag") != f"v{manifest.get('releaseVersion', '')}":
         raise EvidenceError(
             "Release evidence expected tag does not match its candidate version."
         )
     source = manifest.get("source") or {}
-    if source.get("ref") != "refs/heads/main" or source.get("tag") is not None:
-        raise EvidenceError("Release candidate evidence source identity is not untagged main.")
+    if not isinstance(source, dict):
+        raise EvidenceError("Release evidence source identity must be an object.")
+
+    line = manifest.get("releaseLine")
+    if schema == SCHEMA_VERSION:
+        if not isinstance(source.get("ref"), str) or not source["ref"]:
+            raise EvidenceError("Release evidence requires an explicit source ref.")
+
+        try:
+            release_lines.validate_snapshot(
+                line, source_ref=source.get("ref"), version=manifest.get("releaseVersion")
+            )
+        except release_lines.LinePolicyError as error:
+            raise EvidenceError(f"Release evidence line identity is invalid: {error}") from error
+
+        if source.get("tag") is not None:
+            raise EvidenceError("Release candidate evidence source must remain untagged.")
+
+        workflow = manifest.get("workflow", {})
+        if workflow.get("provider") == "github-actions":
+            repository = line["repository"]
+            expected_caller = f"{repository}/{line['workflowPath']}@{line['sourceRef']}"
+            expected_signer = f"{repository}/.github/workflows/release-candidate.yml@{line['sourceRef']}"
+            if (
+                workflow.get("workflowRef") != expected_caller
+                or workflow.get("signerWorkflowRef") != expected_signer
+                or workflow.get("signerDigest") != source.get("commit")
+            ):
+                raise EvidenceError("Release evidence caller or reusable signer identity is invalid.")
+    else:
+        # WHY: a historical document never carried line authorization; retain
+        # its original main-only contract rather than inventing a new grant.
+        if line is not None or source.get("ref") != "refs/heads/main" or source.get("tag") is not None:
+            raise EvidenceError("Historical release candidate evidence source identity is not untagged main.")
     if checksum_parts != [sha256(manifest_path), MANIFEST_NAME]:
         raise EvidenceError("The detached release evidence checksum does not match the manifest.")
 
     toolchain = manifest.get("toolchain", {})
+    if not isinstance(toolchain, dict):
+        raise EvidenceError("Release evidence toolchain must be an object.")
+
     approved_sdk = toolchain.get("approvedDotnetSdk")
     observed_sdk = toolchain.get("dotnetSdk")
 
     if not isinstance(approved_sdk, str) or approved_sdk != observed_sdk:
         raise EvidenceError("Release evidence does not bind the observed SDK to the approved SDK.")
+    if schema == SCHEMA_VERSION:
+        resolved = toolchain.get("resolvedPackages")
+        if not isinstance(resolved, dict):
+            # WHY: None means source-only inspection in the reusable helper,
+            # never permission to omit a sealed candidate's actual graph.
+            raise EvidenceError("Release evidence requires its resolved dependency graph.")
+
+        try:
+            release_lines.validate_toolchain(
+                {field: toolchain.get(field) for field in (
+                    "approvedDotnetSdk", "targetFramework", "efCoreVersion", "testRunner", "upstreamStage"
+                )},
+                line,
+                resolved_packages=resolved,
+            )
+        except release_lines.LinePolicyError as error:
+            raise EvidenceError(f"Release evidence toolchain is invalid: {error}") from error
+
+        if resolved != collect_dependencies(root / "resolved-packages.json"):
+            raise EvidenceError("Release evidence graph differs from its sealed dependency artifact.")
+
+        validate_qualification_manifest(
+            root, source.get("commit"), manifest["releaseVersion"], line
+        )
 
     expected = manifest.get("artifacts", [])
     if expected != sorted(expected, key=lambda artifact: artifact.get("path", "")):
@@ -915,11 +1096,21 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
         raise EvidenceError(f"Evidence inventory drift. Missing={missing}; untracked={untracked}")
 
     if repo is not None:
-        repository_sdk = approved_dotnet_sdk(repo)
+        repository_sdk = approved_dotnet_sdk(repo, line)
         active_sdk = run_command("dotnet", "--version", cwd=repo)
 
         if approved_sdk != repository_sdk or observed_sdk != active_sdk:
             raise EvidenceError("The manifest .NET SDK identity does not match the current repository contract.")
+        if schema == SCHEMA_VERSION:
+            try:
+                current_toolchain = release_lines.inspect_toolchain(
+                    repo, line, resolved_packages=toolchain.get("resolvedPackages")
+                )
+            except release_lines.LinePolicyError as error:
+                raise EvidenceError(f"Repository toolchain is incompatible: {error}") from error
+
+            if any(toolchain.get(field) != value for field, value in current_toolchain.items()):
+                raise EvidenceError("The frozen toolchain does not match the current repository contract.")
 
         source = manifest.get("source", {})
         current_commit = run_command("git", "rev-parse", "HEAD", cwd=repo)
@@ -960,6 +1151,11 @@ def parse_arguments() -> argparse.Namespace:
     generate.add_argument("--dependency-graph", type=Path, required=True)
     generate.add_argument("--expected-ref", default="")
 
+    source_check = subparsers.add_parser("source-check", help="Check admitted untagged source before any gate.")
+    source_check.add_argument("--repo", type=Path, required=True)
+    source_check.add_argument("--source-ref", required=True)
+    source_check.add_argument("--release-version", required=True)
+
     verify = subparsers.add_parser("verify", help="Verify existing release evidence.")
     verify.add_argument("--root", type=Path, required=True)
     verify.add_argument("--repo", type=Path)
@@ -971,7 +1167,10 @@ def main() -> int:
     """Run the requested evidence operation with concise operator diagnostics."""
     args = parse_arguments()
     try:
-        if args.command == "generate":
+        if args.command == "source-check":
+            line = admitted_release_line(args.repo, args.source_ref, args.release_version)
+            git_source(args.repo, args.source_ref, release_line=line)
+        elif args.command == "generate":
             write_manifest(args)
             verify_manifest(args.root, args.repo)
         else:

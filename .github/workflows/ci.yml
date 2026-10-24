@@ -1,8 +1,23 @@
 name: CI
+run-name: ${{ inputs.maintenance && format('maintenance {0}', inputs.schedule_correlation) || github.event.head_commit.message || github.event.pull_request.title || 'CI' }}
+# release-line-schedule: {"schemaVersion":1,"producers":["migration-deployment","efcore-patch-matrix","mysqlconnector-patch-matrix"]}
 
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      maintenance:
+        description: Run this branch's scheduled maintenance workload only.
+        type: boolean
+        default: false
+      expected_commit:
+        description: Exact branch head resolved by the schedule coordinator.
+        type: string
+        default: ""
+      schedule_correlation:
+        description: Immutable coordinator run and attempt identity.
+        type: string
+        default: ""
   schedule:
     - cron: "15 1 * * 4"
 
@@ -10,12 +25,58 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}-${{ inputs.maintenance && 'maintenance' || 'normal' }}
   cancel-in-progress: true
 
 jobs:
+  schedule-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Normal CI remains nonpublishing and unrestricted
+        if: ${{ !inputs.maintenance }}
+        run: echo "Normal CI does not grant release authority."
+      - name: Checkout branch-native maintenance guard
+        if: inputs.maintenance
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate exact active maintenance producer
+        if: inputs.maintenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          SCHEDULE_CORRELATION: ${{ inputs.schedule_correlation }}
+        run: >-
+          python3 eng/release/schedules.py validate-child --workflow ci.yml
+          --expected-commit "${EXPECTED_COMMIT}" --correlation "${SCHEDULE_CORRELATION}"
+
+  scheduled-release-lines:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout schedule authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Dispatch and await each active branch-native producer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 eng/release/schedules.py run --workflow ci.yml --output artifacts/release-lines/schedule-ci.json
+      - name: Upload exact scheduled child evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-line-schedule-ci
+          path: artifacts/release-lines/schedule-ci.json
+          if-no-files-found: warn
+
   quality-gates:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !inputs.maintenance
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -45,6 +106,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
+    needs: schedule-identity
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -78,7 +140,7 @@ jobs:
           path: artifacts/migration-deployment
 
   repo-tests:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !inputs.maintenance
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -105,6 +167,10 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      # WHY: Release-boundary regressions must fail before merge, not first during an RC.
+      - name: Verify retained release boundary contracts
+        run: bash ./eng/release/test-tools.sh
+
       - name: Run repo-local test path
         run: bash ./eng/test.sh
 
@@ -124,6 +190,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
+    needs: schedule-identity
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -168,6 +235,7 @@ jobs:
     if: >-
       github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
+    needs: schedule-identity
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -213,7 +281,7 @@ jobs:
   # It detects provider regressions on the change that introduces them, which
   # the weekly cadence could only surface days later.
   spec-test-suite:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !inputs.maintenance
     # An explicit name keeps the status-check identity stable and readable;
     # the generated form would repeat every matrix value.
     name: spec-test-suite (${{ matrix.engine.name }})
@@ -289,7 +357,7 @@ jobs:
           path: artifacts/spec-tests/${{ matrix.engine.name }}
 
   coverage-gate:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !inputs.maintenance
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [repo-tests, spec-test-suite, integration-smoke]
@@ -393,7 +461,7 @@ jobs:
         run: bash ./eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 
   integration-smoke:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !inputs.maintenance
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -459,7 +527,7 @@ jobs:
   # with always() and inspecting each result explicitly is what makes the check
   # mean what its name says.
   repository-qualification:
-    if: always() && github.event_name != 'schedule'
+    if: always() && github.event_name != 'schedule' && !inputs.maintenance
     needs:
       - quality-gates
       - repo-tests

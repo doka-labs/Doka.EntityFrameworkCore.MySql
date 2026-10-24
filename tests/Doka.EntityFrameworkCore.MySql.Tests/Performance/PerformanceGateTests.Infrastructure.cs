@@ -93,7 +93,10 @@ public sealed partial class PerformanceGateTests
             int sampleCountOffset = 0,
             string? controlsJson = null,
             object[]? controlObservations = null,
-            JsonElement? requiredTargets = null
+            JsonElement? requiredTargets = null,
+            double timeMultiplier = 1,
+            double workloadAllocatedBytes = 20,
+            double gen2Collections = 0
         )
         {
             var path = System.IO.Path.Combine(
@@ -211,9 +214,10 @@ public sealed partial class PerformanceGateTests
                                 $"Target={reportTarget}&WorkloadId=query.(...)-1 [17]",
                                 $"Doka.EntityFrameworkCore.MySql.Benchmarks.ProviderWorkloadBenchmarks.Execute("
                                 + $"Target: \"{reportTarget}\", WorkloadId: \"query.sync.rows-1\")",
-                                [10d, 12d, 11d],
-                                allocatedBytes: 20,
-                                sampleCountOffset: sampleCountOffset),
+                                [10d * timeMultiplier, 12d * timeMultiplier, 11d * timeMultiplier],
+                                allocatedBytes: workloadAllocatedBytes,
+                                sampleCountOffset: sampleCountOffset,
+                                gen2Collections: gen2Collections),
                         }.Concat(controlObservations ?? [ControlObservation("Execute", 1)]).ToArray(),
                     }));
 
@@ -261,7 +265,7 @@ public sealed partial class PerformanceGateTests
                         sourceHash = "test-source",
                         runnerClass = "test-runner",
                         generatedUtc = DateTimeOffset.UtcNow,
-                        success = false,
+                        success = managedHeapGrowthBytes <= 1024,
                         scenarios = new object[]
                         {
                             Scenario("soak.hilo-cache-bound", "cacheEntries", 0),
@@ -271,7 +275,7 @@ public sealed partial class PerformanceGateTests
                             new
                             {
                                 id = "soak.working-set-stabilization",
-                                success = false,
+                                success = managedHeapGrowthBytes <= 1024,
                                 metrics = new Dictionary<string, double>(StringComparer.Ordinal)
                                 {
                                     ["workingSetGrowthBytes"] = 0,
@@ -296,7 +300,8 @@ public sealed partial class PerformanceGateTests
             string fullName,
             double[] values,
             double allocatedBytes,
-            int sampleCountOffset = 0
+            int sampleCountOffset = 0,
+            double gen2Collections = 0
         ) => new
         {
             Type = type,
@@ -312,7 +317,7 @@ public sealed partial class PerformanceGateTests
             Memory = new
             {
                 BytesAllocatedPerOperation = allocatedBytes,
-                Gen2Collections = 0,
+                Gen2Collections = gen2Collections,
             },
         };
 

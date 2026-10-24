@@ -13,6 +13,7 @@ benchmark_assembly="${repo_root}/artifacts/bin/Doka.EntityFrameworkCore.MySql.Be
 compose_file="${repo_root}/docker/compose.yml"
 target="${DOKA_BENCHMARK_TARGET:-mysql84}"
 profile="${DOKA_BENCHMARK_PROFILE:-smoke}"
+evaluation="${DOKA_BENCHMARK_EVALUATION:-full}"
 run_id="${DOKA_BENCHMARK_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:-local-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)}"
 commit="${DOKA_BENCHMARK_COMMIT:-$(git -C "${repo_root}" rev-parse HEAD)}"
@@ -37,6 +38,7 @@ Usage:
 Environment:
   DOKA_BENCHMARK_TARGET=<requiredTargets key; local default mysql84>
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
+  DOKA_BENCHMARK_EVALUATION=full|allocations-only (Actions always allocations-only)
   DOKA_BENCHMARK_RUN_ID=<unique artifact identity>
   DOKA_BENCHMARK_PORT=<published target port; use 0 for a dynamic port>
 EOF
@@ -84,6 +86,21 @@ if ! jq -e --arg profile "${profile}" '.profiles[$profile] != null' "${contract}
     echo "Unsupported benchmark profile '${profile}'." >&2
     exit 78
 fi
+
+case "${evaluation}" in
+    full|allocations-only) ;;
+    *)
+        echo "Benchmark evaluation must be full or allocations-only." >&2
+        exit 78
+        ;;
+esac
+
+# WHY: Hosted runner labels do not pin CPU or memory performance. Neither an
+# environment override nor a manual dispatch may restore hardware-sensitive gates.
+if [[ "${GITHUB_ACTIONS:-false}" == [Tt][Rr][Uu][Ee] ]]; then
+    evaluation="allocations-only"
+fi
+export DOKA_BENCHMARK_EVALUATION="${evaluation}"
 
 if [[ ! "${run_id}" =~ ^[0-9A-Za-z._-]+$ ]]; then
     echo "Benchmark run ID '${run_id}' contains unsupported characters." >&2
@@ -182,9 +199,10 @@ dotnet build "${benchmark_project}" --configuration Release --no-restore --tl:of
 
 # shellcheck source=eng/performance/host-preflight.sh
 source "${repo_root}/eng/performance/host-preflight.sh"
-if ! require_benchmark_host_headroom "${contract}"; then
+if [[ "${evaluation}" == "full" ]] && ! require_benchmark_host_headroom "${contract}"; then
     exit 78
 fi
+echo "Benchmark evaluation policy: ${evaluation}."
 
 export DOKA_BENCHMARK_TARGET="${target}"
 export DOKA_BENCHMARK_DATABASE_PORT="${port}"
@@ -217,8 +235,14 @@ gate_arguments=(
     "${profile}"
 )
 if [[ "${soak_required}" == "true" ]]; then
-    if ! dotnet "${benchmark_assembly}" --soak "${soak_report}"; then
-        exit 1
+    # WHY: The raw soak success flag includes host-sensitive budgets. The
+    # combined evaluator alone decides which measured violations reject this run.
+    set +e
+    dotnet "${benchmark_assembly}" --soak "${soak_report}"
+    soak_status=$?
+    set -e
+    if [[ "${soak_status}" != "0" && "${soak_status}" != "1" ]]; then
+        exit 78
     fi
     gate_arguments+=("${soak_report}")
 fi

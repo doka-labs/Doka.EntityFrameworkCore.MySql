@@ -16,9 +16,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
+import tempfile
+import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +32,7 @@ CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 TEST_ENTRY = REPOSITORY_ROOT / "eng" / "testing" / "test.sh"
 MIGRATION_GATE = REPOSITORY_ROOT / "eng" / "testing" / "test-migration-deployment.sh"
 MIGRATION_MODEL = REPOSITORY_ROOT / "eng" / "quality" / "check-migration-model.sh"
+PUBLISHER_ACTION = REPOSITORY_ROOT / ".github/actions/publish-release/action.yml"
 
 # Which stage produces the evidence behind each orchestrator path variable.
 PRODUCERS = {
@@ -39,6 +44,199 @@ PRODUCERS = {
     "mysqlconnector_matrix_dir": "mysqlconnector-patch-matrix",
     "qualification_manifest_file": "finalize",
 }
+
+
+def shell_commands(path: Path, module: str) -> list[list[str]]:
+    """Read literal module invocations without executing workflow shell code."""
+    body = re.sub(r"\\\n\s*", " ", path.read_text(encoding="ascii"))
+    commands = []
+    prefix = f"python3 -m eng.release.{module} "
+    for line in body.splitlines():
+        if not line.strip().startswith(prefix):
+            continue
+
+        arguments = shlex.split(line.strip())[3:]
+        # WHY: The optional preflight publication flag is expanded by the shell,
+        # not interpreted by the Python argument parser.
+        commands.append([item for item in arguments if item not in {
+            "${authorization_arguments[@]}",
+        }])
+
+    return commands
+
+
+class ReleaseLineWorkflowSeamTests(unittest.TestCase):
+    """Exercise the actual publisher/qualifier command and artifact boundaries."""
+
+    def test_release_lines_add_no_handoff_controller_or_readiness_subsystem(self) -> None:
+        """The ordinary release entry must not require the withdrawn operations framework."""
+        # Arrange
+        workflow = REPOSITORY_ROOT / ".github/workflows/release-lines-control.yml"
+        controller = REPOSITORY_ROOT / "eng/release/control.py"
+        readiness_tests = REPOSITORY_ROOT / "eng/tests/test_release_publication_readiness.py"
+        test_entry = REPOSITORY_ROOT / "eng/release/test-tools.sh"
+
+        # Act
+        automated_entry_exists = workflow.exists() or controller.exists()
+        readiness_tests_exist = readiness_tests.exists()
+        selected_tests = test_entry.read_text(encoding="ascii")
+        publisher = PUBLISHER_ACTION.read_text(encoding="ascii")
+
+        # Assert
+        self.assertFalse(automated_entry_exists)
+        self.assertFalse(readiness_tests_exist)
+        self.assertNotIn("eng.tests.test_release_line_control", selected_tests)
+        self.assertNotIn("eng.tests.test_release_publication_readiness", selected_tests)
+        self.assertNotIn("publication-admission-complete.json", publisher)
+        self.assertIn("python3 -m eng.release.github complete", publisher)
+
+    def test_publication_workflow_commands_match_the_actual_parser(self) -> None:
+        """Reject CLI drift before an expensive qualification reaches publication."""
+        # Arrange
+        from eng.release import publication
+
+        commands = [
+            command
+            for path in (WORKFLOW, PUBLISHER_ACTION)
+            for command in shell_commands(path, "publication")
+        ]
+        recheck = (REPOSITORY_ROOT / "eng/release/recheck-publication.sh").read_text(encoding="ascii")
+        recheck = re.sub(r"\\\n\s*", " ", recheck)
+        command = next(line for line in recheck.splitlines() if line.startswith("python3 -m "))
+        commands.append(shlex.split(command)[3:])
+
+        # Act
+        parsed = [publication.build_parser().parse_args(command) for command in commands]
+
+        # Assert
+        self.assertEqual(["preflight", "admit", "recheck"],
+                         [item.command for item in parsed])
+
+    def test_publisher_nuget_commands_match_the_actual_parser(self) -> None:
+        """Keep all new authority arguments consumable by the retained publisher."""
+        # Arrange
+        from eng.release import nuget
+
+        commands = shell_commands(PUBLISHER_ACTION, "nuget")
+
+        # Act
+        parsed = []
+        for command in commands:
+            with mock.patch("sys.argv", ["nuget", *command]):
+                parsed.append(nuget.parse_arguments())
+
+        # Assert
+        self.assertEqual(["bind", "preflight", "readback"], [item.command for item in parsed])
+        self.assertTrue(all(item.admission is not None and item.authority is not None for item in parsed))
+
+    def test_publisher_github_commands_match_the_actual_parser(self) -> None:
+        """Hold shared draft, promotion and completion argument contracts together."""
+        # Arrange
+        from eng.release import github
+
+        commands = shell_commands(PUBLISHER_ACTION, "github")
+
+        # Act
+        parsed = [github.build_parser().parse_args(command) for command in commands]
+
+        # Assert
+        self.assertEqual(["prepare", "stage", "publish", "complete"], [item.command for item in parsed])
+        self.assertTrue(all(item.admission is not None and item.authority is not None for item in parsed))
+
+    def test_every_remote_authority_recheck_has_scoped_github_authentication(self) -> None:
+        """A context token does not authenticate gh unless exposed to the step."""
+        # Arrange
+        action = PUBLISHER_ACTION.read_text(encoding="ascii")
+        steps = re.split(r"(?m)^    - name: ", action)[1:]
+        guarded = [step for step in steps if "bash ./eng/release/recheck-publication.sh" in step]
+
+        # Act
+        unauthenticated = [step.splitlines()[0] for step in guarded
+                           if "GH_TOKEN: ${{ github.token }}" not in step.split("      run:", 1)[0]]
+
+        # Assert
+        self.assertEqual(11, len(guarded))
+        self.assertEqual([], unauthenticated)
+
+    def test_frozen_line_artifact_reaches_every_qualification_producer(self) -> None:
+        """An independent authority snapshot must not exist only in preflight."""
+        # Arrange
+        workflow = WORKFLOW.read_text(encoding="ascii")
+        jobs = dict(re.findall(r"(?ms)^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:\n|\Z)", workflow))
+        producers = ("foundation", "engine-contracts", "sbom", "assemble", "attest")
+
+        # Act
+        missing = [name for name in producers
+                   if "name: ${{ needs.preflight.outputs.line_artifact_name }}" not in jobs[name]
+                   or "path: artifacts/release-lines" not in jobs[name]]
+
+        # Assert
+        self.assertEqual([], missing)
+        self.assertIn("line_artifact_name:", workflow)
+        self.assertIn("line_artifact_name: ${{ steps.authority.outputs.line_artifact_name }}", jobs["preflight"])
+
+    def test_single_entry_keeps_publication_permissions_out_of_qualification(self) -> None:
+        """A version-only invocation retains the existing protected publish path."""
+        # Arrange
+        qualifier = WORKFLOW.read_text(encoding="ascii")
+        publisher = qualifier.split("\n  publish:\n", 1)[1]
+        preflight = qualifier.split("\n  preflight:\n", 1)[1].split("\n  foundation:\n", 1)[0]
+
+        # Act
+        has_second_entry = (WORKFLOW.parent / "release-lines.yml").exists()
+
+        # Assert
+        self.assertFalse(has_second_entry)
+        self.assertNotIn("workflow_call:", qualifier)
+        self.assertIn("permissions:\n  contents: read\n", qualifier)
+        self.assertNotIn("id-token: write", preflight)
+        self.assertNotIn("    environment:", preflight)
+        self.assertNotIn("publisher_environment", preflight)
+        self.assertIn("name: nuget", publisher)
+        self.assertIn("id-token: write", publisher)
+        self.assertIn("!inputs.qualification_only", publisher)
+
+    def test_qualified_summary_uses_frozen_toolchain_and_exact_run_links(self) -> None:
+        """Execute the real summary without dispatching a second qualification."""
+        for preparation in ("false", "true"):
+            with self.subTest(qualification_only=preparation), tempfile.TemporaryDirectory() as directory:
+                # Arrange
+                workflow = WORKFLOW.read_text(encoding="ascii")
+                step = workflow.split("      - name: Summarize qualified candidate and existing operator actions\n", 1)[1]
+                script = textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n  publish:\n", 1)[0])
+                root = Path(directory)
+                manifest = root / "artifacts/release-candidate/github-123/release-candidate-evidence.json"
+                manifest.parent.mkdir(parents=True)
+                manifest.write_text(json.dumps({"toolchain": {
+                    "dotnetSdk": "10.0.402", "targetFramework": "net10.0",
+                    "efCoreVersion": "[10.0.8, 10.1.0)", "testRunner": "VSTest", "upstreamStage": "ga",
+                    "resolvedPackages": {"Microsoft.EntityFrameworkCore.Relational": "10.0.8", "MySqlConnector": "2.5.0"},
+                }}), encoding="ascii")
+                summary = root / "summary.md"
+                environment = {**os.environ, "GITHUB_REF": "refs/heads/maintenance/10.x", "GITHUB_SHA": "a" * 40,
+                    "GITHUB_SERVER_URL": "https://github.com", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "123",
+                    "GITHUB_STEP_SUMMARY": str(summary), "DOKA_RELEASE_CANDIDATE_RUN_ID": "github-123",
+                    "DOKA_RELEASE_VERSION": "10.6.2", "QUALIFICATION_ONLY": preparation}
+
+                # Act
+                result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script], cwd=root,
+                                        env=environment, capture_output=True, text=True, check=False)
+
+                # Assert
+                self.assertEqual(0, result.returncode, result.stderr)
+                rendered = summary.read_text(encoding="ascii")
+                for value in ("maintenance/10.x", "a" * 40, "v10.6.2", "10.0.402", "net10.0",
+                              "[10.0.8, 10.1.0)", "10.0.8", "2.5.0", "VSTest", "ga",
+                              "https://github.com/owner/repo/actions/runs/123#artifacts",
+                              f"https://github.com/owner/repo/commit/{'a' * 40}"):
+                    self.assertIn(value, rendered)
+
+                if preparation == "true":
+                    self.assertIn("no publication environment, credential or tag", rendered)
+                    self.assertNotIn("personally signed", rendered)
+                else:
+                    self.assertIn("personally signed annotated tag", rendered)
+                    self.assertIn("Do not dispatch another candidate", rendered)
 
 
 def finalization_body() -> str:

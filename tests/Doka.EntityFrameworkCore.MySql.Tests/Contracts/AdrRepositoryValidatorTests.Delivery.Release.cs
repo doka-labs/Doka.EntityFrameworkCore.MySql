@@ -197,9 +197,13 @@ public sealed partial class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
 
         // Act
-        var workflow = File.ReadAllText(
+        var entrypoint = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
 
+        var publisher = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "actions", "publish-release", "action.yml"));
+
+        var workflow = entrypoint + publisher;
         var normalizedWorkflow = NormalizeShellLayout(workflow);
         var publication = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "nuget.py"));
@@ -235,15 +239,16 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.DoesNotContain("release_tag:", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("confirmation:", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("  push:", workflow, StringComparison.Ordinal);
-        Assert.Contains("environment:\n      name: nuget", workflow, StringComparison.Ordinal);
+        Assert.Contains("name: nuget", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("publisher_environment", workflow, StringComparison.Ordinal);
         Assert.Contains("id-token: write", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841",
             workflow,
             StringComparison.Ordinal);
-        Assert.Contains("Verify current untagged main source", workflow, StringComparison.Ordinal);
+        Assert.Contains("Freeze independently authorized release line", workflow, StringComparison.Ordinal);
         Assert.Contains(
-            "Publication requires the qualified commit to remain on current main history",
+            "Publication requires the qualified commit to remain on its current authorized line history",
             workflow,
             StringComparison.Ordinal);
         Assert.Contains("git merge-base --is-ancestor", workflow, StringComparison.Ordinal);
@@ -255,7 +260,7 @@ public sealed partial class AdrRepositoryValidatorTests
             normalizedWorkflow,
             StringComparison.Ordinal);
         Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("--source-ref \"refs/heads/main\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--source-ref \"${GITHUB_REF}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--source-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--deny-self-hosted-runners", workflow, StringComparison.Ordinal);
         Assert.Contains("python3 -m eng.release.nuget preflight", workflow, StringComparison.Ordinal);
@@ -299,7 +304,7 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.Contains("--skip-duplicate", cacheSymbols, StringComparison.Ordinal);
         Assert.DoesNotContain("--no-symbols", cacheSymbols, StringComparison.Ordinal);
         Assert.Contains(
-            "The qualified candidate is no longer on current remote main history",
+            "The qualified candidate is no longer on current remote",
             publication,
             StringComparison.Ordinal);
         Assert.Contains("conflicting bytes", publication, StringComparison.Ordinal);
@@ -360,9 +365,9 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.DoesNotContain("\n    permissions:", foundation, StringComparison.Ordinal);
         Assert.Contains("    needs: preflight\n", foundation, StringComparison.Ordinal);
         Assert.DoesNotContain("\n    permissions:", engineContracts, StringComparison.Ordinal);
-        Assert.Contains("    needs: foundation\n", engineContracts, StringComparison.Ordinal);
+        Assert.Contains("    needs:\n      - preflight\n      - foundation\n", engineContracts, StringComparison.Ordinal);
         Assert.Contains(
-            "    needs: foundation\n",
+            "    needs:\n      - preflight\n      - foundation\n",
             sbom,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -370,7 +375,7 @@ public sealed partial class AdrRepositoryValidatorTests
             sbom,
             StringComparison.Ordinal);
         Assert.Contains(
-            "    needs:\n      - foundation\n      - engine-contracts\n      - sbom\n",
+            "    needs:\n      - preflight\n      - foundation\n      - engine-contracts\n      - sbom\n",
             assemble,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -381,7 +386,7 @@ public sealed partial class AdrRepositoryValidatorTests
             + "      pull-requests: read\n",
             assemble,
             StringComparison.Ordinal);
-        Assert.Contains("    needs: assemble\n", attest, StringComparison.Ordinal);
+        Assert.Contains("    needs:\n      - preflight\n      - assemble\n", attest, StringComparison.Ordinal);
         Assert.Contains(
             "    permissions:\n"
             + "      actions: read\n"
@@ -392,7 +397,7 @@ public sealed partial class AdrRepositoryValidatorTests
             attest,
             StringComparison.Ordinal);
         Assert.Contains(
-            "    needs:\n      - assemble\n      - attest\n",
+            "    needs:\n      - preflight\n      - assemble\n      - attest\n",
             publish,
             StringComparison.Ordinal);
         Assert.Contains(

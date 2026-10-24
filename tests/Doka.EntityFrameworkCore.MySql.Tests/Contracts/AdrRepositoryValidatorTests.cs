@@ -86,6 +86,6 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Assert
         Assert.True(report.IsValid, FormatErrors(report));
-        Assert.Equal(29, report.Documents.Count);
+        Assert.Equal(30, report.Documents.Count);
     }
 }

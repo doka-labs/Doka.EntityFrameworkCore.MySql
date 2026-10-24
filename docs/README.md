@@ -49,11 +49,19 @@ engine matrix.
 
 ## Operate the Provider
 
+- [Workflow Overview](operations/workflow-overview.md) maps independent PR,
+  scheduled and explicit release paths, including hosted benchmark enforcement.
 - [Operations Runbook](operations-runbook.md) routes incidents, migrations,
   resilience, publication, and performance work to their owned procedures.
 - [Release Publication](operations/release-publication.md) defines the ordered
-  path from a green `main` commit through untagged qualification, signed
-  tagging, protected NuGet publication, and public readback.
+  single-entry path from a qualified exact line through untagged qualification,
+  personal signed tagging, protected publication, and public readback; its
+  concrete main/10 examples remain the currently active route.
+- [Release Lines](operations/release-lines.md) defines exact main/maintenance/
+  preview roles, initially inactive future routes, protected activation,
+  monotonic Latest, framework servicing and exact public RC consumption. It
+  retains the existing single-maintainer/admin-bypass arrangement and `nuget`
+  environment, with no publisher migration or transition-report subsystem.
 - [Performance Evidence](operations/performance-evidence.md) routes benchmark
   execution and failure triage to the profile/schema
   [reference](operations/performance-evidence-reference.md), retired paired
@@ -67,6 +75,8 @@ engine matrix.
   abuse cases, and required mitigations.
 - [Security Assurance Case](security/assurance-case.md) maps every published
   security claim to its argument, controls, weaknesses, and evidence.
+- [Dependency Security Audits](security/dependency-audits.md) defines daily
+  active-line audits, fresh advisory checks, failure evidence and security backports.
 - [Release Verification](security/release-verification.md) shows consumers how
   to verify signed tags, SLSA provenance, and NuGet repository signatures.
 

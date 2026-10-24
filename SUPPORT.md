@@ -54,6 +54,42 @@ Questions about application architecture, database administration, query
 tuning unrelated to provider behavior, or unsupported deployment platforms may
 receive community guidance but are not maintained provider contracts.
 
+## Framework Lines and Servicing
+
+The current stable provider targets .NET 10 / EF Core 10. The binding future
+maintenance branch is `maintenance/10.x`; optional platform prereleases use
+`preview/11.x`. These two routes remain inactive until separately approved
+bootstrap, protected qualification and hosted authorization. The development
+branch `feature/dotnet-11` is not a publication or support grant.
+
+All activated lines use the same explicit release entry, existing `nuget`
+environment and their own exact toolchain. Personal signed tags, the existing
+single-maintainer approval arrangement and administrator bypass stay unchanged.
+There is no new publisher-environment migration or transition-report procedure.
+
+The intended 10.x servicing window follows Microsoft's .NET 10 support through
+**2028-11-14**, on supported serviced patches, as verified against the
+[official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+on 2026-10-22. This does not promise compatibility with obsolete or unserviced
+patches, or a commercial response SLA. Refresh upstream policy when activating
+or retiring the line; no unannounced .NET 11 GA lifecycle is assumed.
+
+Applicable correctness and security fixes are reviewed for each maintained
+major, linked through separate backport/forward-port PRs, and tested against
+that line's own dependency and runtime graph. A port that does not apply must
+say why; the complete platform upgrade is not merged into maintenance.
+Daily branch-native [dependency security audits](docs/security/dependency-audits.md)
+check active lines independently of default-branch Dependabot security PRs.
+Maintenance accepts compatible fixes, supported patch/dependency servicing and
+necessary security changes, not an implicit SDK/EF-major upgrade.
+
+An independently published Doka platform RC is explicit opt-in to that exact
+recorded upstream RC graph. Microsoft's upstream go-live policy does not prove
+Doka readiness or extend stable Doka guarantees. At support end, stop the
+line's schedules, dependency targets and new publication eligibility after
+completing affected publication; preserve tags, releases and historical evidence.
+See [Release Lines](docs/operations/release-lines.md) for the full procedure.
+
 ## Response and Lifecycle
 
 Public support is maintained on a best-effort basis. Issue priority is based on
