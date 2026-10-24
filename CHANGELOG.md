@@ -83,6 +83,11 @@ dotnet package add Doka.Caching.MySql --version 10.6.2
   identity. Retain exact SDK selection and application requirements; register
   the new label through Actionlint's native configuration without disabling
   unknown-label checks.
+- Update FsCheck, the OpenTelemetry host example, CodeQL SARIF upload, Zizmor
+  and the pinned EF, coverage and SBOM tools. Retain the .NET 10 SDK identity
+  and the supported runtime dependency ranges. Always merge coverage with the
+  pinned local tool instead of an unrelated global executable. Automatic Zizmor
+  provisioning now requires Python 3.11 or later.
 
 ## [10.6.1] - 2026-10-22
 

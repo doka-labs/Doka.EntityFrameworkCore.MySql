@@ -55,12 +55,10 @@ dotnet run \
 report_argument="$(printf '%s\n' "${reports}" | paste -sd ';' -)"
 
 cd "${repo_root}"
-if command -v reportgenerator >/dev/null 2>&1; then
-    reportgenerator_command=(reportgenerator)
-else
-    dotnet tool restore
-    reportgenerator_command=(dotnet tool run reportgenerator)
-fi
+# WHY: A global executable can shadow the reviewed tool version. Coverage
+# evidence must use the same manifest-pinned generator locally and in CI.
+dotnet tool restore
+reportgenerator_command=(dotnet tool run reportgenerator)
 
 "${reportgenerator_command[@]}" \
     "-reports:${report_argument}" \

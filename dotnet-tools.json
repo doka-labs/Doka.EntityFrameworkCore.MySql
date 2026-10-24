@@ -3,21 +3,21 @@
   "isRoot": true,
   "tools": {
     "dotnet-ef": {
-      "version": "10.0.10",
+      "version": "10.0.13",
       "commands": [
         "dotnet-ef"
       ],
       "rollForward": false
     },
     "dotnet-reportgenerator-globaltool": {
-      "version": "5.5.10",
+      "version": "5.5.11",
       "commands": [
         "reportgenerator"
       ],
       "rollForward": false
     },
     "microsoft.sbom.dotnettool": {
-      "version": "4.1.5",
+      "version": "4.1.13",
       "commands": [
         "sbom-tool"
       ],
