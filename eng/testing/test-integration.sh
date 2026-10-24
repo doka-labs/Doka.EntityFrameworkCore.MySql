@@ -358,11 +358,14 @@ run_integration_tests() {
         resolve_repo_path "${DOKA_COVERAGE_RESULTS_DIR:-artifacts/coverage/integration}"
     )"
 
+    # WHY: Redirected evidence and build outputs may never create this checkout's
+    # artifact root, but isolated test binaries must stay below it for discovery.
     mkdir -p \
+        "${repo_root}/artifacts" \
         "${coverage_results_dir}" \
         "${integration_artifacts_dir}" \
         "${target_evidence_dir}" \
-        "$(dirname "${database_evidence_file}")"
+        "$(dirname "${database_evidence_file}")" || return $?
 
     # A retried run must not accept a previous target's cleanup evidence when
     # its current process exits before writing new evidence.

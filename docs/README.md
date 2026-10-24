@@ -5,10 +5,13 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.1 patch release, see the [changelog](../CHANGELOG.md#1061---2026-10-22)
-and [GUID SQL-default upgrade guidance](operations/migrations.md#guid-sql-defaults).
-The update preserves the existing public API, dependency ranges, and supported
-engine matrix.
+For the 10.6.2 patch release, see the [changelog](../CHANGELOG.md#1062---2026-10-24),
+[GUID SQL-default upgrade guidance](operations/migrations.md#guid-sql-defaults)
+and [measured enumeration optimizations](operations/enumeration-performance.md).
+The update also prepares [release lines](operations/release-lines.md) without
+activating additional branches and keeps hosted benchmark timing diagnostic.
+Public APIs, dependency ranges, supported engines and storage defaults remain
+unchanged.
 
 ## Use the Provider
 
@@ -49,11 +52,19 @@ engine matrix.
 
 ## Operate the Provider
 
+- [Workflow Overview](operations/workflow-overview.md) maps independent PR,
+  scheduled and explicit release paths, including hosted benchmark enforcement.
 - [Operations Runbook](operations-runbook.md) routes incidents, migrations,
   resilience, publication, and performance work to their owned procedures.
 - [Release Publication](operations/release-publication.md) defines the ordered
-  path from a green `main` commit through untagged qualification, signed
-  tagging, protected NuGet publication, and public readback.
+  single-entry path from a qualified exact line through untagged qualification,
+  personal signed tagging, protected publication, and public readback; its
+  concrete main/10 examples remain the currently active route.
+- [Release Lines](operations/release-lines.md) defines exact main/maintenance/
+  preview roles, initially inactive future routes, protected activation,
+  monotonic Latest, framework servicing and exact public RC consumption. It
+  retains the existing single-maintainer/admin-bypass arrangement and `nuget`
+  environment, with no publisher migration or transition-report subsystem.
 - [Performance Evidence](operations/performance-evidence.md) routes benchmark
   execution and failure triage to the profile/schema
   [reference](operations/performance-evidence-reference.md), retired paired
@@ -67,6 +78,8 @@ engine matrix.
   abuse cases, and required mitigations.
 - [Security Assurance Case](security/assurance-case.md) maps every published
   security claim to its argument, controls, weaknesses, and evidence.
+- [Dependency Security Audits](security/dependency-audits.md) defines daily
+  active-line audits, fresh advisory checks, failure evidence and security backports.
 - [Release Verification](security/release-verification.md) shows consumers how
   to verify signed tags, SLSA provenance, and NuGet repository signatures.
 

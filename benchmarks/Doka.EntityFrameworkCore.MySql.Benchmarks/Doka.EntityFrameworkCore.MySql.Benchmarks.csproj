@@ -39,6 +39,19 @@
     <Compile Remove="TemporalLiteralBenchmark.cs" />
     <Compile Remove="DistributedCacheBenchmark.cs" />
     <Compile Remove="GenericLikeBenchmark.cs" />
+    <Compile Remove="EnumerationControlBenchmark.cs" />
+    <Compile Remove="WritePathEnumerationBenchmark*.cs" />
+    <Compile Remove="QueryEnumerationBenchmark*.cs" />
+    <Compile Remove="StoredProcedureEnumerationBenchmark.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="WritePathEnumerationBenchmark.*.cs">
+      <DependentUpon>WritePathEnumerationBenchmark.cs</DependentUpon>
+    </Compile>
+    <Compile Update="QueryEnumerationBenchmark.*.cs">
+      <DependentUpon>QueryEnumerationBenchmark.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

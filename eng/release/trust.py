@@ -309,12 +309,33 @@ def verify_trust_root(
     repository: str = "",
     protected_ref: str = "refs/remotes/origin/main",
     allowed_signers: Path | None = None,
+    release_line: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run every trust check in cost order and return the recorded evidence.
 
     The order is deliberate: each check is cheaper than the one after it, so
     the first failure costs the least possible work.
     """
+    if release_line is not None:
+        try:
+            release_qualification.release_lines.validate_snapshot(
+                release_line, version=tag.removeprefix("v"), repository=repository
+            )
+            release_qualification.validate_line_policy(policy, release_line)
+        except (release_qualification.QualificationError, release_qualification.release_lines.LinePolicyError) as error:
+            raise TrustRootError(f"Release-line trust identity is invalid: {error}") from error
+
+        expected_ref = "refs/remotes/origin/" + release_line["sourceRef"].removeprefix("refs/heads/")
+        if protected_ref != expected_ref:
+            raise TrustRootError("Trust root ancestry must use the admitted release line.")
+    elif protected_ref != "refs/remotes/origin/main":
+        raise TrustRootError("Historical tag trust evidence is main-only.")
+    elif any(
+        gate.get("requiredBaseBranch", "main") != "main"
+        for gate in policy.get("gates", []) if gate.get("kind") == "protected-check"
+    ):
+        raise TrustRootError("Historical tag trust evidence requires main PR qualification.")
+
     trusted = policy.get("trustedTagSigners")
     if not isinstance(trusted, dict):
         raise TrustRootError("The evidence policy declares no trusted signers.")
@@ -356,8 +377,8 @@ def verify_trust_root(
     )
 
     canonical_policy = json.dumps(policy, sort_keys=True, separators=(",", ":"))
-    return {
-        "schemaVersion": 2,
+    result = {
+        "schemaVersion": 3 if release_line is not None else 2,
         "kind": "release-tag-trust-root",
         "repository": repository,
         "tag": tag,
@@ -372,6 +393,10 @@ def verify_trust_root(
         "signerFingerprint": local.get("signer", {}).get("fingerprint"),
         "qualification": qualification_receipt,
     }
+    if release_line is not None:
+        result["releaseLine"] = dict(release_line)
+
+    return result
 
 def _gh_payload(*arguments: str) -> Any:
     """Query the authenticated GitHub API and return decoded JSON."""
@@ -1081,6 +1106,7 @@ def pre_tag_report(
     commit: str,
     policy: dict[str, Any],
     qualification_only: bool = False,
+    release_line: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, str]]:
     """Answer whether a commit has the branch and signer prerequisites.
 
@@ -1089,6 +1115,11 @@ def pre_tag_report(
     accepting a commit whose later tag would in fact be rejected.
     """
     lines: list[tuple[str, str, str]] = []
+    if release_line is not None:
+        try:
+            release_qualification.validate_line_policy(policy, release_line)
+        except release_qualification.QualificationError as error:
+            return [("FAIL", "release-line gate ownership", str(error))]
 
     if not qualification_only:
         trusted = policy.get("trustedTagSigners") or {}
@@ -1156,13 +1187,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     verify.add_argument("--policy", required=True, type=Path)
     verify.add_argument("--qualification-manifest", required=True, type=Path)
     verify.add_argument("--output", required=True, type=Path)
-    verify.add_argument("--protected-ref", default="refs/remotes/origin/main")
+    verify.add_argument("--protected-ref")
+    verify.add_argument("--release-line", type=Path)
     pre_tag = subparsers.add_parser("pre-tag")
     pre_tag.add_argument("--repo", required=True, type=Path)
     pre_tag.add_argument("--commit", required=True)
     pre_tag.add_argument("--repository", required=True)
     pre_tag.add_argument("--policy", required=True, type=Path)
     pre_tag.add_argument("--qualification-only", action="store_true")
+    pre_tag.add_argument("--release-line", type=Path)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "pre-tag":
@@ -1178,6 +1211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             commit=arguments.commit,
             policy=policy,
             qualification_only=arguments.qualification_only,
+            release_line=release_qualification.load_release_line(arguments.release_line),
         ):
             print(f"PRE-TAG\t{state}\t{subject}\t{detail}")
             if state == "FAIL":
@@ -1192,6 +1226,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if not isinstance(manifest, dict):
             raise TrustRootError("Qualification manifest must contain a JSON object.")
+        line = manifest.get("releaseLine") if manifest.get("schemaVersion") == 3 else None
+        provided_line = release_qualification.load_release_line(arguments.release_line)
+        if provided_line is not None and provided_line != line:
+            raise TrustRootError("Trust verification and qualification freeze different release lines.")
+
+        protected_ref = arguments.protected_ref or (
+            "refs/remotes/origin/" + line["sourceRef"].removeprefix("refs/heads/")
+            if line is not None else "refs/remotes/origin/main"
+        )
         tree = run_git(arguments.repo, "rev-parse", f"{arguments.commit}^{{tree}}")
         if tree.returncode != 0 or not tree.stdout.strip():
             raise TrustRootError("Candidate tree identity cannot be resolved.")
@@ -1212,9 +1255,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 expected_release_tag=arguments.tag,
             ),
             repository=arguments.repository,
-            protected_ref=arguments.protected_ref,
+            protected_ref=protected_ref,
+            release_line=line,
         )
-    except (OSError, json.JSONDecodeError, TrustRootError) as error:
+    except (OSError, json.JSONDecodeError, TrustRootError, release_qualification.QualificationError) as error:
         print(f"Release tag trust root failed: {error}", file=sys.stderr)
         return 1
 

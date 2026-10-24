@@ -69,6 +69,35 @@ gh api \
 
 ## Required
 
+### Release-line activation uses the existing publisher
+
+The initial policy keeps main/10 active. `maintenance/10.x` and `preview/11.x`
+remain inactive until separately approved. All lines use `release-candidate.yml`
+and the existing `nuget` environment and Trusted Publishing identity.
+
+The owner retains the single-maintainer review/self-review arrangement and
+administrator bypass. Release-line tooling does not require a second maintainer,
+change these controls, or require bypass to be disabled. No new environment,
+credential migration or old-route denial is part of line support.
+
+When adopting a line, separately approve and verify its own branch protections,
+required checks, exact deployment grant in `nuget` and policy eligibility. Use
+`prepared` for full own-base PR qualification without publisher credentials;
+only `active` may publish. Keep deployment grants restricted to exact approved
+active branches, not `preview/*` or `maintenance/*` wildcards. Complete affected
+publication before disabling or reassigning its line.
+
+The existing publisher checks current protected-main policy and candidate
+identity before credentials and writes. That does not inventory all historical
+runs or revoke code executed by old workflow reruns; administrator access is
+not overridden by the new validators. Hosted settings and package permissions
+require actual readback, not inference from local tests.
+
+The [Release Lines procedure](release-lines.md) governs preparation, ordinary
+publication/retry, Latest and support. The `nuget` examples below describe the
+current main-only configuration; later exact grants require separate approval.
+No command on this page authorizes a hosted mutation without that approval.
+
 ### Release immutability must be enabled before the first publication
 
 Repository Settings -> General -> Releases must have **Enable release
@@ -98,7 +127,7 @@ and never opens or promotes a proposal.
 
 ### The nuget environment must require a human reviewer
 
-The `nuget` environment must carry both its `main`-only branch policy and a
+The `nuget` environment must carry both its exact approved branch policy and a
 required reviewer. The publish job in `release-candidate.yml` requests the
 short-lived NuGet trusted-publishing token and pushes packages to nuget.org.
 Package publication is irreversible: a version, once pushed, cannot be
@@ -107,11 +136,15 @@ replaced.
 Add at least one required reviewer so the credential boundary opens only after
 a person confirms the run.
 
+The current single-maintainer and administrator-bypass settings remain intact.
+This requirement neither introduces a second-person approval rule nor requires
+administrator bypass to be disabled.
+
 UI: Settings -> Environments -> `nuget` -> Deployment protection rules ->
 enable "Required reviewers" and add the maintainers.
 
 The API form replaces the environment configuration, so the existing branch
-policy has to be restated or the `main`-only restriction is lost:
+policy has to be restated or the reviewed exact-branch restriction is lost:
 
 `--field` types only `true`, `false`, `null`, and integers; `--raw-field`
 always sends a string. Neither can express an array or an object, so a typed
@@ -134,7 +167,7 @@ gh api "repos/${repo}/environments/nuget" --jq '.protection_rules[].type'
 # expected: required_reviewers and branch_policy
 gh api "repos/${repo}/environments/nuget/deployment-branch-policies" \
   --jq '.branch_policies[].name'
-# expected: main
+# expected initially: main; later, only separately approved active-line branches
 ```
 
 Resolve a different reviewer id with `gh api users/<login> --jq .id`.

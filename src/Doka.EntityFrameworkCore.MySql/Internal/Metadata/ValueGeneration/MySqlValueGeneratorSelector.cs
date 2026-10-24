@@ -68,7 +68,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         if (strategy is null
             && property.ValueGenerated == ValueGenerated.OnAdd
             && (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(Guid)
-            && GetEffectiveDefaultValueSql(property, typeBase) is not null
+            && MySqlStoreGenerationMetadata.GetDefaultValueSql(property) is not null
             && property.GetValueConverter() is null
             && HasImplicitGuidConverterFactory(property.GetTypeMapping()))
         {
@@ -126,30 +126,12 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         // live on the root property, but still require temporary model GUIDs.
         if (clrType == typeof(Guid)
             && property.ValueGenerated != ValueGenerated.Never
-            && GetEffectiveDefaultValueSql(property, typeBase) is not null)
+            && MySqlStoreGenerationMetadata.GetDefaultValueSql(property) is not null)
         {
             return new TemporaryGuidValueGenerator();
         }
 
         return base.FindForType(property, typeBase, clrType);
-    }
-
-    /// <summary>Resolves the selected entity's shared-table SQL default without rebuilding the relational model.</summary>
-    private static string? GetEffectiveDefaultValueSql(
-        IReadOnlyProperty property,
-        IReadOnlyTypeBase typeBase
-    )
-    {
-        var defaultSql = property.GetDefaultValueSql();
-
-        if (defaultSql is not null || typeBase is not IReadOnlyEntityType entityType)
-        {
-            return defaultSql;
-        }
-
-        var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
-
-        return storeObject is { } table ? property.GetDefaultValueSql(table) : null;
     }
 
     /// <summary>Recognizes only EF 10's inherited Guid conversion generation hints.</summary>

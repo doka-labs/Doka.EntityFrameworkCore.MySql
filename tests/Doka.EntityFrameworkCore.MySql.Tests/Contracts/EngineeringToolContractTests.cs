@@ -7,6 +7,133 @@ public sealed class EngineeringToolContractTests
 {
     private static readonly string[] s_auditSources = ["https://api.nuget.org/v3/index.json"];
 
+    /// <summary>Verifies hosted results preserve both benchmark failures and diagnostic-write failures.</summary>
+    /// <param name="benchmarkExitCode">The benchmark process result.</param>
+    /// <param name="teeExitCode">The diagnostic writer result.</param>
+    /// <param name="expectedExitCode">The combined workflow result.</param>
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(1, 0, 1)]
+    [InlineData(78, 0, 78)]
+    [InlineData(0, 1, 78)]
+    public void Benchmark_workflow_rejects_lost_diagnostics_and_preserves_measured_failures(
+        int benchmarkExitCode,
+        int teeExitCode,
+        int expectedExitCode
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github/workflows/benchmark.yml"));
+        var start = workflow.IndexOf("          set +e", StringComparison.Ordinal);
+        var end = workflow.IndexOf("\n      - name: Upload raw benchmark", start, StringComparison.Ordinal);
+
+        // Act
+        var result = Run(repositoryRoot, "-c", default,
+            "set -euo pipefail\nbenchmark_status=\"$1\"\ntee_status=\"$2\"\ndiagnostic=unused\n"
+            + "bash() { return \"${benchmark_status}\"; }\ntee() { return \"${tee_status}\"; }\n"
+            + workflow[start..end], "benchmark-diagnostics",
+            benchmarkExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            teeExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        // Assert
+        Assert.Equal(expectedExitCode, result.ExitCode);
+    }
+
+    /// <summary>Verifies only local full-mode measurements depend on preflight CPU headroom.</summary>
+    /// <param name="evaluation">The resolved enforcement policy.</param>
+    /// <param name="expectedExitCode">The expected result on a contended host.</param>
+    [Theory]
+    [InlineData("full", 78)]
+    [InlineData("allocations-only", 0)]
+    public void Benchmark_cpu_headroom_admission_is_local_full_mode_only(
+        string evaluation,
+        int expectedExitCode
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"));
+        var start = script.IndexOf("if [[ \"${evaluation}\" == \"full\" ]]", StringComparison.Ordinal);
+        var end = script.IndexOf("\necho \"Benchmark evaluation policy:", start, StringComparison.Ordinal);
+
+        // Act
+        var result = Run(repositoryRoot, "-c", default,
+            "set -euo pipefail\nevaluation=\"$1\"\ncontract=unused\n"
+            + "require_benchmark_host_headroom() { echo admission-called; return 1; }\n"
+            + script[start..end], "benchmark-admission", evaluation);
+
+        // Assert
+        Assert.Equal(expectedExitCode, result.ExitCode);
+        Assert.Equal(evaluation == "full", result.StandardOutput.Contains("admission-called", StringComparison.Ordinal));
+    }
+
+    /// <summary>Verifies the shell and executable agree on hosted enforcement, including explicit overrides.</summary>
+    /// <param name="requested">The requested evaluation mode.</param>
+    /// <param name="actions">The hosted execution marker.</param>
+    /// <param name="expected">The resolved policy, or null for a rejected mode.</param>
+    [Theory]
+    [InlineData("full", "true", "allocations-only")]
+    [InlineData("full", "TRUE", "allocations-only")]
+    [InlineData("full", "false", "full")]
+    [InlineData("allocations-only", "false", "allocations-only")]
+    [InlineData("typo", "true", null)]
+    public void Benchmark_shell_policy_cannot_enable_hosted_timing_gates(
+        string requested,
+        string actions,
+        string? expected
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"));
+        var start = script.IndexOf("case \"${evaluation}\" in", StringComparison.Ordinal);
+        var end = script.IndexOf("export DOKA_BENCHMARK_EVALUATION=", start, StringComparison.Ordinal);
+        end = script.IndexOf('\n', end);
+
+        // Act
+        var result = Run(repositoryRoot, "-c", default,
+            "set -euo pipefail\nevaluation=\"$1\"\nGITHUB_ACTIONS=\"$2\"\n"
+            + script[start..end] + "\nprintf '%s' \"${DOKA_BENCHMARK_EVALUATION}\"",
+            "benchmark-policy", requested, actions);
+
+        // Assert
+        Assert.Equal(expected is null ? 78 : 0, result.ExitCode);
+        Assert.Equal(expected ?? string.Empty, result.StandardOutput);
+    }
+
+    /// <summary>Raw soak budget failures reach the evaluator; failed execution never becomes valid evidence.</summary>
+    /// <param name="soakExitCode">The raw soak process result.</param>
+    /// <param name="expectedExitCode">The expected orchestration result before evaluation.</param>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(2, 78)]
+    [InlineData(78, 78)]
+    [InlineData(137, 78)]
+    public void Benchmark_shell_defers_only_measured_soak_outcomes_to_the_evaluator(
+        int soakExitCode,
+        int expectedExitCode
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"));
+        var start = script.IndexOf("if [[ \"${soak_required}\" == \"true\" ]]; then", StringComparison.Ordinal);
+        var end = script.IndexOf("\nset +e", start, StringComparison.Ordinal);
+
+        // Act
+        var result = Run(repositoryRoot, "-c", default,
+            "set -euo pipefail\nsoak_required=true\nbenchmark_assembly=unused\nsoak_report=unused\n"
+            + "gate_arguments=()\nraw_status=\"$1\"\ndotnet() { return \"${raw_status}\"; }\n"
+            + script[start..end] + "\necho evaluator-reached",
+            "benchmark-soak-outcome", soakExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        // Assert
+        Assert.Equal(expectedExitCode, result.ExitCode);
+        Assert.Equal(expectedExitCode == 0, result.StandardOutput.Contains("evaluator-reached", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Verifies benchmark soak selection preserves an explicit false result without aborting the runner.
     /// </summary>
@@ -128,6 +255,7 @@ public sealed class EngineeringToolContractTests
         {
             version = 1,
             parameters = "--vulnerable --include-transitive",
+            sources = s_auditSources,
             projects = new[]
             {
                 new

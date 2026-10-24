@@ -9,12 +9,68 @@ scope: "Which pull-request evidence qualifies a release and how publication rema
 supersedes: []
 superseded-by: []
 amends: [D-019, D-025]
-amended-by: []
+amended-by: [D-030]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
 # D-026 -- Qualify releases from PR-bound, tree-exact evidence
+
+## 2026-10-23 Amendment: Hosted measurements have no hardware-speed verdict
+
+Monthly and manually dispatched hosted benchmarks keep collecting complete raw
+BenchmarkDotNet and soak reports, but enforce allocation budgets and explicit
+bounded-resource/cleanup invariants only. Absolute timing, timing ratios, Gen2
+frequency, working-set/managed-heap growth and throughput retention are
+diagnostic. A same-run ratio does not make CPU/cache/GC/scheduling effects
+hardware independent. Hosted runs also omit CPU-headroom admission; an explicit
+`full` request cannot restore it or timing enforcement in GitHub Actions.
+
+Local `full` evaluation retains the existing budgets for controlled-host
+investigation. `allocations-only` uses the same raw-evidence validator, not
+`continue-on-error` or a rewritten soak success flag. Incomplete or malformed
+reports, execution failures, allocation regressions and resource leaks still
+reject the run. This does not promise immunity to genuine runner outages or
+execution timeouts. Neither performance mode grants release authority.
+
+The [workflow overview](../operations/workflow-overview.md) explains the
+independent PR, schedule and release paths; the
+[performance runbook](../operations/performance-evidence.md) owns invocation
+and interpretation. This amendment supersedes older hosted budget-enforcement
+descriptions below, without discarding historical measurements or changing
+their original meaning.
+
+## 2026-10-22 Amendment: Exact release lines and present authority
+
+[D-030](D-030-release-lines-and-monotonic-publication.md) extends main-only
+assumptions below to exact authorized branches. Each line binds its own PR base,
+merge tree, ancestry, workflow, toolchain and frozen qualification identity.
+Prepared qualification runs all applicable checks without publisher credentials,
+tag or writes. Main/10 starts active; maintenance/10.x and preview/11.x stay
+inactive until separately adopted.
+
+The owner-approved 2026-10-24 scope correction keeps one `release-candidate.yml`
+entry and the existing `nuget` environment. Personal signed tags, the current
+single-maintainer review/self-review arrangement and administrator bypass remain
+unchanged. The suffix selects RC/stable; a normal dispatch qualifies once before
+signing and protected approval. `qualification_only=true` does not request the
+publisher environment or credentials.
+
+Publication checks current protected-main authority, exact original candidate
+bytes and current active-line eligibility inside the shared non-cancelling
+publisher exclusion. Latest is monotonic across majors and patches. Complete
+an affected publication before disabling or reassigning its line. The earlier
+unreleased publisher-environment migration, exceptional admission allowlist and
+framework-transition inventory/report requirements are withdrawn. This feature
+does not revoke old workflow generations or override administrator access.
+
+Historical release verification keeps the original evidence schema/ref and
+does not require continued Latest status or current publication permission.
+The [Release Lines runbook](../operations/release-lines.md) owns preparation,
+activation, exact-byte retries and public RC consumption. This amendment retains
+the signing, PR-bound tree, immutable artifact and complete three-package
+contracts; it does not assert new hosted settings or actual public RC execution.
+Main-only examples below describe their original source identities.
 
 ## 2026-09-10 Amendment: Make release dependency selection deterministic
 

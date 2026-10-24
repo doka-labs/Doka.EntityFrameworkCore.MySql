@@ -75,6 +75,17 @@ Building the repository itself requires the exact .NET SDK declared in
 [`global.json`][global-json]. Docker is required only for live integration,
 example, benchmark, and release-qualification runs.
 
+The current stable line remains .NET 10. The prepared release-line contract
+reserves `maintenance/10.x` for later 10.x servicing and optional `preview/11.x`
+for independently qualified platform RCs; both routes are initially inactive.
+It does not activate .NET 11 publication or change application requirements.
+The same release workflow selects an authorized branch and canonical version;
+personal signed tags, single-maintainer approval and administrator bypass stay
+unchanged, using the existing `nuget` environment. Ordinary releases need
+no manual inventory or new configuration ceremony.
+See [release lines][release-lines] and the
+[support policy][support] for activation, exact RC consumption and lifecycle.
+
 ## Install
 
 The following .NET 10 command installs the latest stable provider package and
@@ -103,23 +114,28 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.1` fixes GUID SQL defaults and computed-value generation without adding
-public APIs or changing GUID storage defaults. Explicit client-generation
-choices remain authoritative. MariaDB reads server-generated UUID keys through
-`RETURNING`; MySQL rejects an insert whose generated key cannot be read back
-unambiguously. Review the [GUID generation and upgrade guidance][guid-sql-defaults]
-when upgrading a model with SQL-generated GUIDs or older snapshots.
+`10.6.2` corrects a 10.6.1 model-initialization regression for GUID properties
+in secondary Entity Splitting tables and preserves shared-column defaults.
+The correction requires no physical schema migration. Review the
+[GUID generation and upgrade guidance][guid-sql-defaults] for explicit
+client-generation choices, SQL defaults and existing snapshots.
 
-The release also separates large implementation and test classes by
-responsibility and adds independent regression cases. EF Core requirements,
-supported engines, and the multiple-parameter collection default are unchanged.
+Measured hot-path changes reduce enumeration allocations in write, query and
+migration-command processing without changing SQL or result semantics. The
+[measurement report][enumeration-performance] records the
+tested methods and limits; it does not promise application-wide latency gains.
+
+Release tooling supports the independently maintained lines described above.
+Hosted benchmark timing remains diagnostic, while allocation and resource
+checks remain enforced. Public APIs, EF Core requirements, supported engines,
+GUID storage defaults and the multiple-parameter collection default are unchanged.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.1 before upgrading the provider.
+its published dependency range includes 10.6.2 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.1
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.2
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -531,6 +547,7 @@ ledger. Provider-owned gaps have a zero budget and do not belong in that ledger.
 - [Security policy][security-policy]
 - [Security assurance case][security-assurance-case]
 - [Release verification][release-verification]
+- [Release lines][release-lines]
 - [Project governance][project-governance]
 - [Project roadmap][project-roadmap]
 - [OpenSSF Best Practices evidence][openssf-best-practices]
@@ -575,12 +592,14 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [migrating-from-pomelo]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/migrating-from-pomelo.md
 [openssf-best-practices]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/openssf-best-practices.md
 [performance-evidence]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-evidence.md
+[enumeration-performance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/enumeration-performance.md
 [project-governance]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/GOVERNANCE.md
 [project-roadmap]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/ROADMAP.md
 [provider-architecture]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/architecture.md
 [provider-configuration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md
 [query-functions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/query-functions.md
 [release-verification]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/release-verification.md
+[release-lines]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md
 [runnable-examples]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/examples/README.md
 [security-assurance-case]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/assurance-case.md
 [security-policy]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SECURITY.md

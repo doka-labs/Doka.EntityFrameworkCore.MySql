@@ -11,8 +11,16 @@ internal sealed partial class MySqlUpdateSqlGenerator
         IReadOnlyModificationCommand command
     )
     {
-        foreach (var modification in command.ColumnModifications)
+        var modifications = command.ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Index EF's stable column list to avoid an interface enumerator for each validation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             // LAST_INSERT_ID() retrieves AUTO_INCREMENT values, not arbitrary defaults.
             // Omitting an unknown key from EF's fallback predicate could select an unrelated row.
             if (modification is { IsKey: true, IsRead: true, IsWrite: false, }
@@ -80,16 +88,32 @@ internal sealed partial class MySqlUpdateSqlGenerator
         // Four bytes per estimated character bounds UTF-8 SQL independently of their spelling.
         var sqlCharacters = 96 + (2L * command.TableName.Length);
 
-        foreach (var modification in command.ColumnModifications)
+        var modifications = command.ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Costing repeats per command; indexing the stable column list avoids interface enumerators.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             if (modification.IsRead)
             {
                 sqlCharacters += 6 + (2L * modification.ColumnName.Length);
             }
         }
 
-        foreach (var column in table.KeyColumns)
+        var keyColumns = table.KeyColumns;
+        var columnCount = keyColumns.Count;
+
+        // WHY: Index the stable physical-key list without allocating an enumerator during costing.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
         {
+            var column = keyColumns[columnIndex];
+
             var key = FindStableKey(command, column)!;
             sqlCharacters += 16 + (2L * column.Name.Length);
 
@@ -99,7 +123,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
                 sqlCharacters += key.ParameterName!.Length + 1;
             }
 
-            var value = key.TypeMapping?.Converter?.ConvertToProvider(key.Value) ?? key.Value;
+            var value = GetProviderKeyValue(key);
             var valueBytes = value switch
             {
                 string text => (2L * Encoding.UTF8.GetByteCount(text)) + 2,
@@ -123,8 +147,15 @@ internal sealed partial class MySqlUpdateSqlGenerator
     {
         var first = commands[0];
 
-        foreach (var command in commands)
+        var commandCount = commands.Count;
+
+        // WHY: Index the stable command list to avoid an interface enumerator during batch validation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var commandIndex = 0; commandIndex < commandCount; commandIndex++)
         {
+            var command = commands[commandIndex];
+
             if (!ReferenceEquals(command.Table, first.Table)
                 || !TryGetKeyedReadbackTable(command, out _)
                 || !HasMatchingOperationShape(
@@ -167,16 +198,32 @@ internal sealed partial class MySqlUpdateSqlGenerator
             return false;
         }
 
-        foreach (var column in candidate.KeyColumns)
+        var keyColumns = candidate.KeyColumns;
+        var columnCount = keyColumns.Count;
+
+        // WHY: Eligibility is checked per command; index the stable key list without enumeration overhead.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
         {
+            var column = keyColumns[columnIndex];
+
             if (FindStableKey(command, column) is null)
             {
                 return false;
             }
         }
 
-        foreach (var modification in command.ColumnModifications)
+        var modifications = command.ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Index EF's stable column list to validate physical mappings without an interface enumerator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             if ((modification.IsRead || modification.IsWrite)
                 && (modification.Column is not IColumn column || !ReferenceEquals(column.Table, physicalTable)))
             {
@@ -221,8 +268,16 @@ internal sealed partial class MySqlUpdateSqlGenerator
     {
         IColumnModification? key = null;
 
-        foreach (var modification in command.ColumnModifications)
+        var modifications = command.ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Key lookup repeats within costing and generation; index the stable list without enumerators.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             if (!ReferenceEquals(modification.Column, column))
             {
                 continue;
@@ -245,6 +300,21 @@ internal sealed partial class MySqlUpdateSqlGenerator
         return key;
     }
 
+    /// <summary>Respects EF's model-value and provider-literal descriptor boundary.</summary>
+    private static object? GetProviderKeyValue(
+        IColumnModification modification
+    )
+    {
+        var value = modification.Value;
+
+        // WHY: Parameterized descriptors carry model values, while EF's literal
+        // SQL generation already requires provider values. Converting those twice
+        // can throw or change the physical key used for readback.
+        return modification.UseCurrentValueParameter
+            ? modification.TypeMapping?.Converter?.ConvertToProvider(value) ?? value
+            : value;
+    }
+
     private static bool IsImplicitIdentityValue(
         IColumn column,
         IColumnModification modification
@@ -257,7 +327,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
         // WHY: A custom EF sentinel can make zero a written, non-temporary value.
         // MySQL still generates AUTO_INCREMENT for zero unless the session opts out.
-        var value = modification.TypeMapping?.Converter?.ConvertToProvider(modification.Value) ?? modification.Value;
+        var value = GetProviderKeyValue(modification);
 
         return value is (sbyte)0 or (byte)0 or (short)0 or (ushort)0 or 0 or 0U or 0L or 0UL;
     }
@@ -270,8 +340,15 @@ internal sealed partial class MySqlUpdateSqlGenerator
     {
         var actualIndex = 0;
 
-        foreach (var expectedOperation in expected)
+        var expectedOperationCount = expected.Count;
+
+        // WHY: Compare ordered descriptors without allocating an enumerator for each shape check.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var expectedOperationIndex = 0; expectedOperationIndex < expectedOperationCount; expectedOperationIndex++)
         {
+            var expectedOperation = expected[expectedOperationIndex];
+
             if (!IsOperation(expectedOperation, kind))
             {
                 continue;
@@ -292,6 +369,9 @@ internal sealed partial class MySqlUpdateSqlGenerator
             actualIndex++;
         }
 
+        // WHY: Resume at the comparison cursor to check only unmatched descriptors without a second enumeration.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (; actualIndex < actual.Count; actualIndex++)
         {
             if (IsOperation(actual[actualIndex], kind))
@@ -319,8 +399,10 @@ internal sealed partial class MySqlUpdateSqlGenerator
             reusableWriteOperations,
             out _);
 
-        // WHY: ROW_COUNT() must refer to the preceding INSERT for every row.
-        // One compound SELECT keeps all UNION branches under the same affected-row guard.
+        // One compound SELECT keeps ROW_COUNT() tied to the preceding INSERT across all UNION branches.
+        // WHY: Emit each command's correlation ordinal directly without a separate counter or iterator pipeline.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var ordinal = 0; ordinal < commands.Count; ordinal++)
         {
             if (ordinal > 0)
@@ -330,6 +412,9 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
             builder.Append("SELECT ");
 
+            // WHY: The read-column index controls separators while preserving the positional result schema.
+            // ReSharper disable once ForCanBeConvertedToForeach
+            // ReSharper disable once LoopCanBeConvertedToQuery
             for (var column = 0; column < readOperations.Count; column++)
             {
                 if (column > 0)
@@ -351,8 +436,16 @@ internal sealed partial class MySqlUpdateSqlGenerator
                 .Append("WHERE ");
             AppendRowsAffectedWhereCondition(builder, commands.Count);
 
-            foreach (var column in commands[ordinal].Table!.PrimaryKey!.Columns)
+            var keyColumns = commands[ordinal].Table!.PrimaryKey!.Columns;
+            var columnCount = keyColumns.Count;
+
+            // WHY: Index stable physical keys without allocating an enumerator for each generated row.
+            // ReSharper disable once ForCanBeConvertedToForeach
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
             {
+                var column = keyColumns[columnIndex];
+
                 builder.Append(" AND ");
                 AppendWhereCondition(builder, FindStableKey(commands[ordinal], column)!, useOriginalValue: false);
             }

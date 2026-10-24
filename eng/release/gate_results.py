@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 if __package__:
-    from .qualification import QualificationError, load_policy, policy_digest
+    from .qualification import QualificationError, load_policy, load_release_line, policy_digest, validate_line_policy
     from .trust import (
         TrustRootError,
         fetch_qualification_receipt,
@@ -29,7 +29,7 @@ if __package__:
         verify_pull_request_qualification,
     )
 else:  # pragma: no cover - direct execution path
-    from qualification import QualificationError, load_policy, policy_digest
+    from qualification import QualificationError, load_policy, load_release_line, policy_digest, validate_line_policy
     from trust import (
         TrustRootError,
         fetch_qualification_receipt,
@@ -222,6 +222,9 @@ DEPENDENCY_SNAPSHOT_GATES = frozenset(
 def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
     """Derive every gate result the policy declares for this run."""
     policy = load_policy(arguments.policy)
+    line = load_release_line(getattr(arguments, "release_line", None))
+    if line is not None:
+        validate_line_policy(policy, line)
     digest = policy_digest(policy)
     repository_path = Path(arguments.repo)
     commit = arguments.commit
@@ -294,6 +297,8 @@ def derive(arguments: argparse.Namespace) -> list[dict[str, Any]]:
 
     for result in results:
         result["policyDigest"] = digest
+        if line is not None:
+            result["releaseLine"] = dict(line)
 
     return results
 
@@ -311,6 +316,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     derive_parser.add_argument("--evidence-root", required=True)
     derive_parser.add_argument("--assembling-attempt", required=True, type=int)
     derive_parser.add_argument("--policy", type=Path)
+    derive_parser.add_argument("--release-line", type=Path)
     derive_parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args(argv)
 

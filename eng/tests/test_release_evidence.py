@@ -16,7 +16,26 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from eng.release import evidence as release_evidence
+from eng.release import evidence as release_evidence, lines
+from eng.tests.test_release_lines import initial_policy
+
+
+def release_line(source_ref: str = "refs/heads/main") -> dict[str, object]:
+    """Return a frozen admission fixture, never a publication authority."""
+    return {
+        "schemaVersion": 1,
+        "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
+        "sourceRef": source_ref,
+        "role": "main" if source_ref == "refs/heads/main" else "maintenance",
+        "packageMajor": 10,
+        "channel": "stable",
+        "upstreamStage": "ga",
+        "stateAtQualification": "active",
+        "workflowPath": ".github/workflows/release-candidate.yml",
+        "publisherEnvironment": "nuget",
+        "authorizationRevision": "2026-10-22.1",
+        "authorizationDigest": "a" * 64,
+    }
 
 
 class ReleaseEvidenceTests(unittest.TestCase):
@@ -71,7 +90,22 @@ class ReleaseEvidenceTests(unittest.TestCase):
             encoding="ascii",
         )
         (self.repo / "source.txt").write_text("reviewed source\n", encoding="ascii")
-        self._git("add", ".gitignore", "global.json", "source.txt")
+        (self.repo / "Directory.Build.props").write_text(
+            "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>\n",
+            encoding="ascii",
+        )
+        (self.repo / "Directory.Packages.props").write_text(
+            "<Project><PropertyGroup><DokaEfCoreVersion>"
+            "[10.0.8, 10.1.0)</DokaEfCoreVersion></PropertyGroup></Project>\n",
+            encoding="ascii",
+        )
+        # WHY: GA source qualification consumes its own reviewed patch baseline;
+        # the isolated repository must carry that source contract too.
+        baseline = self.repo / lines.SPECIFICATION_BASELINE_PATH
+        baseline.parent.mkdir(parents=True)
+        baseline.write_bytes((self._REPOSITORY_ROOT / lines.SPECIFICATION_BASELINE_PATH).read_bytes())
+        self._git("add", ".gitignore", "global.json", "source.txt", "Directory.Build.props",
+                  "Directory.Packages.props", str(lines.SPECIFICATION_BASELINE_PATH))
         self._git("commit", "-m", "test: seed release source")
         self._write_complete_evidence()
 
@@ -118,7 +152,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         # Gate selection lives in the qualification manifest; this document
         # binds itself to it so the two cannot describe different releases.
         self.assertEqual(
-            "v1.2.3",
+            "v10.2.3",
             manifest["qualification"]["expectedReleaseTag"],
         )
         self.assertTrue(manifest["qualification"]["gates"])
@@ -140,6 +174,273 @@ class ReleaseEvidenceTests(unittest.TestCase):
             release_evidence.EvidenceError, "clean Git worktree"
         ):
             self._generate()
+
+    def test_source_accepts_the_exact_frozen_maintenance_ref(self) -> None:
+        """Allow an admitted line without making sibling branches eligible."""
+        # Arrange
+        self._git("switch", "-c", "maintenance/10.x")
+        snapshot = release_line("refs/heads/maintenance/10.x")
+
+        # Act
+        with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+            source = release_evidence.git_source(
+                self.repo, snapshot["sourceRef"], release_line=snapshot
+            )
+
+        # Assert
+        self.assertEqual(snapshot["sourceRef"], source["ref"])
+
+    def test_source_rejects_a_different_frozen_line(self) -> None:
+        """Do not let a valid maintenance grant authorize the main checkout."""
+        # Arrange
+        snapshot = release_line("refs/heads/maintenance/10.x")
+
+        # Act / Assert
+        with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+            with self.assertRaisesRegex(release_evidence.EvidenceError, "source ref"):
+                release_evidence.git_source(
+                    self.repo, "refs/heads/main", release_line=snapshot
+                )
+
+    def test_preview_sdk_requires_an_explicit_preview_line(self) -> None:
+        """Permit an exact prerelease SDK only for admitted upstream previews."""
+        # Arrange
+        path = self.repo / "global.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["sdk"].update(version="11.0.100-rc.2.25451.107", allowPrerelease=True)
+        path.write_text(json.dumps(payload), encoding="ascii")
+        snapshot = {**release_line(), "upstreamStage": "rc"}
+
+        # Act
+        sdk = release_evidence.approved_dotnet_sdk(self.repo, snapshot)
+
+        # Assert
+        self.assertEqual("11.0.100-rc.2.25451.107", sdk)
+
+    def test_portable_evidence_rejects_a_cross_major_line(self) -> None:
+        """Keep a validly checksummed manifest bound to its package major."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["releaseLine"]["packageMajor"] = 11
+        path.write_text(json.dumps(manifest), encoding="ascii")
+        self._reseal_manifest()
+
+        # Act / Assert
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "line identity"):
+            release_evidence.verify_manifest(self.root, None)
+
+    def test_portable_evidence_accepts_historical_schema_three_main(self) -> None:
+        """Read old proof explicitly without requiring a modern authority grant."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["schemaVersion"] = 3
+        del manifest["releaseLine"]
+        path.write_text(json.dumps(manifest), encoding="ascii")
+        self._reseal_manifest()
+
+        # Act
+        result = release_evidence.verify_manifest(self.root, None)
+
+        # Assert
+        self.assertIsNone(result)
+
+    def test_portable_historical_evidence_cannot_claim_maintenance(self) -> None:
+        """Do not reinterpret a legacy source assertion as a branch grant."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["schemaVersion"] = 3
+        del manifest["releaseLine"]
+        manifest["source"]["ref"] = "refs/heads/maintenance/10.x"
+        path.write_text(json.dumps(manifest), encoding="ascii")
+        self._reseal_manifest()
+
+        # Act / Assert
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "Historical"):
+            release_evidence.verify_manifest(self.root, None)
+
+    def test_portable_evidence_rejects_a_different_target_framework(self) -> None:
+        """A checksum rewrite cannot hide framework drift from the frozen line."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["toolchain"]["targetFramework"] = "net11.0"
+        path.write_text(json.dumps(manifest), encoding="ascii")
+        self._reseal_manifest()
+
+        # Act / Assert
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "toolchain"):
+            release_evidence.verify_manifest(self.root, None)
+
+    def test_portable_evidence_rejects_a_different_upstream_stage(self) -> None:
+        """Keep GA evidence from borrowing a prerelease toolchain identity."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["toolchain"]["upstreamStage"] = "rc"
+        path.write_text(json.dumps(manifest), encoding="ascii")
+        self._reseal_manifest()
+
+        # Act / Assert
+        with self.assertRaisesRegex(release_evidence.EvidenceError, "toolchain"):
+            release_evidence.verify_manifest(self.root, None)
+
+    def test_hosted_source_admission_accepts_independently_observed_authority(self) -> None:
+        """Consume the exact frozen grant handed across the preflight boundary."""
+        # Arrange
+        environment, expected = self._admission_fixture()
+
+        # Act
+        with mock.patch.dict("os.environ", environment):
+            actual = release_evidence.admitted_release_line(self.repo, "refs/heads/main", "10.2.3")
+
+        # Assert
+        self.assertEqual(expected, actual)
+
+    def test_hosted_source_admission_rejects_a_tampered_authority_observation(self) -> None:
+        """A branch-local policy copy cannot stand in for current authority."""
+        # Arrange
+        environment, _ = self._admission_fixture()
+        path = Path(environment["DOKA_RELEASE_LINE_AUTHORITY"])
+        authority = json.loads(path.read_text(encoding="utf-8"))
+        authority["authorizationDigest"] = "0" * 64
+        path.write_text(json.dumps(authority), encoding="ascii")
+
+        # Act / Assert
+        with mock.patch.dict("os.environ", environment):
+            with self.assertRaisesRegex(release_evidence.EvidenceError, "authority is invalid"):
+                release_evidence.admitted_release_line(self.repo, "refs/heads/main", "10.2.3")
+
+    def test_hosted_source_admission_never_falls_back_to_checkout_policy(self) -> None:
+        """Missing protected-main observation fails before any qualification gate."""
+        # Arrange
+        environment, _ = self._admission_fixture()
+        environment["DOKA_RELEASE_LINE_AUTHORITY"] = ""
+
+        # Act / Assert
+        with mock.patch.dict("os.environ", environment):
+            with self.assertRaisesRegex(release_evidence.EvidenceError, "protected-main authority observation"):
+                release_evidence.admitted_release_line(self.repo, "refs/heads/main", "10.2.3")
+
+    def _admission_fixture(self) -> tuple[dict[str, str], dict[str, object]]:
+        """Write an explicit observation of a reviewed protected-main policy."""
+        policy = initial_policy()
+        snapshot = release_evidence.release_lines.freeze_line(policy, "refs/heads/main", "10.2.3")
+        authority = {
+            "schemaVersion": 1,
+            "kind": "release-line-authority-observation",
+            "repository": policy["repository"],
+            "controlCommit": "a" * 40,
+            "authorizationRevision": policy["revision"],
+            "authorizationDigest": release_evidence.release_lines.policy_digest(policy),
+            "policy": policy,
+            "observedUtc": "2026-10-22T12:00:00Z",
+        }
+        files = {}
+        for name, payload in (("line", snapshot), ("policy", policy), ("authority", authority)):
+            path = self.root / f"{name}.json"
+            path.write_text(json.dumps(payload), encoding="ascii")
+            files[name] = str(path)
+
+        return {
+            "GITHUB_ACTIONS": "true",
+            "DOKA_RELEASE_LINE_FILE": files["line"],
+            "DOKA_RELEASE_LINES_POLICY": files["policy"],
+            "DOKA_RELEASE_LINE_AUTHORITY": files["authority"],
+            "DOKA_RELEASE_WORKFLOW_PATH": snapshot["workflowPath"],
+        }, snapshot
+
+    def _reseal_manifest(self) -> None:
+        """Model an adversary able to rewrite the detached integrity checksum."""
+        path = self.root / release_evidence.MANIFEST_NAME
+        (self.root / release_evidence.CHECKSUM_NAME).write_text(
+            f"{release_evidence.sha256(path)}  {release_evidence.MANIFEST_NAME}\n",
+            encoding="ascii",
+        )
+
+    def test_portable_manifest_requires_its_resolved_dependency_graph(self) -> None:
+        """A sealed candidate cannot omit the graph that qualification resolved."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="ascii"))
+        del manifest["toolchain"]["resolvedPackages"]
+        path.write_text(json.dumps(manifest) + "\n", encoding="ascii")
+        self._reseal_manifest()
+
+        # Act
+        with self.assertRaises(release_evidence.EvidenceError) as failure:
+            release_evidence.verify_manifest(self.root, None)
+
+        # Assert
+        self.assertIn("resolved dependency graph", str(failure.exception))
+
+    def test_portable_manifest_cannot_disable_graph_validation_with_null(self) -> None:
+        """Optional source preflight data is mandatory in the portable evidence."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="ascii"))
+        manifest["toolchain"]["resolvedPackages"] = None
+        path.write_text(json.dumps(manifest) + "\n", encoding="ascii")
+        self._reseal_manifest()
+
+        # Act
+        with self.assertRaises(release_evidence.EvidenceError) as failure:
+            release_evidence.verify_manifest(self.root, None)
+
+        # Assert
+        self.assertIn("resolved dependency graph", str(failure.exception))
+
+    def test_portable_manifest_requires_an_explicit_source_ref(self) -> None:
+        """Missing/null cannot disable the frozen line's source-ref binding."""
+        for remove in (True, False):
+            with self.subTest(missing=remove):
+                # Arrange
+                self._generate()
+                path = self.root / release_evidence.MANIFEST_NAME
+                manifest = json.loads(path.read_text(encoding="ascii"))
+                if remove:
+                    del manifest["source"]["ref"]
+                else:
+                    manifest["source"]["ref"] = None
+
+                path.write_text(json.dumps(manifest) + "\n", encoding="ascii")
+                self._reseal_manifest()
+
+                # Act
+                with self.assertRaises(release_evidence.EvidenceError) as failure:
+                    release_evidence.verify_manifest(self.root, None)
+
+                # Assert
+                self.assertIn("explicit source ref", str(failure.exception))
+
+    def test_portable_manifest_graph_must_match_its_sealed_dependency_artifact(self) -> None:
+        """An in-range but invented graph is not the graph that was qualified."""
+        # Arrange
+        self._generate()
+        path = self.root / release_evidence.MANIFEST_NAME
+        manifest = json.loads(path.read_text(encoding="ascii"))
+        for package in manifest["toolchain"]["resolvedPackages"]:
+            if package.startswith("Microsoft.EntityFrameworkCore"):
+                manifest["toolchain"]["resolvedPackages"][package] = "10.0.9"
+
+        path.write_text(json.dumps(manifest) + "\n", encoding="ascii")
+        self._reseal_manifest()
+
+        # Act
+        with self.assertRaises(release_evidence.EvidenceError) as failure:
+            release_evidence.verify_manifest(self.root, None)
+
+        # Assert
+        self.assertIn("sealed dependency artifact", str(failure.exception))
 
     def test_sdk_contract_rejects_roll_forward(self) -> None:
         """Reject a release toolchain contract that can select a newer SDK."""
@@ -168,7 +469,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
     def test_verify_rejects_artifact_tampering(self) -> None:
         """Reject package bytes changed after the canonical manifest was generated."""
         self._generate()
-        package = self.root / "packages" / "Doka.EntityFrameworkCore.MySql.1.2.3.nupkg"
+        package = self.root / "packages" / "Doka.EntityFrameworkCore.MySql.10.2.3.nupkg"
         package.write_bytes(b"tampered package")
 
         with self.assertRaisesRegex(
@@ -517,16 +818,50 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertEqual("verify", parsed.command)
         self.assertEqual(self.root, parsed.root)
 
+    def test_source_check_cli_accepts_untagged_local_main(self) -> None:
+        """Exercise the early orchestrator guard without starting any gate."""
+        # Arrange
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/main", "--release-version", "10.2.3",
+        ]
+
+        # Act
+        with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+            with mock.patch.object(sys, "argv", arguments):
+                result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(0, result)
+
+    def test_source_check_cli_rejects_an_unadmitted_feature_branch(self) -> None:
+        """A matching expected-ref string is not release authorization."""
+        # Arrange
+        self._git("switch", "-c", "feature/unadmitted")
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/feature/unadmitted", "--release-version", "10.2.3",
+        ]
+
+        # Act
+        with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+            with mock.patch.object(sys, "argv", arguments):
+                result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(1, result)
+
     def _generate(self) -> None:
         """Generate untagged release evidence under an explicit local identity."""
         arguments = SimpleNamespace(
             repo=self.repo,
             root=self.root,
             run_id="test-run",
-            release_version="1.2.3",
-            expected_release_tag="v1.2.3",
+            release_version="10.2.3",
+            expected_release_tag="v10.2.3",
             dependency_graph=self.root / "resolved-packages.json",
             expected_ref="refs/heads/main",
+            release_line=release_line(),
         )
         with mock.patch.dict(
             "os.environ",
@@ -561,10 +896,10 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
             "Doka.Caching.MySql",
         ):
-            (packages / f"{package_id}.1.2.3.nupkg").write_bytes(
+            (packages / f"{package_id}.10.2.3.nupkg").write_bytes(
                 f"{package_id} package".encode("ascii")
             )
-            (packages / f"{package_id}.1.2.3.snupkg").write_bytes(
+            (packages / f"{package_id}.10.2.3.snupkg").write_bytes(
                 f"{package_id} symbols".encode("ascii")
             )
         (sbom / "manifest.spdx.json").write_text(
@@ -874,16 +1209,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
         (self.root / "release-qualification-manifest.json").write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 3,
                     "kind": "release-qualification-manifest",
+                    "releaseLine": release_line(),
                     "policyVersion": policy["policyVersion"],
                     "policyDigest": "d" * 64,
                     "selectionRuleVersion": policy["selectionRule"]["version"],
                     "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
                     "commit": source_commit,
                     "treeId": "e" * 40,
-                    "expectedReleaseTag": "v1.2.3",
-                    "releaseVersion": "1.2.3",
+                    "expectedReleaseTag": "v10.2.3",
+                    "releaseVersion": "10.2.3",
                     "assemblingRunAttempt": 1,
                     "requiredProtectedChecks": policy["requiredProtectedChecks"],
                     "gates": [

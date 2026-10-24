@@ -16,6 +16,8 @@ dotnet package add Doka.Caching.MySql
 ```
 
 This package is available from 10.1.0; it is not part of the 10.0.0 release.
+Use `--version 10.6.2` to pin this coordinated release. The cache API and schema
+are unchanged.
 
 ## Deploy and Register
 

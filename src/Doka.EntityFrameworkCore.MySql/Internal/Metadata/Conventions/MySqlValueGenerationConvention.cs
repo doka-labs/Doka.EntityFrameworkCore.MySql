@@ -257,7 +257,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         // generation facets so its temporary GUID generator and readback remain active;
         // an explicitly configured provider strategy above still expresses application intent.
         if (IsGuidProperty(property)
-            && HasStoreGeneratedExpression(entityType, property))
+            && MySqlStoreGenerationMetadata.HasStoreGeneratedExpression(property))
         {
             return;
         }
@@ -305,33 +305,6 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         _ => throw new ArgumentOutOfRangeException(nameof(strategy))
     };
 
-    /// <summary>Includes defaults and computed expressions inherited from a shared-table root property.</summary>
-    private static bool HasStoreGeneratedExpression(
-        IReadOnlyEntityType entityType,
-        IReadOnlyProperty property
-    )
-    {
-        // A table-split dependent need not repeat its root property's annotations.
-        var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
-
-        return storeObject is { } table
-            ? property.GetDefaultValueSql(table) is not null || property.GetComputedColumnSql(table) is not null
-            : property.GetDefaultValueSql() is not null || property.GetComputedColumnSql() is not null;
-    }
-
-    /// <summary>Recognizes a physical literal default before inferring AUTO_INCREMENT.</summary>
-    private static bool HasStoreLiteralDefault(
-        IReadOnlyEntityType entityType,
-        IReadOnlyProperty property
-    )
-    {
-        var storeObject = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table);
-
-        return storeObject is { } table
-            ? property.TryGetDefaultValue(table, out _)
-            : property.TryGetDefaultValue(out _);
-    }
-
     private static bool IsAutoIncrementIntegerKey(
         IReadOnlyEntityType entityType,
         IConventionProperty property
@@ -353,8 +326,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             || !primaryKey.Properties.Contains(property)
             || (property.ValueGenerated != ValueGenerated.OnAdd
                 && !isConventionallyGeneratedOwnedCollectionKey)
-            || HasStoreLiteralDefault(entityType, property)
-            || HasStoreGeneratedExpression(entityType, property))
+            || MySqlStoreGenerationMetadata.HasLiteralDefault(property)
+            || MySqlStoreGenerationMetadata.HasStoreGeneratedExpression(property))
         {
             return false;
         }
@@ -362,8 +335,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         // AUTO_INCREMENT applies to the store representation, not necessarily
         // the model CLR type. An integer key converted to string or byte[] must
         // not inherit the integer convention and produce invalid MySQL DDL.
-        var providerClrType = property.GetValueConverter()
-                ?.ProviderClrType
+        var providerClrType = property.GetValueConverter()?.ProviderClrType
             ?? property.GetProviderClrType()
             ?? property.ClrType;
 

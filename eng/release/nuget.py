@@ -31,14 +31,18 @@ from typing import Any, Callable
 from xml.etree import ElementTree
 
 from . import evidence as release_evidence
+from . import lines as release_lines
+from . import publication as release_publication
 from . import qualification as release_qualification
 from . import trust as release_trust
 
 
 SCHEMA_VERSION = 3
 SYMBOL_MANIFEST_SCHEMA_VERSION = 1
-CANDIDATE_RECEIPT_SCHEMA_VERSION = 1
-PUBLICATION_RECEIPT_SCHEMA_VERSION = 4
+CANDIDATE_RECEIPT_SCHEMA_VERSION = 2
+PUBLICATION_RECEIPT_SCHEMA_VERSION = 5
+LEGACY_CANDIDATE_RECEIPT_SCHEMA_VERSION = 1
+LEGACY_PUBLICATION_RECEIPT_SCHEMA_VERSION = 4
 PUBLICATION_READBACK_TIMEOUT_SECONDS = 3600
 PUBLICATION_READBACK_POLL_INTERVAL_SECONDS = 30
 CANDIDATE_RECEIPT_KIND = "release-candidate-receipt"
@@ -458,14 +462,16 @@ def validate_candidate_receipt(
     expected_release_tag = str(receipt.get("expectedReleaseTag", ""))
     repository = str(receipt.get("repository", ""))
     source_commit = str(receipt.get("sourceCommit", ""))
+    schema = receipt.get("schemaVersion")
+    source_ref = str(receipt.get("sourceRef", ""))
     if (
-        receipt.get("schemaVersion") != CANDIDATE_RECEIPT_SCHEMA_VERSION
+        type(schema) is not int
+        or schema not in (LEGACY_CANDIDATE_RECEIPT_SCHEMA_VERSION, CANDIDATE_RECEIPT_SCHEMA_VERSION)
         or receipt.get("kind") != CANDIDATE_RECEIPT_KIND
         or not RUN_ID.fullmatch(run_id)
         or not RUN_ID.fullmatch(run_attempt)
         or receipt.get("releaseCandidateRunId") != candidate_id
         or root.name != candidate_id
-        or receipt.get("sourceRef") != "refs/heads/main"
         or expected_release_tag != f"v{version}"
         or not release_evidence.SEMANTIC_VERSION_TAG.fullmatch(expected_release_tag)
         or normalize_repository(repository) != repository.lower()
@@ -515,18 +521,49 @@ def validate_candidate_receipt(
     source = manifest.get("source") or {}
     workflow = manifest.get("workflow") or {}
     expected_workflow_ref = f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/heads/main"
+    if schema == CANDIDATE_RECEIPT_SCHEMA_VERSION:
+        line = receipt.get("releaseLine")
+        try:
+            release_lines.validate_snapshot(
+                line,
+                source_ref=source_ref,
+                version=version,
+                repository=repository,
+            )
+        except release_lines.LinePolicyError as exception:
+            raise PublicationError(f"Candidate release line is invalid: {exception}") from exception
+
+        expected_workflow_ref = f"{repository}/{line['workflowPath']}@{source_ref}"
+        if (
+            manifest.get("releaseLine") != line
+            or receipt.get("workflowRef") != expected_workflow_ref
+            or not isinstance(receipt.get("toolchain"), dict)
+            or not receipt["toolchain"]
+            or manifest.get("toolchain") != receipt["toolchain"]
+        ):
+            raise PublicationError("Candidate line, workflow, or toolchain evidence disagrees.")
+
+    else:
+        try:
+            release_lines.validate_legacy_identity(source_ref, version, CANDIDATE_WORKFLOW_PATH)
+        except release_lines.LinePolicyError as exception:
+            raise PublicationError(f"Historical candidate identity is invalid: {exception}") from exception
+
+        if any(field in receipt for field in ("releaseLine", "workflowRef", "toolchain")) or "releaseLine" in manifest:
+            raise PublicationError("Historical candidate schema cannot discard release-line evidence.")
+
     if (
         manifest.get("releaseCandidateRunId") != candidate_id
         or manifest.get("releaseVersion") != version
         or manifest.get("expectedReleaseTag") != expected_release_tag
         or source.get("commit") != source_commit
-        or source.get("ref") != "refs/heads/main"
+        or source.get("ref") != source_ref
         or source.get("tag") is not None
         or normalize_repository(str(source.get("repository", ""))) != repository.lower()
         or workflow.get("provider") != "github-actions"
         or str(workflow.get("runId", "")) != run_id
         or str(workflow.get("runAttempt", "")) != run_attempt
-        or workflow.get("workflow") != CANDIDATE_WORKFLOW
+        or (schema == LEGACY_CANDIDATE_RECEIPT_SCHEMA_VERSION and workflow.get("workflow") != CANDIDATE_WORKFLOW)
         or workflow.get("workflowRef") != expected_workflow_ref
         or str(workflow.get("repository", "")).lower() != repository.lower()
     ):
@@ -541,7 +578,10 @@ def validate_portable_receipt(
 ) -> dict[str, dict[str, Path]]:
     """Revalidate a tag-bound publication receipt and its candidate bytes."""
     if (
-        receipt.get("schemaVersion") != PUBLICATION_RECEIPT_SCHEMA_VERSION
+        type(receipt.get("schemaVersion")) is not int
+        or receipt.get("schemaVersion") not in (
+            LEGACY_PUBLICATION_RECEIPT_SCHEMA_VERSION, PUBLICATION_RECEIPT_SCHEMA_VERSION
+        )
         or receipt.get("kind") != PUBLICATION_RECEIPT_KIND
         or receipt.get("releaseTag") != receipt.get("expectedReleaseTag")
         or not SHA256.fullmatch(str(receipt.get("candidateReceiptSha256", "")))
@@ -563,29 +603,100 @@ def validate_portable_receipt(
         )
 
     candidate = dict(receipt)
-    candidate["schemaVersion"] = CANDIDATE_RECEIPT_SCHEMA_VERSION
+    current_schema = receipt["schemaVersion"] == PUBLICATION_RECEIPT_SCHEMA_VERSION
+    candidate["schemaVersion"] = (
+        CANDIDATE_RECEIPT_SCHEMA_VERSION if current_schema else LEGACY_CANDIDATE_RECEIPT_SCHEMA_VERSION
+    )
+
     candidate["kind"] = CANDIDATE_RECEIPT_KIND
     for field in (
         "releaseTag",
         "candidateReceiptSha256",
         "tagTrustRootSha256",
         "qualificationManifestSha256",
+        "publicationAdmission",
+        "publicationAuthority",
     ):
         candidate.pop(field, None)
-    return validate_candidate_receipt(candidate, candidate_root)
+
+    resolved = validate_candidate_receipt(candidate, candidate_root)
+    if current_schema:
+        validate_publication_authority(receipt, candidate_root)
+    elif any(field in receipt for field in ("publicationAdmission", "publicationAuthority")):
+        raise PublicationError("Historical publication schema cannot discard admission evidence.")
+
+    return resolved
+
+
+def validate_publication_authority(
+    receipt: dict[str, Any],
+    candidate_root: Path,
+    admission: dict[str, Any] | None = None,
+    authority: dict[str, Any] | None = None,
+) -> None:
+    """Verify frozen admission separately from the current control observation."""
+    frozen_admission = receipt.get("publicationAdmission")
+    frozen_authority = receipt.get("publicationAuthority")
+    if admission is None:
+        admission = frozen_admission
+    elif admission != frozen_admission:
+        raise PublicationError("Current admission does not match the frozen publication identity.")
+
+    if authority is None:
+        authority = frozen_authority
+
+    try:
+        release_publication.validate_bound_publication(
+            admission,
+            authority,
+            repository=str(receipt["repository"]),
+            source_ref=str(receipt["sourceRef"]),
+            source_commit=str(receipt["sourceCommit"]),
+            version=str(receipt["releaseVersion"]),
+            tag=str(receipt["releaseTag"]),
+            candidate_receipt_sha256=str(receipt["candidateReceiptSha256"]),
+            manifest_sha256=sha256_file(candidate_root / release_evidence.MANIFEST_NAME),
+        )
+        identity = admission["identity"]
+        if (
+            identity.get("releaseLineSha256") != release_publication.canonical_digest(receipt["releaseLine"])
+            or identity.get("workflowPath") != receipt["releaseLine"]["workflowPath"]
+            or identity.get("workflowRunId") != receipt["candidateRunId"]
+            or identity.get("candidateRunAttempt") != receipt["candidateRunAttempt"]
+        ):
+            raise PublicationError("Publication admission belongs to a different line or qualification attempt.")
+
+    except (release_publication.PublicationAdmissionError, KeyError, TypeError) as exception:
+        raise PublicationError(f"Publication admission is invalid: {exception}") from exception
+
+
+def validate_current_publication(args: argparse.Namespace, receipt: dict[str, Any]) -> None:
+    """Require fresh explicit authority at each new-schema publication boundary."""
+    if receipt.get("schemaVersion") != PUBLICATION_RECEIPT_SCHEMA_VERSION:
+        return
+
+    admission_path = getattr(args, "admission", None)
+    authority_path = getattr(args, "authority", None)
+    if admission_path is None or authority_path is None:
+        raise PublicationError("Release-line publication requires --admission and --authority.")
+
+    validate_publication_authority(
+        receipt,
+        args.candidate_root,
+        read_json(admission_path, "publication admission"),
+        read_json(authority_path, "current publication authority"),
+    )
+    try:
+        release_publication.require_hosted_identity(receipt["publicationAdmission"]["identity"])
+    except release_publication.PublicationAdmissionError as exception:
+        raise PublicationError(f"Publication context is invalid: {exception}") from exception
 
 
 def prepare_candidate(args: argparse.Namespace) -> None:
-    """Bind one same-run candidate artifact to its untagged main source."""
+    """Bind one same-run candidate to its frozen untagged release-line source."""
     repo = args.repo.resolve()
     root = require_candidate_root(args.root)
     repository = args.repository
-    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != "refs/heads/main":
-        raise PublicationError(
-            "Candidate preparation must run from refs/heads/main, found "
-            f"{os.environ['GITHUB_REF']}."
-        )
-
     try:
         release_evidence.verify_manifest(root, None)
     except release_evidence.EvidenceError as exception:
@@ -597,11 +708,28 @@ def prepare_candidate(args: argparse.Namespace) -> None:
     version = str(manifest.get("releaseVersion", ""))
     expected_release_tag = str(manifest.get("expectedReleaseTag", ""))
     source_commit = str(source.get("commit", ""))
+    source_ref = str(source.get("ref", ""))
+    line = manifest.get("releaseLine")
+    expected_workflow_ref = f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/heads/main"
+    if line is not None:
+        try:
+            release_lines.validate_snapshot(
+                line, source_ref=source_ref, version=version, repository=repository
+            )
+        except release_lines.LinePolicyError as exception:
+            raise PublicationError(f"Candidate release line is invalid: {exception}") from exception
+
+        expected_workflow_ref = f"{repository}/{line['workflowPath']}@{source_ref}"
+    elif source_ref != "refs/heads/main":
+        raise PublicationError("Historical candidate manifest must describe untagged main.")
+
+    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != source_ref:
+        raise PublicationError("Candidate preparation must execute from its frozen source ref.")
 
     if not SHA1.fullmatch(source_commit):
         raise PublicationError("Candidate manifest source commit is invalid.")
-    if source.get("tag") is not None or source.get("ref") != "refs/heads/main":
-        raise PublicationError("Candidate manifest must describe untagged main.")
+    if source.get("tag") is not None:
+        raise PublicationError("Candidate manifest must describe an untagged source.")
     if expected_release_tag != f"v{version}":
         raise PublicationError("Candidate package version does not match its expected tag.")
     if normalize_repository(str(source.get("repository", ""))) != repository.lower():
@@ -626,14 +754,13 @@ def prepare_candidate(args: argparse.Namespace) -> None:
 
     run_id = str(workflow.get("runId", ""))
     run_attempt = str(workflow.get("runAttempt", ""))
-    expected_workflow_ref = f"{repository}/{CANDIDATE_WORKFLOW_PATH}@refs/heads/main"
     if (
         not RUN_ID.fullmatch(run_id)
         or not RUN_ID.fullmatch(run_attempt)
         or workflow.get("provider") != "github-actions"
         or str(workflow.get("runId", "")) != run_id
         or str(workflow.get("runAttempt", "")) != run_attempt
-        or workflow.get("workflow") != CANDIDATE_WORKFLOW
+        or (line is None and workflow.get("workflow") != CANDIDATE_WORKFLOW)
         or workflow.get("workflowRef") != expected_workflow_ref
         or str(workflow.get("repository", "")).lower() != repository.lower()
     ):
@@ -655,7 +782,9 @@ def prepare_candidate(args: argparse.Namespace) -> None:
         raise PublicationError("Candidate manifest does not contain the MySQL 8.4 image identity.")
 
     receipt = {
-        "schemaVersion": CANDIDATE_RECEIPT_SCHEMA_VERSION,
+        "schemaVersion": (
+            CANDIDATE_RECEIPT_SCHEMA_VERSION if line is not None else LEGACY_CANDIDATE_RECEIPT_SCHEMA_VERSION
+        ),
         "kind": CANDIDATE_RECEIPT_KIND,
         "candidateRunId": run_id,
         "candidateRunAttempt": run_attempt,
@@ -664,10 +793,19 @@ def prepare_candidate(args: argparse.Namespace) -> None:
         "releaseVersion": version,
         "repository": repository,
         "sourceCommit": source_commit,
-        "sourceRef": "refs/heads/main",
+        "sourceRef": source_ref,
         "mysql84Image": mysql84["image"],
         "packages": packages,
     }
+    if line is not None:
+        receipt.update(
+            {
+                "releaseLine": line,
+                "workflowRef": expected_workflow_ref,
+                "toolchain": manifest.get("toolchain"),
+            }
+        )
+
     write_json(args.output.resolve(), receipt)
     validate_candidate_receipt(receipt, root)
     resolved_packages = package_paths(root, version)
@@ -699,8 +837,9 @@ def bind_candidate(args: argparse.Namespace) -> None:
     source_commit = str(candidate["sourceCommit"])
     if tag != candidate["expectedReleaseTag"]:
         raise PublicationError("Release tag does not match the qualified candidate version.")
-    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != "refs/heads/main":
-        raise PublicationError("Publication binding must execute from refs/heads/main.")
+    source_ref = str(candidate["sourceRef"])
+    if os.environ.get("GITHUB_REF") and os.environ["GITHUB_REF"] != source_ref:
+        raise PublicationError("Publication binding must execute from the candidate source ref.")
     if run_git(repo, "rev-parse", "HEAD") != source_commit:
         raise PublicationError("Publication checkout does not match the candidate commit.")
     try:
@@ -709,11 +848,11 @@ def bind_candidate(args: argparse.Namespace) -> None:
             "merge-base",
             "--is-ancestor",
             source_commit,
-            "refs/remotes/origin/main",
+            f"refs/remotes/origin/{source_ref.removeprefix('refs/heads/')}",
         )
     except PublicationError as error:
         raise PublicationError(
-            "The qualified candidate is no longer on current remote main history."
+            f"The qualified candidate is no longer on current remote {source_ref.removeprefix('refs/heads/')} history."
         ) from error
     if run_git(repo, "status", "--porcelain", "--untracked-files=all"):
         raise PublicationError("Publication binding requires a clean checkout.")
@@ -738,7 +877,7 @@ def bind_candidate(args: argparse.Namespace) -> None:
     policy = release_qualification.load_policy()
     tree_id = run_git(repo, "rev-parse", f"{source_commit}^{{tree}}")
     if (
-        trust.get("schemaVersion") != 2
+        trust.get("schemaVersion") != (3 if "releaseLine" in candidate else 2)
         or trust.get("kind") != "release-tag-trust-root"
         or trust.get("repository") != candidate["repository"]
         or trust.get("tag") != tag
@@ -752,6 +891,12 @@ def bind_candidate(args: argparse.Namespace) -> None:
         raise PublicationError(
             "Tag trust root and qualification manifest use different policies."
         )
+    if "releaseLine" in candidate and (
+        trust.get("releaseLine") != candidate["releaseLine"]
+        or qualification.get("releaseLine") != candidate["releaseLine"]
+    ):
+        raise PublicationError("Candidate, qualification, and tag trust root use different release lines.")
+
     try:
         release_trust.verify_frozen_qualification_receipt(
             trust["qualification"],
@@ -770,7 +915,10 @@ def bind_candidate(args: argparse.Namespace) -> None:
     receipt = dict(candidate)
     receipt.update(
         {
-            "schemaVersion": PUBLICATION_RECEIPT_SCHEMA_VERSION,
+            "schemaVersion": (
+                PUBLICATION_RECEIPT_SCHEMA_VERSION if "releaseLine" in candidate
+                else LEGACY_PUBLICATION_RECEIPT_SCHEMA_VERSION
+            ),
             "kind": PUBLICATION_RECEIPT_KIND,
             "releaseTag": tag,
             "candidateReceiptSha256": sha256_file(candidate_path),
@@ -778,8 +926,35 @@ def bind_candidate(args: argparse.Namespace) -> None:
             "qualificationManifestSha256": sha256_file(qualification_path),
         }
     )
-    write_json(args.output.resolve(), receipt)
+    if "releaseLine" in candidate:
+        admission_path = getattr(args, "admission", None)
+        authority_path = getattr(args, "authority", None)
+        if admission_path is None or authority_path is None:
+            raise PublicationError("Release-line binding requires --admission and --authority.")
+
+        receipt["publicationAdmission"] = read_json(admission_path, "publication admission")
+        receipt["publicationAuthority"] = read_json(authority_path, "current publication authority")
+        validate_publication_authority(receipt, root)
+
     validate_portable_receipt(receipt, root)
+    output_path = args.output.resolve()
+    if output_path.exists() and receipt["schemaVersion"] == PUBLICATION_RECEIPT_SCHEMA_VERSION:
+        original = read_json(output_path, "original publication receipt")
+        validate_portable_receipt(original, root)
+        expected = {key: value for key, value in receipt.items() if key != "publicationAuthority"}
+        actual = {key: value for key, value in original.items() if key != "publicationAuthority"}
+        if actual != expected:
+            raise PublicationError("Publication retry conflicts with the original immutable receipt.")
+
+        # WHY: retain the original immutable intent asset on retry while
+        # independently checking the currently active line authorization.
+        validate_publication_authority(
+            original, root, receipt["publicationAdmission"], receipt["publicationAuthority"]
+        )
+        receipt = original
+    else:
+        write_json(output_path, receipt)
+
     append_github_outputs(
         args.github_output.resolve() if args.github_output else None,
         {
@@ -1124,6 +1299,8 @@ def preflight(args: argparse.Namespace) -> None:
         package_map = validate_candidate_receipt(receipt, args.candidate_root)
     else:
         package_map = validate_portable_receipt(receipt, args.candidate_root)
+        validate_current_publication(args, receipt)
+
     symbol_manifest = read_json(args.symbol_manifest.resolve(), "symbol readback manifest")
     symbol_entries = validated_symbol_entries(
         symbol_manifest,
@@ -1205,6 +1382,7 @@ def readback(args: argparse.Namespace) -> None:
     """Wait for public packages and symbols, then persist byte-level proof."""
     receipt = read_json(args.receipt.resolve(), "validated candidate receipt")
     validate_portable_receipt(receipt, args.candidate_root)
+    validate_current_publication(args, receipt)
     symbol_manifest = read_json(args.symbol_manifest.resolve(), "symbol readback manifest")
     symbol_entries = validated_symbol_entries(
         symbol_manifest,
@@ -1417,6 +1595,8 @@ def parse_arguments() -> argparse.Namespace:
     bind.add_argument("--release-tag", required=True)
     bind.add_argument("--output", type=Path, required=True)
     bind.add_argument("--github-output", type=Path)
+    bind.add_argument("--admission", type=Path)
+    bind.add_argument("--authority", type=Path)
 
     preflight_parser = subparsers.add_parser(
         "preflight", help="Classify existing NuGet.org package versions."
@@ -1428,6 +1608,8 @@ def parse_arguments() -> argparse.Namespace:
     preflight_parser.add_argument("--github-output", type=Path)
     preflight_parser.add_argument("--timeout-seconds", type=float, default=30)
     preflight_parser.add_argument("--require-absent", action="store_true")
+    preflight_parser.add_argument("--admission", type=Path)
+    preflight_parser.add_argument("--authority", type=Path)
 
     readback_parser = subparsers.add_parser(
         "readback", help="Wait for and verify published package payloads."
@@ -1437,6 +1619,8 @@ def parse_arguments() -> argparse.Namespace:
     readback_parser.add_argument("--symbol-manifest", type=Path, required=True)
     readback_parser.add_argument("--output-dir", type=Path, required=True)
     readback_parser.add_argument("--output", type=Path, required=True)
+    readback_parser.add_argument("--admission", type=Path)
+    readback_parser.add_argument("--authority", type=Path)
     readback_parser.add_argument(
         "--timeout-seconds",
         type=float,

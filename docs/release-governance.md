@@ -25,6 +25,55 @@ The current package contract includes `Doka.EntityFrameworkCore.MySql`,
 `Doka.Caching.MySql`, all at one release version. Earlier release manifests
 remain immutable records of their original two-package set.
 
+## Exact Release Lines and Current Authority
+
+[D-030](decisions/D-030-release-lines-and-monotonic-publication.md) extends the
+main-only baseline below with exact source roles. The initial policy keeps
+main/10 active through `release-candidate.yml` and `nuget`; the approved
+`maintenance/10.x` and `preview/11.x` routes remain inactive. No branch, hosted
+grant or platform RC is created by this repository change. The
+[release-line runbook](operations/release-lines.md) is authoritative for their
+preparation, current-authority checks, activation and maintenance.
+
+Every line retains its own successful PR base, tested merge tree, exact
+workflow/source/toolchain identity and complete applicable release gates.
+Prepared qualification is full verification without publication credentials,
+tags or remote writes. Frozen evidence is not a current publication grant;
+publication rereads protected-main authorization inside the shared
+`doka-publication` exclusion. The single `release-candidate.yml` entry derives
+stage from the canonical version suffix and keeps normal version-only main
+dispatch valid. `qualification_only=true` requests no publisher environment,
+tag, credentials or publication writes. Personal signed tags and human
+publication approval remain unchanged.
+
+All publishers use the same non-cancelling queue. Ordinary releases and retries
+need no manual run/digest inventories, grant declarations or policy PRs. Every
+authorized line retains the existing `nuget` environment, single-maintainer
+review/self-review arrangement and administrator bypass. No new environment,
+credential migration or bypass-disabled requirement is introduced.
+
+The only line states are inactive, prepared and active. Complete an affected
+publication before disabling or reassigning its line; the shared queue does not
+lock policy edits or administrator actions. Existing exact-byte retries remain
+bound to the original run and candidate. There is no framework-transition
+inventory/report, exceptional admission allowlist or automatic revocation of old
+workflow generations. New validators do not change old-SHA code or override
+administrator access. Hosted changes remain separately approved; local tests
+do not prove their actual configuration.
+
+Stable/prerelease classification is independent of monotonic Latest: preview
+is never Latest, and a lower major or slower older patch never displaces a
+higher eligible stable release. Historical complete immutable releases remain
+verifiable under their own evidence schema/ref without re-promotion.
+Applicable fixes, branch-local security audits and reviewed dependency targets
+follow each maintained major; ordinary feature CI remains non-publishing and
+is not restricted by the release allowlist.
+
+The detailed `main` examples and existing `nuget` identity below remain the
+currently active route, not authority for a new branch or a promise of future
+hosted activation. At activation, use exact line-specific refs and workflow
+identities from sealed evidence rather than replacing those strings ad hoc.
+
 ## Verification and Evidence Paths
 
 The release-hardening evidence model is intentionally explicit and repeatable:
@@ -110,7 +159,8 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 - Hosted candidate and protected publication:
   - workflow: `.github/workflows/release-candidate.yml`
   - trigger: one manual dispatch from exact current `main`, with the package
-    version as its only input; tag pushes do not start another run
+    version as the normal required input; optional qualification-only preparation
+    stays non-publishing, and tag pushes do not start another run
   - pre-tag lookup: `./eng/pre-tag-check.sh` verifies the clean commit,
     protected-main reachability, signing material, and successful PR-bound,
     tree-exact `repository-qualification` without allocating a runner or

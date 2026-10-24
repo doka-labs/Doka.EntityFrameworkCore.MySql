@@ -20,6 +20,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_release_artifact_resolver \
     eng.tests.test_release_evidence \
     eng.tests.test_release_finalization_chain \
+    eng.tests.test_release_lines \
+    eng.tests.test_release_line_consumer \
+    eng.tests.test_release_line_dependencies \
+    eng.tests.test_release_line_schedules \
+    eng.tests.test_release_publication_admission \
     eng.tests.test_release_package_lock \
     eng.tests.test_release_package_resolution \
     eng.tests.test_release_provenance \
@@ -29,3 +34,5 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_release_trust \
     eng.tests.test_run_with_deadline \
     eng.tests.test_runtime_posture_evidence_chain
+
+python3 eng/release/dependencies.py validate

@@ -1,18 +1,34 @@
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
+/// <summary>Evaluates raw reports while separating enforced budgets from host-sensitive diagnostics.</summary>
 internal static class PerformanceGate
 {
+    /// <summary>Identifies unusable evidence separately from a measured budget regression.</summary>
     internal const int InvalidEvidenceExitCode = 78;
 
+    /// <summary>Evaluates retained evidence and emits diagnostic and rejecting findings separately.</summary>
+    /// <param name="contractPath">The reviewed performance contract.</param>
+    /// <param name="reportsDirectory">The raw BenchmarkDotNet report directory.</param>
+    /// <param name="target">The exact engine target in the contract.</param>
+    /// <param name="profile">The required measurement profile.</param>
+    /// <param name="soakPath">Optional soak evidence required by the selected profile.</param>
+    /// <param name="mode">The resolved policy controlling which valid budget violations reject the run.</param>
+    /// <returns>Zero on success, one for a regression, or 78 for invalid evidence.</returns>
     public static int Run(
         string contractPath,
         string reportsDirectory,
         string target,
         string profile,
-        string? soakPath
+        string? soakPath,
+        PerformanceEvaluationMode mode = PerformanceEvaluationMode.Full
     )
     {
-        var result = Evaluate(contractPath, reportsDirectory, target, profile, soakPath);
+        var result = Evaluate(contractPath, reportsDirectory, target, profile, soakPath, mode);
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            Console.WriteLine($"DIAGNOSTIC (not enforced): {diagnostic}");
+        }
+
         foreach (var error in result.InvalidEvidence)
         {
             Console.Error.WriteLine($"INVALID: {error}");
@@ -26,27 +42,39 @@ internal static class PerformanceGate
         if (result.InvalidEvidence.Count > 0)
         {
             Console.Error.WriteLine("Performance evidence is invalid.");
+
             return InvalidEvidenceExitCode;
         }
 
         if (result.Regressions.Count > 0)
         {
             Console.Error.WriteLine("Performance budgets regressed.");
+
             return 1;
         }
 
         Console.WriteLine(
-            $"Performance gate passed for {target}/{profile}: "
+            $"Performance gate passed for {target}/{profile} ({mode}): "
             + $"{result.WorkloadCount} workloads and {result.ControlCount} controls.");
+
         return 0;
     }
 
+    /// <summary>Validates complete evidence before applying the selected budget policy.</summary>
+    /// <param name="contractPath">The reviewed performance contract.</param>
+    /// <param name="reportsDirectory">The raw BenchmarkDotNet report directory.</param>
+    /// <param name="target">The exact engine target in the contract.</param>
+    /// <param name="profile">The required measurement profile.</param>
+    /// <param name="soakPath">Optional soak evidence required by the selected profile.</param>
+    /// <param name="mode">The resolved policy; diagnostic violations do not hide invalid evidence.</param>
+    /// <returns>Measured coverage, invalid evidence, enforced regressions and nonrejecting diagnostics.</returns>
     public static PerformanceGateResult Evaluate(
         string contractPath,
         string reportsDirectory,
         string target,
         string profile,
-        string? soakPath
+        string? soakPath,
+        PerformanceEvaluationMode mode = PerformanceEvaluationMode.Full
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractPath);
@@ -54,10 +82,13 @@ internal static class PerformanceGate
         ArgumentException.ThrowIfNullOrWhiteSpace(target);
         ArgumentException.ThrowIfNullOrWhiteSpace(profile);
 
+        _ = PerformanceEvaluationPolicy.IsDiagnostic(mode, "allocatedBytes");
+
         using var contractDocument = JsonDocument.Parse(File.ReadAllText(contractPath));
         var contract = contractDocument.RootElement;
         var invalid = new List<string>();
         var regressions = new List<string>();
+        var diagnostics = new List<string>();
         if (RequiredInt(contract, "schemaVersion") != 11)
         {
             invalid.Add("Performance contract schemaVersion must be 11.");
@@ -74,7 +105,8 @@ internal static class PerformanceGate
         if (!profiles.TryGetProperty(profile, out var profileContract))
         {
             invalid.Add($"Performance contract does not define profile '{profile}'.");
-            return new PerformanceGateResult(0, 0, invalid, regressions);
+
+            return new PerformanceGateResult(0, 0, invalid, regressions, diagnostics);
         }
 
         var definitions = contract
@@ -105,7 +137,8 @@ internal static class PerformanceGate
         if (reports.Length == 0)
         {
             invalid.Add($"No BenchmarkDotNet full JSON report exists below '{reportsDirectory}'.");
-            return new PerformanceGateResult(0, 0, invalid, regressions);
+
+            return new PerformanceGateResult(0, 0, invalid, regressions, diagnostics);
         }
 
         var observations = new List<BenchmarkObservation>();
@@ -138,14 +171,18 @@ internal static class PerformanceGate
             observations,
             target,
             invalid,
-            regressions);
+            regressions,
+            diagnostics,
+            mode);
         var controlCount = ValidateControls(
             contract.GetProperty("benchmarkDotNetControls"),
             targets,
             observations,
             target,
             invalid,
-            regressions);
+            regressions,
+            diagnostics,
+            mode);
 
         var soakRequired = profileContract
             .GetProperty("soakRequired")
@@ -164,10 +201,12 @@ internal static class PerformanceGate
                 profile,
                 contract.GetProperty("soakBudgets"),
                 invalid,
-                regressions);
+                regressions,
+                diagnostics,
+                mode);
         }
 
-        return new PerformanceGateResult(definitions.Length, controlCount, invalid, regressions);
+        return new PerformanceGateResult(definitions.Length, controlCount, invalid, regressions, diagnostics);
     }
 
     private static void ValidateWorkloads(
@@ -176,7 +215,9 @@ internal static class PerformanceGate
         IReadOnlyList<BenchmarkObservation> observations,
         string target,
         List<string> invalid,
-        List<string> regressions
+        List<string> regressions,
+        List<string> diagnostics,
+        PerformanceEvaluationMode mode
     )
     {
         var workloadObservations = observations
@@ -253,31 +294,31 @@ internal static class PerformanceGate
                 "medianNanoseconds",
                 median,
                 RequiredDouble(budget, "medianNanoseconds"),
-                regressions);
+                SelectViolations(mode, "medianNanoseconds", regressions, diagnostics));
             AddMaximumRegression(
                 definition.Id,
                 "p95Nanoseconds",
                 p95,
                 RequiredDouble(budget, "p95Nanoseconds"),
-                regressions);
+                SelectViolations(mode, "p95Nanoseconds", regressions, diagnostics));
             AddMaximumRegression(
                 definition.Id,
                 "p99Nanoseconds",
                 p99,
                 RequiredDouble(budget, "p99Nanoseconds"),
-                regressions);
+                SelectViolations(mode, "p99Nanoseconds", regressions, diagnostics));
             AddMaximumRegression(
                 definition.Id,
                 "allocatedBytes",
                 allocated,
                 RequiredDouble(budget, "allocatedBytes"),
-                regressions);
+                SelectViolations(mode, "allocatedBytes", regressions, diagnostics));
             AddMaximumRegression(
                 definition.Id,
                 "gen2CollectionsPer1000",
                 observation.Gen2Collections,
                 RequiredDouble(budget, "gen2CollectionsPer1000"),
-                regressions);
+                SelectViolations(mode, "gen2CollectionsPer1000", regressions, diagnostics));
         }
     }
 
@@ -287,7 +328,9 @@ internal static class PerformanceGate
         IReadOnlyList<BenchmarkObservation> observations,
         string target,
         List<string> invalid,
-        List<string> regressions
+        List<string> regressions,
+        List<string> diagnostics,
+        PerformanceEvaluationMode mode
     )
     {
         var count = 0;
@@ -350,7 +393,7 @@ internal static class PerformanceGate
                     continue;
             }
 
-            AddMaximumRegression(id, metric, actual, maximum.Value, regressions);
+            AddMaximumRegression(id, metric, actual, maximum.Value, SelectViolations(mode, metric, regressions, diagnostics));
         }
 
         return count;
@@ -451,7 +494,9 @@ internal static class PerformanceGate
         string profile,
         JsonElement budgets,
         List<string> invalid,
-        List<string> regressions
+        List<string> regressions,
+        List<string> diagnostics,
+        PerformanceEvaluationMode mode
     )
     {
         var report = PerformanceReportWriter.Read<SoakRunReport>(soakPath);
@@ -523,6 +568,7 @@ internal static class PerformanceGate
             invalid.Add($"Soak evidence contains undeclared scenario '{unexpected}'.");
         }
 
+        var anyScenarioRegressed = false;
         foreach (var (id, requirements) in expected)
         {
             if (!scenarios.TryGetValue(id, out var scenario))
@@ -553,24 +599,33 @@ internal static class PerformanceGate
                 if (failed)
                 {
                     scenarioRegressed = true;
-                    regressions.Add(
+                    SelectViolations(mode, requirement.Metric, regressions, diagnostics).Add(
                         $"{id} {requirement.Metric} is {actual:G17}; required "
                         + $"{(requirement.Minimum ? "minimum" : "maximum")} {requirement.Limit:G17}.");
                 }
             }
 
+            anyScenarioRegressed |= scenarioRegressed;
             if (complete && scenario.Success == scenarioRegressed)
             {
                 invalid.Add($"Soak scenario '{id}' success flag contradicts its raw metrics.");
             }
         }
 
-        if (!report.Success
-            && regressions.Count == 0)
+        // WHY: Success describes the raw full-budget measurement, including
+        // diagnostic thresholds. It must not be rewritten to match hosted policy.
+        if (report.Success == anyScenarioRegressed)
         {
-            invalid.Add("Soak evidence reports failure without a failing declared scenario.");
+            invalid.Add("Soak evidence success flag contradicts its raw scenarios.");
         }
     }
+
+    private static List<string> SelectViolations(
+        PerformanceEvaluationMode mode,
+        string metric,
+        List<string> regressions,
+        List<string> diagnostics
+    ) => PerformanceEvaluationPolicy.IsDiagnostic(mode, metric) ? diagnostics : regressions;
 
     private static BenchmarkObservation ReadObservation(
         JsonElement benchmark,
@@ -778,9 +833,16 @@ internal static class PerformanceGate
     );
 }
 
+/// <summary>Keeps evidence failures and enforced regressions distinct from diagnostic observations.</summary>
+/// <param name="WorkloadCount">The number of validated workload observations.</param>
+/// <param name="ControlCount">The number of validated control observations.</param>
+/// <param name="InvalidEvidence">Missing, inconsistent or unusable measurement evidence.</param>
+/// <param name="Regressions">Valid measurements that violate an enforced budget.</param>
+/// <param name="Diagnostics">Valid host-sensitive measurements retained without rejecting the run.</param>
 internal sealed record PerformanceGateResult(
     int WorkloadCount,
     int ControlCount,
     IReadOnlyList<string> InvalidEvidence,
-    IReadOnlyList<string> Regressions
+    IReadOnlyList<string> Regressions,
+    IReadOnlyList<string> Diagnostics
 );

@@ -7,16 +7,31 @@ import copy
 import hashlib
 import io
 import json
+import os
 import tempfile
 import unittest
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
 from eng.release import evidence as release_evidence
 from eng.release import github as github_release
 from eng.release import nuget as nuget_publication
+from eng.release import lines as release_lines
+from eng.release import publication as release_publication
 from eng.release import provenance as release_provenance
+from eng.tests.test_release_lines import initial_policy
+
+
+def _record_exception(action: Callable[[], object]) -> Exception | None:
+    """Execute a negative-test action so exception assertions remain a separate phase."""
+    try:
+        action()
+    except Exception as exception:
+        return exception
+
+    return None
 
 
 class FakeReleaseClient:
@@ -31,6 +46,11 @@ class FakeReleaseClient:
         self.publish_calls = 0
         self.verified_tags: list[tuple[str, str, str]] = []
         self.latest = False
+        self.latest_release: dict[str, object] | None = None
+        self.latest_error: github_release.GitHubReleaseError | None = None
+        self.latest_reads = 0
+        self.published_latest: list[bool] = []
+        self.tag_commits: dict[str, str] = {}
         self.tag_error: github_release.GitHubReleaseError | None = None
         self.tag_error_on_verification: int | None = None
         self.release_visibility_delay = 0
@@ -70,6 +90,7 @@ class FakeReleaseClient:
         """Create exactly the draft metadata requested by the plan."""
         self.create_calls += 1
         self._pending_release_reads = self.release_visibility_delay
+        self.tag_commits[str(plan["releaseTag"])] = str(plan["sourceCommit"])
         self.release = {
             "id": 42,
             "tag_name": plan["releaseTag"],
@@ -120,14 +141,35 @@ class FakeReleaseClient:
 
     def publish_release(self, plan: dict[str, object]) -> None:
         """Publish and lock the matching draft."""
-        del plan
         if self.release is None:
             raise AssertionError("A draft must exist before publication.")
 
         self.publish_calls += 1
+        self.published_latest.append(bool(plan["latest"]))
         self.release["draft"] = False
         self.release["immutable"] = True
         self.release["published_at"] = "2026-08-04T12:00:00Z"
+        if plan["latest"]:
+            self.latest = True
+            self.latest_release = copy.deepcopy(self.release)
+
+    def get_latest(self, repository: str) -> dict[str, object] | None:
+        """Read the complete Latest identity or reproduce a remote failure."""
+        del repository
+        self.latest_reads += 1
+        if self.latest_error is not None:
+            raise self.latest_error
+
+        if self.latest:
+            return copy.deepcopy(self.release)
+
+        return copy.deepcopy(self.latest_release)
+
+    def resolve_tag(self, repository: str, tag: str) -> str:
+        """Resolve only explicitly seeded immutable tag identities."""
+        del repository
+
+        return self.tag_commits[tag]
 
     def download_asset(self, repository: str, asset_id: int) -> bytes:
         """Return the exact stored payload for digest readback."""
@@ -159,6 +201,253 @@ class FakeReleaseClient:
                 "size": len(payload),
             }
         )
+
+
+class MonotonicLatestTests(unittest.TestCase):
+    """Keep stable publication ordered without coupling immutable retries to Latest."""
+
+    def setUp(self) -> None:
+        """Create a small historical plan with one checksum-bound asset."""
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        asset = Path(self.temporary_directory.name) / "evidence.json"
+        asset.write_bytes(b"verified identity\n")
+        self.plan = {
+            "schemaVersion": 3,
+            "phase": "staged",
+            "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
+            "releaseTag": "v10.6.2",
+            "releaseVersion": "10.6.2",
+            "sourceCommit": "a" * 40,
+            "name": "Doka.EntityFrameworkCore.MySql 10.6.2",
+            "prerelease": False,
+            "latest": True,
+            "notes": "Verified release.",
+            "notesSha256": github_release.sha256_bytes(b"Verified release."),
+            "assets": [github_release.asset_record(asset)],
+        }
+
+    def tearDown(self) -> None:
+        """Remove the isolated fixture without touching repository state."""
+        self.temporary_directory.cleanup()
+
+    def _newer_latest(self, client: FakeReleaseClient, version: str) -> None:
+        """Seed one independently published stable release identity."""
+        client.latest_release = {
+            "id": 900,
+            "tag_name": f"v{version}",
+            "draft": False,
+            "prerelease": False,
+            "immutable": True,
+        }
+        client.tag_commits[f"v{version}"] = "b" * 40
+
+    def test_older_stable_finishes_without_demoting_newer_latest(self) -> None:
+        """An out-of-order 10.x completion cannot replace stable 11.x."""
+        # Arrange
+        client = FakeReleaseClient()
+        self._newer_latest(client, "11.0.0")
+
+        # Act
+        receipt = github_release.finalize_release(self.plan, client)
+
+        # Assert
+        self.assertEqual([False], client.published_latest)
+        self.assertFalse(receipt["latest"])
+        self.assertEqual("v11.0.0", client.latest_release["tag_name"])
+
+    def test_newer_stable_replaces_older_latest(self) -> None:
+        """Canonical SemVer compares numeric components, not lexical strings."""
+        # Arrange
+        client = FakeReleaseClient()
+        self._newer_latest(client, "10.6.1")
+
+        # Act
+        receipt = github_release.finalize_release(self.plan, client)
+
+        # Assert
+        self.assertEqual([True], client.published_latest)
+        self.assertTrue(receipt["latest"])
+
+    def test_historical_immutable_retry_neither_reads_nor_changes_latest(self) -> None:
+        """A completed release remains verifiable after a newer publication."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.create_draft(self.plan)
+        client.upload_assets(
+            str(self.plan["repository"]),
+            str(self.plan["releaseTag"]),
+            [Path(self.plan["assets"][0]["path"])],
+        )
+        client.publish_release(self.plan)
+        client.latest = False
+        self._newer_latest(client, "11.0.0")
+        client.latest_error = github_release.GitHubReleaseError("network unavailable")
+        client.publish_calls = 0
+
+        # Act
+        receipt = github_release.finalize_release(self.plan, client)
+
+        # Assert
+        self.assertEqual("published-and-verified", receipt["status"])
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(0, client.latest_reads)
+
+    def test_unknown_latest_identity_blocks_publication(self) -> None:
+        """Do not replace an unparsable or noncanonical current Latest."""
+        # Arrange
+        client = FakeReleaseClient()
+        self._newer_latest(client, "unknown")
+
+        # Act
+        failure = _record_exception(lambda: github_release.finalize_release(self.plan, client))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("not canonical", str(failure))
+        self.assertEqual(0, client.publish_calls)
+
+    def test_latest_network_failure_blocks_publication(self) -> None:
+        """An unavailable Latest endpoint is not evidence of absence."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.latest_error = github_release.GitHubReleaseError("network unavailable")
+
+        # Act
+        failure = _record_exception(lambda: github_release.finalize_release(self.plan, client))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("network", str(failure))
+        self.assertEqual(0, client.publish_calls)
+
+    def test_equal_version_conflicting_commit_blocks_publication(self) -> None:
+        """The same canonical version cannot identify a different source tree."""
+        # Arrange
+        client = FakeReleaseClient()
+        self._newer_latest(client, str(self.plan["releaseVersion"]))
+
+        # Act
+        failure = _record_exception(lambda: github_release.finalize_release(self.plan, client))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("identity", str(failure))
+        self.assertEqual(0, client.publish_calls)
+
+    def test_latest_is_read_after_draft_upload_not_from_a_stale_plan(self) -> None:
+        """A release published while this draft was staging wins the comparison."""
+        # Arrange
+        client = FakeReleaseClient()
+        upload = client.upload_assets
+
+        def concurrent_publication(repository: str, tag: str, paths: list[Path]) -> None:
+            """Model a completed newer release before this serialized write."""
+            upload(repository, tag, paths)
+            self._newer_latest(client, "11.0.0")
+
+        # Act
+        with mock.patch.object(client, "upload_assets", side_effect=concurrent_publication):
+            receipt = github_release.finalize_release(self.plan, client)
+
+        # Assert
+        self.assertEqual(1, client.latest_reads)
+        self.assertEqual([False], client.published_latest)
+        self.assertFalse(receipt["latest"])
+
+    def test_first_stable_release_becomes_latest(self) -> None:
+        """Only an explicit absent Latest response permits initial promotion."""
+        # Arrange
+        client = FakeReleaseClient()
+
+        # Act
+        receipt = github_release.finalize_release(self.plan, client)
+
+        # Assert
+        self.assertEqual([True], client.published_latest)
+        self.assertTrue(receipt["latest"])
+
+    def test_preview_never_displaces_current_stable_latest(self) -> None:
+        """Stable 10.x remains Latest-eligible while 11.x is only prerelease."""
+        # Arrange
+        client = FakeReleaseClient()
+        self._newer_latest(client, "10.6.2")
+        plan = {
+            **self.plan,
+            "releaseTag": "v11.0.0-rc.1",
+            "releaseVersion": "11.0.0-rc.1",
+            "name": "Doka.EntityFrameworkCore.MySql 11.0.0-rc.1",
+            "prerelease": True,
+            "latest": False,
+        }
+
+        # Act
+        receipt = github_release.finalize_release(plan, client)
+
+        # Assert
+        self.assertEqual([False], client.published_latest)
+        self.assertFalse(receipt["latest"])
+        self.assertEqual("v10.6.2", client.latest_release["tag_name"])
+        self.assertEqual(1, client.latest_reads)
+
+    def test_historical_stage_does_not_repromote_an_older_release(self) -> None:
+        """Draft reconciliation remains a no-op for a fully published older tag."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.create_draft(self.plan)
+        client.upload_assets(
+            str(self.plan["repository"]), str(self.plan["releaseTag"]), [Path(self.plan["assets"][0]["path"])]
+        )
+        client.publish_release(self.plan)
+        client.latest = False
+        self._newer_latest(client, "11.0.0")
+        client.latest_error = github_release.GitHubReleaseError("network unavailable")
+        client.publish_calls = 0
+
+        # Act
+        receipt = github_release.stage_release(self.plan, client)
+
+        # Assert
+        self.assertEqual("release-already-published", receipt["status"])
+        self.assertEqual(0, client.latest_reads)
+        self.assertEqual(0, client.publish_calls)
+
+    def test_latest_endpoint_accepts_only_explicit_not_found_as_absent(self) -> None:
+        """Transport errors cannot silently trigger an initial Latest promotion."""
+        # Arrange
+        client = github_release.GitHubCliClient()
+
+        # Act
+        with mock.patch.object(client, "_run_text", side_effect=github_release.GitHubReleaseError("HTTP 503")):
+            failure = _record_exception(lambda: client.get_latest(str(self.plan["repository"])))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("503", str(failure))
+
+    def test_latest_endpoint_not_found_is_absent(self) -> None:
+        """The protocol recognizes repositories with no stable release yet."""
+        # Arrange
+        client = github_release.GitHubCliClient()
+
+        # Act
+        with mock.patch.object(client, "_run_text", return_value=None):
+            latest = client.get_latest(str(self.plan["repository"]))
+
+        # Assert
+        self.assertIsNone(latest)
+
+    def test_latest_endpoint_rejects_nonobject_json(self) -> None:
+        """A malformed successful API response is not an absent release."""
+        # Arrange
+        client = github_release.GitHubCliClient()
+
+        # Act
+        with mock.patch.object(client, "_run_text", return_value="[]"):
+            failure = _record_exception(lambda: client.get_latest(str(self.plan["repository"])))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("invalid", str(failure))
 
 
 class GitHubReleaseTests(unittest.TestCase):
@@ -196,6 +485,11 @@ class GitHubReleaseTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Create one checksum-bound candidate and publication receipt set."""
+        # WHY: These fixtures model their own workflow run. Ambient CI run
+        # identities must not relabel them as the test runner's publication.
+        environment = mock.patch.dict(os.environ, {}, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.candidate = self.root / "github-12345"
@@ -399,7 +693,7 @@ class GitHubReleaseTests(unittest.TestCase):
             )
 
         manifest = {
-            "schemaVersion": release_evidence.SCHEMA_VERSION,
+            "schemaVersion": 3,
             "releaseCandidateRunId": self.candidate.name,
             "releaseVersion": self._VERSION,
             "expectedReleaseTag": self._TAG,
@@ -455,7 +749,7 @@ class GitHubReleaseTests(unittest.TestCase):
             }
 
         candidate_receipt: dict[str, object] = {
-            "schemaVersion": nuget_publication.CANDIDATE_RECEIPT_SCHEMA_VERSION,
+            "schemaVersion": 1,
             "kind": nuget_publication.CANDIDATE_RECEIPT_KIND,
             "candidateRunId": "12345",
             "candidateRunAttempt": "1",
@@ -490,7 +784,7 @@ class GitHubReleaseTests(unittest.TestCase):
         qualification_path = self.candidate / "release-qualification-manifest.json"
         receipt: dict[str, object] = {
             **candidate_receipt,
-            "schemaVersion": nuget_publication.PUBLICATION_RECEIPT_SCHEMA_VERSION,
+            "schemaVersion": 4,
             "kind": nuget_publication.PUBLICATION_RECEIPT_KIND,
             "releaseTag": self._TAG,
             "candidateReceiptSha256": nuget_publication.sha256_file(
@@ -703,7 +997,7 @@ class GitHubReleaseTests(unittest.TestCase):
         (self.publication / "github-release-readback.json").write_text(
             json.dumps(
                 {
-                    "schemaVersion": github_release.SCHEMA_VERSION,
+                    "schemaVersion": 3,
                     "status": "published-and-verified",
                     "repository": self._REPOSITORY,
                     "releaseId": 1,
@@ -740,6 +1034,373 @@ class GitHubReleaseTests(unittest.TestCase):
     def tearDown(self) -> None:
         """Remove the isolated candidate fixture."""
         self.temporary_directory.cleanup()
+
+    def _enable_release_line_receipts(self) -> dict[str, object]:
+        """Upgrade fixture evidence through the real new-schema readers."""
+        policy = initial_policy()
+        line = release_lines.freeze_line(policy, "refs/heads/main", self._VERSION)
+        manifest_path = self.candidate / release_evidence.MANIFEST_NAME
+        manifest = github_release.read_json(manifest_path, "fixture manifest")
+        manifest["schemaVersion"] = 4
+        manifest["releaseLine"] = line
+        manifest["workflow"]["signerWorkflowRef"] = manifest["workflow"]["workflowRef"]
+        manifest["workflow"]["signerDigest"] = self._COMMIT
+        manifest["toolchain"].update({
+            "targetFramework": "net10.0",
+            "efCoreVersion": "[10.0.8, 10.1.0)",
+            "testRunner": "VSTest",
+            "upstreamStage": "ga",
+            "resolvedPackages": {
+                "Microsoft.EntityFrameworkCore.Design": "10.0.12",
+                "Microsoft.EntityFrameworkCore.Relational": "10.0.12",
+                "MySqlConnector": "2.5.0",
+            },
+        })
+        # WHY: Schema4 binds the observed toolchain to the sealed package-list
+        # artifact; upgrading only the manifest would invent a different graph.
+        graph_path = self.candidate / "resolved-packages.json"
+        github_release.write_json(graph_path, {"projects": [{"frameworks": [{
+            "topLevelPackages": [
+                {"id": package, "resolvedVersion": version}
+                for package, version in manifest["toolchain"]["resolvedPackages"].items()
+            ],
+        }]}]})
+        qualification_path = self.candidate / "release-qualification-manifest.json"
+        github_release.write_json(qualification_path, {
+            "schemaVersion": 3,
+            "kind": "release-qualification-manifest",
+            "releaseLine": line,
+            "commit": self._COMMIT,
+            "releaseVersion": self._VERSION,
+            "expectedReleaseTag": self._TAG,
+            "policyVersion": "fixture",
+            "policyDigest": "d" * 64,
+            "selectionRuleVersion": 1,
+            "treeId": "c" * 40,
+            "gates": [{"gate": "repository-qualification"}],
+        })
+        for artifact in manifest["artifacts"]:
+            if artifact["path"] in {qualification_path.name, graph_path.name}:
+                path = self.candidate / artifact["path"]
+                artifact["sizeBytes"] = path.stat().st_size
+                artifact["sha256"] = github_release.sha256_file(path)
+
+        github_release.write_json(manifest_path, manifest)
+        (self.candidate / release_evidence.CHECKSUM_NAME).write_text(
+            f"{github_release.sha256_file(manifest_path)}  {release_evidence.MANIFEST_NAME}\n",
+            encoding="ascii",
+        )
+        candidate_path = self.publication / "candidate-receipt.json"
+        candidate = github_release.read_json(candidate_path, "fixture candidate")
+        candidate.update({
+            "schemaVersion": 2,
+            "releaseLine": line,
+            "workflowRef": manifest["workflow"]["workflowRef"],
+            "toolchain": manifest["toolchain"],
+        })
+        github_release.write_json(candidate_path, candidate)
+        trust_path = self.publication / "release-tag-trust-root.json"
+        trust = github_release.read_json(trust_path, "fixture trust")
+        trust.update({"schemaVersion": 3, "releaseLine": line})
+        github_release.write_json(trust_path, trust)
+        authority = {
+            "schemaVersion": 1,
+            "kind": release_publication.AUTHORITY_KIND,
+            "repository": self._REPOSITORY,
+            "controlCommit": "b" * 40,
+            "authorizationRevision": policy["revision"],
+            "authorizationDigest": release_lines.policy_digest(policy),
+            "observedUtc": "2026-10-22T12:00:00Z",
+            "policy": policy,
+        }
+        admission = release_publication.create_admission(
+            release_publication.candidate_identity(self.candidate, candidate_path, "1"),
+            authority,
+        )
+        receipt_path = self.publication / "release-publication-receipt.json"
+        receipt = github_release.read_json(receipt_path, "fixture publication")
+        receipt.update({
+            **candidate,
+            "schemaVersion": 5,
+            "kind": nuget_publication.PUBLICATION_RECEIPT_KIND,
+            "candidateReceiptSha256": github_release.sha256_file(candidate_path),
+            "tagTrustRootSha256": github_release.sha256_file(trust_path),
+            "qualificationManifestSha256": github_release.sha256_file(qualification_path),
+            "publicationAdmission": admission,
+            "publicationAuthority": authority,
+        })
+        github_release.write_json(receipt_path, receipt)
+        bundle_path = self.publication / release_provenance.PORTABLE_PROVENANCE_NAME
+        bundle = github_release.read_json(bundle_path, "fixture provenance")
+        statement = json.loads(base64.b64decode(bundle["dsseEnvelope"]["payload"]))
+        subjects = {
+            path.name: path
+            for directory in (self.candidate, self.publication)
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+        # WHY: Published repository-signed packages share filenames with the
+        # unsigned candidate; provenance binds the candidate bytes only.
+        for path in (self.candidate / "packages").iterdir():
+            subjects[path.name] = path
+
+        for subject in statement["subject"]:
+            subject["digest"]["sha256"] = github_release.sha256_file(subjects[subject["name"]])
+
+        statement["predicate"] = {
+            "buildDefinition": {
+                "externalParameters": {"workflow": {
+                    "repository": f"https://github.com/{self._REPOSITORY}",
+                    "path": line["workflowPath"],
+                    "ref": line["sourceRef"],
+                }},
+                "resolvedDependencies": [{
+                    "uri": f"git+https://github.com/{self._REPOSITORY}@{line['sourceRef']}",
+                    "digest": {"gitCommit": self._COMMIT},
+                }],
+            },
+            "runDetails": {"metadata": {
+                "invocationId": (
+                    f"https://github.com/{self._REPOSITORY}/actions/runs/"
+                    f"{candidate['candidateRunId']}/attempts/{candidate['candidateRunAttempt']}"
+                ),
+            }},
+        }
+        bundle["dsseEnvelope"]["payload"] = base64.b64encode(
+            json.dumps(statement, separators=(",", ":")).encode("ascii")
+        ).decode("ascii")
+        bundle_path.write_text(json.dumps(bundle, separators=(",", ":")) + "\n", encoding="ascii")
+        github_release.write_json(self.publication / "publication-admission.json", admission)
+        github_release.write_json(self.publication / "authorization-observation.json", authority)
+
+        return github_release.build_release_plan(self._REPOSITORY, self.candidate, self.publication, self.changelog)
+
+    def test_release_line_plan_and_receipt_keep_frozen_publication_identity(self) -> None:
+        """The new schema publishes the exact candidate without promoting a prerelease."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        manifest_before = (self.candidate / release_evidence.MANIFEST_NAME).read_bytes()
+        environment = {"DOKA_PUBLICATION_LOCK_GROUP": "doka-publication", "DOKA_PUBLICATION_LOCK_HELD": "1"}
+        authority = copy.deepcopy(plan["publicationAuthority"])
+        authority["policy"]["revision"] = "2026-10-22.2"
+        authority["authorizationRevision"] = authority["policy"]["revision"]
+        authority["authorizationDigest"] = release_lines.policy_digest(authority["policy"])
+        authority["controlCommit"] = "c" * 40
+
+        # Act
+        with mock.patch.dict(os.environ, environment):
+            receipt = github_release.finalize_release(plan, client, authority=authority)
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual(4, receipt["schemaVersion"])
+        self.assertEqual("never", plan["promotionIntent"])
+        self.assertEqual("not-promoted", receipt["latestDecision"])
+        self.assertEqual([False], client.published_latest)
+        self.assertEqual(authority, receipt["promotion"]["authorization"])
+        self.assertNotEqual(
+            plan["publicationAuthority"]["authorizationRevision"],
+            receipt["promotion"]["authorization"]["authorizationRevision"],
+        )
+        self.assertEqual(manifest_before, (self.candidate / release_evidence.MANIFEST_NAME).read_bytes())
+
+    def test_release_line_stage_only_uploads_and_never_publishes(self) -> None:
+        """A complete immutable-intent draft is staged before any package write."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        environment = {"DOKA_PUBLICATION_LOCK_GROUP": "doka-publication", "DOKA_PUBLICATION_LOCK_HELD": "1"}
+
+        # Act
+        with mock.patch.dict(os.environ, environment):
+            receipt = github_release.stage_release(plan, client)
+
+        # Assert
+        self.assertEqual("draft-staged-and-verified", receipt["status"])
+        self.assertEqual(0, client.publish_calls)
+        self.assertTrue(client.release["draft"])
+
+    def test_release_line_plan_rejects_role_and_schema_downgrades(self) -> None:
+        """No plan field can substitute a different release authorization route."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        variants = (
+            {**plan, "sourceRef": "refs/heads/maintenance/10.x"},
+            {**plan, "schemaVersion": 3},
+            {**plan, "promotionIntent": "monotonic-stable"},
+            {**plan, "latest": 0},
+            {**plan, "prerelease": 1},
+        )
+
+        # Act
+        failures = [_record_exception(lambda: github_release.validate_plan(variant)) for variant in variants]
+
+        # Assert
+        for variant, failure in zip(variants, failures, strict=True):
+            with self.subTest(source=variant["sourceRef"], schema=variant["schemaVersion"]):
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+
+    def test_release_line_publication_without_shared_lock_is_rejected(self) -> None:
+        """Branch-local success cannot bypass cross-line write serialization."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+
+        # Act
+        with mock.patch.dict(os.environ, {}, clear=True):
+            failure = _record_exception(lambda: github_release.finalize_release(plan, client))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("shared publisher lock", str(failure))
+        self.assertEqual(0, client.create_calls)
+
+    def test_new_schema_readback_cannot_change_frozen_promotion_intent(self) -> None:
+        """A valid remote byte inventory does not authorize preview Latest."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.create_draft(plan)
+        client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in plan["assets"]])
+        client.publish_release(plan)
+        receipt = github_release.build_receipt(client.release, plan, False, promotion={
+            "schemaVersion": 1,
+            "observedLatest": None,
+            "comparison": None,
+            "disposition": "not-promoted",
+            "authorization": plan["publicationAuthority"],
+        })
+        receipt["latest"] = True
+        receipt["latestDecision"] = "promoted"
+
+        # Act
+        failure = _record_exception(lambda: github_release.validate_release_receipt(receipt, plan))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("identity", str(failure))
+
+    def test_release_line_retry_records_no_new_promotion_or_latest_observation(self) -> None:
+        """An exact immutable retry records verification rather than a new promotion."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.create_draft(plan)
+        client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in plan["assets"]])
+        client.publish_release(plan)
+        client.publish_calls = 0
+        before = copy.deepcopy(client.release)
+        environment = {"DOKA_PUBLICATION_LOCK_GROUP": "doka-publication", "DOKA_PUBLICATION_LOCK_HELD": "1"}
+
+        # Act
+        with mock.patch.dict(os.environ, environment):
+            receipt = github_release.finalize_release(plan, client, authority=plan["publicationAuthority"])
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual("historical-no-promotion", receipt["promotion"]["disposition"])
+        self.assertIsNone(receipt["promotion"]["observedLatest"])
+        self.assertIsNone(receipt["promotion"]["comparison"])
+        self.assertEqual(0, client.latest_reads)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(before, client.release)
+
+    def test_promotion_receipt_freezes_current_latest_identity_and_comparison(self) -> None:
+        """The final receipt retains the stable identity seen inside the lock."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.latest_release = {
+            "id": 900,
+            "tag_name": "v10.0.0",
+            "draft": False,
+            "prerelease": False,
+            "immutable": True,
+        }
+        client.tag_commits["v10.0.0"] = "b" * 40
+        environment = {"DOKA_PUBLICATION_LOCK_GROUP": "doka-publication", "DOKA_PUBLICATION_LOCK_HELD": "1"}
+
+        # Act
+        with mock.patch.dict(os.environ, environment):
+            receipt = github_release.finalize_release(plan, client, authority=plan["publicationAuthority"])
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual({
+            "releaseId": 900,
+            "releaseTag": "v10.0.0",
+            "releaseVersion": "10.0.0",
+            "sourceCommit": "b" * 40,
+        }, receipt["promotion"]["observedLatest"])
+        self.assertEqual(-1, receipt["promotion"]["comparison"])
+        self.assertEqual("not-promoted", receipt["promotion"]["disposition"])
+
+    def test_completion_rejects_a_tampered_latest_comparison(self) -> None:
+        """A correct asset inventory cannot mask a contradictory promotion decision."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.create_draft(plan)
+        client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in plan["assets"]])
+        client.publish_release(plan)
+        receipt = github_release.build_receipt(client.release, plan, False, promotion={
+            "schemaVersion": 1,
+            "observedLatest": {
+                "releaseId": 900,
+                "releaseTag": "v10.0.0",
+                "releaseVersion": "10.0.0",
+                "sourceCommit": "b" * 40,
+            },
+            "comparison": 1,
+            "disposition": "not-promoted",
+            "authorization": plan["publicationAuthority"],
+        })
+        github_release.write_json(self.publication / "github-release-readback.json", receipt)
+
+        # Act
+        failure = _record_exception(lambda: github_release.build_completion_receipt(
+            self._REPOSITORY, self.candidate, self.publication, self.changelog
+        ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("comparison", str(failure))
+
+    def test_completion_preserves_valid_historical_promotion_evidence(self) -> None:
+        """A complete new-schema release verifies without observing mutable Latest."""
+        # Arrange
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.create_draft(plan)
+        client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in plan["assets"]])
+        client.publish_release(plan)
+        receipt = github_release.build_receipt(client.release, plan, promotion={
+            "schemaVersion": 1,
+            "observedLatest": None,
+            "comparison": None,
+            "disposition": "historical-no-promotion",
+            "authorization": plan["publicationAuthority"],
+        })
+        github_release.write_json(self.publication / "github-release-readback.json", receipt)
+
+        # Act
+        completion = github_release.build_completion_receipt(
+            self._REPOSITORY, self.candidate, self.publication, self.changelog
+        )
+
+        # Assert
+        self.assertEqual("published-and-verified", completion["status"])
+        self.assertEqual(self._COMMIT, completion["sourceCommit"])
+        self.assertEqual(0, client.latest_reads)
+        readback_asset = next(
+            asset for asset in completion["evidence"] if asset["name"] == "github-release-readback.json"
+        )
+
+        self.assertEqual(
+            github_release.sha256_file(self.publication / "github-release-readback.json"),
+            readback_asset["sha256"],
+        )
 
     def test_plan_binds_candidate_publication_notes_and_classification(self) -> None:
         """Bind every public asset and derive prerelease policy from the version."""
@@ -807,7 +1468,7 @@ class GitHubReleaseTests(unittest.TestCase):
 
         cases = (
             (self.plan, {"--prerelease", "--latest=false"}, {"--prerelease=true", "--latest=false"}),
-            (stable_plan, set(), {"--prerelease=false", "--latest=true"}),
+            (stable_plan, {"--latest=false"}, {"--prerelease=false", "--latest=true"}),
         )
         for plan, expected_create_flags, expected_publish_flags in cases:
             with self.subTest(version=plan["releaseVersion"]):
@@ -968,6 +1629,24 @@ class GitHubReleaseTests(unittest.TestCase):
             },
             {entry["name"] for entry in receipt["evidence"]},
         )
+
+    def test_completion_rejects_incomplete_public_symbol_readback(self) -> None:
+        """Removing the handoff sidecar must retain real publication-completion guards."""
+        # Arrange
+        path = self.publication / "nuget-publication-readback.json"
+        readback = github_release.read_json(path, "public readback")
+        symbol = next(iter(readback["symbols"].values()))
+        symbol["status"] = "absent"
+        github_release.write_json(path, readback)
+
+        # Act
+        error = _record_exception(lambda: github_release.build_completion_receipt(
+            self._REPOSITORY, self.candidate, self.publication, self.changelog,
+        ))
+
+        # Assert
+        self.assertIsInstance(error, github_release.GitHubReleaseError)
+        self.assertIn("symbol", str(error).lower())
 
     def test_completion_accepts_signature_propagation_in_the_preflight(self) -> None:
         """Allow publication to finish once a formerly unsigned match is signed."""

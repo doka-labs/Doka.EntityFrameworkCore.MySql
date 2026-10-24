@@ -17,6 +17,33 @@ including `Doka.Caching.MySql`. For an older release predating that package,
 use the verification guide and manifest from its signed tag; do not require
 new package subjects that were not part of that historical release.
 
+## Source Line and Historical Authority
+
+Current main/10 releases use `release-candidate.yml` and
+`refs/heads/main` identities shown below. The same workflow is the single entry
+for other authorized lines, using the existing `nuget` environment and unchanged
+single-maintainer/admin-bypass arrangement. Line-aware releases additionally
+freeze the exact source role/ref, caller workflow, toolchain and authorization
+revision/digest. Verify those **recorded** identities; never substitute today's
+main major, a wildcard preview ref or a mutable current-policy snapshot for an
+older release's provenance. Explicit historical schema readers preserve the
+original release contract rather than requiring fields old releases could not
+have produced.
+
+Publication authority is rechecked separately against current protected-main
+policy. Historical verification does not authorize new writes: a complete
+immutable release remains verifiable after line deactivation or after another release
+becomes Latest. Do not demand it still be Latest or re-promote it to make
+verification pass. New maintenance/preview routes are initially inactive; see
+[Release Lines](../operations/release-lines.md) for approved activation and the
+exact public RC consumer fixture.
+
+For a line-aware release, take the expected source ref, source commit and caller
+workflow from independently authenticated release evidence and pin them in the
+attestation commands below. The selected ref must be exactly one authorized
+release source, not a feature branch or prefix. A frozen authorization snapshot
+documents qualification, not perpetual permission to publish from that ref.
+
 ## Prerequisites
 
 - Git with SSH signature verification support;
@@ -177,7 +204,8 @@ A release is verified only when all of these statements hold:
 - the tag signature is valid under the repository's signer registry;
 - the tag resolves to the same commit enforced by every package attestation;
 - every package and symbol file matches the SLSA subject digest;
-- the signer workflow is the protected release-candidate workflow on `main`;
+- the signer workflow is the protected release-candidate workflow at the exact
+  authenticated source ref/commit (currently `main` for main/10 releases);
 - the attestation was produced on a GitHub-hosted runner; and
 - every primary package carries a valid NuGet repository signature.
 

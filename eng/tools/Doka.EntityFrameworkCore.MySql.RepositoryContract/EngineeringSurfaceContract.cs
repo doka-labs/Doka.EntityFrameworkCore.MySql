@@ -56,6 +56,7 @@ internal static partial class EngineeringSurfaceContract
         AddPythonBoundaryErrors(repositoryRoot, errors);
         ValidateRetiredSurface(repositoryRoot, errors);
         ValidateWorkflowBoundary(repositoryRoot, errors);
+        errors.AddRange(ValidateWorkflowConcurrencyFiles(repositoryRoot));
         ValidateArchitectureManifest(repositoryRoot, errors);
         ValidateShellPortability(repositoryRoot, errors);
         ValidateComposeBoundary(repositoryRoot, errors);
@@ -74,6 +75,213 @@ internal static partial class EngineeringSurfaceContract
         AddPythonBoundaryErrors(repositoryRoot, errors);
         return errors;
     }
+
+    /// <summary>
+    /// Validates the workflow queue fields not yet understood by the pinned actionlint.
+    /// </summary>
+    public static IReadOnlyList<string> ValidateWorkflowConcurrencyFiles(
+        string repositoryRoot
+    )
+    {
+        var workflows = Path.Combine(repositoryRoot, ".github", "workflows");
+        var errors = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(workflows))
+        {
+            if (Path.GetExtension(path) is not (".yml" or ".yaml"))
+            {
+                continue;
+            }
+
+            errors.AddRange(ValidateWorkflowConcurrency(File.ReadAllText(path), Relative(repositoryRoot, path)));
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Validates literal queue choices and their cancellation contract at both supported scopes.
+    /// </summary>
+    /// <remarks>
+    /// This is a narrow extension, not another YAML parser. Actionlint remains
+    /// responsible for YAML syntax, placement, expressions and all other keys.
+    /// </remarks>
+    public static IReadOnlyList<string> ValidateWorkflowConcurrency(
+        string workflow,
+        string name
+    )
+    {
+        var errors = new List<string>();
+        var lines = workflow.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var scalarIndent = -1;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            var indent = line.Length - line.TrimStart(' ').Length;
+            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            {
+                continue;
+            }
+
+            if (scalarIndent >= 0 && indent > scalarIndent)
+            {
+                continue;
+            }
+
+            scalarIndent = BlockScalarHeader().IsMatch(line) ? indent : -1;
+            var mapping = WorkflowScalarField().Match(line);
+            if (line.TrimStart().StartsWith('?') || line.TrimStart().StartsWith('!')
+                || mapping.Success && mapping.Groups["key"].Value.Contains('\\')
+                || indent is 0 or 4 && line.TrimStart().StartsWith('"') && !mapping.Success)
+            {
+                // WHY: Tagged/explicit keys can change the YAML name seen by
+                // actionlint without appearing as a literal concurrency key.
+                errors.Add($"{name}: workflow mappings must use explicit untagged and unescaped scalar keys.");
+                continue;
+            }
+
+            var header = ConcurrencyHeader().Match(line);
+            if (!header.Success)
+            {
+                continue;
+            }
+
+            if (indent is not (0 or 4))
+            {
+                errors.Add($"{name}: concurrency requires workflow or job scope with canonical two-space indentation.");
+                continue;
+            }
+
+            var value = TrimYamlComment(header.Groups["value"].Value);
+            if (value.StartsWith('{') || value.StartsWith('&') || value.StartsWith('*'))
+            {
+                // WHY: A flow map or YAML alias could hide a queue from this
+                // narrow check while actionlint reports only its unknown key.
+                errors.Add($"{name}: concurrency queue validation requires an explicit block-style mapping.");
+                continue;
+            }
+
+            if (value.Length != 0)
+            {
+                continue;
+            }
+
+            ValidateConcurrencyMapping(lines, index + 1, indent, name, errors);
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Checks the direct children of one concurrency mapping without interpreting unrelated YAML.
+    /// </summary>
+    private static void ValidateConcurrencyMapping(
+        string[] lines,
+        int start,
+        int parentIndent,
+        string name,
+        List<string> errors
+    )
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        var childIndent = -1;
+        for (var index = start; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            {
+                continue;
+            }
+
+            var indent = line.Length - line.TrimStart(' ').Length;
+            if (indent <= parentIndent)
+            {
+                break;
+            }
+
+            if (childIndent < 0)
+            {
+                childIndent = indent;
+            }
+
+            var field = WorkflowScalarField().Match(line);
+            if (indent != childIndent)
+            {
+                continue;
+            }
+
+            if (!field.Success)
+            {
+                errors.Add($"{name}: concurrency requires explicit untagged scalar keys.");
+                continue;
+            }
+
+            var key = UnquoteYamlScalar(field.Groups["key"].Value);
+            if (key is not ("group" or "queue" or "cancel-in-progress"))
+            {
+                errors.Add($"{name}: concurrency contains an unsupported or escaped key '{key}'.");
+                continue;
+            }
+
+            var value = TrimYamlComment(field.Groups["value"].Value);
+            if (!fields.TryAdd(key, value))
+            {
+                errors.Add($"{name}: concurrency contains duplicate '{key}' fields.");
+            }
+        }
+
+        if (!fields.TryGetValue("queue", out var queue))
+        {
+            return;
+        }
+
+        var normalized = UnquoteYamlScalar(queue);
+        if (normalized is not ("single" or "max"))
+        {
+            errors.Add($"{name}: concurrency queue must be the string 'single' or 'max'.");
+            return;
+        }
+
+        if (!fields.TryGetValue("cancel-in-progress", out var cancellation))
+        {
+            return;
+        }
+
+        var expression = UnquoteYamlScalar(cancellation);
+        var isExpression = expression.StartsWith("${{", StringComparison.Ordinal)
+            && expression.EndsWith("}}", StringComparison.Ordinal);
+
+        if (cancellation is not ("true" or "false") && !isExpression)
+        {
+            errors.Add($"{name}: concurrency cancel-in-progress must be a boolean or an expression, not a string.");
+        }
+
+        // WHY: GitHub rejects max with cancellation; a dynamic expression cannot
+        // prove that the shared publication queue will remain non-cancelling.
+        if (normalized == "max" && cancellation != "false")
+        {
+            errors.Add($"{name}: concurrency queue 'max' requires absent or literal false cancel-in-progress.");
+        }
+    }
+
+    private static string TrimYamlComment(
+        string value
+    )
+    {
+        if (value.TrimStart().StartsWith('#'))
+        {
+            return string.Empty;
+        }
+
+        var comment = value.IndexOf(" #", StringComparison.Ordinal);
+
+        return (comment < 0 ? value : value[..comment]).Trim();
+    }
+
+    private static string UnquoteYamlScalar(
+        string value
+    ) => value.Length >= 2 && (value[0] == '\'' && value[^1] == '\'' || value[0] == '"' && value[^1] == '"')
+        ? value[1..^1]
+        : value;
 
     private static void AddPythonBoundaryErrors(
         string root,
@@ -164,8 +372,11 @@ internal static partial class EngineeringSurfaceContract
         var workflows = Path.Combine(root, ".github", "workflows");
         var ci = File.ReadAllText(Path.Combine(workflows, "ci.yml"));
         var benchmark = File.ReadAllText(Path.Combine(workflows, "benchmark.yml"));
+        var containerMatrix = File.ReadAllText(Path.Combine(workflows, "container-matrix.yml"));
         var scorecard = File.ReadAllText(Path.Combine(workflows, "scorecard.yml"));
         var dependencyReview = File.ReadAllText(Path.Combine(workflows, "dependency-review.yml"));
+        var securityAudit = File.ReadAllText(Path.Combine(workflows, "security-audit.yml"));
+        errors.AddRange(ValidateHostedBenchmarkWorkflow(benchmark));
 
         if (!TriggerBlock(ci)
                 .Contains("  pull_request:\n", StringComparison.Ordinal)
@@ -200,7 +411,7 @@ internal static partial class EngineeringSurfaceContract
                  })
         {
             if (!JobBlock(ci, job)
-                    .Contains("if: github.event_name != 'schedule'", StringComparison.Ordinal))
+                    .Contains("if: github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
             {
                 errors.Add(
                     $".github/workflows/ci.yml: fixed qualification job '{job}' "
@@ -210,18 +421,106 @@ internal static partial class EngineeringSurfaceContract
 
         var qualification = JobBlock(ci, "repository-qualification");
         if (!qualification.Contains("if: always()", StringComparison.Ordinal)
-            || !qualification.Contains("github.event_name != 'schedule'", StringComparison.Ordinal))
+            || !qualification.Contains("github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
         {
             errors.Add(
                 ".github/workflows/ci.yml: repository-qualification must aggregate PR/manual "
                 + "results and remain absent from the maintenance schedule.");
         }
 
+        foreach (var (name, workflow) in new[]
+                 {
+                     ("ci.yml", ci), ("benchmark.yml", benchmark),
+                     ("container-matrix.yml", containerMatrix), ("security-audit.yml", securityAudit)
+                 })
+        {
+            ValidateScheduledWorkflow(name, workflow, errors);
+        }
+
+        errors.AddRange(ValidateSecurityAuditWorkflow(securityAudit));
+
         if (!dependencyReview.Contains("actions/dependency-review-action@", StringComparison.Ordinal)
             || !dependencyReview.Contains("retry-on-snapshot-warnings: true", StringComparison.Ordinal)
             || dependencyReview.Contains("dependency_snapshot_readiness", StringComparison.Ordinal))
         {
             errors.Add(".github/workflows/dependency-review.yml: snapshot readiness must remain platform-owned.");
+        }
+    }
+
+    /// <summary>Prevents a routine hosted benchmark from becoming a hardware-speed gate again.</summary>
+    public static IReadOnlyList<string> ValidateHostedBenchmarkWorkflow(
+        string workflow
+    )
+    {
+        var benchmark = JobBlock(workflow, "benchmark");
+        if (!benchmark.Contains("DOKA_BENCHMARK_EVALUATION: allocations-only", StringComparison.Ordinal)
+            || !benchmark.Contains("bash ./eng/benchmark.sh --up-run-down", StringComparison.Ordinal)
+            || benchmark.Contains("continue-on-error:", StringComparison.Ordinal))
+        {
+            return ["benchmark.yml: hosted execution must enforce allocations/resource correctness without suppressing failures."];
+        }
+
+        return [];
+    }
+
+    /// <summary>
+    /// Keeps scheduled cross-line dispatch separate from branch-native work.
+    /// </summary>
+    private static void ValidateScheduledWorkflow(
+        string name,
+        string workflow,
+        List<string> errors
+    )
+    {
+        var identity = JobBlock(workflow, "schedule-identity");
+        var coordinator = JobBlock(workflow, "scheduled-release-lines");
+        var ordinaryJobs = coordinator.Length > 0
+            ? workflow.Replace(coordinator, string.Empty, StringComparison.Ordinal)
+            : workflow;
+
+        var contracts = workflow.Split('\n')
+            .Where(line => line.StartsWith("# release-line-schedule: ", StringComparison.Ordinal))
+            .ToArray();
+
+        if (contracts.Length != 1
+            || !identity.Contains($"validate-child --workflow {name}", StringComparison.Ordinal)
+            || !identity.Contains("EXPECTED_COMMIT: ${{ inputs.expected_commit }}", StringComparison.Ordinal)
+            || !identity.Contains("SCHEDULE_CORRELATION: ${{ inputs.schedule_correlation }}", StringComparison.Ordinal)
+            || !coordinator.Contains("if: github.event_name == 'schedule'", StringComparison.Ordinal)
+            || !coordinator.Contains("actions: write", StringComparison.Ordinal)
+            || !coordinator.Contains($"schedules.py run --workflow {name}", StringComparison.Ordinal)
+            || ordinaryJobs.Contains("actions: write", StringComparison.Ordinal)
+            || workflow.Contains("ref: ${{ inputs.", StringComparison.Ordinal))
+        {
+            errors.Add($".github/workflows/{name}: scheduled lines require exact branch-native producers and isolated dispatch permissions.");
+        }
+
+        if (contracts.Length != 1)
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(contracts[0]["# release-line-schedule: ".Length..]);
+            var producers = document.RootElement.GetProperty("producers").EnumerateArray().ToArray();
+            if (document.RootElement.GetProperty("schemaVersion").GetInt32() != 1
+                || producers.Length == 0
+                || producers.Any(producer =>
+                    !JobBlock(workflow, producer.GetString() ?? string.Empty)
+                        .Contains("needs: schedule-identity", StringComparison.Ordinal)
+                    && !(producer.GetString() == "benchmark"
+                         && JobBlock(workflow, "benchmark")
+                             .Contains("needs: resolve-targets", StringComparison.Ordinal)
+                         && JobBlock(workflow, "resolve-targets")
+                             .Contains("needs: schedule-identity", StringComparison.Ordinal))))
+            {
+                errors.Add($".github/workflows/{name}: every scheduled producer must depend on the identity guard.");
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
+        {
+            errors.Add($".github/workflows/{name}: invalid scheduled producer contract.");
         }
     }
 
@@ -574,4 +873,13 @@ internal static partial class EngineeringSurfaceContract
 
     [GeneratedRegex("(?:bash|exec)\\s+[\"']?(?:\\./)?(eng/[\\w./-]+[.]sh)")]
     private static partial Regex ReferencedShellScript();
+
+    [GeneratedRegex("^(?<indent> *)(?:concurrency|'concurrency'|\"concurrency\"):[ \\t]*(?<value>.*)$")]
+    private static partial Regex ConcurrencyHeader();
+
+    [GeneratedRegex("^ *(?<key>[A-Za-z-]+|'[^']+'|\"[^\"]+\"):[ \\t]*(?<value>.*)$")]
+    private static partial Regex WorkflowScalarField();
+
+    [GeneratedRegex(":[ \\t]*[|>][-+0-9]*[ \\t]*(?:#.*)?$")]
+    private static partial Regex BlockScalarHeader();
 }

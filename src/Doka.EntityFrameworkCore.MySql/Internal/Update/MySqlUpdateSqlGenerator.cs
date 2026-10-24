@@ -129,8 +129,16 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         commandStringBuilder.Append('(');
 
         var first = true;
-        foreach (var modification in command.ColumnModifications)
+        var modifications = command.ColumnModifications;
+        var modificationCount = modifications.Count;
+
+        // WHY: Index the command's stable column list to avoid an enumerator during procedure generation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modifications[modificationIndex];
+
             if (modification.Column is not IStoreStoredProcedureParameter parameter)
             {
                 continue;
@@ -157,6 +165,10 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         if (outputModifications.Length > 0)
         {
             commandStringBuilder.Append("SELECT ");
+
+            // WHY: Use the output ordinal for separators while retaining the procedure's output order.
+            // ReSharper disable once ForCanBeConvertedToForeach
+            // ReSharper disable once LoopCanBeConvertedToQuery
             for (var index = 0; index < outputModifications.Length; index++)
             {
                 if (index > 0)
@@ -228,6 +240,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
 
         commandStringBuilder.Append('(');
 
+        // WHY: The ordinal controls value separators in the same pass that validates each write operation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < operations.Count; index++)
         {
             if (index > 0)
@@ -379,8 +394,15 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         // WHY: Generated or temporary keys, triggers and unsafe physical mappings cannot
         // correlate a multirow insert reliably. The existing per-row path retains its semantics.
         requiresTransaction = modificationCommands.Count > 1;
-        foreach (var modification in modificationCommands)
+        var modificationCount = modificationCommands.Count;
+
+        // WHY: Index the stable fallback-command list without allocating an interface enumerator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var modificationIndex = 0; modificationIndex < modificationCount; modificationIndex++)
         {
+            var modification = modificationCommands[modificationIndex];
+
             AppendInsertOperation(
                 commandStringBuilder,
                 modification,
@@ -412,6 +434,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         AppendValuesHeader(commandStringBuilder, writeOperations);
         AppendValues(commandStringBuilder, name, schema, writeOperations);
 
+        // WHY: The first row is already emitted; index remaining commands without a Skip iterator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 1; index < modificationCommands.Count; index++)
         {
             commandStringBuilder
@@ -468,6 +493,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         AppendValuesHeader(commandStringBuilder, writeOperations);
         AppendValues(commandStringBuilder, name, schema, writeOperations);
 
+        // WHY: Start after the emitted first row and preserve RETURNING batch order without a Skip iterator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 1; index < modificationCommands.Count; index++)
         {
             commandStringBuilder
@@ -494,6 +522,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         commandStringBuilder.AppendLine();
         commandStringBuilder.Append("RETURNING ");
 
+        // WHY: Emit read columns and separators together in the exact order expected by result propagation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < readOperations.Count; index++)
         {
             if (index > 0)
@@ -546,6 +577,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         commandStringBuilder.AppendLine();
         commandStringBuilder.Append("RETURNING ");
 
+        // WHY: The index preserves physical read-column order and controls RETURNING separators in one pass.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < readColumns.Count; index++)
         {
             if (index > 0)
@@ -565,6 +599,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         IReadOnlyList<IColumnModification> modifications
     )
     {
+        // WHY: Keep the early-exit scan over stable descriptors free of interface enumerators and LINQ delegates.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < modifications.Count; index++)
         {
             if (modifications[index].IsRead)
@@ -597,6 +634,10 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
     )
     {
         var operationCount = 0;
+
+        // WHY: Count matching descriptors without iterator allocations before choosing reuse or an exact buffer.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < modifications.Count; index++)
         {
             if (IsOperation(modifications[index], kind))
@@ -630,6 +671,10 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
     )
     {
         var destinationIndex = 0;
+
+        // WHY: Fill the reusable buffer in descriptor order without a filtered intermediate collection.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < modifications.Count; index++)
         {
             var modification = modifications[index];

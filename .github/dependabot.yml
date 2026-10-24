@@ -79,6 +79,11 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Berlin
+    # A release line never changes its framework major through a routine bump.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
     open-pull-requests-limit: 1
     commit-message:
       prefix: chore

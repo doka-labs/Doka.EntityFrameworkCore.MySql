@@ -10,4 +10,11 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- One wildcard keeps topic partials nested without per-file maintenance. -->
+    <Compile Update="EngineeringSurfaceContract.*.cs">
+      <DependentUpon>EngineeringSurfaceContract.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

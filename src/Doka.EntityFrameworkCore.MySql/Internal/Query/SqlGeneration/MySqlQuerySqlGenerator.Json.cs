@@ -71,6 +71,9 @@ internal sealed partial class MySqlQuerySqlGenerator
 
             if (inExpression.Values is not null)
             {
+                // WHY: The index controls IN-value separators without a second traversal or iterator pipeline.
+                // ReSharper disable once ForCanBeConvertedToForeach
+                // ReSharper disable once LoopCanBeConvertedToQuery
                 for (var index = 0; index < inExpression.Values.Count; index++)
                 {
                     if (index > 0)
@@ -455,6 +458,9 @@ internal sealed partial class MySqlQuerySqlGenerator
         {
             Sql.Append(" COLUMNS (");
 
+            // WHY: Keep JSON_TABLE column order and separator placement in one indexed pass.
+            // ReSharper disable once ForCanBeConvertedToForeach
+            // ReSharper disable once LoopCanBeConvertedToQuery
             for (var i = 0; i < columnInfos.Count; i++)
             {
                 if (i > 0)
@@ -811,8 +817,15 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         var pathBuilder = new StringBuilder("$");
 
-        foreach (var segment in path)
+        var segmentCount = path.Count;
+
+        // WHY: Index the stable JSON path without allocating an interface enumerator for each SQL path.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
         {
+            var segment = path[segmentIndex];
+
             AppendPathSegmentLiteral(pathBuilder, segment);
         }
 
@@ -834,8 +847,15 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         var pathBuilder = new StringBuilder("$");
 
-        foreach (var segment in path)
+        var segmentCount = path.Count;
+
+        // WHY: Index the stable JSON_TABLE path without an interface enumerator or a copied segment list.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
         {
+            var segment = path[segmentIndex];
+
             AppendPathSegmentLiteral(pathBuilder, segment);
         }
 
@@ -884,8 +904,15 @@ internal sealed partial class MySqlQuerySqlGenerator
         var pathBuilder = new StringBuilder("$");
         var hasArgument = false;
 
-        foreach (var segment in path)
+        var segmentCount = path.Count;
+
+        // WHY: Index stable dynamic-path segments to avoid interface enumerators during SQL generation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
         {
+            var segment = path[segmentIndex];
+
             if (segment.PropertyName is not null)
             {
                 pathBuilder.Append('.');
@@ -937,8 +964,15 @@ internal sealed partial class MySqlQuerySqlGenerator
         IReadOnlyList<PathSegment> path
     )
     {
-        foreach (var segment in path)
+        var segmentCount = path.Count;
+
+        // WHY: Index the stable path to detect dynamic indices without allocating an interface enumerator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
         {
+            var segment = path[segmentIndex];
+
             if (segment.ArrayIndex is not null and not SqlConstantExpression)
             {
                 return true;
@@ -963,6 +997,9 @@ internal sealed partial class MySqlQuerySqlGenerator
             return false;
         }
 
+        // WHY: The first character has different rules; start at one without slicing or skipping an enumerable.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var i = 1; i < name.Length; i++)
         {
             var c = name[i];

@@ -212,10 +212,12 @@ public sealed class MySqlMigrationCommandSpec
         return snapshot;
     }
 
+    // WHY: CreateScoped already snapshots both roles to arrays at the public
+    // boundary. Keeping that concrete type makes foreach allocation-free here.
     private static void ValidateScopedCommandTextLength(
-        IReadOnlyList<string> setupCommands,
+        string[] setupCommands,
         string bodyCommand,
-        IReadOnlyList<string> cleanupCommands
+        string[] cleanupCommands
     )
     {
         var totalLength = (long)bodyCommand.Length;

@@ -1,0 +1,8 @@
+# WHY: Actionlint 1.7.12 predates this official GitHub-hosted label. Its native
+# label catalogue extension accepts this exact name without ignoring the rule.
+# This config does not select or create a self-hosted runner. Remove the entry
+# when the pinned actionlint recognizes Ubuntu 26.04 itself.
+# https://github.com/actions/runner-images/issues/14747
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

@@ -9,12 +9,39 @@ scope: "EF Core 11 and .NET 11 major-version strategy"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: []
+amended-by: [D-030]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
 # D-013 -- Trigger the EF Core 11 upgrade as a new major line
+
+## 2026-10-22 Amendment: Independent framework release lines
+
+[D-030](D-030-release-lines-and-monotonic-publication.md) replaces this ADR's
+proposed `next/ef-core-11`, automatic multi-target and v1/v2 branch/merge
+strategy with independently qualified 10.x and 11.x package lines: main becomes
+the current major after an approved GA handoff; `maintenance/10.x` retains
+.NET 10 servicing; optional `preview/11.x` can qualify independent Doka platform
+RCs before that handoff. The `x` is literal, not a ref pattern.
+
+The existing `feature/dotnet-11` integration work remains unchanged. Main/10
+publication stays active; the maintenance/preview routes remain inactive.
+Name approval and repository implementation do not imply branch creation,
+hosted protection, preview adoption, package publication or GA readiness.
+Microsoft's upstream go-live policy is distinct from Doka's own qualified RC
+contract. Fresh approved GA dependencies/source/evidence are required before
+stable 11.x; an RC's bytes or evidence cannot be relabelled as GA.
+
+The EF-internal, specification and trim revalidation drivers below remain
+applicable. Earlier dates, trigger observations and v1/v2 examples are retained
+as historical context, not current rollout instructions. See the
+[release-line runbook](../operations/release-lines.md) for current support,
+bootstrap, backport, authorization, idle-readiness and rollback requirements.
+All authorized lines retain the same `release-candidate.yml` entry, personal
+signed tags and human approval. One-time old-code publisher isolation is
+separate from the later framework handoff; an inactive preview does not need
+to be activated to prepare or complete that GA handoff.
 
 ## Context and Problem Statement
 

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 import zipfile
+from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -18,6 +21,19 @@ from unittest import mock
 
 from eng.release import github as github_release
 from eng.release import nuget as nuget_publication
+from eng.release import lines as release_lines
+from eng.release import publication as release_publication
+from eng.tests.test_release_lines import initial_policy
+
+
+def _record_exception(action: Callable[[], object]) -> Exception | None:
+    """Execute a negative-test action so exception assertions remain a separate phase."""
+    try:
+        action()
+    except Exception as exception:
+        return exception
+
+    return None
 
 
 class NuGetPublicationTests(unittest.TestCase):
@@ -1339,6 +1355,390 @@ class NuGetPublicationTests(unittest.TestCase):
         return result.stdout.strip()
 
 
+class ReleaseLineReceiptTests(unittest.TestCase):
+    """Bind new receipts without reinterpreting or rewriting historical evidence."""
+
+    def setUp(self) -> None:
+        """Build real package bytes and a frozen main-line qualification fixture."""
+        # WHY: Hosted identity is test input, not the ambient job running the
+        # suite; each context-sensitive case supplies it explicitly.
+        environment = mock.patch.dict(os.environ, {}, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.fixture = NuGetPublicationTests()
+        self.fixture.setUp()
+        self.root = self.fixture.root / "github-123"
+        shutil.copytree(self.fixture.packages, self.root / "packages")
+        self.policy = initial_policy()
+        self.line = release_lines.freeze_line(self.policy, "refs/heads/main", self.fixture._VERSION)
+        self.authority = self._authority(self.policy)
+        self.manifest = {
+            "releaseCandidateRunId": self.root.name,
+            "releaseVersion": self.fixture._VERSION,
+            "expectedReleaseTag": f"v{self.fixture._VERSION}",
+            "releaseLine": self.line,
+            "source": {
+                "repository": self.fixture._REPOSITORY,
+                "ref": "refs/heads/main",
+                "tag": None,
+                "commit": self.fixture._COMMIT,
+            },
+            "workflow": {
+                "provider": "github-actions",
+                "runId": "123",
+                "runAttempt": "1",
+                "workflow": "release-candidate",
+                "workflowRef": f"{self.fixture._REPOSITORY}/{self.line['workflowPath']}@refs/heads/main",
+                "repository": self.fixture._REPOSITORY,
+            },
+            "toolchain": {"approvedDotnetSdk": "10.0.402", "dotnetSdk": "10.0.402"},
+        }
+        nuget_publication.write_json(self.root / nuget_publication.release_evidence.MANIFEST_NAME, self.manifest)
+        self.candidate = {
+            "schemaVersion": 2,
+            "kind": nuget_publication.CANDIDATE_RECEIPT_KIND,
+            "candidateRunId": "123",
+            "candidateRunAttempt": "1",
+            "releaseCandidateRunId": self.root.name,
+            "releaseVersion": self.fixture._VERSION,
+            "expectedReleaseTag": f"v{self.fixture._VERSION}",
+            "repository": self.fixture._REPOSITORY,
+            "sourceRef": "refs/heads/main",
+            "sourceCommit": self.fixture._COMMIT,
+            "releaseLine": self.line,
+            "workflowRef": self.manifest["workflow"]["workflowRef"],
+            "toolchain": self.manifest["toolchain"],
+            "mysql84Image": "mysql:8.4.6",
+            "packages": nuget_publication.validate_package_metadata(
+                self.root, self.fixture._VERSION, self.fixture._REPOSITORY, self.fixture._COMMIT
+            ),
+        }
+        self.candidate_path = self.fixture.root / "candidate-receipt.json"
+        nuget_publication.write_json(self.candidate_path, self.candidate)
+        identity = release_publication.candidate_identity(self.root, self.candidate_path, "1")
+        self.admission = release_publication.create_admission(identity, self.authority)
+        qualification = self.root / "release-qualification-manifest.json"
+        qualification.write_bytes(b"qualified immutable evidence\n")
+        self.receipt = {
+            **self.candidate,
+            "schemaVersion": 5,
+            "kind": nuget_publication.PUBLICATION_RECEIPT_KIND,
+            "releaseTag": self.candidate["expectedReleaseTag"],
+            "candidateReceiptSha256": nuget_publication.sha256_file(self.candidate_path),
+            "tagTrustRootSha256": "a" * 64,
+            "qualificationManifestSha256": nuget_publication.sha256_file(qualification),
+            "publicationAdmission": self.admission,
+            "publicationAuthority": self.authority,
+        }
+
+    def tearDown(self) -> None:
+        """Dispose the shared package fixture owned by this test only."""
+        self.fixture.tearDown()
+
+    @staticmethod
+    def _authority(policy: dict[str, object]) -> dict[str, object]:
+        """Create one protected-main observation with a reproducible digest."""
+        return {
+            "schemaVersion": 1,
+            "kind": release_publication.AUTHORITY_KIND,
+            "repository": policy["repository"],
+            "controlCommit": "b" * 40,
+            "authorizationRevision": policy["revision"],
+            "authorizationDigest": release_lines.policy_digest(policy),
+            "observedUtc": "2026-10-22T12:00:00Z",
+            "policy": policy,
+        }
+
+    def test_current_candidate_preserves_line_workflow_toolchain_and_packages(self) -> None:
+        """The new receipt validates the exact frozen evidence, not local defaults."""
+        # Arrange
+        manifest_path = self.root / nuget_publication.release_evidence.MANIFEST_NAME
+        before = manifest_path.read_bytes()
+
+        # Act
+        with mock.patch.object(nuget_publication.release_evidence, "verify_manifest"):
+            packages = nuget_publication.validate_candidate_receipt(self.candidate, self.root)
+
+        # Assert
+        self.assertEqual({"provider", "spatial", "cache"}, set(packages))
+        self.assertEqual(before, manifest_path.read_bytes())
+        self.assertEqual(self.line, self.candidate["releaseLine"])
+
+    def test_prepare_emits_new_schema_only_when_sealed_line_evidence_exists(self) -> None:
+        """Preparation copies the sealed toolchain instead of reconstructing it."""
+        # Arrange
+        manifest = copy.deepcopy(self.manifest)
+        manifest["engines"] = [{"targetId": "mysql84", "image": "mysql:8.4.6"}]
+        nuget_publication.write_json(self.root / nuget_publication.release_evidence.MANIFEST_NAME, manifest)
+        arguments = SimpleNamespace(
+            repo=self.root,
+            root=self.root,
+            repository=self.fixture._REPOSITORY,
+            output=self.fixture.root / "prepared-candidate.json",
+            github_output=None,
+        )
+
+        # Act
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            mock.patch.object(nuget_publication, "run_git", side_effect=[self.fixture._COMMIT, "", ""]),
+        ):
+            nuget_publication.prepare_candidate(arguments)
+
+        # Assert
+        receipt = nuget_publication.read_json(arguments.output, "prepared candidate")
+        self.assertEqual(2, receipt["schemaVersion"])
+        self.assertEqual(manifest["toolchain"], receipt["toolchain"])
+        self.assertEqual(manifest["releaseLine"], receipt["releaseLine"])
+        self.assertEqual(manifest["workflow"]["workflowRef"], receipt["workflowRef"])
+
+    def test_unknown_candidate_schema_is_not_treated_as_legacy(self) -> None:
+        """Only the two explicit receipt versions enter their own reader."""
+        # Arrange
+        candidate = {**self.candidate, "schemaVersion": 3}
+
+        # Act
+        failure = _record_exception(lambda: nuget_publication.validate_candidate_receipt(candidate, self.root))
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("identity", str(failure))
+
+    def test_candidate_rejects_cross_line_workflow_or_toolchain_evidence(self) -> None:
+        """Nearby valid-looking identities cannot substitute for frozen evidence."""
+        # Arrange
+        cases = (
+            ("sourceRef", "refs/heads/maintenance/10.x"),
+            ("workflowRef", f"{self.fixture._REPOSITORY}/.github/workflows/release-lines.yml@refs/heads/main"),
+            ("toolchain", {"approvedDotnetSdk": "11.0.100", "dotnetSdk": "11.0.100"}),
+        )
+        candidates = [{**self.candidate, field: value} for field, value in cases]
+
+        # Act
+        with mock.patch.object(nuget_publication.release_evidence, "verify_manifest"):
+            failures = [
+                _record_exception(lambda: nuget_publication.validate_candidate_receipt(candidate, self.root))
+                for candidate in candidates
+            ]
+
+        # Assert
+        for (field, _), failure in zip(cases, failures, strict=True):
+            with self.subTest(field=field):
+                self.assertIsInstance(failure, nuget_publication.PublicationError)
+
+    def test_historical_schema_cannot_discard_new_line_identity(self) -> None:
+        """A schema downgrade is not a fallback for missing line metadata."""
+        # Arrange
+        candidate = {**self.candidate, "schemaVersion": 1}
+
+        # Act
+        with mock.patch.object(nuget_publication.release_evidence, "verify_manifest"):
+            failure = _record_exception(lambda: nuget_publication.validate_candidate_receipt(candidate, self.root))
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("Historical", str(failure))
+
+    def test_new_publication_validates_without_mutating_sealed_manifest(self) -> None:
+        """Admission remains a sidecar rather than changing the signed candidate."""
+        # Arrange
+        manifest_path = self.root / nuget_publication.release_evidence.MANIFEST_NAME
+        before = manifest_path.read_bytes()
+
+        # Act
+        with mock.patch.object(nuget_publication.release_evidence, "verify_manifest"):
+            nuget_publication.validate_portable_receipt(self.receipt, self.root)
+
+        # Assert
+        self.assertEqual(before, manifest_path.read_bytes())
+
+    def test_updated_active_authority_preserves_original_admission(self) -> None:
+        """An active retry keeps the original immutable intent bytes."""
+        # Arrange
+        policy = copy.deepcopy(self.policy)
+        policy["revision"] = "2026-10-22.2"
+        authority = self._authority(policy)
+        before = json.dumps(self.receipt, sort_keys=True)
+
+        # Act
+        nuget_publication.validate_publication_authority(self.receipt, self.root, self.admission, authority)
+
+        # Assert
+        self.assertEqual(before, json.dumps(self.receipt, sort_keys=True))
+        self.assertNotEqual(
+            authority["authorizationDigest"], self.receipt["publicationAuthority"]["authorizationDigest"]
+        )
+
+    def test_inactive_authority_rejects_the_same_candidate(self) -> None:
+        """Past qualification does not grant permission on an inactive line."""
+        # Arrange
+        policy = copy.deepcopy(self.policy)
+        policy["lines"][0]["state"] = "inactive"
+        authority = self._authority(policy)
+
+        # Act
+        failure = _record_exception(
+            lambda: nuget_publication.validate_publication_authority(self.receipt, self.root, self.admission, authority)
+        )
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("not eligible", str(failure))
+
+    def test_publication_rejects_cross_role_admission_even_with_valid_digest(self) -> None:
+        """An internally self-consistent admission cannot change the candidate line."""
+        # Arrange
+        admission = copy.deepcopy(self.admission)
+        admission["identity"]["releaseLineSha256"] = "f" * 64
+        admission["admissionId"] = release_publication.canonical_digest(admission["identity"])
+        receipt = {**self.receipt, "publicationAdmission": admission}
+
+        # Act
+        failure = _record_exception(lambda: nuget_publication.validate_publication_authority(receipt, self.root))
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("different line", str(failure))
+
+    def test_current_boundary_requires_explicit_authority_files(self) -> None:
+        """New publication cannot accidentally take a legacy no-authority route."""
+        # Arrange
+        arguments = SimpleNamespace(candidate_root=self.root)
+
+        # Act
+        failure = _record_exception(lambda: nuget_publication.validate_current_publication(arguments, self.receipt))
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("--admission", str(failure))
+
+    def _binding_arguments(self) -> SimpleNamespace:
+        """Prepare deterministic tag and authority sidecars for bind-only tests."""
+        trust_path = self.fixture.root / "release-tag-trust-root.json"
+        qualification = {"schemaVersion": 3, "releaseLine": self.line, "policyDigest": "d" * 64}
+        nuget_publication.write_json(self.root / "release-qualification-manifest.json", qualification)
+        nuget_publication.write_json(trust_path, {
+            "schemaVersion": 3,
+            "kind": "release-tag-trust-root",
+            "repository": self.fixture._REPOSITORY,
+            "tag": self.candidate["expectedReleaseTag"],
+            "commit": self.fixture._COMMIT,
+            "policyDigest": "d" * 64,
+            "qualification": {"mergedCommit": self.fixture._COMMIT},
+            "releaseLine": self.line,
+        })
+        admission_path = self.fixture.root / "publication-admission.json"
+        authority_path = self.fixture.root / "authorization-observation.json"
+        nuget_publication.write_json(admission_path, self.admission)
+        nuget_publication.write_json(authority_path, self.authority)
+
+        return SimpleNamespace(
+            repo=self.root,
+            root=self.root,
+            candidate_receipt=self.candidate_path,
+            tag_trust_receipt=trust_path,
+            release_tag=self.candidate["expectedReleaseTag"],
+            output=self.fixture.root / "release-publication-receipt.json",
+            github_output=None,
+            admission=admission_path,
+            authority=authority_path,
+        )
+
+    def _binding_git(self, repo: Path, *arguments: str) -> str:
+        """Model only the already-tested Git read contract used during binding."""
+        del repo
+        tag_commit_arguments = ("rev-parse", f"refs/tags/{self.candidate['expectedReleaseTag']}^{{commit}}")
+        if arguments in (("rev-parse", "HEAD"), tag_commit_arguments):
+            return self.fixture._COMMIT
+
+        if arguments[0] == "cat-file":
+            return "tag"
+
+        if arguments[0] == "tag":
+            return str(self.candidate["expectedReleaseTag"])
+
+        if arguments[0] == "rev-parse":
+            return "c" * 40
+
+        return ""
+
+    def test_binding_new_candidate_freezes_original_admission_and_authority(self) -> None:
+        """Tag binding writes schema five without moving sidecars into the manifest."""
+        # Arrange
+        arguments = self._binding_arguments()
+        manifest_before = (self.root / nuget_publication.release_evidence.MANIFEST_NAME).read_bytes()
+
+        # Act
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            mock.patch.object(nuget_publication, "run_git", side_effect=self._binding_git),
+            mock.patch.object(nuget_publication.release_qualification, "load_policy", return_value={}),
+            mock.patch.object(nuget_publication.release_trust, "verify_frozen_qualification_receipt"),
+        ):
+            nuget_publication.bind_candidate(arguments)
+
+        # Assert
+        receipt = nuget_publication.read_json(arguments.output, "bound publication")
+        self.assertEqual(5, receipt["schemaVersion"])
+        self.assertEqual(self.admission, receipt["publicationAdmission"])
+        self.assertEqual(self.authority, receipt["publicationAuthority"])
+        self.assertEqual(manifest_before, (self.root / nuget_publication.release_evidence.MANIFEST_NAME).read_bytes())
+
+    def test_binding_retry_keeps_original_receipt_under_changed_current_authority(self) -> None:
+        """An active retry preserves the bytes already staged in its draft."""
+        # Arrange
+        arguments = self._binding_arguments()
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            mock.patch.object(nuget_publication, "run_git", side_effect=self._binding_git),
+            mock.patch.object(nuget_publication.release_qualification, "load_policy", return_value={}),
+            mock.patch.object(nuget_publication.release_trust, "verify_frozen_qualification_receipt"),
+        ):
+            nuget_publication.bind_candidate(arguments)
+
+        before = arguments.output.read_bytes()
+        policy = copy.deepcopy(self.policy)
+        policy["revision"] = "2026-10-22.2"
+        nuget_publication.write_json(arguments.authority, self._authority(policy))
+
+        # Act
+        with (
+            mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            mock.patch.object(nuget_publication, "run_git", side_effect=self._binding_git),
+            mock.patch.object(nuget_publication.release_qualification, "load_policy", return_value={}),
+            mock.patch.object(nuget_publication.release_trust, "verify_frozen_qualification_receipt"),
+        ):
+            nuget_publication.bind_candidate(arguments)
+
+        # Assert
+        self.assertEqual(before, arguments.output.read_bytes())
+
+    def test_current_boundary_rejects_another_workflow_run(self) -> None:
+        """The right candidate cannot be republished from an unrelated workflow run."""
+        # Arrange
+        arguments = self._binding_arguments()
+        arguments.candidate_root = self.root
+        environment = {
+            "GITHUB_ACTIONS": "true",
+            "DOKA_PUBLICATION_LOCK_GROUP": "doka-publication",
+            "DOKA_PUBLICATION_LOCK_HELD": "1",
+            "GITHUB_REPOSITORY": self.fixture._REPOSITORY,
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": self.fixture._COMMIT,
+            "GITHUB_RUN_ID": "999",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_WORKFLOW_REF": self.candidate["workflowRef"],
+        }
+
+        # Act
+        with mock.patch.dict(os.environ, environment, clear=True):
+            failure = _record_exception(lambda: nuget_publication.validate_current_publication(arguments, self.receipt))
+
+        # Assert
+        self.assertIsInstance(failure, nuget_publication.PublicationError)
+        self.assertIn("same-run workflow", str(failure))
+
+
 class QualificationManifestGateTests(unittest.TestCase):
     """Prove one workflow owns candidate qualification and publication."""
 
@@ -1348,15 +1748,34 @@ class QualificationManifestGateTests(unittest.TestCase):
     )
 
     def setUp(self) -> None:
-        """Read the publication workflow once per case."""
-        self.text = self.WORKFLOW.read_text(encoding="utf-8")
+        """Read the qualifier and the exact local composite it invokes."""
+        self.workflow = self.WORKFLOW.read_text(encoding="utf-8")
+        publisher_path = self.WORKFLOW.parents[1] / "actions" / "publish-release" / "action.yml"
+        self.publisher = publisher_path.read_text(encoding="utf-8")
+        self.text = self.workflow + "\n" + self.publisher
 
     def test_the_manifest_is_verified_before_tag_binding(self) -> None:
         """Require canonical qualification before any irreversible operation."""
-        self.assertIn("python3 -m eng.release.qualification verify", self.text)
+        # Arrange
+        publisher_job = self.workflow.split("\n  publish:\n", maxsplit=1)[1]
+
+        # Act
+        evidence_position = self.publisher.index("python3 -m eng.release.evidence verify")
+        trust_position = self.publisher.index("python3 -m eng.release.trust verify")
+        binding_position = self.publisher.index("python3 -m eng.release.nuget bind")
+
+        # Assert
+        self.assertIn("python3 -m eng.release.qualification verify", self.workflow)
+        self.assertIn("      - assemble\n", publisher_job)
+        self.assertIn("      - attest\n", publisher_job)
+        self.assertIn("uses: $/.github/actions/publish-release\n", publisher_job)
         self.assertLess(
-            self.text.index("eng.release.qualification verify"),
-            self.text.index("python3 -m eng.release.nuget bind"),
+            evidence_position,
+            binding_position,
+        )
+        self.assertLess(
+            trust_position,
+            binding_position,
         )
 
     def test_the_manifest_and_tag_are_bound_to_this_candidate(self) -> None:

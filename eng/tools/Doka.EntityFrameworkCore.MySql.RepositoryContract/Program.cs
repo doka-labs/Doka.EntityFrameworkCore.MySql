@@ -8,7 +8,35 @@ internal static class Program
     {
         try
         {
-            var root = ParseRepositoryRoot(args);
+            if (args.Length >= 2 && args[0] == "--actionlint-snapshot")
+            {
+                var snapshotRoot = ParseRepositoryRoot(args[2..]);
+                var errors = EngineeringSurfaceContract.PrepareActionlintSnapshot(snapshotRoot, args[1]);
+                foreach (var error in errors)
+                {
+                    Console.Error.WriteLine(error);
+                }
+
+                Console.WriteLine($"Actionlint compatibility snapshot completed with {errors.Count} error(s).");
+
+                return errors.Count == 0 ? 0 : 1;
+            }
+
+            var concurrencyOnly = args.Length > 0 && args[0] == "--workflow-concurrency";
+            var root = ParseRepositoryRoot(concurrencyOnly ? args[1..] : args);
+            if (concurrencyOnly)
+            {
+                var errors = EngineeringSurfaceContract.ValidateWorkflowConcurrencyFiles(root);
+                foreach (var error in errors)
+                {
+                    Console.Error.WriteLine(error);
+                }
+
+                Console.WriteLine($"Workflow concurrency contract completed with {errors.Count} error(s).");
+
+                return errors.Count == 0 ? 0 : 1;
+            }
+
             var report = RepositoryContractValidator.Validate(root);
             if (!report.IsValid)
             {
@@ -57,5 +85,6 @@ internal static class Program
         throw new ArgumentException("Repository validation accepts only --root <path>.", nameof(args));
     }
 
-    private static void WriteUsage() => Console.WriteLine("Usage: RepositoryContract [--root <repository>]");
+    private static void WriteUsage() => Console.WriteLine(
+        "Usage: RepositoryContract [--workflow-concurrency | --actionlint-snapshot <directory>] [--root <repository>]");
 }

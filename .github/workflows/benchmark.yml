@@ -1,10 +1,25 @@
 name: benchmark
+run-name: ${{ inputs.maintenance && format('maintenance {0}', inputs.schedule_correlation) || 'benchmark' }}
+# release-line-schedule: {"schemaVersion":1,"producers":["resolve-targets","benchmark"]}
 
 # Benchmarks run only by explicit request or monthly schedule. BenchmarkDotNet
-# owns measurement; the benchmark executable evaluates its raw reports once.
+# owns measurement. Hosted runs enforce allocations/resource correctness only;
+# timings, GC/heap behavior and throughput are diagnostics, not runner-speed gates.
 on:
   workflow_dispatch:
     inputs:
+      maintenance:
+        description: Run this branch's scheduled maintenance workload.
+        type: boolean
+        default: false
+      expected_commit:
+        description: Exact branch head resolved by the schedule coordinator.
+        type: string
+        default: ""
+      schedule_correlation:
+        description: Immutable coordinator run and attempt identity.
+        type: string
+        default: ""
       profile:
         description: Select the benchmark depth.
         required: true
@@ -25,8 +40,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  schedule-identity:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Normal execution remains nonpublishing
+        if: ${{ !inputs.maintenance }}
+        run: echo "Normal execution does not grant release authority."
+      - name: Checkout branch-native maintenance guard
+        if: inputs.maintenance
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate exact active maintenance producer
+        if: inputs.maintenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          SCHEDULE_CORRELATION: ${{ inputs.schedule_correlation }}
+        run: >-
+          python3 eng/release/schedules.py validate-child --workflow benchmark.yml
+          --expected-commit "${EXPECTED_COMMIT}" --correlation "${SCHEDULE_CORRELATION}"
+
+  scheduled-release-lines:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout schedule authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Dispatch and await each active branch-native producer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 eng/release/schedules.py run --workflow benchmark.yml --output artifacts/release-lines/schedule-benchmark.json
+      - name: Upload exact scheduled child evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-line-schedule-benchmark
+          path: artifacts/release-lines/schedule-benchmark.json
+          if-no-files-found: warn
+
   resolve-targets:
-    runs-on: ubuntu-24.04
+    needs: schedule-identity
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
 
     outputs:
@@ -57,7 +119,7 @@ jobs:
 
   benchmark:
     needs: resolve-targets
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -83,20 +145,26 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      - name: Run BenchmarkDotNet and the performance gate
+      - name: Measure benchmarks and enforce allocations and resource correctness
         env:
+          DOKA_BENCHMARK_EVALUATION: allocations-only
           DOKA_BENCHMARK_PROFILE: ${{ needs.resolve-targets.outputs.profile }}
           DOKA_BENCHMARK_RUN_ID: github-${{ github.run_id }}-${{ matrix.target }}
-          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-24.04-x64
+          DOKA_BENCHMARK_RUNNER_CLASS: github-ubuntu-26.04-x64
           DOKA_BENCHMARK_TARGET: ${{ matrix.target }}
         run: |
           diagnostic="artifacts/benchmarks/${DOKA_BENCHMARK_TARGET}/diagnostics/${DOKA_BENCHMARK_RUN_ID}.log"
           mkdir -p "$(dirname "${diagnostic}")"
           set +e
           bash ./eng/benchmark.sh --up-run-down 2>&1 | tee "${diagnostic}"
-          status="${PIPESTATUS[0]}"
+          statuses=("${PIPESTATUS[@]}")
           set -e
-          exit "${status}"
+          # Diagnostic-only thresholds are retained in this log; losing it is invalid evidence.
+          if (( statuses[1] != 0 )); then
+            echo "Could not retain benchmark diagnostics." >&2
+            exit 78
+          fi
+          exit "${statuses[0]}"
 
       - name: Upload raw benchmark evidence and diagnostics
         if: always()
