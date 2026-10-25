@@ -1,20 +1,8 @@
 name: Publish qualified Doka release
-description: Publish immutable same-run packages under current release-line authority
+description: Publish admitted same-run packages under current release-line authority
 inputs:
   version:
     description: Exact qualified package version
-    required: true
-  candidate_artifact_name:
-    description: Immutable candidate artifact from this run
-    required: true
-  checkpoint_artifact_name:
-    description: Exhaustive stage receipts from this run
-    required: true
-  provenance_artifact_name:
-    description: Portable attestation bundle from this run
-    required: true
-  line_artifact_name:
-    description: Frozen independently selected line authorization
     required: true
   nuget_user:
     description: NuGet account bound by the protected caller environment
@@ -23,109 +11,6 @@ runs:
   # WHY: A composite preserves each caller's Trusted Publisher workflow identity.
   using: composite
   steps:
-    - name: Setup .NET
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-      with:
-        global-json-file: global.json
-
-    - name: Download immutable same-run candidate
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-      with:
-        name: ${{ inputs.candidate_artifact_name }}
-        path: artifacts
-
-    - name: Download exhaustive stage receipts
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-      with:
-        name: ${{ inputs.checkpoint_artifact_name }}
-        path: artifacts/release-candidate-checkpoints
-
-    - name: Download frozen line authorization
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-      with:
-        name: ${{ inputs.line_artifact_name }}
-        path: artifacts/release-lines
-
-    - name: Download portable SLSA provenance
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-      with:
-        name: ${{ inputs.provenance_artifact_name }}
-        path: artifacts/release-publication
-
-    - name: Revalidate source, evidence, and attestations
-      env:
-        GH_TOKEN: ${{ github.token }}
-      shell: bash
-      run: |
-        bash ./eng/common/verify-dotnet.sh
-        remote_ref="refs/remotes/origin/${GITHUB_REF#refs/heads/}"
-        git fetch --quiet origin \
-          "+${GITHUB_REF}:${remote_ref}" \
-          +refs/tags/*:refs/tags/*
-        if [[ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]] \
-            || ! git merge-base --is-ancestor \
-              "${GITHUB_SHA}" "${remote_ref}"; then
-          echo "Publication requires the qualified commit to remain on its current authorized line history." >&2
-          exit 1
-        fi
-
-        candidate_root="artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
-        checkpoint_root="artifacts/release-candidate-checkpoints/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
-        provenance_bundle="artifacts/release-publication/release-provenance.intoto.jsonl"
-        python3 -m eng.release.evidence verify --root "${candidate_root}"
-        shopt -s nullglob
-        artifacts=(
-          "${candidate_root}/release-candidate-evidence.json"
-          "${candidate_root}/release-candidate-evidence.sha256"
-          "${candidate_root}/packages/"*.nupkg
-          "${candidate_root}/packages/"*.snupkg
-          artifacts/release-publication/candidate-receipt.json
-          artifacts/release-publication/candidate-publication-preflight.json
-          artifacts/release-publication/symbol-readback-manifest.json
-          "${checkpoint_root}/"*.json
-        )
-        python3 -m eng.release.provenance verify \
-          --bundle "${provenance_bundle}" \
-          --candidate-root "${candidate_root}" \
-          --publication-evidence artifacts/release-publication \
-          --checkpoint-root "${checkpoint_root}"
-
-        for artifact in "${artifacts[@]}"; do
-          gh attestation verify "${artifact}" \
-            --bundle "${provenance_bundle}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml" \
-            --signer-digest "${GITHUB_SHA}" \
-            --source-ref "${GITHUB_REF}" \
-            --source-digest "${GITHUB_SHA}" \
-            --deny-self-hosted-runners
-        done
-
-    - name: Admit or recover the immutable publication
-      env:
-        GH_TOKEN: ${{ github.token }}
-      shell: bash
-      run: |
-        publication_evidence="artifacts/release-publication"
-        python3 -m eng.release.publication admit \
-          --repository "${GITHUB_REPOSITORY}" \
-          --candidate-root "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}" \
-          --candidate-receipt "${publication_evidence}/candidate-receipt.json" \
-          --output "${publication_evidence}/publication-admission.json" \
-          --observation-output "${publication_evidence}/authorization-observation.json"
-
-    # WHY: Persist admission before the first remote write so retries cannot gain new authority.
-    # The repository caps this evidence at 30 days, like other release artifacts.
-    - name: Freeze publication admission for same-run recovery
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with:
-        name: publication-admission-attempt-${{ github.run_attempt }}
-        path: |
-          artifacts/release-publication/publication-admission.json
-          artifacts/release-publication/authorization-observation.json
-        if-no-files-found: error
-        retention-days: 30
-
     - name: Recheck current authority before publication binding
       env:
         GH_TOKEN: ${{ github.token }}

@@ -43,6 +43,7 @@ class FakeReleaseClient:
         self.payloads: dict[int, bytes] = {}
         self.create_calls = 0
         self.upload_calls: list[list[str]] = []
+        self.delete_calls: list[tuple[str, int]] = []
         self.publish_calls = 0
         self.verified_tags: list[tuple[str, str, str]] = []
         self.latest = False
@@ -152,6 +153,19 @@ class FakeReleaseClient:
         if plan["latest"]:
             self.latest = True
             self.latest_release = copy.deepcopy(self.release)
+
+    def delete_asset(self, repository: str, asset_id: int) -> None:
+        """Remove one exact remote asset while retaining every unrelated payload."""
+        if self.release is None:
+            raise AssertionError("A release must exist before an asset is deleted.")
+
+        assets = self.release["assets"]
+        if not isinstance(assets, list) or sum(asset["id"] == asset_id for asset in assets) != 1:
+            raise AssertionError("Deletion must identify exactly one remote asset.")
+
+        self.delete_calls.append((repository, asset_id))
+        self.release["assets"] = [asset for asset in assets if asset["id"] != asset_id]
+        del self.payloads[asset_id]
 
     def get_latest(self, repository: str) -> dict[str, object] | None:
         """Read the complete Latest identity or reproduce a remote failure."""

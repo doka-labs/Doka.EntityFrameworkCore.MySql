@@ -315,8 +315,14 @@ packages. Unlisting hides a package from search, but an exact version remains
 downloadable. Recovery must therefore preserve identity rather than overwrite
 it.
 
-- Before any primary package push, a failed `publish` job may be rerun. The
-  matching draft and staged assets are reconciled without replacement.
+- Before any primary package push, a failed `publish` job may be rerun. Matching
+  uploaded draft assets retain their IDs and bytes.
+  [GitHub documents](https://docs.github.com/en/rest/releases/assets#upload-a-release-asset)
+  that an upstream HTTP 502 can leave an empty `starter` upload entry. Only an exact
+  planned, zero-size starter in a verified mutable draft is removed and uploaded
+  again, after the entire inventory and all completed payloads pass validation.
+  An ambiguous cleanup response fails the attempt; the next ordinary retry
+  reconciles the observed remote state without replacing the candidate.
 - After a partial NuGet write, rerun only the failed `publish` job from the same
   workflow run. The preflight accepts an existing primary package only when its
   canonical payload matches the sealed candidate. It publishes only a missing
@@ -349,6 +355,10 @@ it.
 - Do not rerun the entire workflow after the tag exists. Candidate preparation
   intentionally refuses tagged source. Use `Re-run failed jobs` so
   the same qualified candidate reaches the resumable publication job.
+- Recovery before admission requires conclusive workflow-step history. A runner
+  initialization failure or cancellation that leaves no admission/publication
+  markers remains blocked; a missing history is not proof that publication
+  never started.
 - Any source, package, configuration, dependency, or release-tool change
   requires a new reviewed `main` commit and a new unused release version.
 

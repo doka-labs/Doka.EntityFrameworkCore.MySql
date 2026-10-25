@@ -111,6 +111,21 @@ bytes and admission. The pipeline checks the existing identities; the operator
 does not copy run IDs or hashes. Reconcile partial packages, symbols and release
 assets before treating publication as complete.
 
+SDK setup, artifact downloads and provenance verification precede the visible
+admission-upload and publication steps. A failed preparation or first-admission
+validation can therefore resume the same qualified bytes when both later steps
+are provably skipped or unstarted. A skipped step can have a runner timestamp;
+the recorded conclusion, complete job history and both step identities provide
+the proof. Missing, duplicate or contradictory boundaries do not permit retry.
+This covers the visible SDK/download/validation steps, not runner initialization
+or cancellation that leaves no workflow-step markers.
+
+Once the admission upload or publication may have started, the original admission
+archive is required. A failed upload does not authorize a replacement archive if
+the original cannot be recovered. This distinction changes no operator actions:
+use Re-run failed jobs on the original workflow run. Older workflow revisions
+retain their original recovery checks.
+
 **Re-run all jobs is not an exact-byte resume** if it rebuilds the candidate.
 Changed bytes, foreign identities, conflicting public content, missing evidence
 or expired indispensable artifacts do not permit a replacement admission under

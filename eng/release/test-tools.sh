@@ -10,6 +10,7 @@ cd "${repo_root}"
 
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_github_release \
+    eng.tests.test_github_release_asset_recovery \
     eng.tests.test_integration_target_parallelism \
     eng.tests.test_local_package_consumer \
     eng.tests.test_materialize_sbom_assets \
@@ -25,6 +26,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_release_line_dependencies \
     eng.tests.test_release_line_schedules \
     eng.tests.test_release_publication_admission \
+    eng.tests.test_release_publication_recovery \
     eng.tests.test_release_package_lock \
     eng.tests.test_release_package_resolution \
     eng.tests.test_release_provenance \

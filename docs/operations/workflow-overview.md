@@ -114,7 +114,9 @@ flowchart TD
     CHOICE -->|"No"| EVIDENCE["Retain qualified candidate; no publication"]
     CHOICE -->|"Yes"| TAG["Personal signed tag on qualified commit"]
     TAG --> APPROVE["Protected environment approval"]
-    APPROVE --> PUBLISH["Shared publish-release action under doka-publication exclusion"]
+    APPROVE --> PREPARE["Set up SDK, restore exact artifacts and verify provenance"]
+    PREPARE --> ADMIT["Admit candidate and retain original admission archive"]
+    ADMIT --> PUBLISH["Shared publish-release action under doka-publication exclusion"]
     PUBLISH --> CHECK["Recheck authority, signed tag and exact candidate bytes"]
     CHECK --> PACKAGES["Three NuGet packages and matching symbols; public readback"]
     PACKAGES --> RELEASE["Complete immutable GitHub release and monotonic Latest decision"]
@@ -131,6 +133,11 @@ unchanged; neither is replaced by a new publisher environment or migration. The 
 `maintenance/10.x` and `preview/11.x` names are initially **inactive**;
 `feature/dotnet-11` remains unchanged. No branch, environment, NuGet binding or
 package publication is created by this documentation.
+
+Preparation, admission upload and publication run under the same existing job
+lock and protected approval. Their separate timeline steps let the ordinary retry
+distinguish an early download failure from a possibly frozen or published
+candidate. See [failed publication and retry](release-lines.md#failed-publication-and-retry).
 
 ### Line Setup Is Separate From Ordinary Releases
 

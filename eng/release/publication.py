@@ -30,6 +30,7 @@ AUTHORITY_KIND = "release-line-authority-observation"
 ADMISSION_KIND = "release-publication-admission"
 POLICY_PATH = "eng/release/lines-policy.json"
 PUBLICATION_LOCK = "doka-publication"
+ADMISSION_STEP_NAME = "Freeze publication admission for same-run recovery"
 PUBLISHER_STEP_NAME = "Publish qualified immutable release"
 SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -639,15 +640,23 @@ def prove_no_prior_admission(
             ):
                 raise PublicationAdmissionError("Earlier publication job identity or step history is unavailable.")
 
-            boundary = [step for step in steps if step.get("name") == PUBLISHER_STEP_NAME]
-            if not boundary:
+            boundaries = [
+                [step for step in steps if step.get("name") == name]
+                for name in (ADMISSION_STEP_NAME, PUBLISHER_STEP_NAME)
+            ]
+            if not any(boundaries):
                 if "publi" in str(job.get("name", "")).casefold() and job.get("conclusion") != "skipped":
                     raise PublicationAdmissionError("Earlier publisher has no unambiguous admission boundary.")
 
                 continue
 
-            if len(boundary) != 1:
-                raise PublicationAdmissionError("Earlier publisher admission boundary is ambiguous.")
+            # WHY: The fixed workflow exposes upload and publication separately.
+            # A skipped publisher cannot excuse an upload that may have frozen
+            # admission. Partial or duplicate history cannot prove either absent.
+            if any(len(matches) != 1 for matches in boundaries):
+                raise PublicationAdmissionError(
+                    "Earlier publisher boundary evidence is missing or ambiguous; refusing replacement identity."
+                )
 
             # WHY: an ended attempt summary is not proof that its publisher
             # job ended. A waiting/running job cannot mint a replacement identity.
@@ -656,12 +665,16 @@ def prove_no_prior_admission(
                     "Prior publisher is unfinished; refusing replacement identity."
                 )
 
-            step = boundary[0]
-            never_started = step.get("started_at") is None and step.get("status") in {"pending", "queued"}
-            if step.get("conclusion") != "skipped" and not never_started:
-                raise PublicationAdmissionError(
-                    "Prior publisher started but its admission archive is missing; refusing replacement identity."
-                )
+            for matches in boundaries:
+                step = matches[0]
+                # WHY: GitHub can timestamp skipped steps before evaluating
+                # their condition; a timestamp alone is not proof of execution.
+                never_started = step.get("started_at") is None and step.get("status") in {"pending", "queued"}
+                if step.get("conclusion") != "skipped" and not never_started:
+                    raise PublicationAdmissionError(
+                        "Prior admission upload or publisher started but its admission archive is missing; "
+                        "refusing replacement identity."
+                    )
 
 
 def append_outputs(path: Path | None, values: dict[str, str]) -> None:

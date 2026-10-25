@@ -127,6 +127,13 @@ recovery and complete-package contracts. Hosted activation remains separate.
   false or absent, without changing the existing review/branch requirements.
 - Test scheduler formatting variants and reject actual missing/skipped/failed
   producers or wrong child identities. Dispatch alone cannot satisfy a gate.
+- Test actual first-admission retry after failed preparation, with separately
+  visible admission-upload and publisher boundaries. Require the original
+  archive once either boundary may have started; reject partial or duplicate
+  histories and retain exact-byte/current-authority checks on restored admission.
+- Test draft-only cleanup of planned empty `starter` upload residue after full
+  inventory/payload validation, including ambiguous cleanup-response retry.
+  Uploaded conflicts, immutable releases and missing admission history stay blocked.
 - Run public consumer offline contract tests and applicable repository/ADR tests.
 - Before claiming operational activation or public consumption, observe the
   separately approved real hosted path or published RC. Local tests are not it.
@@ -173,6 +180,11 @@ operations remain separately approved and observed.
   lines and existing single-maintainer/admin-bypass behavior; withdraw the new
   environment/credential migration, exceptional lifecycle and comprehensive
   transition-readiness subsystem. Ordinary release safeguards remain required.
+- 2026-10-25: Separate publisher preparation from durable admission and public
+  publication in the existing workflow. Preserve safe same-run retry after failed
+  workflow preparation without replacing missing admission evidence.
+- 2026-10-25: Reconcile documented empty GitHub `starter` upload residue only in
+  a verified mutable draft; preserve completed assets and strict public readback.
 
 ### Implementation References
 

@@ -68,6 +68,80 @@ def shell_commands(path: Path, module: str) -> list[list[str]]:
 class ReleaseLineWorkflowSeamTests(unittest.TestCase):
     """Exercise the actual publisher/qualifier command and artifact boundaries."""
 
+    def test_preparation_and_admission_are_visible_before_the_publisher_boundary(self) -> None:
+        """Keep retry history able to distinguish preparation from frozen admission and writes."""
+        # Arrange
+        from eng.release import publication
+
+        workflow = WORKFLOW.read_text(encoding="ascii")
+        publisher_job = workflow.split("\n  publish:\n", 1)[1]
+        action = PUBLISHER_ACTION.read_text(encoding="ascii")
+
+        # Act
+        steps = re.findall(r"^      - name: ([^\n]+)$", publisher_job, re.MULTILINE)
+
+        # Assert
+        self.assertEqual([
+            "Checkout trusted workflow source", "Setup .NET",
+            "Download immutable same-run candidate", "Download exhaustive stage receipts",
+            "Download frozen line authorization", "Download portable SLSA provenance",
+            "Revalidate source, evidence, and attestations", "Admit or recover the immutable publication",
+            "Freeze publication admission for same-run recovery", publication.PUBLISHER_STEP_NAME,
+        ], steps)
+        self.assertNotIn("python3 -m eng.release.publication admit", action)
+        self.assertNotIn("uses: actions/download-artifact@", action)
+        self.assertIn('name: publication-admission-attempt-${{ github.run_attempt }}', publisher_job)
+        self.assertIn("retention-days: 30", publisher_job)
+
+    def test_admission_upload_is_a_required_step_before_the_write_action(self) -> None:
+        """A failed preparation or failed upload must leave the actual publisher skipped."""
+        # Arrange
+        workflow = WORKFLOW.read_text(encoding="ascii")
+        publisher_job = workflow.split("\n  publish:\n", 1)[1]
+
+        # Act
+        admission = publisher_job.split("      - name: Freeze publication admission for same-run recovery\n", 1)[1]
+        upload, publisher = admission.split("      - name: Publish qualified immutable release\n", 1)
+
+        # Assert
+        self.assertIn("uses: actions/upload-artifact@", upload)
+        self.assertIn("if-no-files-found: error", upload)
+        self.assertIn("artifacts/release-publication/publication-admission.json", upload)
+        self.assertIn("artifacts/release-publication/authorization-observation.json", upload)
+        self.assertNotIn("        if:", upload)
+        self.assertNotIn("continue-on-error:", publisher_job)
+        self.assertNotIn("        if:", publisher)
+        self.assertIn("uses: $/.github/actions/publish-release", publisher)
+
+    def test_recovery_boundary_names_match_the_visible_workflow_steps(self) -> None:
+        """A renamed or hidden boundary must fail before any release candidate starts."""
+        # Arrange
+        from eng.release import publication
+
+        publisher_job = WORKFLOW.read_text(encoding="ascii").split("\n  publish:\n", 1)[1]
+
+        # Act
+        names = re.findall(r"^      - name: ([^\n]+)$", publisher_job, re.MULTILINE)
+
+        # Assert
+        self.assertEqual(1, names.count(publication.ADMISSION_STEP_NAME))
+        self.assertEqual(1, names.count(publication.PUBLISHER_STEP_NAME))
+        self.assertLess(names.index(publication.ADMISSION_STEP_NAME), names.index(publication.PUBLISHER_STEP_NAME))
+
+    def test_shared_publisher_inputs_are_all_consumed(self) -> None:
+        """Do not retain unused artifact inputs after moving preparation into its sole caller."""
+        # Arrange
+        action = PUBLISHER_ACTION.read_text(encoding="ascii")
+        declaration = action.split("inputs:\n", 1)[1].split("runs:\n", 1)[0]
+
+        # Act
+        declared = set(re.findall(r"^  ([a-z_]+):$", declaration, re.MULTILINE))
+        consumed = set(re.findall(r"inputs\.([a-z_]+)", action))
+
+        # Assert
+        self.assertEqual({"version", "nuget_user"}, declared)
+        self.assertEqual(declared, consumed)
+
     def test_artifact_retention_respects_the_repository_limit(self) -> None:
         """Reject upload durations GitHub would clamp below the requested lifetime."""
         # Arrange

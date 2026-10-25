@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Preserve same-run release recovery after SDK setup, artifact download or
+  provenance-validation failures before durable admission. Expose admission
+  upload and publication as separate workflow boundaries; continue rejecting
+  missing original evidence once either boundary may have started.
+- Recover matching release drafts after a failed GitHub asset upload leaves an
+  empty `starter` entry. Validate the complete inventory and uploaded payloads
+  before removing only the planned empty residue; retain strict conflict and
+  immutable-release checks.
+
 ## [10.6.2] - 2026-10-24
 
 Stable patch release correcting GUID generation metadata for Entity Splitting
@@ -1596,6 +1609,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.2...HEAD
 [10.6.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.2
 [10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1
 [10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0
