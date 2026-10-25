@@ -4,7 +4,7 @@ public sealed partial class MySql84CrudBaselineTests
 {
     /// <summary>Verifies the selected database-existence API returns false for a missing database.</summary>
     /// <param name="useAsync">Whether to exercise the asynchronous database-creator API.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Database_creator_exists_returns_false_for_missing_database(
@@ -40,7 +40,7 @@ public sealed partial class MySql84CrudBaselineTests
 
     /// <summary>Verifies the selected database-existence API preserves real access failures.</summary>
     /// <param name="useAsync">Whether to exercise the asynchronous database-creator API.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Database_creator_exists_surfaces_access_denied(

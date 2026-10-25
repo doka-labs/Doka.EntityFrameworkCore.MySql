@@ -20,18 +20,19 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 
     public MySqlExecutionStrategy(
         ExecutionStrategyDependencies dependencies,
-        MySqlSingletonOptions singletonOptions,
+        MySqlRetryOptions retryOptions,
+        EngineFamily engineFamily,
         IMySqlTransientExceptionDetector transientExceptionDetector
     ) : base(
         dependencies,
-        singletonOptions.RetryOptions?.MaxRetryCount
-        ?? throw new InvalidOperationException("Retry options must be configured for the MySQL execution strategy."),
-        singletonOptions.RetryOptions.MaxRetryDelay)
+        retryOptions.MaxRetryCount,
+        retryOptions.MaxRetryDelay)
     {
+        ArgumentNullException.ThrowIfNull(retryOptions);
+
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
-        _engineFamily = singletonOptions.Profile?.Engine.Family
-            ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
+        _engineFamily = engineFamily;
 
         _logger = dependencies
             .Options.FindExtension<CoreOptionsExtension>()

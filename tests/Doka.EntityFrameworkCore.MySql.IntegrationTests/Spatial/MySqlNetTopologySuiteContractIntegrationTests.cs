@@ -68,10 +68,13 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Retains migration, enforcement, catalog recovery, and scaffolding as one SRID lifecycle.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(MariaDbCases))]
     public async Task MariaDb_srid_check_migrates_enforces_and_scaffolds(
         string target

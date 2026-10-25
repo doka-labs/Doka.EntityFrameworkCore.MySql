@@ -95,24 +95,6 @@
       ]
     },
     {
-      "id": "efcore-patch-matrix",
-      "kind": "candidate-produced",
-      "producerWorkflow": ".github/workflows/release-candidate.yml",
-      "implementation": "eng/testing/test-efcore-matrix.sh",
-      "boundIdentities": [
-        "commit",
-        "treeId",
-        "sourceHash",
-        "dependencySnapshotDigest",
-        "workflowPath",
-        "workflowRunId",
-        "runAttempt",
-        "conclusion",
-        "artifactId",
-        "artifactDigest"
-      ]
-    },
-    {
       "id": "mysqlconnector-patch-matrix",
       "kind": "candidate-produced",
       "producerWorkflow": ".github/workflows/release-candidate.yml",

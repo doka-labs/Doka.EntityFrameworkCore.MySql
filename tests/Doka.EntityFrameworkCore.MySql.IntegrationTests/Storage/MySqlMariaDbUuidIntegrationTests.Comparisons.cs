@@ -10,10 +10,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies ordered v7 UUID materialization independently of comparisons.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Versioned_uuid_materializes_v7_values(
         string target
@@ -35,10 +38,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies parameter equality against native v7 UUID storage.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Versioned_uuid_equality_finds_v7_value(
         string target
@@ -61,10 +67,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies explicit JSON membership against native v7 UUID storage.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Versioned_uuid_membership_finds_v7_value(
         string target
@@ -88,10 +97,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies a native UUID comparison does not match the missing empty GUID.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Versioned_uuid_missing_value_does_not_match(
         string target
@@ -112,10 +124,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies server ordering for one UUID version and storage representation.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(VersionedOrderCases))]
     public async Task Versioned_uuid_ordering_matches_storage_contract(
         string target,
@@ -143,10 +158,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies a range window against the server's actual UUID storage ordering.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(VersionedOrderCases))]
     public async Task Versioned_uuid_range_window_matches_storage_contract(
         string target,

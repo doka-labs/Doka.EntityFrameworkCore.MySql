@@ -84,7 +84,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
 
     private void AddConstraint(
         IConventionEntityType entityType,
-        IReadOnlyList<IConventionProperty> properties,
+        IReadOnlyList<IConventionPropertyBase> indexProperties,
         IReadOnlyList<int>? prefixes,
         List<IndexConstraint> constraints,
         Dictionary<IConventionProperty, VariableProperty> candidates,
@@ -93,9 +93,31 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
     {
         // Invalid application prefixes are diagnosed by the final model validator.
         if (prefixes is not null
-            && (prefixes.Count != properties.Count || prefixes.Any(length => length < 0)))
+            && (prefixes.Count != indexProperties.Count || prefixes.Any(length => length < 0)))
         {
             return;
+        }
+
+        var properties = new List<IConventionProperty>();
+        List<int>? scalarPrefixes = prefixes is null ? null : [];
+
+        for (var index = 0; index < indexProperties.Count; index++)
+        {
+            var property = indexProperties[index];
+            var prefix = prefixes?[index] ?? 0;
+
+            if (property is IConventionComplexProperty && prefix > 0)
+            {
+                // WHY: A prefix on a complex value has no single physical column.
+                // Leave the application error to the final model validator.
+                return;
+            }
+
+            foreach (var scalar in GetScalarProperties(property))
+            {
+                properties.Add(scalar);
+                scalarPrefixes?.Add(prefix);
+            }
         }
 
         var mappings = new RelationalTypeMapping[properties.Count];
@@ -122,7 +144,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
                 candidates.Add(property, variable);
             }
 
-            variable.MinimumLength = Math.Max(variable.MinimumLength, prefixes?[index] ?? 0);
+            variable.MinimumLength = Math.Max(variable.MinimumLength, scalarPrefixes?[index] ?? 0);
         }
 
         if (!hasVariableProperty)
@@ -140,7 +162,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
                     tableDefaults[table]))
                 .ToArray();
 
-            constraints.Add(new IndexConstraint(entityType, properties, prefixes, mappings, widths));
+            constraints.Add(new IndexConstraint(entityType, properties, scalarPrefixes, mappings, widths));
         }
     }
 
@@ -164,7 +186,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
 
             foreach (var table in tables)
             {
-                foreach (var property in entityType.GetProperties())
+                foreach (var property in GetScalarProperties(entityType))
                 {
                     if (property.GetColumnName(table) is not { } column)
                     {
@@ -214,13 +236,13 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             shared.Length = shared.InitialLength;
             shared.MinimumLength = variables.Max(variable => variable.MinimumLength);
 
-            foreach (var fixedContract in fixedContracts)
+            foreach (var (mapping, length, hasConceptualLength) in fixedContracts)
             {
                 ApplySharedFixedMapping(
                     shared,
-                    fixedContract.Mapping,
-                    fixedContract.Length,
-                    fixedContract.HasConceptualLength);
+                    mapping,
+                    length,
+                    hasConceptualLength);
             }
 
             foreach (var alias in aliases)
@@ -606,6 +628,43 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             && mapping.Converter?.MappingHints?.Size is null
             && property.GetMaxLengthConfigurationSource() is null or ConfigurationSource.Convention
             && property.FindAnnotation(RelationalAnnotationNames.ColumnType) is null;
+    }
+
+    private static IEnumerable<IConventionProperty> GetScalarProperties(
+        IConventionPropertyBase property
+    )
+    {
+        if (property is IConventionProperty scalarProperty)
+        {
+            yield return scalarProperty;
+            yield break;
+        }
+
+        if (property is IConventionComplexProperty complexProperty)
+        {
+            foreach (var nestedProperty in GetScalarProperties(complexProperty.ComplexType))
+            {
+                yield return nestedProperty;
+            }
+        }
+    }
+
+    private static IEnumerable<IConventionProperty> GetScalarProperties(
+        IConventionTypeBase typeBase
+    )
+    {
+        foreach (var property in typeBase.GetProperties())
+        {
+            yield return property;
+        }
+
+        foreach (var complexProperty in typeBase.GetComplexProperties())
+        {
+            foreach (var property in GetScalarProperties(complexProperty.ComplexType))
+            {
+                yield return property;
+            }
+        }
     }
 
     private sealed record IndexConstraint(

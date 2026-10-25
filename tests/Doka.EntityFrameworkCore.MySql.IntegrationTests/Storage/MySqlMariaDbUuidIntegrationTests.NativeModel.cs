@@ -4,10 +4,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 {
     /// <summary>Verifies model-managed native UUID values and their seeded relationship.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_seeded_graph_round_trips(
         string target
@@ -35,10 +38,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Retains model creation, insert, nullable update, and related readback as one lifecycle.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_runtime_insert_and_update_round_trip(
         string target
@@ -102,10 +108,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies a missing native UUID never matches an existing row.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_missing_value_does_not_match(
         string target
@@ -127,10 +136,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies native UUID LIKE independently of equality and materialization.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_like_matches_seeded_value(
         string target
@@ -152,10 +164,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies canonical text formatting for native UUID storage.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_projects_canonical_text(
         string target
@@ -177,10 +192,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies server-generated native GUID values can be materialized.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_generated_value_is_nonempty(
         string target
@@ -201,10 +219,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies native UUID foreign keys reject a missing principal.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_foreign_key_rejects_orphan(
         string target
@@ -231,10 +252,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
     /// <summary>Verifies native UUID defaults retain explicit binary, text, and converter overrides.</summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_model_preserves_physical_column_types(
         string target

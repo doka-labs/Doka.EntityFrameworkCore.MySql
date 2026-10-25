@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class MySqlJsonTableValueEncoding
 {
     private static readonly ConditionalWeakTable<RelationalTypeMapping, RelationalTypeMapping>
-        s_parameterElementTypeMappings = new();
+        s_parameterElementTypeMappings = [];
 
     /// <summary>
     /// Selects a lossless SQL extraction mapping for a scalar stored inside a

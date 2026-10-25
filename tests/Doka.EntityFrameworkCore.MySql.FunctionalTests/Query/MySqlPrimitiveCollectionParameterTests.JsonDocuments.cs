@@ -100,4 +100,51 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Assert.Contains("FROM_BASE64(`v`.`value`)", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varbinary(32) PATH '$'", sql, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A model-mapped string collection uses direct JSON membership without
+    /// exposing MySQL's correlated <c>IN</c>/<c>JSON_TABLE</c> optimizer bug.
+    /// </summary>
+    [Fact]
+    public void Model_string_collection_contains_uses_native_json_membership()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var sql = context
+            .Items
+            .Where(item => item.StringValues.Contains("alpha"))
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("JSON_CONTAINS(`i`.`StringValues`", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE(`i`.`StringValues`", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("FROM_BASE64", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A composed string collection keeps its rowset predicate and decoded
+    /// projection instead of being widened to direct document membership.
+    /// </summary>
+    [Fact]
+    public void Filtered_model_string_collection_contains_preserves_composition()
+    {
+        // Arrange
+        using var context = CreateContext();
+
+        // Act
+        var sql = context
+            .Items
+            .Where(item => item.StringValues
+                .Where(value => value.Length > 1)
+                .Contains("alpha"))
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("SELECT COUNT(*)", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_TABLE(`i`.`StringValues`", sql, StringComparison.Ordinal);
+        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`s`.`value`))", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_CONTAINS(`i`.`StringValues`", sql, StringComparison.Ordinal);
+    }
 }

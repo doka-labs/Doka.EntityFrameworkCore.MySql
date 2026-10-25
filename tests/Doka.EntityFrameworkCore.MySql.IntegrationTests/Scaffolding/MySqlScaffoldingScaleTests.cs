@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 

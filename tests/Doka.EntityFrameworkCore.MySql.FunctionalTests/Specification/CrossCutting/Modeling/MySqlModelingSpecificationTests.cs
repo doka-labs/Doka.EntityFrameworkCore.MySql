@@ -1,6 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Modeling;
 
@@ -59,7 +58,7 @@ public sealed class EntitySplittingMySqlTest : EntitySplittingTestBase
         ITestOutputHelper testOutputHelper
     ) : base(fixture, testOutputHelper) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 /// <summary>
@@ -74,7 +73,7 @@ public sealed class TableSplittingMySqlTest : TableSplittingTestBase
         ITestOutputHelper testOutputHelper
     ) : base(fixture, testOutputHelper) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
@@ -107,7 +106,7 @@ public sealed class TptTableSplittingMySqlTest : TPTTableSplittingTestBase
         ITestOutputHelper testOutputHelper
     ) : base(fixture, testOutputHelper) { }
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     [Fact(Skip = OneParentInapplicableReason)]
     public override Task Can_insert_dependent_with_just_one_parent() =>

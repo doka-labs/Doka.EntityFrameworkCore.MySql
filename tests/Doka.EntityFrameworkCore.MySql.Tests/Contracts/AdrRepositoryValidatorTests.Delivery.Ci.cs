@@ -211,18 +211,18 @@ public sealed partial class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         AssertFastLaneJob(workflow, "spec-test-suite");
         AssertFastLaneJob(workflow, "coverage-gate");
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
+        Assert.Contains(SpecificationFilter, workflow, StringComparison.Ordinal);
         Assert.Equal(
             1,
-            workflow.Split("--filter \"Category=Spec|Category=Live\"", StringSplitOptions.None)
+            workflow.Split(SpecificationFilter, StringSplitOptions.None)
                 .Length
             - 1);
         Assert.Contains(
             $"  migration-deployment:\n    {exhaustiveCondition}",
             workflow,
             StringComparison.Ordinal);
-        Assert.Contains(
-            $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
+        Assert.DoesNotContain(
+            "  efcore-patch-matrix:",
             workflow,
             StringComparison.Ordinal);
         Assert.DoesNotContain(

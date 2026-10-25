@@ -480,8 +480,7 @@ public sealed class MySqlNetworkFaultContractTests
             _activityListener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref _) =>
-                    ActivitySamplingResult.AllDataAndRecorded,
+                Sample = SampleActivity,
                 ActivityStopped = Activities.Enqueue,
             };
             ActivitySource.AddActivityListener(_activityListener);
@@ -512,6 +511,10 @@ public sealed class MySqlNetworkFaultContractTests
             });
             _meterListener.Start();
         }
+
+        private static ActivitySamplingResult SampleActivity(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllDataAndRecorded;
 
         public ConcurrentQueue<Activity> Activities { get; } = new();
 

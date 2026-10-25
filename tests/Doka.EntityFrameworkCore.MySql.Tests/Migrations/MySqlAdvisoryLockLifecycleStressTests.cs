@@ -18,6 +18,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
     public async Task Concurrent_dispose_and_reacquire_completes_without_deadlock()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         await using var context = new StubContext(BuildOptions());
         var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
         var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
@@ -29,7 +30,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
             {
                 lockInstance.Dispose();
             }
-        });
+        }, cancellationToken);
 
         var reacquires = Task.Run(() =>
         {
@@ -46,7 +47,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
                     // does not leave the connection slot in a half-broken state.
                 }
             }
-        });
+        }, cancellationToken);
 
         await Task.WhenAll(disposes, reacquires);
 
@@ -106,6 +107,7 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
     )
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         await using var context = new StubContext(BuildOptions());
         var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
         var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
@@ -116,11 +118,12 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
         {
             if (reacquire)
             {
-                await lockInstance.ReacquireIfNeededAsync(connectionReopened: true, transactionRestarted: null);
+                await lockInstance.ReacquireIfNeededAsync(
+                    connectionReopened: true, transactionRestarted: null, cancellationToken);
             }
             else
             {
-                await lockInstance.AcquireLockAsync();
+                await lockInstance.AcquireLockAsync(cancellationToken);
             }
         });
 

@@ -97,8 +97,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
     /// </summary>
     private sealed class SourceScopeValidator : ExpressionVisitor
     {
-        private readonly HashSet<string> _declared = new(StringComparer.Ordinal);
-        private readonly HashSet<string> _referenced = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _declared = [with(StringComparer.Ordinal)];
+        private readonly HashSet<string> _referenced = [with(StringComparer.Ordinal)];
 
         public static void Validate(
             Expression expression

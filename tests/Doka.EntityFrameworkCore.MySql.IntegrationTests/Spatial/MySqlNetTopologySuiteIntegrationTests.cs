@@ -393,7 +393,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
     private sealed class SridWarningSink
     {
-        public List<SridWarningEntry> Entries { get; } = new();
+        public List<SridWarningEntry> Entries { get; } = [];
     }
 
     private sealed class SridWarningLoggerProvider : ILoggerProvider

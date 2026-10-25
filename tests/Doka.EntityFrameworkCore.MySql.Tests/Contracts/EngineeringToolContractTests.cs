@@ -5,6 +5,25 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class EngineeringToolContractTests
 {
+    /// <summary>Verifies both routes into specification tests remain excluded from repository tests.</summary>
+    [Fact]
+    public void Repository_test_filter_excludes_both_specification_routes()
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+
+        // Act
+        var testRunner = File.ReadAllText(Path.Combine(repositoryRoot, "eng/testing/test.sh"));
+
+        // Assert
+        Assert.Contains(
+            "FullyQualifiedName!~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification."
+            + "&Category!=Spec&Category!=Live",
+            testRunner,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Specification.&Category!=Live\"", testRunner, StringComparison.Ordinal);
+    }
+
     private static readonly string[] s_auditSources = ["https://api.nuget.org/v3/index.json"];
 
     /// <summary>Uses the repository coverage tool and preserves errors even when a global tool exists.</summary>
@@ -341,7 +360,7 @@ public sealed class EngineeringToolContractTests
                     {
                         new
                         {
-                            framework = "net10.0",
+                            framework = "net11.0",
                             transitivePackages = new[]
                             {
                                 new

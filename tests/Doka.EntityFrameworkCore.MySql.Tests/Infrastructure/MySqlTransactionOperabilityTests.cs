@@ -49,18 +49,19 @@ public sealed class MySqlTransactionOperabilityTests
     public async Task Commit_unknown_failures_emit_the_resilience_diagnostic()
     {
         // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
         MySqlSingletonOptions primedSingletonOptions;
         await using (var primingConnection = new RecordingDbConnection())
         await using (var primingContext =
             new TransactionOperabilityContext(
                 CreateOptions(primingConnection, defaultGuidFormat: MySqlGuidFormat.Char36)))
-        await using (var primingTransaction = await primingContext.Database.BeginTransactionAsync())
+        await using (var primingTransaction = await primingContext.Database.BeginTransactionAsync(cancellationToken))
         {
             primedSingletonOptions = primingContext
                 .GetService<IEnumerable<ISingletonOptions>>()
                 .OfType<MySqlSingletonOptions>()
                 .Single();
-            await primingTransaction.RollbackAsync();
+            await primingTransaction.RollbackAsync(cancellationToken);
         }
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
@@ -75,8 +76,8 @@ public sealed class MySqlTransactionOperabilityTests
             .OfType<MySqlSingletonOptions>()
             .Single();
 
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        Func<Task> act = () => transaction.CommitAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        Func<Task> act = () => transaction.CommitAsync(cancellationToken);
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);

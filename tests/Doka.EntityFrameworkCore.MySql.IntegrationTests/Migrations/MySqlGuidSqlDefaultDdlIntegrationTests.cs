@@ -77,10 +77,13 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     /// MariaDB backfills each existing row and retains the Guid SQL default for subsequent omitted values.
     /// </summary>
     [RequiresDatabaseTargetsTheory(
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        new[]
+        {
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(PopulatedAddColumnCases))]
     public async Task AddColumn_guid_sql_default_backfills_populated_table_and_generates_new_values(
         string target,
@@ -122,7 +125,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     /// <summary>
     /// MySQL rejects nondeterministic ADD COLUMN defaults with error 1674 while preserving the populated table.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97 })]
     [MemberData(nameof(RejectedAddColumnCases))]
     public async Task AddColumn_nondeterministic_guid_default_is_rejected_without_schema_or_data_changes(
         string target,

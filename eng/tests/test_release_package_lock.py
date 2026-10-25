@@ -98,7 +98,7 @@ class ReleasePackageLockTests(unittest.TestCase):
                     encoding="ascii",
                 )
                 (project_root / "packages.lock.json").write_text(
-                    '{"version":2,"dependencies":{"net10.0":{}}}\n',
+                    '{"version":2,"dependencies":{"net11.0":{}}}\n',
                     encoding="ascii",
                 )
 
@@ -131,14 +131,14 @@ class ReleasePackageLockTests(unittest.TestCase):
         )
 
     def test_both_release_projects_carry_versioned_lock_files(self) -> None:
-        """Require a NuGet v2 lock with one net10.0 dependency closure."""
+        """Require a NuGet v2 lock with one net11.0 dependency closure."""
         for lock_file in self.lock_files:
             with self.subTest(lock_file=lock_file):
                 payload = json.loads(lock_file.read_text(encoding="ascii"))
 
                 self.assertEqual(2, payload["version"])
-                self.assertEqual(["net10.0"], list(payload["dependencies"]))
-                self.assertNotEqual({}, payload["dependencies"]["net10.0"])
+                self.assertEqual(["net11.0"], list(payload["dependencies"]))
+                self.assertNotEqual({}, payload["dependencies"]["net11.0"])
 
 
 if __name__ == "__main__":

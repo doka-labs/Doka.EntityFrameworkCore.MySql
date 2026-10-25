@@ -1,6 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -30,6 +29,7 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
     // JOIN grammar has no LATERAL form. Discovery links the executable skips to
     // the primary-source-backed disposition ledger.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -243,9 +243,42 @@ public class
         NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
     ) : base(fixture) { }
 
+    /// <summary>
+    /// Verifies grouped entity selection with a deterministic ordering for rows
+    /// whose primary sort value is identical.
+    /// </summary>
+    /// <remarks>
+    /// The upstream data contains two LACOR orders with the same order date. MySQL
+    /// treats equal window-order values as peers, so their row-number order is not
+    /// defined. The primary key preserves the grouping contract without asserting
+    /// an engine-dependent physical row order. Source retrieved 2026-09-19:
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/window-functions-usage.html">
+    /// Window Function Concepts and Syntax</see>.
+    /// </remarks>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public override Task GroupBy_Select_Anonymous_Type_With_Entire_Entity(
+        bool async
+    ) => AssertQuery(
+        async,
+        source => source
+            .Set<Order>()
+            .GroupBy(order => order.CustomerID)
+            .Select(group => new
+            {
+                group.Key,
+                Item = group
+                    .OrderByDescending(order => order.OrderDate)
+                    .ThenBy(order => order.OrderID)
+                    .FirstOrDefault(),
+            })
+            .Where(result => result.Item != null));
+
     // These grouping projections require per-outer-row derived-table evaluation,
     // which MariaDB cannot express without a LATERAL join.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -253,6 +286,7 @@ public class
         bool async
     ) => base.AsEnumerable_in_subquery_for_GroupBy(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -260,6 +294,7 @@ public class
         bool async
     ) => base.Complex_query_with_groupBy_in_subquery1(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -267,6 +302,7 @@ public class
         bool async
     ) => base.Complex_query_with_groupBy_in_subquery2(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -274,6 +310,7 @@ public class
         bool async
     ) => base.Complex_query_with_groupBy_in_subquery3(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -281,6 +318,7 @@ public class
         bool async
     ) => base.Complex_query_with_groupBy_in_subquery4(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -288,6 +326,7 @@ public class
         bool async
     ) => base.GroupBy_Count_in_projection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -295,6 +334,7 @@ public class
         bool async
     ) => base.Select_nested_collection_with_groupby(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -302,6 +342,7 @@ public class
         bool async
     ) => base.Select_uncorrelated_collection_with_groupby_multiple_collections_work(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -309,6 +350,7 @@ public class
         bool async
     ) => base.Select_uncorrelated_collection_with_groupby_when_outer_is_distinct(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -316,6 +358,7 @@ public class
         bool async
     ) => base.Select_uncorrelated_collection_with_groupby_works(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -326,6 +369,7 @@ public class
     // EF Core still produces incorrect grouping semantics for these shapes before
     // provider SQL generation can reconstruct the lost query intent.
 
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-29014")]
     [InlineData(false)]
     [InlineData(true)]
@@ -333,6 +377,7 @@ public class
         bool async
     ) => base.GroupBy_with_group_key_being_navigation_with_complex_projection(async);
 
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-27130")]
     [InlineData(false)]
     [InlineData(true)]
@@ -340,6 +385,7 @@ public class
         bool async
     ) => base.GroupBy_aggregate_from_multiple_query_in_same_projection(async);
 
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-27130")]
     [InlineData(false)]
     [InlineData(true)]
@@ -368,6 +414,7 @@ public class
     // These collection shapers retain an outer reference across a derived-table
     // boundary and therefore need LATERAL on MariaDB.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -375,6 +422,7 @@ public class
         bool async
     ) => base.SelectMany_with_client_eval_with_collection_shaper(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -382,6 +430,7 @@ public class
         bool async
     ) => base.SelectMany_with_selecting_outer_element(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -389,6 +438,7 @@ public class
         bool async
     ) => base.SelectMany_with_selecting_outer_entity_column_and_inner_column(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -406,7 +456,7 @@ public class
     /// successful execution. Source retrieved 2026-07-29:
     /// <see href="https://github.com/dotnet/efcore/issues/30677">dotnet/efcore#30677</see>.
     /// </remarks>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override async Task Join_local_bytes_closure_is_cached_correctly(
@@ -443,7 +493,7 @@ public class
     /// Source retrieved 2026-07-29:
     /// <see href="https://github.com/dotnet/efcore/issues/30677">dotnet/efcore#30677</see>.
     /// </remarks>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override async Task Join_local_string_closure_is_cached_correctly(
@@ -476,6 +526,7 @@ public class
             assertEmpty: true);
     }
 
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-35028")]
     [InlineData(false)]
     [InlineData(true)]
@@ -483,6 +534,7 @@ public class
         bool async
     ) => base.Join_with_key_selectors_being_nested_anonymous_objects(async);
 
+    [Theory]
     [SpecFrameworkLimitationTheory("EFCORE-35028")]
     [InlineData(false)]
     [InlineData(true)]
@@ -524,6 +576,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
     // These composed subqueries require a correlated derived-table boundary.
     // MariaDB supports neither correlated FROM subqueries nor LATERAL joins.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -531,6 +584,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.Complex_nested_query_doesnt_try_binding_to_grandparent_when_parent_returns_complex_result(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -538,6 +592,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -547,6 +602,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         ) => base.Correlated_collection_with_distinct_without_default_identifiers_projecting_columns_with_navigation(
         async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -554,6 +610,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.DefaultIfEmpty_Sum_over_collection_navigation(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -561,6 +618,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.SelectMany_correlated_subquery_hard(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -568,6 +626,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.SelectMany_correlated_with_Select_value_type_and_DefaultIfEmpty_in_selector(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -575,6 +634,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.Select_correlated_subquery_ordered(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -582,6 +642,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         bool async
     ) => base.Select_subquery_recursive_trivial(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -593,7 +654,7 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
     /// Requires a coalesce between an unsigned nullable column and a double
     /// fallback to preserve the promoted CLR result type.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public override Task Coalesce_Correct_TypeMapping_Double(
@@ -819,6 +880,7 @@ public class NorthwindNavigationsQueryMySqlTest : NorthwindNavigationsQueryRelat
         NorthwindQueryMySqlFixture<NoopModelCustomizer> fixture
     ) : base(fixture) { }
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -848,6 +910,7 @@ public class
     // These projections need per-outer-row composition after pagination,
     // set operations, or nested shaping and therefore require LATERAL.
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -855,6 +918,7 @@ public class
         bool async
     ) => base.Collection_projection_selecting_outer_element_followed_by_take(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -865,6 +929,7 @@ public class
         .Project_single_element_from_collection_with_OrderBy_Distinct_and_FirstOrDefault_followed_by_projecting_length(
             async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -872,6 +937,7 @@ public class
         bool async
     ) => base.Reverse_in_SelectMany_with_Take(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -879,6 +945,7 @@ public class
         bool async
     ) => base.Reverse_in_projection_subquery_single_result(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -886,6 +953,7 @@ public class
         bool async
     ) => base.SelectMany_correlated_with_outer_2(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -893,6 +961,7 @@ public class
         bool async
     ) => base.SelectMany_correlated_with_outer_4(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -900,6 +969,7 @@ public class
         bool async
     ) => base.SelectMany_correlated_with_outer_6(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -907,6 +977,7 @@ public class
         bool async
     ) => base.SelectMany_correlated_with_outer_7(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -914,6 +985,7 @@ public class
         bool async
     ) => base.Select_nested_collection_deep(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -921,6 +993,7 @@ public class
         bool async
     ) => base.Select_nested_collection_deep_distinct_no_identifiers(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -928,6 +1001,7 @@ public class
         bool async
     ) => base.Set_operation_in_pending_collection(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -935,6 +1009,7 @@ public class
         bool async
     ) => base.Take_on_correlated_collection_in_first(async);
 
+    [Theory]
     [SpecEngineLimitationTheory("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]

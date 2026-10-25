@@ -17,7 +17,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
     {
     }
 
-    protected override ITestStoreFactory TestStoreFactory =>
+    protected override ITestStoreFactory NonSharedTestStoreFactory =>
         MySqlTestStoreFactory.Instance;
 
     /// <inheritdoc />
@@ -33,7 +33,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
             return;
         }
 
-        var contextFactory = await InitializeAsync<DbContext>(
+        var contextFactory = await InitializeNonSharedTest<DbContext>(
             onModelCreating: modelBuilder => modelBuilder
                 .Entity<Blog>()
                 .HasIndex(blog => blog.Name)
