@@ -1760,7 +1760,10 @@ class QualificationManifestGateTests(unittest.TestCase):
         publisher_job = self.workflow.split("\n  publish:\n", maxsplit=1)[1]
 
         # Act
-        evidence_position = self.publisher.index("python3 -m eng.release.evidence verify")
+        evidence_position = publisher_job.index("python3 -m eng.release.evidence verify")
+        admission_position = publisher_job.index("python3 -m eng.release.publication admit")
+        upload_position = publisher_job.index("name: publication-admission-attempt-")
+        publisher_position = publisher_job.index("uses: $/.github/actions/publish-release\n")
         trust_position = self.publisher.index("python3 -m eng.release.trust verify")
         binding_position = self.publisher.index("python3 -m eng.release.nuget bind")
 
@@ -1769,10 +1772,9 @@ class QualificationManifestGateTests(unittest.TestCase):
         self.assertIn("      - assemble\n", publisher_job)
         self.assertIn("      - attest\n", publisher_job)
         self.assertIn("uses: $/.github/actions/publish-release\n", publisher_job)
-        self.assertLess(
-            evidence_position,
-            binding_position,
-        )
+        self.assertLess(evidence_position, admission_position)
+        self.assertLess(admission_position, upload_position)
+        self.assertLess(upload_position, publisher_position)
         self.assertLess(
             trust_position,
             binding_position,

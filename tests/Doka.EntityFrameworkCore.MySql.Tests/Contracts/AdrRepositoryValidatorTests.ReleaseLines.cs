@@ -102,19 +102,26 @@ public sealed partial class AdrRepositoryValidatorTests
     public void Shared_publisher_persists_admission_before_remote_mutations()
     {
         // Arrange
-        var path = Path.Combine(FindRepositoryRoot(), ".github", "actions", "publish-release", "action.yml");
+        var root = FindRepositoryRoot();
+        var workflowPath = Path.Combine(root, ".github", "workflows", "release-candidate.yml");
+        var actionPath = Path.Combine(root, ".github", "actions", "publish-release", "action.yml");
 
         // Act
-        var publisher = File.ReadAllText(path);
+        var job = GetWorkflowJob(File.ReadAllText(workflowPath), "publish");
+        var action = File.ReadAllText(actionPath);
+        var publisher = job + Environment.NewLine + action;
         var admission = publisher.IndexOf("python3 -m eng.release.publication admit", StringComparison.Ordinal);
         var durableAdmission = publisher.IndexOf("name: publication-admission-attempt-", StringComparison.Ordinal);
+        var writeBoundary = publisher.IndexOf("- name: Publish qualified immutable release", StringComparison.Ordinal);
         var binding = publisher.IndexOf("python3 -m eng.release.nuget bind", StringComparison.Ordinal);
         var draft = publisher.IndexOf("python3 -m eng.release.github stage", StringComparison.Ordinal);
         var login = publisher.IndexOf("uses: NuGet/login@", StringComparison.Ordinal);
 
         // Assert
         Assert.True(admission >= 0 && durableAdmission > admission);
-        Assert.True(binding > durableAdmission && draft > binding && login > draft);
+        Assert.True(writeBoundary > durableAdmission && binding > writeBoundary && draft > binding && login > draft);
+        Assert.Contains("python3 -m eng.release.publication admit", job, StringComparison.Ordinal);
+        Assert.DoesNotContain("python3 -m eng.release.publication admit", action, StringComparison.Ordinal);
         Assert.Contains("retention-days: 30", publisher[durableAdmission..binding], StringComparison.Ordinal);
         Assert.Contains("authorization-observation.json", publisher, StringComparison.Ordinal);
         Assert.Contains("current-authorization-observation.json", publisher, StringComparison.Ordinal);
@@ -126,19 +133,22 @@ public sealed partial class AdrRepositoryValidatorTests
     public void Shared_publisher_verifies_the_qualifier_signer_not_its_caller_filename()
     {
         // Arrange
-        var path = Path.Combine(FindRepositoryRoot(), ".github", "actions", "publish-release", "action.yml");
+        var root = FindRepositoryRoot();
+        var workflowPath = Path.Combine(root, ".github", "workflows", "release-candidate.yml");
+        var actionPath = Path.Combine(root, ".github", "actions", "publish-release", "action.yml");
 
         // Act
-        var publisher = File.ReadAllText(path);
+        var preparation = GetWorkflowJob(File.ReadAllText(workflowPath), "publish");
+        var publisher = File.ReadAllText(actionPath);
 
         // Assert
         Assert.Contains("using: composite", publisher, StringComparison.Ordinal);
         Assert.Contains(
             "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
-            publisher,
+            preparation,
             StringComparison.Ordinal);
-        Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", publisher, StringComparison.Ordinal);
-        Assert.Contains("--source-ref \"${GITHUB_REF}\"", publisher, StringComparison.Ordinal);
-        Assert.Contains("--source-digest \"${GITHUB_SHA}\"", publisher, StringComparison.Ordinal);
+        Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", preparation, StringComparison.Ordinal);
+        Assert.Contains("--source-ref \"${GITHUB_REF}\"", preparation, StringComparison.Ordinal);
+        Assert.Contains("--source-digest \"${GITHUB_SHA}\"", preparation, StringComparison.Ordinal);
     }
 }

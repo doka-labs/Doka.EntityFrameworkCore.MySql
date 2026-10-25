@@ -86,6 +86,9 @@ class ReleaseClient(Protocol):
     ) -> None:
         """Upload only assets that are absent from a matching draft."""
 
+    def delete_asset(self, repository: str, asset_id: int) -> None:
+        """Remove one validated empty starter from its verified mutable draft."""
+
     def publish_release(self, plan: dict[str, Any]) -> None:
         """Publish a complete draft using its planned release classification."""
 
@@ -1122,6 +1125,18 @@ class GitHubCliClient:
             *(str(path) for path in paths),
         )
 
+    def delete_asset(self, repository: str, asset_id: int) -> None:
+        """Delete only an exact positive asset identity; propagate ambiguous failures."""
+        if type(asset_id) is not int or asset_id <= 0:
+            raise GitHubReleaseError("Release asset deletion requires a positive integer ID.")
+
+        self._run_text(
+            "api", "--method", "DELETE",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", f"X-GitHub-Api-Version: {GITHUB_API_VERSION}",
+            f"/repos/{repository}/releases/assets/{asset_id}",
+        )
+
     def publish_release(self, plan: dict[str, Any]) -> None:
         """Publish the complete draft with an explicit latest-release policy."""
         self._run_text(
@@ -1320,6 +1335,60 @@ def verify_release_assets(
     ]
 
 
+def reconcile_draft_assets(
+    release: dict[str, Any],
+    plan: dict[str, Any],
+    client: ReleaseClient,
+) -> list[Path]:
+    """Validate all assets before removing only planned empty mutable-draft starters."""
+    if release.get("draft") is True and release.get("immutable") is True:
+        raise GitHubReleaseError("An immutable release draft cannot be reconciled.")
+
+    assets = release.get("assets")
+    if not isinstance(assets, list):
+        raise GitHubReleaseError("GitHub release has no readable asset inventory.")
+
+    starters = [asset for asset in assets if isinstance(asset, dict) and asset.get("state") == "starter"]
+    if not starters:
+        return verify_release_assets(release, plan, client)
+
+    if release.get("draft") is not True or release.get("immutable") is not False:
+        raise GitHubReleaseError("Only a mutable release draft can recover starter assets.")
+
+    planned_names = {asset["name"] for asset in plan["assets"]}
+    names: set[str] = set()
+    identities: set[int] = set()
+    for asset in assets:
+        if not isinstance(asset, dict):
+            raise GitHubReleaseError("GitHub release contains an invalid asset object.")
+
+        name = asset.get("name")
+        asset_id = asset.get("id")
+        if (
+            not isinstance(name, str) or name not in planned_names or name in names
+            or type(asset_id) is not int or asset_id <= 0 or asset_id in identities
+        ):
+            raise GitHubReleaseError("GitHub draft asset identity is unexpected or ambiguous.")
+
+        if asset.get("state") == "starter" and (type(asset.get("size")) is not int or asset["size"] != 0):
+            raise GitHubReleaseError(f"GitHub starter asset is not empty: {name}")
+
+        names.add(name)
+        identities.add(asset_id)
+
+    # WHY: GitHub can leave an empty starter after an upload's HTTP 502.
+    # Verify every other payload before deleting anything, so a later conflict
+    # cannot turn a retry into destructive partial cleanup. Strict readback stays unchanged.
+    uploaded = {**release, "assets": [asset for asset in assets if asset.get("state") != "starter"]}
+    missing = verify_release_assets(uploaded, plan, client)
+    repository = str(plan["repository"])
+    client.verify_tag(repository, str(plan["releaseTag"]), str(plan["sourceCommit"]))
+    for asset in starters:
+        client.delete_asset(repository, asset["id"])
+
+    return missing
+
+
 def wait_for_release(
     client: ReleaseClient,
     repository: str,
@@ -1480,7 +1549,7 @@ def finalize_release(
             )
 
     verify_release_metadata(release, plan)
-    missing = verify_release_assets(release, plan, client)
+    missing = reconcile_draft_assets(release, plan, client)
     if release["draft"] is False:
         if missing:
             raise GitHubReleaseError("Published GitHub release is missing planned assets.")
@@ -1575,7 +1644,7 @@ def stage_release(
             )
 
     verify_release_metadata(release, plan)
-    missing = verify_release_assets(release, plan, client)
+    missing = reconcile_draft_assets(release, plan, client)
     if release["draft"] is False:
         if missing:
             raise GitHubReleaseError(

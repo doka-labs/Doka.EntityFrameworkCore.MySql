@@ -1072,7 +1072,9 @@ class PublicationAdmissionTests(unittest.TestCase):
         client.request.return_value = {"id": 123, "run_attempt": 1, "status": "completed"}
         client.pages.return_value = [{
             "run_id": 123, "name": "publish", "status": "completed", "conclusion": "cancelled",
-            "steps": [{"name": publication.PUBLISHER_STEP_NAME, "status": "pending", "started_at": None}],
+            "steps": [{"name": name, "status": "pending", "started_at": None} for name in (
+                publication.ADMISSION_STEP_NAME, publication.PUBLISHER_STEP_NAME,
+            )],
         }]
 
         # Act
@@ -1089,9 +1091,10 @@ class PublicationAdmissionTests(unittest.TestCase):
                 client = mock.Mock(spec=publication.GitHubClient)
                 client.request.return_value = {"id": 123, "run_attempt": 1, "status": "completed"}
                 client.pages.return_value = [{
-                    "run_id": 123, "name": "publish", "status": status, "steps": [{
-                        "name": publication.PUBLISHER_STEP_NAME, "status": "pending", "started_at": None,
-                    }],
+                    "run_id": 123, "name": "publish", "status": status,
+                    "steps": [{"name": name, "status": "pending", "started_at": None} for name in (
+                        publication.ADMISSION_STEP_NAME, publication.PUBLISHER_STEP_NAME,
+                    )],
                 }]
 
                 # Act
@@ -1106,10 +1109,13 @@ class PublicationAdmissionTests(unittest.TestCase):
         client = mock.Mock(spec=publication.GitHubClient)
         client.request.return_value = {"id": 123, "run_attempt": 1, "status": "completed"}
         client.pages.return_value = [{
-            "run_id": 123, "name": "publish", "conclusion": "failure", "steps": [{
-                "name": publication.PUBLISHER_STEP_NAME, "status": "completed",
-                "conclusion": "failure", "started_at": "2026-10-22T10:00:00Z",
-            }],
+            "run_id": 123, "name": "publish", "status": "completed", "conclusion": "failure",
+            "steps": [
+                {"name": publication.ADMISSION_STEP_NAME, "status": "completed",
+                 "conclusion": "success", "started_at": "2026-10-22T10:00:00Z"},
+                {"name": publication.PUBLISHER_STEP_NAME, "status": "completed",
+                 "conclusion": "failure", "started_at": "2026-10-22T10:00:01Z"},
+            ],
         }]
 
         # Act
@@ -1124,10 +1130,10 @@ class PublicationAdmissionTests(unittest.TestCase):
         client = mock.Mock(spec=publication.GitHubClient)
         client.request.return_value = {"id": 123, "run_attempt": 1, "status": "completed"}
         client.pages.return_value = [{
-            "run_id": 123, "name": "publish", "conclusion": "skipped", "steps": [{
-                "name": publication.PUBLISHER_STEP_NAME,
-                "status": "completed", "conclusion": "skipped",
-            }],
+            "run_id": 123, "name": "publish", "conclusion": "skipped",
+            "steps": [{"name": name, "status": "completed", "conclusion": "skipped"} for name in (
+                publication.ADMISSION_STEP_NAME, publication.PUBLISHER_STEP_NAME,
+            )],
         }]
 
         # Act
