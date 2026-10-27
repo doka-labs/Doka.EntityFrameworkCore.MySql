@@ -72,8 +72,12 @@ public sealed partial class DependencySecurityAuditTests
         // Assert
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("keep", File.ReadAllText(marker));
-        Assert.All(fixture.Commands, command =>
-            Assert.StartsWith(fixture.RunPath, command.GetProperty("httpCache").GetString(), StringComparison.Ordinal));
+        var cachePath = Assert.Single(fixture.Commands
+            .Select(command => command.GetProperty("httpCache").GetString()!)
+            .Distinct(StringComparer.Ordinal));
+
+        Assert.StartsWith(fixture.TemporaryPath + Path.DirectorySeparatorChar, cachePath, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(cachePath));
     }
 
     /// <summary>Preserves reviewed locks without applying locked mode to projects which do not own one.</summary>
@@ -206,6 +210,7 @@ public sealed partial class DependencySecurityAuditTests
         /// <summary>Copies only the audit boundary and supplies an offline deterministic CLI.</summary>
         public AuditFixture()
         {
+            Directory.CreateDirectory(TemporaryPath);
             var repository = FindRepositoryRoot();
             foreach (var relative in new[]
                      {
@@ -227,19 +232,15 @@ public sealed partial class DependencySecurityAuditTests
                 AddProject(relative);
             }
 
-            var executable = Path.Combine(Root, "fake-bin", "dotnet");
-            Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
-            File.WriteAllText(executable, FakeDotnet);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(
-                    executable,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            }
+            WriteExecutable("dotnet", FakeDotnet);
         }
 
         /// <summary>Gets the fixture's source root.</summary>
         public string Root => _directory.Path;
+
+        /// <summary>Gets disposable process state outside the retained evidence directory.</summary>
+        // WHY: A shared prefix proves the overlap guard accepts siblings, not only unrelated paths.
+        public string TemporaryPath => Path.Combine(Root, "evidence-temporary");
 
         /// <summary>Gets the runner-owned evidence directory.</summary>
         public string RunPath => Directory.GetDirectories(Path.Combine(Root, "evidence")).Single();
@@ -257,6 +258,13 @@ public sealed partial class DependencySecurityAuditTests
 
         /// <summary>Gets the operator-facing GitHub job summary.</summary>
         public string StepSummary => File.ReadAllText(Path.Combine(Root, "step-summary.md"));
+
+        /// <summary>Simulates an owned-cache cleanup error without changing fixture disposal.</summary>
+        public void RejectCacheCleanup() => WriteExecutable("rm", """
+            #!/usr/bin/env bash
+            printf '%s\n' 'Simulated cache cleanup failure.' >&2
+            exit 74
+            """);
 
         /// <summary>Adds a source project with its parent directories.</summary>
         public void AddProject(
@@ -285,6 +293,7 @@ public sealed partial class DependencySecurityAuditTests
                 ["DOKA_FIXTURE_ROOT"] = Root,
                 ["DOKA_FIXTURE_FAILURE"] = string.Empty,
                 ["GITHUB_STEP_SUMMARY"] = Path.Combine(Root, "step-summary.md"),
+                ["TMPDIR"] = TemporaryPath,
             };
 
             foreach (var (name, value) in additionalEnvironment ?? new Dictionary<string, string>())
@@ -298,6 +307,23 @@ public sealed partial class DependencySecurityAuditTests
 
         /// <inheritdoc />
         public void Dispose() => _directory.Dispose();
+
+        /// <summary>Creates a fixture-owned CLI entry point used only by the child audit process.</summary>
+        private void WriteExecutable(
+            string name,
+            string script
+        )
+        {
+            var executable = Path.Combine(Root, "fake-bin", name);
+            Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
+            File.WriteAllText(executable, script);
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    executable,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
     }
 
     private const string FakeDotnet = """
@@ -312,6 +338,12 @@ public sealed partial class DependencySecurityAuditTests
             jq -r '.sdk.version' "${DOKA_FIXTURE_ROOT}/global.json"
             exit 0
         fi
+
+        # WHY: Real NuGet HTTP-cache paths include a colon that artifact upload rejects.
+        cache_entry='670c1461c29885f9aa22c281d8b7da90845b38e4$ps:_api.nuget.org_v3_index.json'
+        mkdir -p "${NUGET_HTTP_CACHE_PATH}/${cache_entry}"
+        printf '%s\n' 'Cached repository signatures.' \
+            > "${NUGET_HTTP_CACHE_PATH}/${cache_entry}/repository_signatures_5.0.0.dat"
 
         jq -cn --arg httpCache "${NUGET_HTTP_CACHE_PATH:-}" --args \
             '{arguments:$ARGS.positional,httpCache:$httpCache}' -- "$@" \

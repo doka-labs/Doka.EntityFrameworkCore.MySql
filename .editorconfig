@@ -171,7 +171,7 @@ csharp_preferred_modifier_order = public,private,protected,internal,file,static,
 
 # --- Braces and parentheses --------------------------------------------------
 csharp_prefer_braces = true:warning
-dotnet_style_parentheses_in_arithmetic_binary_operators = always_for_clarity:suggestion
+dotnet_style_parentheses_in_arithmetic_binary_operators = never_if_unnecessary:suggestion
 dotnet_style_parentheses_in_relational_binary_operators = always_for_clarity:suggestion
 dotnet_style_parentheses_in_other_binary_operators = always_for_clarity:suggestion
 dotnet_style_parentheses_in_other_operators = never_if_unnecessary:suggestion
@@ -181,6 +181,8 @@ dotnet_style_prefer_auto_properties = true:suggestion
 dotnet_style_object_initializer = true:suggestion
 dotnet_style_collection_initializer = true:suggestion
 dotnet_style_prefer_collection_expression = when_types_exactly_match:suggestion
+# WHY: Preserve explicit fluent collection construction while keeping other collection-expression rules active.
+dotnet_diagnostic.IDE0305.severity = none
 dotnet_style_prefer_simplified_boolean_expressions = true:suggestion
 dotnet_style_null_propagation = true:suggestion
 dotnet_style_coalesce_expression = true:suggestion
