@@ -9,6 +9,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Keep disposable NuGet HTTP-cache metadata outside security-audit artifacts
+  and clean it up on success and failure. Preserve portable reports and
+  failure diagnostics when native cache filenames cannot be uploaded.
 - Preserve same-run release recovery after SDK setup, artifact download or
   provenance-validation failures before durable admission. Expose admission
   upload and publication as separate workflow boundaries; continue rejecting

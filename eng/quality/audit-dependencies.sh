@@ -32,10 +32,21 @@ processed_count=0
 passed_count=0
 failed_count=0
 sdk_version="unknown"
+http_cache_root=""
 : > "${result_file}"
 
 finish() {
     local exit_code="$?"
+    # WHY: Release disposable state before report generation, which may itself fail.
+    if [[ -n "${http_cache_root}" ]]; then
+        if ! rm -rf -- "${http_cache_root}" > "${run_root}/http-cache-cleanup.log" 2>&1; then
+            echo "Could not remove the run-owned NuGet HTTP cache; see ${run_root}/http-cache-cleanup.log." >&2
+            if [[ "${exit_code}" -eq 0 ]]; then
+                exit_code=1
+            fi
+        fi
+    fi
+
     local result="failed"
     if [[ "${exit_code}" -eq 0 && "${project_count}" -gt 0 \
         && "${passed_count}" -eq "${project_count}" && "${failed_count}" -eq 0 ]]; then
@@ -76,8 +87,19 @@ sdk_version="$(dotnet --version)"
 
 # WHY: Advisory cache freshness must not depend on an earlier successful CI or
 # contributor restore. Keep the package-content cache; isolate only HTTP data.
-export NUGET_HTTP_CACHE_PATH="${run_root}/http-cache"
-mkdir -p "${NUGET_HTTP_CACHE_PATH}"
+# NuGet cache filenames can contain ':' and must never enter uploaded evidence.
+http_cache_root="$(
+    mktemp -d "${TMPDIR:-/tmp}/doka-audit-http-cache.XXXXXXXX" 2> "${run_root}/http-cache.log"
+)"
+
+# WHY: Resolve both paths physically so a caller's TMPDIR or symlink cannot
+# reintroduce disposable cache files into the retained artifact directory.
+if [[ "$(cd "${http_cache_root}" && pwd -P)/" == "$(cd "${audit_root}" && pwd -P)/"* ]]; then
+    echo "The temporary NuGet HTTP cache must be outside audit evidence." > "${run_root}/http-cache.log"
+    exit 1
+fi
+
+export NUGET_HTTP_CACHE_PATH="${http_cache_root}"
 configuration="${run_root}/NuGet.Config"
 printf '%s\n' \
     '<?xml version="1.0" encoding="utf-8"?>' \

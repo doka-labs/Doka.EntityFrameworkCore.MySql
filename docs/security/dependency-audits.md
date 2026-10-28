@@ -56,7 +56,12 @@ graphs. Each project's evaluated direct and transitive NuGet dependencies are
 checked, including test/build tooling and ordinary executable examples.
 
 The runner uses an explicit NuGet.org package source and audit source, with a
-new run-owned HTTP cache. Fresh restore uses `--force --no-http-cache`, enables
+new run-owned HTTP cache outside the retained evidence directory. The cache
+uses the process temporary directory and is removed on success and failure;
+contributor caches are preserved. A temporary root inside the evidence base,
+including through a symlink, is rejected. Cache creation and cleanup errors
+remain in portable diagnostic logs and fail the run. Fresh restore uses
+`--force --no-http-cache`, enables
 all dependency depths and severity levels, and makes audit warnings fatal.
 Existing product lock files use locked mode; `--force-evaluate` is not combined
 with it and the audit must not rewrite reviewed dependency locks. Package
@@ -81,7 +86,9 @@ neither installs tools nor automatically changes dependency versions.
 
 The job retains `artifacts/security-audit`, including project inventory,
 SDK/source context, restore logs, raw audit reports and per-project/final
-results. Failure diagnostics are uploaded with `always()` and the workflow
+results. Disposable HTTP-cache metadata is excluded by keeping it outside that
+directory; its native filenames can contain characters rejected by artifact
+uploads. Failure diagnostics are uploaded with `always()` and the workflow
 summary reports the result. The coordinator separately retains each child run
 identity and conclusion. Artifact retention is 30 days; it is diagnostic
 history, not standing publication authority or proof of future safety.
