@@ -68,7 +68,8 @@ packages.
 - An application targeting .NET 10 or later
 - EF Core 10.0.x for the provider and spatial extension; the supported package
   range is `>= 10.0.8` and `< 10.1.0`
-- MySqlConnector 2.x; the supported package range is `>= 2.5.0` and `< 3.0.0`
+- MySqlConnector 2.x; the supported package range is `>= 2.6.1` and `< 3.0.0`
+  (2.6.1 fixes [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8)).
 - A supported MySQL or MariaDB server from the matrix below
 
 Building the repository itself requires the exact .NET SDK declared in

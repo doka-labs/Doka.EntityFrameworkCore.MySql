@@ -620,7 +620,7 @@ run_efcore_matrix_gate() {
 
 run_mysqlconnector_matrix_gate() {
     local leg
-    for leg in "2.5.0:^2[.]5[.]0$:minimum-2-5-0" \
+    for leg in "2.6.1:^2[.]6[.]1$:minimum-2-6-1" \
                "2.*:^2[.][0-9]+[.][0-9]+$:latest-2-x"; do
         DOKA_MYSQLCONNECTOR_VERSION="${leg%%:*}" \
         DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
@@ -630,7 +630,7 @@ run_mysqlconnector_matrix_gate() {
     copy_matrix_evidence_legs \
         "${repo_root}/artifacts/mysqlconnector-patch-matrix" \
         "${mysqlconnector_matrix_dir}" \
-        "minimum-2-5-0" \
+        "minimum-2-6-1" \
         "latest-2-x"
 }
 

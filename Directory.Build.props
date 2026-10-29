@@ -1,83 +1,58 @@
 <Project>
-  <PropertyGroup>
+  <PropertyGroup Label="Target framework and build outputs">
     <TargetFramework>net10.0</TargetFramework>
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
     <IncludeProjectNameInArtifactsPaths>true</IncludeProjectNameInArtifactsPaths>
     <UseArtifactsIntermediateOutput>true</UseArtifactsIntermediateOutput>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Compiler defaults">
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!--
-      Audit the complete direct and transitive package graph at every restore.
-      The low reporting threshold intentionally exposes every known severity;
-      TreatWarningsAsErrors then makes each finding fail closed. Any accepted
-      exception must target one advisory explicitly instead of weakening this
-      repository-wide contract.
-    -->
+  </PropertyGroup>
+
+  <PropertyGroup Label="Dependency restore and audit">
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
-    <!--
-      EF migration bundles publish a temporary RID-specific project and restore
-      its ProjectReferences even when the no-build option is set. The
-      deployment gate supplies this root so those recursive restores cannot
-      append RID targets to repository-owned package locks.
-    -->
+    <!-- WHY: Local development retains advisory warnings without promoting newly
+         published findings to build errors. CI/release evaluation clears
+         developer exceptions; failed advisory retrieval remains fatal. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+
+    <!-- WHY: Migration bundles restore referenced projects even with no-build. The deployment
+         gate supplies this root so recursive RID restores cannot rewrite shipping locks. -->
     <NuGetLockFilePath
-      Condition="'$(DokaIsolatedNuGetLockRoot)' != ''">$(DokaIsolatedNuGetLockRoot)/$(MSBuildProjectName).packages.lock.json</NuGetLockFilePath>
+      Condition="'$(DokaIsolatedNuGetLockRoot)' != ''">$(DokaIsolatedNuGetLockRoot)/$(MSBuildProjectName).packages.lock.json
+    </NuGetLockFilePath>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Compiler analysis">
     <AnalysisLevel>latest-Recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <LangVersion>latestMajor</LangVersion>
-    <!-- Package version tracks the .NET / EF Core major it targets (10.x). -->
-    <VersionPrefix>10.6.2</VersionPrefix>
-    <Authors>Dominic Kalkbrenner</Authors>
-    <Company>Doka Labs</Company>
-    <Copyright>Copyright (c) 2026 Dominic Kalkbrenner</Copyright>
-    <RepositoryUrl>https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql</PackageProjectUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <DebugType>portable</DebugType>
-    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
-    <!--
-      PublicApiAnalyzers tracks every src project's public surface against the
-      PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt baseline. The global
-      TreatWarningsAsErrors property already promotes RS0016 / RS0017 / RS0036 to
-      errors so unintentional API drift fails the build instead of slipping into
-      a patch release. See ADR D-008.
-
-      EnforceExtendedAnalyzerRules is intentionally NOT set: that property activates
-      the RS1xxx rules meant for analyzer authors (we ship a library, not an analyzer)
-      and would surface unrelated false positives on every Environment.NewLine call.
-    -->
-    <!--
-      RS0026 ("Do not add multiple overloads with optional parameters") fires on the
-      UseMySql / UseHiLo / IsInvisible extension overloads because they all carry an
-      optional default (`mySqlOptionsAction = null`, `name = null`, `invisible = true`).
-      The pattern is the EF Core community standard and the optional parameter is part
-      of the documented public API. We accept the SemVer fragility (adding a second
-      optional parameter later would be a breaking-change) as a known design trade-off;
-      the suppression is scoped per-method via [SuppressMessage("ApiDesign", "RS0026")]
-      so a NEW overload without the explicit attribute still triggers the analyzer and
-      demands reviewer attention. See ADR D-008.
-    -->
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql' OR '$(MSBuildProjectName)' == 'Doka.EntityFrameworkCore.MySql.NetTopologySuite' OR '$(MSBuildProjectName)' == 'Doka.Caching.MySql'">
-    <!-- The package targets discover PublicAPI.*.txt automatically; duplicate
-         AdditionalFiles entries make Roslyn workspaces report loader warnings. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+  <PropertyGroup Label="Shared build identity">
+    <!-- WHY: Shipping packages, tests and engineering tools retain one version identity.
+         Package metadata is scoped separately under src/Directory.Build.props. -->
+    <VersionPrefix>10.6.2</VersionPrefix>
+  </PropertyGroup>
 
+  <PropertyGroup Label="Debug information and CI">
+    <DebugType>portable</DebugType>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- WHY: Evaluate after the GitHub CI flag so inherited developer exceptions
+         cannot silently weaken workflow or explicit release qualification. -->
+    <WarningsNotAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'" />
+  </PropertyGroup>
+
+  <PropertyGroup Label="Project defaults">
+    <!-- WHY: Tests, examples and tools are build-only; src explicitly enables shipping artifacts. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
 </Project>

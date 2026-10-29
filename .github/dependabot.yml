@@ -112,9 +112,9 @@ updates:
           - version-update:semver-major
           - version-update:semver-minor
           - version-update:semver-patch
-      # MySqlConnector 2.5.0 is the supported package floor. The scheduled
+      # MySqlConnector 2.6.1 is the security-supported package floor. The scheduled
       # minimum/latest matrix owns 2.x patch validation and raises the floor
-      # only when the provider consumes a newer driver contract. A future
+      # for required security fixes or newer consumed driver contracts. A future
       # major remains visible because it requires an explicit compatibility
       # decision rather than silent suppression.
       - dependency-name: MySqlConnector

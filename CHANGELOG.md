@@ -7,8 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Security
+
+- Raise the MySqlConnector minimum to 2.6.1 for all shipped packages and
+  qualification paths. Earlier versions are affected by
+  [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8),
+  which can disclose passwords during unvalidated zero-configuration TLS
+  authentication. Preserve driver-owned TLS options and connection ownership.
+
+### Changed
+
+- Refresh the development SDK to 10.0.403, dotnet-ef to 10.0.14 and
+  ReportGenerator to 5.5.12 without changing the .NET 10 runtime requirement
+  or EF Core 10.0.8 minimum. Update all supported database image pins together.
+- Remove the temporary direct SSH.NET test dependency: Testcontainers 4.16.0
+  already requires the patched 2026.0.0 version transitively.
+
 ### Fixed
 
+- Register the exact EF Core 10.0.14 specification inventory and six-engine
+  discovery contract so the latest-patch matrix can validate the new patch.
 - Keep disposable NuGet HTTP-cache metadata outside security-audit artifacts
   and clean it up on success and failure. Preserve portable reports and
   failure diagnostics when native cache filenames cannot be uploaded.

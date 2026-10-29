@@ -31,7 +31,13 @@ faster.
 dotnet build Doka.EntityFrameworkCore.MySql.slnx
 ```
 
-The build must remain warning-free, including analyzer, formatting, trim-analysis, and AOT-analysis diagnostics.
+Compiler, analyzer, formatting, trim-analysis, and AOT-analysis diagnostics must remain warning-free.
+
+Local restores retain package vulnerability warnings (`NU1901`-`NU1904`) so
+new advisories do not block unrelated development. CI and explicit
+`ContinuousIntegrationBuild=true` builds clear these developer exceptions;
+the release audit independently enforces a fresh, strict direct and transitive
+dependency audit. Audit failures (`NU1900`/`NU1905`) remain errors.
 
 ## Local Git Hooks
 
@@ -140,7 +146,7 @@ when a saved configuration should be self-contained:
 ```text
 DOKA_SPEC_TEST_TARGET=mariadb118
 DOKA_SPEC_TEST_CONNECTION_STRING=Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Allow User Variables=true
-DOKA_SPEC_TEST_SERVER_VERSION=mariadb:11.8.8
+DOKA_SPEC_TEST_SERVER_VERSION=mariadb:11.8.9
 ```
 
 Stop the service with `docker compose -f docker/compose.yml stop mariadb118`

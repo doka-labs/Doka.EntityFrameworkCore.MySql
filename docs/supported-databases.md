@@ -9,18 +9,21 @@ after the complete repository contract has passed against the replacement.
 
 | Engine | Supported line | Qualified patch | GA | Vendor maintenance or support horizon | Test target |
 | --- | --- | --- | --- | --- | --- |
-| MySQL | 8.4 LTS | 8.4.11 | 2024-04-30 | Extended Support through Apr 2032 | `mysql84` |
-| MySQL | 9.7 LTS | 9.7.2 | 2026-04-21 | 5 years Premier plus 3 years Extended; exact chart row pending | `mysql97` |
+| MySQL | 8.4 LTS | 8.4.13 | 2024-04-30 | Extended Support through Apr 2032 | `mysql84` |
+| MySQL | 9.7 LTS | 9.7.4 | 2026-04-21 | 5 years Premier plus 3 years Extended; exact chart row pending | `mysql97` |
 | MariaDB | 10.11 LTS | 10.11.19 | 2023-02-16 | Community maintenance through 2028-02-16 | `mariadb1011` |
-| MariaDB | 11.4 LTS | 11.4.12 | 2024-05-29 | Community maintenance through 2029-05-29 | `mariadb114` |
-| MariaDB | 11.8 LTS | 11.8.8 | 2025-06-04 | Community maintenance through 2028-06-04 | `mariadb118` |
-| MariaDB | 12.3 LTS | 12.3.2 | 2026-05-29 | TBC by the MariaDB Foundation | `mariadb123` |
+| MariaDB | 11.4 LTS | 11.4.13 | 2024-05-29 | Community maintenance through 2029-05-29 | `mariadb114` |
+| MariaDB | 11.8 LTS | 11.8.9 | 2025-06-04 | Community maintenance through 2028-06-04 | `mariadb118` |
+| MariaDB | 12.3 LTS | 12.3.3 | 2026-05-29 | TBC by the MariaDB Foundation | `mariadb123` |
 
 Oracle documents 8.4 and 9.7 as consecutive MySQL LTS series. The MariaDB
 Foundation identifies 10.11, 11.4, 11.8, and 12.3 as LTS series; 12.3.2 is the
 first 12.3 GA release. The support-series matrix was reconciled against the
 primary sources on 2026-08-12; the MariaDB 10.11 qualified patch was updated
 against the release history on 2026-09-05.
+
+The current patch and multi-platform manifest pins were refreshed against
+the official image catalogs on 2026-10-29, preserving the supported LTS series.
 
 The horizon column preserves the vendors' distinct terminology. Oracle's
 published chart gives month-level Premier and Extended Support dates for 8.4;
@@ -132,6 +135,7 @@ until provider-owned live canaries exist.
 All sources were retrieved on 2026-08-11. The current MySQL patch downloads
 and their exact release-note pages were reverified on 2026-08-12. MariaDB
 10.11.19 release status was reverified on 2026-09-05.
+The official image catalogs were reverified on 2026-10-29 for the current pins.
 
 - [MySQL release model and LTS policy](https://dev.mysql.com/doc/refman/9.7/en/mysql-releases.html)
 - [MySQL 8.4.0 GA release notes](https://dev.mysql.com/doc/relnotes/mysql/8.4/en/news-8-4-0.html)
@@ -140,6 +144,8 @@ and their exact release-note pages were reverified on 2026-08-12. MariaDB
 - [MySQL 9.7.0 GA release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-0.html)
 - [MySQL 9.7.2 release notes](https://dev.mysql.com/doc/relnotes/mysql/9.7/en/news-9-7-2.html)
 - [MySQL 9.7 LTS downloads](https://dev.mysql.com/downloads/mysql/9.7.html)
+- [Official MySQL image catalog](https://github.com/docker-library/official-images/blob/master/library/mysql)
+- [Official MariaDB image catalog](https://github.com/docker-library/official-images/blob/master/library/mariadb)
 - [MySQL 8.4 data type defaults](https://dev.mysql.com/doc/refman/8.4/en/data-type-defaults.html)
 - [MySQL 8.4 `INFORMATION_SCHEMA.COLUMNS`](https://dev.mysql.com/doc/refman/8.4/en/information-schema-columns-table.html)
 - [Oracle Lifetime Support Policy for Technology Products](https://www.oracle.com/us/support/library/lifetime-support-technology-069183.pdf)
