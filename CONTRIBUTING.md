@@ -39,6 +39,12 @@ new advisories do not block unrelated development. CI and explicit
 the release audit independently enforces a fresh, strict direct and transitive
 dependency audit. Audit failures (`NU1900`/`NU1905`) remain errors.
 
+Shared compiler, audit, output and version settings live in
+`Directory.Build.props`. Shipping-package metadata, XML documentation, symbols
+and private public-API analyzers live in `src/Directory.Build.props`, which
+explicitly imports the root settings. The solution's `config` folders expose
+these files alongside Docker and local test configuration.
+
 ## Local Git Hooks
 
 The repository tracks its canonical `commit-msg`, `pre-commit`, and `pre-push`
@@ -105,8 +111,8 @@ Use `./eng/test-integration.sh --up-test-down` only when an explicit Compose sta
 
 Specification and standalone live functional tests execute exactly one target
 per test-host process. The functional-test project references the versioned
-`LocalMariaDb118.runsettings`, so Rider and a direct unconfigured `dotnet test`
-use the visible repository default `mariadb118` on every workstation. An
+`LocalMariaDb123.runsettings`, so Rider and a direct unconfigured `dotnet test`
+use the visible repository default `mariadb123` on every workstation. An
 explicit `DOKA_SPEC_TEST_TARGET` overrides that local default:
 
 ```bash
@@ -131,25 +137,25 @@ versioned specification contract, and validates each target's TRX result:
 ```
 
 No per-workstation Rider configuration is required for the container-owned
-MariaDB 11.8 default. For repeated IDE stress runs, avoid starting and stopping
+MariaDB 12.3 LTS default. For repeated IDE stress runs, avoid starting and stopping
 Testcontainers on every iteration: start the selected Compose service once and
-configure Rider to use that external endpoint. For MariaDB 11.8, for example:
+configure Rider to use that external endpoint. For MariaDB 12.3, for example:
 
 ```bash
-docker compose -f docker/compose.yml up -d --wait mariadb118
+docker compose -f docker/compose.yml up -d --wait mariadb123
 ```
 
 Set the endpoint and version in Rider for that service. The checked-in run
-settings already supply the matching `mariadb118` target; list it explicitly only
+settings already supply the matching `mariadb123` target; list it explicitly only
 when a saved configuration should be self-contained:
 
 ```text
-DOKA_SPEC_TEST_TARGET=mariadb118
-DOKA_SPEC_TEST_CONNECTION_STRING=Server=127.0.0.1;Port=33069;Database=doka_provider;User ID=root;Password=root_password;Allow User Variables=true
-DOKA_SPEC_TEST_SERVER_VERSION=mariadb:11.8.9
+DOKA_SPEC_TEST_TARGET=mariadb123
+DOKA_SPEC_TEST_CONNECTION_STRING=Server=127.0.0.1;Port=33071;Database=doka_provider;User ID=root;Password=root_password;Allow User Variables=true
+DOKA_SPEC_TEST_SERVER_VERSION=mariadb:12.3.3
 ```
 
-Stop the service with `docker compose -f docker/compose.yml stop mariadb118`
+Stop the service with `docker compose -f docker/compose.yml stop mariadb123`
 after the stress run. Testcontainers Resource Reaper remains enabled for
 ordinary test-owned containers, as its official guidance recommends. The
 experimental Testcontainers reuse mode is not part of the repository test
@@ -260,7 +266,10 @@ publication authorization, and public package and GitHub release readback. Never
 - Leave a blank line after control-flow blocks and multiline variable
   initializations. Leave a blank line before `return`, except in a block
   containing only two lines of code. Use blank lines to separate logical groups.
-- `<Nullable>enable</Nullable>`, `TreatWarningsAsErrors`, trim analysis, AOT analysis, and build-enforced code-style analyzers are configured solution-wide via `Directory.Build.props`.
+- Shared nullable, warning and code-style rules are configured in the root
+  `Directory.Build.props`. Shipping XML documentation and public-API analyzers
+  are scoped in `src/Directory.Build.props`; production projects declare their
+  trim and AOT analysis settings.
 - Do not add third-party library dependencies without first opening an issue to discuss the rationale.
 - Engine differences must flow through the internal `EngineProfile` model; avoid ad-hoc version checks across unrelated subsystems.
 

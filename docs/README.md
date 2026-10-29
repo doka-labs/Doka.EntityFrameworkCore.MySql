@@ -5,13 +5,12 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.2 patch release, see the [changelog](../CHANGELOG.md#1062---2026-10-24),
-[GUID SQL-default upgrade guidance](operations/migrations.md#guid-sql-defaults)
-and [measured enumeration optimizations](operations/enumeration-performance.md).
-The update also prepares [release lines](operations/release-lines.md) without
-activating additional branches and keeps hosted benchmark timing diagnostic.
-Public APIs, dependency ranges, supported engines and storage defaults remain
-unchanged.
+For the 10.6.3 patch release, see the [changelog](../CHANGELOG.md#1063---2026-10-29)
+and [MySqlConnector security upgrade guidance](security/dependency-audits.md#mysqlconnector-security-floor).
+The release raises the driver minimum to 2.6.1 and corrects
+[publication recovery](operations/release-publication.md), dependency
+qualification and audit-artifact handling. Public APIs, the .NET 10 requirement,
+EF Core 10.0.8 minimum, supported engines and storage defaults remain unchanged.
 
 ## Use the Provider
 

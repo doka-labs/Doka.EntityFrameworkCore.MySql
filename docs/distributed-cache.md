@@ -16,6 +16,10 @@ Install the latest stable package:
 dotnet package add Doka.Caching.MySql
 ```
 
+Use `--version 10.6.3` to pin the coordinated stable release. It requires
+MySqlConnector `>= 2.6.1` and `< 3.0.0`; the cache API and schema are unchanged.
+See the [security upgrade guidance](security/dependency-audits.md#mysqlconnector-security-floor).
+
 ## Deployment and Registration
 
 Create the database through your normal deployment process. Generate the

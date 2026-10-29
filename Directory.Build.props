@@ -39,7 +39,7 @@
   <PropertyGroup Label="Shared build identity">
     <!-- WHY: Shipping packages, tests and engineering tools retain one version identity.
          Package metadata is scoped separately under src/Directory.Build.props. -->
-    <VersionPrefix>10.6.2</VersionPrefix>
+    <VersionPrefix>10.6.3</VersionPrefix>
   </PropertyGroup>
 
   <PropertyGroup Label="Debug information and CI">

@@ -115,28 +115,27 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.2` corrects a 10.6.1 model-initialization regression for GUID properties
-in secondary Entity Splitting tables and preserves shared-column defaults.
-The correction requires no physical schema migration. Review the
-[GUID generation and upgrade guidance][guid-sql-defaults] for explicit
-client-generation choices, SQL defaults and existing snapshots.
+`10.6.3` raises the MySqlConnector minimum to 2.6.1 for the
+[upstream TLS advisory](https://github.com/advisories/GHSA-473q-m89c-ghf8).
+Review direct driver pins against the
+[security upgrade guidance][dependency-security-upgrade].
 
-Measured hot-path changes reduce enumeration allocations in write, query and
-migration-command processing without changing SQL or result semantics. The
-[measurement report][enumeration-performance] records the
-tested methods and limits; it does not promise application-wide latency gains.
+The release also corrects same-run publication recovery, audit-artifact uploads
+and qualification of EF Core 10.0.14. Shared build and shipping-package
+configuration are separated, and local advisory warnings remain visible while
+CI and release audits stay strict. See the [changelog][changelog].
 
-Release tooling supports the independently maintained lines described above.
-Hosted benchmark timing remains diagnostic, while allocation and resource
-checks remain enforced. Public APIs, EF Core requirements, supported engines,
-GUID storage defaults and the multiple-parameter collection default are unchanged.
+Public APIs, the .NET 10 requirement, EF Core 10.0.8 minimum, supported engines,
+GUID storage defaults, cache schema and multiple-parameter collection default
+are unchanged. No database schema migration is required for this update.
+SDK 10.0.403 is required to build this repository, not to consume its packages.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.2 before upgrading the provider.
+its published dependency range includes 10.6.3 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.2
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.3
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
@@ -600,6 +599,7 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [provider-configuration]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md
 [query-functions]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/query-functions.md
 [release-verification]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/release-verification.md
+[dependency-security-upgrade]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/dependency-audits.md#mysqlconnector-security-floor
 [release-lines]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md
 [runnable-examples]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/examples/README.md
 [security-assurance-case]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/security/assurance-case.md
