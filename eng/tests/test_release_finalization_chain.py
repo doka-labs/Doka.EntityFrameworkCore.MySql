@@ -513,7 +513,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         for leg in (
             "minimum-10-0-8",
             "latest-10-0",
-            "minimum-2-5-0",
+            "minimum-2-6-1",
             "latest-2-x",
         ):
             with self.subTest(leg=leg):

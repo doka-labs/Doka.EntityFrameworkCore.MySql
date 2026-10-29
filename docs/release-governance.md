@@ -113,7 +113,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
   - EF Core floor/latest matrix: `efcore-patch-matrix`
   - MySqlConnector floor/latest matrix: `mysqlconnector-patch-matrix`
-  - supported MySqlConnector range: `[2.5.0, 3.0.0)`
+  - supported MySqlConnector range: `[2.6.1, 3.0.0)`
   - driver evidence:
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/resolved-packages.json`
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/driver-contract-evidence.json`

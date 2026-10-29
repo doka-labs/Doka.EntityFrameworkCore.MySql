@@ -5,10 +5,53 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [10.6.3] - 2026-10-29
+
+Stable patch release raising the MySqlConnector security minimum to 2.6.1 and
+correcting release recovery, dependency qualification and audit evidence.
+All three packages use the same version. Public APIs, the .NET 10 requirement,
+EF Core 10.0.8 minimum, supported engines, storage defaults and cache schema
+remain unchanged. No database schema migration is required for this update.
+
+Review direct MySqlConnector pins before upgrading: the supported range is
+now `>= 2.6.1` and `< 3.0.0`. See the
+[security upgrade guidance](docs/security/dependency-audits.md#mysqlconnector-security-floor).
+SDK 10.0.403 is the repository build toolchain, not a consumer SDK minimum.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.3
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.3
+dotnet package add Doka.Caching.MySql --version 10.6.3
+```
+
+### Security
+
+- Raise the MySqlConnector minimum to 2.6.1 for all shipped packages and
+  qualification paths. Earlier versions are affected by
+  [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8),
+  which can disclose passwords during unvalidated zero-configuration TLS
+  authentication. Preserve driver-owned TLS options and connection ownership.
+
+### Changed
+
+- Refresh the development SDK to 10.0.403, dotnet-ef to 10.0.14 and
+  ReportGenerator to 5.5.12 without changing the .NET 10 runtime requirement
+  or EF Core 10.0.8 minimum. Update all supported database image pins together.
+- Remove the temporary direct SSH.NET test dependency: Testcontainers 4.16.0
+  already requires the patched 2026.0.0 version transitively.
+- Separate shared build settings from shipping-package metadata, XML
+  documentation and private API analyzers in `src/Directory.Build.props`.
+  Expose source, Docker and local test configuration in the solution.
+- Keep known dependency advisories visible as local build warnings while CI
+  and explicit release audits remain strict. Advisory retrieval failures
+  remain errors; contributor warning exceptions cannot satisfy release audits.
 
 ### Fixed
 
+- Register the exact EF Core 10.0.14 specification inventory and six-engine
+  discovery contract so the latest-patch matrix can validate the new patch.
+- Align the contributor instructions with the existing MariaDB 12.3 local
+  default, including its runsettings, Compose service and external endpoint.
 - Keep disposable NuGet HTTP-cache metadata outside security-audit artifacts
   and clean it up on success and failure. Preserve portable reports and
   failure diagnostics when native cache filenames cannot be uploaded.
@@ -1612,7 +1655,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.2...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.3...HEAD
+[10.6.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.3
 [10.6.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.2
 [10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1
 [10.6.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.0

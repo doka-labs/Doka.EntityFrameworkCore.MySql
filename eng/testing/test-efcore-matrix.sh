@@ -150,7 +150,7 @@ if [[ "${validation_scope}" == "dependency-graph" ]]; then
 fi
 
 DOKA_PUBLICATION_EF_CORE_VERSION="${resolved_version}" \
-DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION="2.5.0" \
+DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION="2.6.1" \
     bash "${repo_root}/eng/testing/test.sh"
 
 # Specification and live coverage runs per engine so a patch that changes

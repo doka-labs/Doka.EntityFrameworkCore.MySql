@@ -1,6 +1,7 @@
 # Release Lines
 
-Doka 10.6.2 prepares one release process for independently maintained framework lines.
+Introduced in Doka 10.6.2, this release process supports independently
+maintained framework lines.
 [D-030](../decisions/D-030-release-lines-and-monotonic-publication.md) records
 the decision. The [workflow overview](workflow-overview.md) maps PR checks,
 schedules and publication; [release governance](../release-governance.md)
@@ -34,7 +35,7 @@ The operator keeps the existing release actions:
 
 1. Merge the release-preparation PR into its protected, authorized line.
 2. Open `release-candidate.yml`, select that branch and enter its unused
-   canonical version, for example `10.6.2` or `11.0.0-rc.1`.
+   canonical version, for example `10.6.3` or `11.0.0-rc.1`.
 3. Leave `qualification_only=false`. Review the qualified source SHA, version,
    tag and evidence in the run summary.
 4. Create and push the personally signed annotated tag on that qualified SHA.

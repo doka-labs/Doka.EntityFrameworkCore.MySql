@@ -58,8 +58,15 @@ if [[ ! "${ef_core_version}" =~ ^10[.]0[.][0-9]+$ ]]; then
     exit 2
 fi
 
-if [[ ! "${mysqlconnector_version}" =~ ^2[.][0-9]+[.][0-9]+$ ]]; then
+if [[ ! "${mysqlconnector_version}" =~ ^2[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$ ]]; then
     echo "--mysqlconnector-version must identify one exact MySqlConnector 2.x patch." >&2
+    exit 2
+fi
+
+# WHY: An explicit matrix override bypasses the central package range. Reject
+# the versions affected by GHSA-473q-m89c-ghf8 before consulting cached audits.
+if [[ "${mysqlconnector_version}" =~ ^2[.]([0-5][.][0-9]+|6[.]0)$ ]]; then
+    echo "--mysqlconnector-version requires MySqlConnector 2.6.1 or later." >&2
     exit 2
 fi
 

@@ -138,6 +138,72 @@ class PublicationReadinessTests(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertIn("one exact MySqlConnector 2.x patch", result.stderr)
 
+    def test_gate_rejects_affected_connector_versions_before_dotnet(self) -> None:
+        """Do not let an exact override restore the vulnerable driver floor."""
+        # WHY: Both the former floor and the last affected minor must fail
+        # before restore, independently of the local advisory cache.
+        for version in ("2.5.0", "2.6.0"):
+            with self.subTest(version=version):
+                # Arrange
+                environment = os.environ.copy()
+                environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
+                environment["DOKA_TEST_DOTNET_LOG"] = str(self.command_log)
+
+                # Act
+                result = subprocess.run(
+                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
+                     "--mysqlconnector-version", version),
+                    cwd=self.repo, env=environment, check=False,
+                    capture_output=True, text=True,
+                )
+
+                # Assert
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("MySqlConnector 2.6.1 or later", result.stderr)
+                self.assertFalse(self.command_log.exists())
+
+    def test_gate_rejects_noncanonical_connector_versions_before_dotnet(self) -> None:
+        """Do not let normalized numeric aliases bypass the exact security-floor check."""
+        for version in ("2.06.0", "2.6.00", "2.6.1+build", "2.6.1-rc.1"):
+            with self.subTest(version=version):
+                # Arrange
+                environment = os.environ.copy()
+                environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
+                environment["DOKA_TEST_DOTNET_LOG"] = str(self.command_log)
+
+                # Act
+                result = subprocess.run(
+                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
+                     "--mysqlconnector-version", version),
+                    cwd=self.repo, env=environment, check=False,
+                    capture_output=True, text=True,
+                )
+
+                # Assert
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("one exact MySqlConnector 2.x patch", result.stderr)
+                self.assertFalse(self.command_log.exists())
+
+    def test_gate_accepts_the_latest_patched_connector(self) -> None:
+        """Keep a safe patch override usable alongside the minimum-version control."""
+        # Arrange
+        environment = os.environ.copy()
+        environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
+        environment["TMPDIR"] = str(self.root)
+        environment["DOKA_TEST_DOTNET_LOG"] = str(self.command_log)
+
+        # Act
+        result = subprocess.run(
+            ("bash", str(self.script), "--ef-core-version", "10.0.14",
+             "--mysqlconnector-version", "2.6.2"),
+            cwd=self.repo, env=environment, check=False,
+            capture_output=True, text=True,
+        )
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("-p:DokaMySqlConnectorVersion=2.6.2", self.command_log.read_text(encoding="utf-8"))
+
     def _write_fake_dotnet(self) -> None:
         """Write a deterministic CLI that materializes only requested build outputs."""
         fake_dotnet = self.bin_directory / "dotnet"

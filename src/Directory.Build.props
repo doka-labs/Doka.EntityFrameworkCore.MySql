@@ -1,0 +1,39 @@
+<Project>
+  <!-- WHY: MSBuild stops at the nearest props file; shipping projects must still inherit the root settings. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup Label="Shipping project defaults">
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata">
+    <Authors>Dominic Kalkbrenner</Authors>
+    <Company>Doka Labs</Company>
+    <Copyright>Copyright (c) 2026 Dominic Kalkbrenner</Copyright>
+    <RepositoryUrl>https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Symbols and source linkage">
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup Label="Production analyzers">
+    <!-- WHY: Shipping projects enforce PublicAPI.* baselines through TreatWarningsAsErrors.
+         Keep analyzer-author rules disabled; method-scoped RS0026 suppressions preserve
+         review of new optional overloads. See ADR D-008. -->
+    <!-- WHY: The package targets discover PublicAPI.*.txt automatically; duplicate
+         AdditionalFiles entries make Roslyn workspaces report loader warnings. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>

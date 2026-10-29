@@ -75,7 +75,7 @@ bash "${repo_root}/eng/testing/check-spec-discovery.sh"
 # failure and moves the failure before merge instead of after expensive gates.
 bash "${repo_root}/eng/release/check-publication-readiness.sh" \
     --ef-core-version "${DOKA_PUBLICATION_EF_CORE_VERSION:-10.0.8}" \
-    --mysqlconnector-version "${DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION:-2.5.0}"
+    --mysqlconnector-version "${DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION:-2.6.1}"
 dotnet test "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --collect:"XPlat Code Coverage" \
     --results-directory "${coverage_results_dir}" \

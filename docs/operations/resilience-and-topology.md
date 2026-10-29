@@ -32,9 +32,9 @@ non-zero server error remains authoritative and cannot become retryable merely
 because an unrelated transport exception is nested below it. Cancellation,
 command timeout, and migration session-cleanup failure remain terminal across
 the complete bounded chain. The relevant exception contract is identical at
-the supported 2.5.0 floor and the current qualified 2.6.1 patch. The
+the security-supported 2.6.1 floor and the latest stable 2.x patch. The
 MySqlConnector floor/latest matrix executes the same detector tests against
-both ends of the supported `[2.5.0, 3.0.0)` range; 3.x is not part of that
+both ends of the supported `[2.6.1, 3.0.0)` range; 3.x is not part of that
 contract.
 
 `OperationCanceledException` and `CommandTimeoutExpired` are never retried -- the consumer's cancellation token wins, and a command-timeout is treated as a non-transient capacity signal.

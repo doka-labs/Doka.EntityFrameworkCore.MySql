@@ -6,6 +6,24 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
+## MySqlConnector security floor
+
+Doka 10.6.3 requires MySqlConnector `>= 2.6.1` and `< 3.0.0` for
+[GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
+The upstream issue permits password disclosure to an intercepting attacker
+with `VerifyCA`/`VerifyFull`, no `SslCa` and a nonempty password. Update direct
+driver pins that conflict with the patched minimum. Doka preserves caller TLS
+configuration and connection ownership; no schema migration is required.
+
+## Local development and qualification
+
+Ordinary local restores keep `NU1901`-`NU1904` visible as warnings.
+GitHub CI and explicit `ContinuousIntegrationBuild=true` builds remove those
+developer exceptions. The audit runner separately clears `NoWarn` and
+`WarningsNotAsErrors` and requires a fresh strict restore, including when run
+locally. Audit failures (`NU1900`/`NU1905`) remain errors. A successful local
+build therefore does not establish a clean dependency audit or release readiness.
+
 ## Active-line execution
 
 The daily/manual workflow is
@@ -117,6 +135,9 @@ At end of support, deactivate schedules and dependency targets with the reviewed
 and branch creation/activation remain separately approved operational actions.
 
 ## Primary sources
+
+The [MySqlConnector advisory](https://github.com/advisories/GHSA-473q-m89c-ghf8)
+was verified on 2026-10-29.
 
 Verified on 2026-10-22:
 
