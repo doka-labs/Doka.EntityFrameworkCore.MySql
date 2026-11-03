@@ -5,7 +5,7 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-This checkout prepares the isolated `11.0.0-rc.2` line for .NET 11 and the
+This checkout prepares the isolated `11.0.0-rc.3` line for .NET 11 and the
 exact EF Core release candidate pinned in `Directory.Packages.props`.
 See the [preview changelog](../CHANGELOG.md#unreleased),
 [asynchronous contributor policy](../CONTRIBUTING.md#code-style) and

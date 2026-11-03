@@ -31,22 +31,26 @@ amend an ADR.
 
 ## Current baseline
 
-EF Core `11.0.0-rc.2.26504.105` exposes 329 official compliance bases, 9,305
+EF Core `11.0.0-rc.3.26522.148` exposes 329 official compliance bases, 9,305
 unique xUnit method definitions, and 19,665 effective base-to-method
 assignments. Every base is implemented or covered by the upstream-defined
 `NonSharedModelTestBase` exemption; the provider suite debt is `0/0`.
 
-Discovery regenerated on 2026-10-20 records 30,440 exact specification test
+Discovery regenerated on 2026-11-03 records 30,440 exact specification test
 IDs for each supported target:
 
 | EF Core | Target | Discovered |
 | --- | --- | ---: |
-| 11.0.0-rc.2.26504.105 | MySQL 8.4 | 30,440 |
-| 11.0.0-rc.2.26504.105 | MySQL 9.7 | 30,440 |
-| 11.0.0-rc.2.26504.105 | MariaDB 10.11 | 30,440 |
-| 11.0.0-rc.2.26504.105 | MariaDB 11.4 | 30,440 |
-| 11.0.0-rc.2.26504.105 | MariaDB 11.8 | 30,440 |
-| 11.0.0-rc.2.26504.105 | MariaDB 12.3 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MySQL 8.4 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MySQL 9.7 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MariaDB 10.11 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MariaDB 11.4 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MariaDB 11.8 | 30,440 |
+| 11.0.0-rc.3.26522.148 | MariaDB 12.3 | 30,440 |
+
+The RC.2 inventory and discovery files remain historical evidence. Comparison
+with the regenerated RC.3 contracts confirms identical upstream method and
+base-class sets and identical exact discovery IDs on all six targets.
 
 ## Historical 10.x evidence
 
@@ -160,7 +164,7 @@ bash eng/testing/check-spec-contract.sh
 bash eng/testing/check-spec-discovery.sh
 ```
 
-The repository and release workflows validate the exact restored EF Core RC.2
+The repository and release workflows validate the exact restored EF Core RC.3
 graph before starting the live-engine suites.
 
 After a live specification run, reconcile its TRX results with the exact
@@ -191,7 +195,8 @@ Retrieved on 2026-10-29:
 - EF Core 10.0.14 package source tree:
   <https://github.com/dotnet/dotnet/tree/0427b9abbead3fa64c6655eb4290c537397131fa/src/efcore>
 
-RC.2 sources retrieved on 2026-10-20; 10.0.13 sources retrieved on 2026-10-19:
+RC.3 sources retrieved on 2026-11-03; RC.2 sources retrieved on 2026-10-20;
+10.0.13 sources retrieved on 2026-10-19:
 
 - NuGet package versions:
   <https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/index.json>
@@ -207,3 +212,5 @@ RC.2 sources retrieved on 2026-10-20; 10.0.13 sources retrieved on 2026-10-19:
   <https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Specification.Tests/ComplianceTestBase.cs>
 - EF Core `RelationalComplianceTestBase` at the RC.1 source commit:
   <https://github.com/dotnet/efcore/blob/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests/RelationalComplianceTestBase.cs>
+- EF Core RC.3 package identity (retrieved 2026-11-03):
+  <https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.3.26522.148>

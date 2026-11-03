@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Associations;
 using Xunit.v3;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
