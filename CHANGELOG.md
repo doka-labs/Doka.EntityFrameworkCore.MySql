@@ -10,13 +10,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - Start the isolated 11.x provider line on `net11.0` with exact .NET SDK and
-  EF Core `11.0.0-rc.2.26504.105` pins. The stable 10.x line remains the .NET
+  EF Core `11.0.0-rc.3.26522.148` pins. The stable 10.x line remains the .NET
   10 maintenance line.
+- Advance the .NET 11 SDK, runtime packages and dotnet-ef to RC.3, including
+  Microsoft's out-of-band runtime security fixes. Regenerate the exact
+  specification inventory, six-target discovery contracts and shipping locks.
 - Move the test projects to xUnit.net v3 package version 4.0.0. Repository
   automation uses the .NET 11 Microsoft Testing Platform runner, while the
   xUnit IDE adapter keeps Rider and other supported IDE runners available.
 - Replace the stable-line EF Core floor/latest patch matrix with one exact
-  RC.2 dependency graph. Repository, specification, integration, runtime, and
+  RC.3 dependency graph. Repository, specification, integration, runtime, and
   publication gates qualify that graph without a second floating restore.
 - Consume the .NET 11 shared-framework caching, dependency-injection, logging,
   and options abstractions instead of shipping redundant package references.

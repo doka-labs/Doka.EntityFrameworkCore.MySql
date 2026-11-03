@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Associations;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Xunit.v3;
 
