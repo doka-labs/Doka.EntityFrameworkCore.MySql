@@ -77,7 +77,7 @@ the released 10.x line stable while letting the next major validate the real
 .NET 11 and EF Core 11 surface without a conditional dual-provider build.
 
 The `feature/dotnet-11` line targets `net11.0` only. It pins SDK
-`11.0.100-rc.2.26504.105` and EF Core `11.0.0-rc.2.26504.105` exactly. The
+`11.0.100-rc.3.26522.148` and EF Core `11.0.0-rc.3.26522.148` exactly. The
 matching RC dependency graph is intentional: a prerelease provider-facing API
 change requires a reviewed code and evidence update rather than a floating
 restore.
@@ -116,7 +116,7 @@ reused as GA evidence.
 - `global.json` pins the exact .NET 11 SDK and Microsoft Testing Platform
   runner.
 - `Directory.Build.props` targets `net11.0` and declares the 11.x package line.
-- `Directory.Packages.props` pins one exact EF Core RC.2 graph.
+- `Directory.Packages.props` pins one exact EF Core RC.3 graph.
 - The versioned specification inventory and discovery files identify that
   exact EF Core version.
 - Repository scripts reject stale framework, package, discovery, and evidence
@@ -148,8 +148,8 @@ reused as GA evidence.
 
 ### Implementation Snapshot
 
-As of 2026-10-20, the isolated 11.x branch targets the exact .NET 11 RC.2 SDK
-and EF Core RC.2 packages. The provider source, upstream specification
+As of 2026-11-03, the isolated 11.x branch targets the exact .NET 11 RC.3 SDK
+and EF Core RC.3 packages. The provider source, upstream specification
 adapters, xUnit v3 test projects, repository scripts, runtime posture, package
 locks, documentation, and release contracts are being qualified as one change.
 
@@ -174,6 +174,8 @@ are release inputs, not descriptive snapshots.
   multi-target shape with an isolated single-target 11.x line.
 - 2026-10-20: Updated the exact SDK and EF Core dependency graph to RC.2 and
   regenerated the upstream specification and discovery contracts.
+- 2026-11-03: Updated the exact SDK and EF Core dependency graph to RC.3;
+  regenerated and compared the upstream specification and discovery contracts.
 
 ### Implementation References
 
@@ -196,6 +198,10 @@ are release inputs, not descriptive snapshots.
   (primary source; retrieved 2026-10-20)
 - [EF Core 11 RC.2 package][efcore-11-rc2]
   (primary source; retrieved 2026-10-20)
+- [.NET 11 RC.3 release notes][dotnet-11-rc3]
+  (primary source; retrieved 2026-11-03)
+- [EF Core 11 RC.3 package][efcore-11-rc3]
+  (primary source; retrieved 2026-11-03)
 
 [dotnet-11-rc1]:
   https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc1/11.0.0-rc.1.md
@@ -207,3 +213,7 @@ are release inputs, not descriptive snapshots.
   https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc2/11.0.0-rc.2.md
 [efcore-11-rc2]:
   https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/11.0.0-rc.2.26504.105
+[dotnet-11-rc3]:
+  https://github.com/dotnet/core/blob/main/release-notes/11.0/preview/rc3/11.0.0-rc.3.md
+[efcore-11-rc3]:
+  https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/11.0.0-rc.3.26522.148
