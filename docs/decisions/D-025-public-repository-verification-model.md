@@ -9,12 +9,24 @@ scope: "CI verification lanes, workflow security posture, and lint contract for 
 supersedes: [D-023]
 superseded-by: []
 amends: []
-amended-by: [D-026]
+amended-by: [D-026, D-030]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
 # D-025 -- Qualify pull-request changes once and harden public workflows
+
+## 2026-11-03 Amendment: Shared complete qualification
+
+[D-030](D-030-release-lines-and-monotonic-publication.md#2026-11-03-amendment-one-complete-qualification-definition)
+now owns the complete read-only `quality-gates.yml` graph shared by PR CI and
+release candidates. Normal PR green includes full integration, package
+consumers and SBOM. Runtime posture runs through the common `engine-contracts`
+job. The CI caller retains `repository-qualification` and the tested merge-tree
+receipt; release-only assembly, attestation, signed tags and protected
+publication remain separate. Scheduled floating dependency probes remain
+independent. Earlier five-gate counts and `integration-smoke` ownership below
+are historical; their trust and workflow-security boundaries remain binding.
 
 ## 2026-09-01 Amendment: Bind release trust to the tree CI tested
 
@@ -423,6 +435,8 @@ version control. They are documented in
   pull request through exact qualified/merged Git-tree equality.
 - 2026-09-01: Corrected the qualified-tree identity to GitHub's tested
   pull-request merge ref and froze its attempt-qualified artifact identity.
+- 2026-11-03: D-030 assigns complete PR and candidate qualification to one
+  read-only reusable workflow while preserving the caller's merge-tree receipt.
 
 ### Implementation References
 

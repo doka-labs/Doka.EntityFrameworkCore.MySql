@@ -15,10 +15,6 @@ export DOTNET_CLI_USE_MSBUILD_SERVER=0
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 deadline_module="eng.common.deadline"
 stage_checkpoint_module="eng.release.checkpoint"
-runtime_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj"
-spatial_project="${repo_root}/src/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
-spatial_project="${spatial_project}/Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"
-cache_project="${repo_root}/src/Doka.Caching.MySql/Doka.Caching.MySql.csproj"
 functional_test_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests"
 functional_test_project="${functional_test_project}/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
 specification_contract_project="${repo_root}/eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract"
@@ -43,7 +39,6 @@ migration_deployment_root="${release_candidate_dir}/migration-deployment"
 runtime_dir="${release_candidate_dir}/runtime"
 efcore_matrix_dir="${release_candidate_dir}/efcore-patch-matrix"
 mysqlconnector_matrix_dir="${release_candidate_dir}/mysqlconnector-patch-matrix"
-runtime_publish_dir="${repo_root}/artifacts/runtime-smoke/${release_candidate_run_id}/trimmed"
 reconciliation_file="${release_candidate_dir}/release-candidate-reconciliation.json"
 qualification_manifest_file="${release_candidate_dir}/release-qualification-manifest.json"
 gate_results_file="${release_candidate_dir}/release-gate-results.json"
@@ -271,19 +266,20 @@ verify_required_stage_set() {
     # default branch is imported, so requiring a receipt for it here would make
     # every release unfinishable, while accepting one would let an artifact
     # from another commit stand in for this one. The workflow matrix and this
-    # list are pinned to each other by a repository contract test.
-    local expected_stages=(
-        migration-deployment
-        runtime
-        efcore-patch-matrix
-        mysqlconnector-patch-matrix
-        package
-        sbom
-    )
+    # list consume the same branch-owned inventory as artifact restoration.
+    local stage_inventory
+    stage_inventory="$(bash "${repo_root}/eng/testing/qualify-engine.sh" --all-stages)"
+    local expected_stages=()
+    local stage
+
+    while IFS= read -r stage; do
+        expected_stages+=("${stage}")
+    done < <(jq -r '.[]' <<< "${stage_inventory}")
 
     if [[ "${include_complete}" == "1" ]]; then
         expected_stages+=(complete)
     fi
+
     local command=(
         python3 -m "${stage_checkpoint_module}" verify-set
         --repo "${repo_root}"
@@ -294,7 +290,6 @@ verify_required_stage_set() {
         --expected-release-tag "${expected_release_tag}"
         --maximum-run-attempt "${release_run_attempt}"
     )
-    local stage
 
     for stage in "${expected_stages[@]}"; do
         command+=(--expected-stage "${stage}")
@@ -365,86 +360,9 @@ package_version_from_file() {
     basename "${package_path}" | sed -E "s/^${package_name//./\\.}\.([0-9A-Za-z.-]+)\.nupkg$/\1/"
 }
 
-run_with_release_version() {
-    local command_arguments=("$@")
-
-    # Bash 3.2 treats an empty-array expansion as an unbound variable under
-    # nounset. Keep the command array non-empty and append the optional MSBuild
-    # property only when a release version was explicitly supplied.
-    if [[ -n "${release_version_override}" ]]; then
-        command_arguments+=("-p:PackageVersion=${release_version_override}")
-    fi
-
-    "${command_arguments[@]}"
-}
-
 run_pack() {
-    local local_release_version
-
-    mkdir -p "${packages_dir}"
-    mkdir -p "${sbom_components_dir}/runtime" "${sbom_components_dir}/spatial" "${sbom_components_dir}/cache"
-
-    # Reuse the same dependency-closure gate as CI and pre-push. It runs before
-    # candidate bytes exist and does not narrow the ranges shipped to consumers.
-    "${repo_root}/eng/quality/verify-release-package-locks.sh"
-
-    # Bind the exact restored dependency graphs to the package stage. SBOM
-    # generation must consume these immutable candidate-local copies rather
-    # than mutable obj files that another build can replace later.
-    cp \
-        "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json" \
-        "${sbom_components_dir}/runtime/project.assets.json"
-    cp \
-        "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json" \
-        "${sbom_components_dir}/spatial/project.assets.json"
-    cp \
-        "${repo_root}/artifacts/obj/Doka.Caching.MySql/project.assets.json" \
-        "${sbom_components_dir}/cache/project.assets.json"
-
-    run_with_release_version \
-        dotnet build "${runtime_project}" --configuration Release --no-restore --tl:off -m:1
-    run_with_release_version \
-        dotnet build "${spatial_project}" --configuration Release --no-restore --tl:off -m:1
-    run_with_release_version \
-        dotnet build "${cache_project}" --configuration Release --no-restore --tl:off -m:1
-    run_with_release_version \
-        dotnet pack "${runtime_project}" --configuration Release --no-build --no-restore \
-        --output "${packages_dir}" --tl:off
-    run_with_release_version \
-        dotnet pack "${spatial_project}" --configuration Release --no-build --no-restore \
-        --output "${packages_dir}" --tl:off
-    run_with_release_version \
-        dotnet pack "${cache_project}" --configuration Release --no-build --no-restore \
-        --output "${packages_dir}" --tl:off
-
-    local_release_version="$(package_version_from_file "Doka.EntityFrameworkCore.MySql")"
-    bash "${repo_root}/eng/testing/test-local-package-consumer.sh" \
-        "${local_release_version}" \
-        "${packages_dir}" \
-        "${local_package_consumer_dir}"
-
-    local mysql84_image
-    mysql84_image="$(
-        docker compose -f "${repo_root}/docker/compose.yml" config --format json \
-            | jq -er '.services.mysql84.image'
-    )"
-    bash "${repo_root}/eng/testing/test-nuget-readback.sh" \
-        "${local_release_version}" \
-        "${expected_release_tag}" \
-        "$(git rev-parse HEAD)" \
-        "${mysql84_image}" \
-        "${local_package_consumer_dir}" \
-        "${packages_dir}"
-    require_evidence_file \
-        "${local_package_consumer_dir}/local-package-runtime.json"
-
-    # Persist the graph NuGet actually resolved. The manifest rejects missing
-    # or ambiguous versions for the provider's contract dependencies.
-    dotnet package list \
-        --project "${runtime_project}" \
-        --include-transitive \
-        --format json \
-        --no-restore > "${dependency_graph_file}"
+    bash "${repo_root}/eng/testing/qualify-packages.sh" \
+        "${release_version_override}" "${release_candidate_dir}"
 }
 
 # The advertised engine matrix is explicit here so a newly green default test
@@ -456,14 +374,6 @@ run_specification_gate() {
     dotnet restore "${functional_test_project}" --tl:off
     dotnet build "${specification_contract_project}" --configuration Release --no-restore --tl:off -m:1
     dotnet build "${functional_test_project}" --configuration Release --no-restore --tl:off -m:1
-    bash "${repo_root}/eng/testing/check-spec-contract.sh"
-    dotnet test "${functional_test_project}" \
-        --configuration Release --no-build --no-restore --tl:off \
-        --filter "FullyQualifiedName~SpecDispositionContractTests" \
-        --logger trx \
-        --results-directory "${specification_dir}/contract"
-    bash "${repo_root}/eng/testing/check-spec-discovery.sh"
-
     local targets=(
         "mysql84"
         "mysql97"
@@ -475,15 +385,9 @@ run_specification_gate() {
     local target
     for target in "${targets[@]}"; do
         echo "Running release specification suite against ${target}..."
-        DOKA_SPEC_TEST_TARGET="${target}" \
-        DOKA_TEST_DATABASE_EVIDENCE_FILE="${specification_dir}/${target}/test-database-evidence.json" \
-            dotnet test "${functional_test_project}" \
-                --configuration Release --no-build --no-restore --tl:off \
-                --filter "Category=Spec|Category=Live" \
-                --collect:"XPlat Code Coverage" \
-                --logger trx \
-                --results-directory "${specification_dir}/${target}"
-        bash "${repo_root}/eng/testing/check-spec-results.sh" \
+        # WHY: Runner flags and disposition reconciliation have one owner for
+        # hosted qualification and this admitted local RC entry point.
+        bash "${repo_root}/eng/testing/test-spec-target.sh" \
             "${target}" \
             "${specification_dir}/${target}"
     done
@@ -503,85 +407,20 @@ run_repository_quality_gate() {
 }
 
 run_integration_configuration_and_failure_gate() {
-    # Route every integration artifact into the candidate root. Files outside
-    # this root cannot be hashed into the release manifest. The required-matrix
-    # flag also prevents a future caller from narrowing either the engine set or
-    # the test categories while still claiming release-candidate coverage.
-    DOKA_COVERAGE_RESULTS_DIR="${coverage_input_dir}/integration" \
-    DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_dir}" \
-    DOKA_INTEGRATION_RUN_ID="${release_candidate_run_id}" \
-    DOKA_INTEGRATION_TARGETS="mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123" \
-    DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1 \
-    DOKA_TEST_DATABASE_EVIDENCE_FILE="${integration_dir}/test-database-evidence.json" \
-        bash "${repo_root}/eng/testing/test-integration.sh"
-
-    # The examples are public product documentation. Execute their own
-    # invariants against every supported engine after the infrastructure
-    # contracts pass; this is intentionally a release gate, not a push gate.
-    DOKA_EXAMPLE_RUN_ID="${release_candidate_run_id}" \
-    DOKA_EXAMPLE_TARGETS="mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123" \
-    DOKA_EXAMPLE_EVIDENCE_DIR="${integration_dir}/examples" \
-        bash "${repo_root}/eng/testing/test-examples.sh"
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "integration" "${release_candidate_dir}" "${release_candidate_run_id}"
 }
 
 run_migration_deployment_gate() {
-    DOKA_MIGRATION_DEPLOYMENT_RUN_ID="${release_candidate_run_id}" \
-    DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT="${migration_deployment_root}" \
-        bash "${repo_root}/eng/testing/test-migration-deployment.sh"
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "migration-deployment" "${release_candidate_dir}" "${release_candidate_run_id}"
 }
 
 run_runtime_posture_gate() {
-    # The smoke executable is host-specific and is not a release payload. Its
-    # digest, publish contract, execution result, source identity, and engine
-    # identity are retained inside the portable candidate evidence instead.
-    DOKA_RUNTIME_POSTURE_RUN_ID="${release_candidate_run_id}" \
-    DOKA_RUNTIME_POSTURE_EVIDENCE_DIR="${runtime_dir}" \
-    DOKA_RUNTIME_POSTURE_PUBLISH_DIR="${runtime_publish_dir}" \
-    DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE=1 \
-    DOKA_RUNTIME_MYSQL_PORT=0 \
-        bash "${repo_root}/eng/testing/test-runtime-posture.sh" --up-test-down
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "runtime" "${release_candidate_dir}" "${release_candidate_run_id}"
 }
 
-copy_matrix_evidence_legs() {
-    local source_root="$1"
-    local destination_root="$2"
-    local release_artifacts_root="${repo_root}/artifacts/release-candidate"
-    shift 2
-
-    case "${destination_root}" in
-        "${release_candidate_dir}"/*)
-            ;;
-        *)
-            echo "Matrix evidence destination escapes the release candidate: ${destination_root}" >&2
-            exit 1
-            ;;
-    esac
-
-    if [[ -L "${repo_root}/artifacts" \
-        || -L "${release_artifacts_root}" \
-        || -L "${release_candidate_dir}" \
-        || -L "${destination_root}" ]]; then
-        echo "Matrix evidence destination path must not contain a symlink: ${destination_root}" >&2
-        exit 1
-    fi
-
-    if [[ ! -d "${source_root}" || -L "${source_root}" ]]; then
-        echo "Matrix evidence source is missing or non-regular: ${source_root}" >&2
-        exit 1
-    fi
-
-    rm -rf -- "${destination_root}"
-    mkdir -p "${destination_root}"
-
-    local leg
-    for leg in "$@"; do
-        if [[ ! -d "${source_root}/${leg}" || -L "${source_root}/${leg}" ]]; then
-            echo "Matrix evidence leg is missing or non-regular: ${source_root}/${leg}" >&2
-            exit 1
-        fi
-        cp -R "${source_root}/${leg}" "${destination_root}/${leg}"
-    done
-}
 
 # The protected branch already runs the complete repository, specification,
 # and integration contracts against the deterministic EF Core floor. The
@@ -589,49 +428,13 @@ copy_matrix_evidence_legs() {
 # highest patch already admitted to the reviewed specification baseline so an
 # upstream publication cannot invalidate a green candidate after merge.
 run_efcore_matrix_gate() {
-    local leg qualified_pattern qualified_version scope
-    qualified_version="$(jq -er '
-        [
-          .efCoreVersions[]?
-          | select(test("^10[.]0[.][0-9]+$"))
-          | {version: ., components: (split(".") | map(tonumber))}
-        ]
-        | max_by(.components)
-        | .version
-    ' "${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json")"
-    qualified_pattern="^${qualified_version//./[.]}$"
-
-    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8:dependency-graph" \
-               "${qualified_version}:${qualified_pattern}:latest-10-0:full"; do
-        scope="${leg##*:}"
-        leg="${leg%:*}"
-        DokaEfCoreVersion="${leg%%:*}" \
-        DOKA_EF_CORE_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
-        DOKA_EF_CORE_ARTIFACT_SUFFIX="${leg##*:}" \
-        DOKA_EF_CORE_VALIDATION_SCOPE="${scope}" \
-            bash "${repo_root}/eng/testing/test-efcore-matrix.sh"
-    done
-    copy_matrix_evidence_legs \
-        "${repo_root}/artifacts/efcore-patch-matrix" \
-        "${efcore_matrix_dir}" \
-        "minimum-10-0-8" \
-        "latest-10-0"
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "efcore-patch-matrix" "${release_candidate_dir}" "${release_candidate_run_id}"
 }
 
 run_mysqlconnector_matrix_gate() {
-    local leg
-    for leg in "2.6.1:^2[.]6[.]1$:minimum-2-6-1" \
-               "2.*:^2[.][0-9]+[.][0-9]+$:latest-2-x"; do
-        DOKA_MYSQLCONNECTOR_VERSION="${leg%%:*}" \
-        DOKA_MYSQLCONNECTOR_RESOLVED_PATTERN="$(printf '%s' "${leg}" | cut -d: -f2)" \
-        DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX="${leg##*:}" \
-            bash "${repo_root}/eng/testing/test-mysqlconnector-matrix.sh"
-    done
-    copy_matrix_evidence_legs \
-        "${repo_root}/artifacts/mysqlconnector-patch-matrix" \
-        "${mysqlconnector_matrix_dir}" \
-        "minimum-2-6-1" \
-        "latest-2-x"
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "mysqlconnector-patch-matrix" "${release_candidate_dir}" "${release_candidate_run_id}"
 }
 
 run_coverage_gate() {
@@ -642,65 +445,8 @@ run_coverage_gate() {
 }
 
 run_sbom() {
-    local release_version="$1"
-    local sbom_timeout="${DOKA_SBOM_TIMEOUT:-300}"
-    local runtime_assets="${sbom_components_dir}/runtime/project.assets.json"
-    local spatial_assets="${sbom_components_dir}/spatial/project.assets.json"
-    local cache_assets="${sbom_components_dir}/cache/project.assets.json"
-
-    mkdir -p "${sbom_dir}"
-
-    if [[ ! -f "${runtime_assets}" || ! -f "${spatial_assets}" || ! -f "${cache_assets}" ]]; then
-        echo "Release package dependency assets are missing; run_pack must complete before SBOM generation." >&2
-        exit 1
-    fi
-
-    # NuGet records the absolute obj location inside project.assets.json. The
-    # package and SBOM stages run in separate jobs, so restore that location
-    # from the immutable candidate copy after validating every recorded path.
-    # A fresh restore here could silently replace the qualified graph.
-    python3 -m eng.release.sbom \
-        --repository-root "${repo_root}" \
-        --assets "${runtime_assets}" \
-        --project "${runtime_project}" \
-        --output-directory "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql"
-    python3 -m eng.release.sbom \
-        --repository-root "${repo_root}" \
-        --assets "${spatial_assets}" \
-        --project "${spatial_project}" \
-        --output-directory "${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite"
-    python3 -m eng.release.sbom \
-        --repository-root "${repo_root}" \
-        --assets "${cache_assets}" \
-        --project "${cache_project}" \
-        --output-directory "${repo_root}/artifacts/obj/Doka.Caching.MySql"
-
-    # Component detection consumes the exact restored graphs of the three
-    # released packages. This excludes stale, test, and benchmark graphs while
-    # retaining all direct and transitive package dependencies.
-    dotnet tool restore
-
-    # The pinned SBOM tool targets an older supported .NET runtime. The CLI
-    # switch keeps the local tool executable when only a newer runtime is
-    # installed, without weakening the repository's SDK pin.
-    local sbom_cmd=(dotnet tool run sbom-tool --allow-roll-forward -- Generate \
-        -b "${packages_dir}" \
-        -bc "${sbom_components_dir}" \
-        -m "${sbom_dir}" \
-        -pn "Doka.EntityFrameworkCore.MySql.ReleaseCandidate" \
-        -pv "${release_version}" \
-        -ps "Doka" \
-        -nsb "https://github.com/doka/Doka.EntityFrameworkCore.MySql/releases/sbom" \
-        -D true)
-
-    echo "Running SBOM generation with a ${sbom_timeout}-second deadline..."
-    if ! python3 -m "${deadline_module}" \
-        --seconds "${sbom_timeout}" \
-        --label "SBOM generation" \
-        -- "${sbom_cmd[@]}"; then
-        echo "SBOM generation failed or exceeded ${sbom_timeout} seconds." >&2
-        exit 1
-    fi
+    bash "${repo_root}/eng/testing/generate-package-sbom.sh" \
+        "$1" "${release_candidate_dir}"
 }
 
 write_changelog() {

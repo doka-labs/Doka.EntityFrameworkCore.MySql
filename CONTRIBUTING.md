@@ -125,8 +125,9 @@ Accepted specification targets are `mysql84`, `mysql97`, `mariadb1011`,
 `mariadb114`, `mariadb118`, and `mariadb123`. Set
 `DOKA_SPEC_TEST_CONNECTION_STRING` together with
 `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
-The per-event CI matrix runs `Category=Spec|Category=Live` in six independent
-processes, one for every accepted target.
+The shared qualification workflow runs `Category=Spec|Category=Live` in six
+independent processes, one for every accepted target, for both PR and candidate
+qualification.
 
 For the complete local matrix, use the repository runner. It builds once,
 starts a separate test host and test-owned container for every target in the
@@ -193,6 +194,19 @@ bash eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
 bash eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
 ```
 
+PR and release-candidate workflows both call
+[the shared qualifier](.github/workflows/quality-gates.yml). Its complete
+reversible checks include repository quality and tests, six-engine
+specifications, full integration and examples, migration deployment, runtime
+posture, qualified dependency matrices, exact packing of all three packages and
+symbols, isolated real-package consumers with runtime readback, SBOM, and
+coverage. Normal PR CI therefore exercises package consumption and SBOM before
+merge. The qualifier uses the source branch's SDK, framework and test runner;
+it has no publishing environment, publishing credentials, OIDC or repository-write
+authority.
+Scheduled floating dependency probes remain separate from the reviewed
+floor/highest-admitted EF Core and floor/latest driver qualification recipes.
+
 **Runtime-posture smoke** executes provider/spatial ordinary and full-trim
 builds, and standalone-cache ordinary, full-trim, and NativeAOT builds:
 
@@ -242,12 +256,14 @@ matches the candidate commit's Git tree. A failure names the missing
 precondition; it must be resolved before allocating a hosted candidate run.
 
 Manually dispatch `release-candidate` from exact current `main` before creating
-the release tag. The workflow produces the package and SBOM, runs the
-candidate-owned migration, runtime, and dependency patch gates, executes an
-isolated local-package consumer, and imports the PR-bound, tree-exact repository
-qualification. After those reversible jobs and attestations are green, push
-the signed tag on that exact SHA and approve the waiting `nuget` environment
-job.
+the release tag. Preflight verifies current release-line authority and imports
+the PR-bound, tree-exact repository qualification. The run then calls the same
+complete qualifier once with its explicit candidate version. Candidate stages
+retain their same-run attempt, digest and checkpoint bindings; assembly freezes
+those bytes and the separate attestation job seals them. After qualification
+and attestations are green, push the signed tag on that exact SHA and approve
+the waiting `nuget` environment job. These release-only identity and publication
+steps are separate from ordinary PR readiness.
 Benchmarks remain an independent engineering signal and are neither invoked nor
 consumed by release qualification.
 
@@ -334,6 +350,9 @@ changes to `docs/decisions/README.md` or `decision-index.json` are rejected.
 - New translation, type-mapping, migration DDL, or scaffolding paths must include both unit / functional tests and -- where behavior is engine-specific -- live integration tests against the relevant MySQL and MariaDB containers.
 - The build and all applicable test suites must be green before requesting
   review.
+- Normal PR `repository-qualification` requires the complete shared qualifier,
+  including package consumers and SBOM. A release-only candidate attestation,
+  signed tag or publication is not required to make an ordinary PR ready.
 - Summarize the motivation and approach in the PR description.
 - Complete every governance, evidence, and validation row in the PR template.
   Use `not applicable` only with a change-specific rationale; an unchecked or

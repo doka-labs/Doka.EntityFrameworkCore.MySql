@@ -300,7 +300,8 @@
       "supersededBy": [],
       "amends": [],
       "amendedBy": [
-        "D-026"
+        "D-026",
+        "D-030"
       ]
     },
     {
@@ -362,6 +363,7 @@
       "supersededBy": [],
       "amends": [
         "D-013",
+        "D-025",
         "D-026"
       ],
       "amendedBy": []

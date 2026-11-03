@@ -4,7 +4,7 @@ public sealed partial class AdrRepositoryValidatorTests
 {
     /// <summary>Runs release-boundary regressions before merge and before expensive qualification.</summary>
     [Theory]
-    [InlineData("ci.yml", "repo-tests")]
+    [InlineData("quality-gates.yml", "repo-tests")]
     [InlineData("release-candidate.yml", "preflight")]
     public void Release_tool_contracts_run_before_provider_and_candidate_work(
         string workflowName,
@@ -79,9 +79,7 @@ public sealed partial class AdrRepositoryValidatorTests
     /// <summary>Keeps qualification outside the shared publisher lock and protected environment.</summary>
     [Theory]
     [InlineData("preflight")]
-    [InlineData("foundation")]
-    [InlineData("engine-contracts")]
-    [InlineData("sbom")]
+    [InlineData("qualification")]
     [InlineData("assemble")]
     [InlineData("attest")]
     public void Qualification_does_not_acquire_publication_authority(string jobName)

@@ -153,12 +153,18 @@ side branch, stale `main`, malformed version, dirty candidate identity, or any
 semantic version tag already pointing at the source commit. An activated
 maintenance/preview line uses its own exact branch and package-major/channel
 authority, not main's source or toolchain. The same entry then performs the
-complete applicable reversible qualification phase:
+complete applicable reversible qualification through one call to
+[`quality-gates.yml`](../../.github/workflows/quality-gates.yml), also used by
+normal PR CI. Preflight and current-line authorization stay in the release
+caller; the common workflow receives the explicit version and frozen
+authorization artifact. It has no publisher environment, publishing secrets,
+OIDC, attestation or repository-write authority.
 
-Assembly requires exactly six required stage receipts: package, SBOM, migration
-deployment, runtime posture, EF Core patch matrix, and MySqlConnector patch
-matrix.
+The shared qualifier covers:
 
+- repository quality, unit and functional tests;
+- specifications on all six supported engines;
+- full integration/configuration/failure coverage and examples;
 - migration deployment;
 - runtime posture;
 - EF Core floor-graph and full qualification of the highest exact patch already
@@ -172,22 +178,29 @@ matrix.
   separate cache-only project that rejects EF Core and Pomelo dependencies;
 - basic, spatial, and standalone cache runtime execution against the pinned
   MySQL 8.4 image;
-- publication completeness rebuilt on the clean finalization runner against
-  the exact EF Core and MySqlConnector patches selected by the matrices;
-- canonical evidence assembly; and
-- GitHub artifact attestations bound to `refs/heads/main` and the exact commit;
-  the same job materializes their SLSA bundle as
-  `release-provenance.intoto.jsonl` without an operator step.
+- merged source coverage and its reviewed thresholds.
+
+The reusable `required` gate fails closed over the complete product graph.
+The same-run release assembly follows; on current main/10 it still requires
+exactly six stage receipts: package, SBOM, migration deployment, runtime posture,
+EF Core patch matrix, and MySqlConnector patch matrix. These are separate from
+the complete product job inventory. Candidate stages keep their
+`release-stage-<stage>-attempt-N` names, checkpoint ownership and digest checks.
+Assembly restores the selected qualified artifacts without repacking, validates
+publication completeness on its clean runner against the selected dependency
+patches, and seals canonical evidence. The separate attestation job binds
+`refs/heads/main` and the exact commit to those bytes and materializes the SLSA
+bundle as `release-provenance.intoto.jsonl` without an operator step.
 
 The runtime-posture stage requires clean release source before it allocates its
 database, restores the host RID into an isolated artifacts and lock directory,
 and rejects any source-tree change before writing evidence. Finalization then
 validates that exact evidence instead of trusting the runtime job conclusion.
-The same real Linux RID path runs inside the pull-request `integration-smoke`
-job, so the change exercises the failure boundary before merge. Release trust
-accepts that evidence only after the recorded tested merge-ref tree and merged
-`main` tree match exactly. Candidate runtime posture remains a separate retained
-release gate over the built package and deployment shape.
+The same real Linux RID recipe runs in the shared `engine-contracts` job for
+both PR and candidate qualification. Release trust accepts the imported PR
+result only after the recorded tested merge-ref tree and merged `main` tree
+match exactly. Candidate runtime posture retains its own same-run receipt over
+the built package and deployment shape.
 
 Runtime posture executes ordinary and full-trim provider/spatial builds, plus
 ordinary, full-trim, and NativeAOT builds of the standalone cache. The cache's
@@ -195,8 +208,10 @@ trimmed and native executable hashes are part of the runtime receipt. Provider
 NativeAOT remains deferred under
 [D-017](../decisions/D-017-nativeaot-smoke-deferred.md); the cache's separate
 execution does not reopen that claim. Adding the cache extends the existing
-package, SBOM, consumer, and runtime stages; the six-receipt gate set is
-unchanged.
+package, SBOM, consumer, and runtime stages; the current main/10 six-receipt set
+is unchanged. Each line retains its own SDK, framework, test runner and applicable
+reviewed dependency policy. Floating scheduled probes remain separate from
+qualification, as do hardware-dependent performance measurements.
 
 The final `publish` job waits for approval on the `nuget` environment. Do not
 approve it yet. Review the completed qualification jobs, candidate summary,

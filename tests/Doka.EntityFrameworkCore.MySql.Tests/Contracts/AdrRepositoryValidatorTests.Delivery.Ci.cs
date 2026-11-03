@@ -6,6 +6,7 @@ public sealed partial class AdrRepositoryValidatorTests
     /// <param name="fileName">The checked-in workflow to inspect.</param>
     [Theory]
     [InlineData("ci.yml")]
+    [InlineData("quality-gates.yml")]
     [InlineData("benchmark.yml")]
     [InlineData("container-matrix.yml")]
     [InlineData("release-candidate.yml")]
@@ -62,7 +63,7 @@ public sealed partial class AdrRepositoryValidatorTests
         var repositoryRoot = FindRepositoryRoot();
 
         // Act
-        var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+        var workflow = File.ReadAllText(Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
 
         // Assert
         Assert.Contains(
@@ -95,19 +96,9 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.DoesNotContain("  push:\n", ciTriggers, StringComparison.Ordinal);
         Assert.DoesNotContain("  merge_group:\n", ciTriggers, StringComparison.Ordinal);
         Assert.DoesNotContain("  main-admission:\n", ci, StringComparison.Ordinal);
-        foreach (var requiredGate in new[]
-                 {
-                     "quality-gates",
-                     "repo-tests",
-                     "spec-test-suite",
-                     "integration-smoke",
-                     "coverage-gate",
-                 })
-        {
-            Assert.Contains($"      - {requiredGate}\n", qualification, StringComparison.Ordinal);
-        }
+        Assert.Contains("needs: [schedule-identity, qualification]", qualification, StringComparison.Ordinal);
         Assert.Contains(
-            "Checkout tested pull-request merge ref",
+            "Checkout the tested source and aggregate contract",
             qualification,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -138,7 +129,7 @@ public sealed partial class AdrRepositoryValidatorTests
     }
 
     /// <summary>
-    /// Verifies tiered ci preserves fast and exhaustive verification lanes.
+    /// Keeps complete qualification on ordinary CI and independent floating dependency probes on maintenance runs.
     /// </summary>
     [Fact]
     public void Tiered_ci_preserves_fast_and_exhaustive_verification_lanes()
@@ -159,30 +150,16 @@ public sealed partial class AdrRepositoryValidatorTests
         var dependabot = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "dependabot.yml"));
 
-        const string exhaustiveCondition =
-            "if: >-\n"
-            + "      github.event_name == 'schedule'\n"
-            + "      || github.event_name == 'workflow_dispatch'";
+        var shared = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
 
-        var integrationStart = workflow.IndexOf(
-            "  integration-smoke:",
-            StringComparison.Ordinal);
+        var specificationTarget = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "test-spec-target.sh"));
 
-        var repositoryQualificationStart = workflow.IndexOf(
-            "  repository-qualification:",
-            integrationStart,
-            StringComparison.Ordinal);
-
-        var integration = workflow[integrationStart..repositoryQualificationStart];
-        // The required aggregator is the one job that must run under always():
-        // GitHub reports a skipped job as success, so a check that merely
-        // depended on the gates would pass in exactly the cases it exists to
-        // catch. It inspects every producer result explicitly instead, which is
-        // what makes it fail closed. Every other job still has to state a real
-        // condition, so the prohibition holds outside that job.
         var aggregator = GetWorkflowJob(workflow, "repository-qualification");
         var outsideAggregator = workflow.Replace(aggregator, string.Empty, StringComparison.Ordinal);
         var releasePreflight = GetWorkflowJob(releaseCandidate, "preflight");
+        var qualification = GetWorkflowJob(workflow, "qualification");
 
         // Assert
         Assert.Contains(
@@ -195,44 +172,14 @@ public sealed partial class AdrRepositoryValidatorTests
             workflow,
             StringComparison.Ordinal);
         Assert.Contains("cancel-in-progress: true", workflow, StringComparison.Ordinal);
-        AssertFastLaneJob(workflow, "quality-gates");
-        AssertFastLaneJob(workflow, "repo-tests");
-        AssertFastLaneJob(workflow, "integration-smoke");
-        // Specification conformance and coverage are part of every PR and
-        // explicit CI execution. Expensive patch matrices remain scheduled or
-        // manual and are intentionally outside the merge qualification.
-        Assert.DoesNotContain(
-            $"  spec-test-suite:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            $"  coverage-gate:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        AssertFastLaneJob(workflow, "spec-test-suite");
-        AssertFastLaneJob(workflow, "coverage-gate");
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", workflow, StringComparison.Ordinal);
-        Assert.Equal(
-            1,
-            workflow.Split("--filter \"Category=Spec|Category=Live\"", StringSplitOptions.None)
-                .Length
-            - 1);
-        Assert.Contains(
-            $"  migration-deployment:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"  efcore-patch-matrix:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            $"  runtime-posture:\n    {exhaustiveCondition}",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "bash ./eng/test-runtime-posture.sh --test-only",
-            integration,
-            StringComparison.Ordinal);
+        Assert.Contains("uses: $/.github/workflows/quality-gates.yml", qualification, StringComparison.Ordinal);
+        Assert.Contains("if: github.event_name != 'schedule' && !inputs.maintenance", qualification, StringComparison.Ordinal);
+        Assert.Contains("needs: schedule-identity", qualification, StringComparison.Ordinal);
+        Assert.Empty(EngineeringSurfaceContract.ValidateQualificationWorkflow(shared));
+        Assert.Contains("--filter \"Category=Spec|Category=Live\"", specificationTarget, StringComparison.Ordinal);
+        Assert.Contains("  migration-deployment:\n", workflow, StringComparison.Ordinal);
+        Assert.Contains("  efcore-patch-matrix:\n", workflow, StringComparison.Ordinal);
+        Assert.Contains("  mysqlconnector-patch-matrix:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("  benchmark-smoke:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "    if: >-\n      always()",
@@ -246,10 +193,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "Require every commit-exact gate to have succeeded",
             aggregator,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "Require successful coverage producers",
-            workflow,
-            StringComparison.Ordinal);
+        Assert.Contains("Require successful coverage producers", shared, StringComparison.Ordinal);
         Assert.Contains("cron: \"0 2 * * 2\"", containerMatrix, StringComparison.Ordinal);
         Assert.DoesNotContain("schedule:", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
@@ -257,7 +201,7 @@ public sealed partial class AdrRepositoryValidatorTests
             releasePreflight,
             StringComparison.Ordinal);
         Assert.Contains("--qualification-only", releasePreflight, StringComparison.Ordinal);
-        Assert.Contains("  foundation:\n    needs: preflight", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("  qualification:\n    needs: preflight", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
             "groups:\n      github-actions:\n        patterns:\n          - \"*\"\n"
             + "    open-pull-requests-limit: 1",
@@ -325,7 +269,7 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Act
         var workflow = File.ReadAllText(
-            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+            Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
 
         var qualityGates = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "quality", "quality-gates.sh"));

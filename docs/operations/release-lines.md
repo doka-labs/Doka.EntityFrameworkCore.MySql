@@ -52,6 +52,18 @@ Use `qualification_only=true` to prepare a protected line without publication.
 It performs the complete applicable qualification but requests no publisher
 environment, credentials or signed tag and makes no publication writes.
 
+PR CI and the candidate run use one
+[`quality-gates.yml`](../../.github/workflows/quality-gates.yml) definition. It
+includes quality and repository tests, six-engine specifications, full
+integration and examples, migration deployment, runtime trim/cache NativeAOT,
+qualified dependency matrices, three exact package/symbol pairs, isolated
+real-package consumers with runtime readback, SBOM and coverage. Ordinary PR
+green includes package consumers and SBOM. After line/source preflight, the
+candidate calls this qualifier once, then assembles and attests the same-run
+bytes before the existing tagging and approval steps. The shared qualifier has
+no publication authority; an ordinary PR requires no release-only seal, tag or
+publication.
+
 ## Line eligibility and exact evidence
 
 | State | Allowed behavior |
@@ -65,6 +77,11 @@ only. Main and maintenance use the approved GA toolchain. A future GA adoption
 must not inherit RC dependencies or another major's patch policy. Each source
 uses its own SDK, target framework, EF graph and test runner; qualification
 requires its own successful PR base, tested merge tree and workflow identity.
+The common workflow uses that branch-native toolchain rather than assuming
+.NET 10 commands or another line's test-runner flags. Its EF Core recipe uses
+the applicable reviewed floor/highest-admitted policy, while independent
+scheduled floating probes detect new upstream patches. Hardware-dependent
+benchmark timing, CPU and working-set thresholds are never qualification gates.
 
 Qualification freezes those identities and the observed policy revision/digest.
 Publication independently reads current protected-main authority after approval
@@ -80,6 +97,13 @@ checks cannot change code executed by old-SHA reruns or override administrator
 access. Historical verification still uses the original signed tag, schema,
 source ref and provenance, not today's main major; a complete older release
 need not remain Latest. See [Verifying a Release](../security/release-verification.md).
+
+The shared qualification call preserves same-run
+`release-stage-<stage>-attempt-N` artifacts, digest checks and checkpoints.
+Current main/10 assembly retains its six release-stage receipts, independently
+of the complete product job graph; it consumes qualified package bytes without
+repacking. Source/version binding, attestation, protected admission and recovery
+remain release-caller responsibilities.
 
 ## Prepare or activate a line
 

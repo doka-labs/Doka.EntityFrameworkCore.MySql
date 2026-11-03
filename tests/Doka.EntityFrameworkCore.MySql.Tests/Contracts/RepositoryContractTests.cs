@@ -71,15 +71,21 @@ public sealed class RepositoryContractTests
     /// <summary>
     /// Verifies image pin contract rejects a mirror with another digest.
     /// </summary>
-    [Fact]
-    public void Image_pin_contract_rejects_a_mirror_with_another_digest()
+    /// <param name="relativeWorkflow">The workflow receiving an image literal.</param>
+    [Theory]
+    [InlineData(".github/workflows/ci.yml")]
+    [InlineData(".github/workflows/quality-gates.yml")]
+    public void Image_pin_contract_rejects_a_mirror_with_another_digest(
+        string relativeWorkflow
+    )
     {
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
         using var directory = new TemporaryDirectory();
         foreach (var relativePath in new[]
                  {
-                     "docker/compose.yml", ".github/workflows/ci.yml", "benchmarks/performance-contract.json",
+                     "docker/compose.yml", ".github/workflows/ci.yml", ".github/workflows/quality-gates.yml",
+                     "benchmarks/performance-contract.json",
                      "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs",
                  })
         {
@@ -87,13 +93,14 @@ public sealed class RepositoryContractTests
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             File.Copy(Path.Combine(repositoryRoot, relativePath), destination);
         }
-        var workflowPath = Path.Combine(directory.Path, ".github/workflows/ci.yml");
+        var workflowPath = Path.Combine(directory.Path, relativeWorkflow);
         var workflow = File.ReadAllText(workflowPath);
-        var pin = Regex.Match(workflow, "mysql:8\\.4[^\\s]+@sha256:[0-9a-f]{64}", RegexOptions.CultureInvariant)
+        var compose = File.ReadAllText(Path.Combine(directory.Path, "docker/compose.yml"));
+        var pin = Regex.Match(compose, "mysql:8\\.4[^\\s]+@sha256:[0-9a-f]{64}", RegexOptions.CultureInvariant)
             .Value;
 
         var replacement = pin[..^1] + (pin[^1] == '0' ? '1' : '0');
-        File.WriteAllText(workflowPath, workflow.Replace(pin, replacement, StringComparison.Ordinal));
+        File.WriteAllText(workflowPath, workflow + $"\n# Declared image: {replacement}\n");
 
         // Act
         var errors = ImagePinContract.Validate(directory.Path);

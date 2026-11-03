@@ -1,0 +1,586 @@
+name: Quality gates
+
+# One read-only qualification graph is used before merge and before release.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Exact RC package version; empty uses this branch's source version.
+        type: string
+        required: false
+        default: ''
+      authorization_artifact:
+        description: Frozen RC line authority; empty performs nonpublishing PR qualification.
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  # WHY: Caller workflow env is not inherited by reusable workflows. Recreate
+  # only execution identity here; release authorization still comes from preflight.
+  DOKA_RELEASE_CANDIDATE_RUN_ID: github-${{ github.run_id }}
+  DOKA_RELEASE_EXPECTED_REF: ${{ github.ref }}
+  DOKA_RELEASE_RUN_ATTEMPT: ${{ github.run_attempt }}
+  DOKA_RELEASE_VERSION: ${{ inputs.version }}
+  DOKA_RELEASE_CANDIDATE_RESUME: '1'
+  DOKA_RELEASE_LINE_FILE: ${{ inputs.authorization_artifact != '' && 'artifacts/release-lines/line.json' || '' }}
+  DOKA_RELEASE_LINES_POLICY: ${{ inputs.authorization_artifact != '' && 'artifacts/release-lines/policy.json' || '' }}
+  DOKA_RELEASE_LINE_AUTHORITY: ${{ inputs.authorization_artifact != '' && 'artifacts/release-lines/authority.json' || '' }}
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Run repository quality gates
+        run: bash eng/quality-gates.sh
+
+
+  repo-tests:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # WHY: Release-boundary regressions must fail before merge, not first during an RC.
+      - name: Verify retained release boundary contracts
+        run: bash ./eng/release/test-tools.sh
+
+      - name: Run repo-local test path
+        run: bash ./eng/test.sh
+
+      - name: Upload coverage and test-result artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repo-tests-coverage
+          path: artifacts/coverage
+
+  spec-test-suite:
+    # An explicit name keeps the status-check identity stable and readable;
+    # the generated form would repeat every matrix value.
+    name: spec-test-suite (${{ matrix.engine.name }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        engine:
+          - { name: mysql84, target: "mysql84" }
+          - { name: mysql97, target: "mysql97" }
+          - { name: mariadb1011, target: "mariadb1011" }
+          - { name: mariadb114, target: "mariadb114" }
+          - { name: mariadb118, target: "mariadb118" }
+          - { name: mariadb123, target: "mariadb123" }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore + build FunctionalTests
+        run: |
+          contract_project="eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract"
+          contract_project+="/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj"
+          functional_project="tests/Doka.EntityFrameworkCore.MySql.FunctionalTests"
+          functional_project+="/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
+
+          dotnet restore "${contract_project}" --tl:off
+          dotnet restore "${functional_project}" --tl:off
+          dotnet build "${contract_project}" --configuration Release --no-restore --tl:off
+          dotnet build "${functional_project}" --configuration Release --no-restore --tl:off
+
+      - name: Run the complete specification partition and reconcile its IDs
+        env:
+          SPECIFICATION_TARGET: ${{ matrix.engine.target }}
+        run: |
+          bash eng/testing/test-spec-target.sh "${SPECIFICATION_TARGET}" \
+            "artifacts/spec-tests/${SPECIFICATION_TARGET}"
+
+      - name: Upload spec coverage and test-result artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spec-tests-coverage-${{ matrix.engine.name }}
+          path: artifacts/spec-tests/${{ matrix.engine.name }}
+
+
+  integration:
+    name: Complete integration and executable examples
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Run every integration configuration and example target
+        run: |
+          bash eng/testing/qualify-engine.sh integration \
+            "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}" \
+            "${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+
+      - name: Retain integration coverage and evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-smoke-coverage
+          path: artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+          if-no-files-found: error
+          retention-days: 7
+
+
+  foundation:
+    name: Packages and actual package consumers
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      engine_stages: ${{ steps.version.outputs.engine_stages }}
+    env:
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: '2100'
+      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/package
+
+    steps:
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      # WHY: NuGet resolves the exact local version before HTTP sources. Isolated
+      # consumers also verify candidate bytes even when the version is public.
+      - name: Resolve the branch-owned package and engine contract
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          version="${REQUESTED_VERSION}"
+          if [[ -z "${version}" ]]; then
+            version="$(dotnet msbuild \
+              src/Doka.EntityFrameworkCore.MySql/Doka.EntityFrameworkCore.MySql.csproj \
+              -nologo -getProperty:PackageVersion)"
+          fi
+
+          python3 -m eng.release.nuget validate-version --version "${version}"
+          # WHY: Expanding this inside echo would hide a failed inventory command.
+          engine_stages="$(bash eng/testing/qualify-engine.sh --list)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "engine_stages=${engine_stages}" >> "${GITHUB_OUTPUT}"
+
+      - name: Pack once and qualify the exact package bytes
+        env:
+          QUALIFIED_VERSION: ${{ steps.version.outputs.version }}
+          AUTHORIZATION_ARTIFACT: ${{ inputs.authorization_artifact }}
+        shell: bash
+        run: |
+          if [[ -n "${AUTHORIZATION_ARTIFACT}" ]]; then
+            bash ./eng/release-candidate.sh --stage package
+          else
+            python3 -m eng.common.deadline \
+              --seconds "${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS}" \
+              --label "qualification package" -- \
+              bash eng/testing/qualify-packages.sh "${QUALIFIED_VERSION}" \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          fi
+
+      - name: Retain verified package inputs and stage identity
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-stage-package-attempt-${{ github.run_attempt }}
+          path: |
+            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain package diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-diagnostics-package-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 7
+
+
+  engine-contracts:
+    name: Engine contract (${{ matrix.stage }})
+    needs: foundation
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ matrix.stage == 'runtime' && 40 || matrix.stage == 'mysqlconnector-patch-matrix' && 45 || 60 }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        stage: ${{ fromJSON(needs.foundation.outputs.engine_stages) }}
+    env:
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: ${{ matrix.stage == 'runtime' && 2100 || matrix.stage == 'mysqlconnector-patch-matrix' && 2400 || 3300 }}
+      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
+
+    steps:
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Run the branch-owned engine contract
+        env:
+          QUALIFICATION_STAGE: ${{ matrix.stage }}
+          AUTHORIZATION_ARTIFACT: ${{ inputs.authorization_artifact }}
+        shell: bash
+        run: |
+          if [[ -n "${AUTHORIZATION_ARTIFACT}" ]]; then
+            bash ./eng/release-candidate.sh --stage "${QUALIFICATION_STAGE}"
+          else
+            python3 -m eng.common.deadline \
+              --seconds "${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS}" \
+              --label "qualification ${QUALIFICATION_STAGE}" -- \
+              bash eng/testing/qualify-engine.sh "${QUALIFICATION_STAGE}" \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}" \
+              "${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          fi
+
+      - name: Retain verified engine evidence and stage identity
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-stage-${{ matrix.stage }}-attempt-${{ github.run_attempt }}
+          path: |
+            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain engine failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-diagnostics-${{ matrix.stage }}-${{ github.run_attempt }}
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 7
+
+
+  sbom:
+    name: Frozen-graph package SBOM
+    needs: foundation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    env:
+      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: '900'
+      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/sbom
+
+    steps:
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore the exact same-run package stage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash ./eng/release/restore-release-stage-artifacts.sh \
+            --output artifacts \
+            --selection-output \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/sbom-input-artifacts.json" \
+            --stage package
+
+      - name: Generate and validate the SBOM from frozen package graphs
+        env:
+          QUALIFIED_VERSION: ${{ needs.foundation.outputs.version }}
+          AUTHORIZATION_ARTIFACT: ${{ inputs.authorization_artifact }}
+        shell: bash
+        run: |
+          if [[ -n "${AUTHORIZATION_ARTIFACT}" ]]; then
+            bash ./eng/release-candidate.sh --stage sbom
+          else
+            python3 -m eng.common.deadline \
+              --seconds "${DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS}" \
+              --label "qualification sbom" -- \
+              bash eng/testing/generate-package-sbom.sh "${QUALIFIED_VERSION}" \
+              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}"
+          fi
+
+      - name: Retain verified SBOM and stage identity
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-stage-sbom-attempt-${{ github.run_attempt }}
+          path: |
+            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
+          if-no-files-found: error
+          retention-days: 7
+
+
+  coverage-gate:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    needs: [repo-tests, spec-test-suite, integration]
+
+    steps:
+      # A merged report assembled from a failed producer measures a partial
+      # test run. Without this assertion the gate can report a met coverage
+      # floor for a run whose tests never finished.
+      - name: Require successful coverage producers
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          REPO_TESTS_RESULT: ${{ needs.repo-tests.result }}
+          SPEC_RESULT: ${{ needs.spec-test-suite.result }}
+        run: |
+          failed=0
+          for entry in \
+            "repo-tests=${REPO_TESTS_RESULT}" \
+            "spec-test-suite=${SPEC_RESULT}" \
+            "integration=${INTEGRATION_RESULT}"; do
+            if [[ "${entry#*=}" != "success" ]]; then
+              echo "Coverage producer ${entry%%=*} reported '${entry#*=}'." >&2
+              failed=1
+            fi
+          done
+
+          if [[ "${failed}" -ne 0 ]]; then
+            echo "Coverage cannot be evaluated against incomplete evidence." >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download frozen release authorization
+        if: inputs.authorization_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.authorization_artifact }}
+          path: artifacts/release-lines
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Download repo-tests coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: repo-tests-coverage
+          path: artifacts/coverage/repo-tests
+
+      - name: Download mysql84 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mysql84
+          path: artifacts/coverage/spec-mysql84
+
+      - name: Download mysql97 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mysql97
+          path: artifacts/coverage/spec-mysql97
+
+      - name: Download mariadb1011 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mariadb1011
+          path: artifacts/coverage/spec-mariadb1011
+
+      - name: Download mariadb118 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mariadb118
+          path: artifacts/coverage/spec-mariadb118
+
+      - name: Download mariadb114 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mariadb114
+          path: artifacts/coverage/spec-mariadb114
+
+      - name: Download mariadb123 spec coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: spec-tests-coverage-mariadb123
+          path: artifacts/coverage/spec-mariadb123
+
+      - name: Download integration coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: integration-smoke-coverage
+          path: artifacts/coverage/integration
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json', 'dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Merge cobertura reports into a single union report
+        run: bash ./eng/quality/merge-coverage.sh artifacts/coverage artifacts/coverage-merged
+
+      - name: Enforce coverage threshold
+        run: bash ./eng/quality/check-coverage-threshold.sh artifacts/coverage-merged
+
+
+  required:
+    name: Complete qualification
+    if: always()
+    needs:
+      - quality-gates
+      - repo-tests
+      - spec-test-suite
+      - integration
+      - foundation
+      - engine-contracts
+      - sbom
+      - coverage-gate
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the exact aggregate contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require the complete declared successful job set
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: >-
+          bash eng/quality/require-qualification.sh
+          quality-gates repo-tests spec-test-suite integration
+          foundation engine-contracts sbom coverage-gate

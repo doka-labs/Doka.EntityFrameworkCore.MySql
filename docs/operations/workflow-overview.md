@@ -1,33 +1,63 @@
 # Workflow Overview
 
-Doka has three independent delivery flows. Pull-request checks decide whether
-a change may merge; scheduled checks detect drift; an explicit release run
-qualifies and publishes a chosen package version. A green result in one flow
-does not imply the other two have run.
+Doka has three delivery flows. Pull requests and explicit release candidates
+use one complete qualification definition; schedules also detect upstream
+drift. The shared qualifier grants no publication authority. A green PR does
+not mean a signed release candidate has been assembled or published.
 
 ```mermaid
 flowchart LR
-    PR["Pull request"] --> CI["ci.yml and independent dependency-review"]
-    CI --> MERGE["Required checks and tested merge-tree evidence"]
-    SCHEDULE["Schedules"] --> CHECKS["Active-line native checks"]
+    PR["Pull request"] --> CI["ci.yml"]
+    CI --> COMMON["quality-gates.yml: complete read-only qualification"]
+    COMMON -->|"CI caller"| MERGE["CI repository-qualification and tested merge-tree evidence"]
+    SCHEDULE["Schedules"] --> CHECKS["Active-line checks and floating dependency probes"]
     CHECKS --> REPORTS["Reports; never publication"]
-    MANUAL["Explicit release request"] --> QUALIFY["Release qualification"]
-    QUALIFY --> PUBLISH["Approved exact-byte publication"]
-    MERGE -.->|"Bound evidence"| QUALIFY
+    MANUAL["Explicit release request"] --> PREFLIGHT["release-candidate.yml: line and source preflight"]
+    PREFLIGHT --> COMMON
+    COMMON -->|"Release caller"| ASSEMBLE["Same-run candidate assembly and attestation"]
+    ASSEMBLE --> PUBLISH["Signed tag and approved exact-byte publication"]
+    MERGE -.->|"Bound evidence"| PREFLIGHT
 ```
 
 ## 1. Pull Requests: Verify the Proposed Change
 
-[`ci.yml`](../../.github/workflows/ci.yml) runs these product checks:
+[`ci.yml`](../../.github/workflows/ci.yml) calls the same
+[`quality-gates.yml`](../../.github/workflows/quality-gates.yml) used by release
+candidates. The reusable workflow owns the complete product graph:
 
 | Job | Responsibility |
 | --- | --- |
 | `quality-gates` | Repository, formatting, documentation and engineering contracts. |
 | `repo-tests` | Release-tool tests plus provider unit and functional tests. |
-| `spec-test-suite` | EF Core specification conformance on the selected engine matrix. |
-| `integration-smoke` | Representative live integration and runtime-posture verification. |
+| `spec-test-suite` | EF Core specification conformance on all six supported engines. |
+| `integration` | Full live integration/configuration/failure coverage and examples. |
+| `foundation` | Exactly three package/symbol pairs; isolated real-package consumers and runtime readback. |
+| `engine-contracts` | Migration deployment, runtime trim/cache NativeAOT, qualified EF Core and driver patch matrices. |
+| `sbom` | SBOM from the exact package-stage dependency assets. |
 | `coverage-gate` | Merge coverage evidence and enforce the reviewed thresholds. |
-| `repository-qualification` | Require the product checks above and retain the exact tested PR merge-tree identity. |
+| `required` | Fail closed unless every required product result succeeds. |
+
+The caller-side `repository-qualification` check keeps its stable name and
+retains the exact tested PR merge-tree identity after shared qualification
+succeeds. Package consumers and SBOM are ordinary PR gates. The qualifier has
+no publisher environment, publishing secrets, OIDC, attestation or repository-write
+permission. Its explicit version and optional frozen authorization artifact
+inputs preserve the distinction between PR checks and admitted candidate stages.
+Each branch supplies its own SDK, framework, test runner and applicable reviewed
+dependency policy, including when these checks transfer to .NET 11.
+
+The branch's reviewed release evidence policy declares its engine stages.
+`qualify-engine.sh --list` supplies the engine matrix; `--all-stages` adds package
+and SBOM for candidate artifact restoration and final receipt verification. A
+missing implementation for a declared gate fails qualification. A preview
+line's policy may omit the stable EF patch-range gate; file absence cannot
+silently remove a required gate.
+
+Specification execution follows the branch's native
+[`global.json` test runner selection](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#test).
+The shared helper validates that selection before setup and uses the branch's
+runner-specific filtering, coverage and TRX protocol. This source contract does
+not establish that the new helper has executed on another framework line.
 
 [`dependency-review.yml`](../../.github/workflows/dependency-review.yml) is an
 independent PR workflow for dependency changes; it is not another job hidden
@@ -66,7 +96,7 @@ detached test fixtures are not hosted jobs and may retain older sample labels.
 | Cadence | Workflow | Purpose |
 | --- | --- | --- |
 | Daily | [`security-audit.yml`](../../.github/workflows/security-audit.yml) | Branch-local dependency vulnerability audit. |
-| Weekly | [`ci.yml`](../../.github/workflows/ci.yml) | Migration-deployment and admitted EF Core/MySqlConnector patch-matrix checks. |
+| Weekly | [`ci.yml`](../../.github/workflows/ci.yml) | Migration-deployment checks and independent floating EF Core/MySqlConnector drift probes. |
 | Weekly | [`container-matrix.yml`](../../.github/workflows/container-matrix.yml) | Full supported database/configuration matrix. |
 | Monthly | [`benchmark.yml`](../../.github/workflows/benchmark.yml) | Performance measurements and allocation/resource regression checks. |
 
@@ -75,6 +105,12 @@ default line once and dispatches each other **active** line's own workflow,
 binding its expected commit and awaiting its actual result. It does not run
 main's .NET 10 commands around a .NET 11 checkout. Ordinary manual feature CI
 remains non-publishing even when no preview release line is active.
+
+Normal manual CI calls the shared qualifier once. Standalone migration and
+floating dependency jobs run on schedules or an explicit `maintenance=true`
+dispatch, avoiding a second copy during normal qualification. Floating probes
+can expose a newly published upstream patch before its exact contracts have
+been admitted; ordinary qualification retains the reviewed dependency recipe.
 
 ### Benchmark Failures Versus Hardware Diagnostics
 
@@ -109,8 +145,9 @@ publisher environment or requesting publication credentials.
 ```mermaid
 flowchart TD
     START["release-candidate.yml: branch and version"] --> AUTH["Check exact line and current authority"]
-    AUTH --> QUALIFY["Qualify exact candidate once"]
-    QUALIFY --> CHOICE{"Normal publication run and authorized?"}
+    AUTH --> QUALIFY["Call quality-gates.yml once: complete qualification"]
+    QUALIFY --> SEAL["Assemble exact same-run bytes and attest candidate"]
+    SEAL --> CHOICE{"Normal publication run and authorized?"}
     CHOICE -->|"No"| EVIDENCE["Retain qualified candidate; no publication"]
     CHOICE -->|"Yes"| TAG["Personal signed tag on qualified commit"]
     TAG --> APPROVE["Protected environment approval"]
@@ -122,10 +159,21 @@ flowchart TD
     PACKAGES --> RELEASE["Complete immutable GitHub release and monotonic Latest decision"]
 ```
 
-Qualification includes the applicable dependency, migration, runtime, package,
-SBOM and attestation evidence. It reuses PR qualification rather than silently
-repeating every PR product lane after merge. Benchmarks are independent: the
-release candidate does not invoke them or consume their artifacts.
+Preflight imports the tree-exact PR qualification and checks release-line
+authority before the candidate calls the common qualifier. Both callers execute
+the complete reversible quality, test, integration, deployment, runtime,
+dependency, package-consumer, SBOM and coverage graph. Candidate stages retain
+same-run `release-stage-<stage>-attempt-N` artifacts, checkpoint ownership and
+digest verification. The current main/10 assembly still requires its six stage
+receipts; they are distinct from the complete product job graph. Assembly does
+not repack qualified bytes. Attestation remains a separate release-only job.
+
+EF Core qualification records the floor graph and fully exercises the highest
+exact patch admitted to the branch's reviewed baseline; the driver matrix uses
+its reviewed floor/latest recipe. Scheduled floating probes detect new upstream
+drift independently. Benchmarks remain independent engineering diagnostics:
+qualification never invokes them or consumes their artifacts, and hardware-dependent
+timing, CPU or working-set thresholds are not qualifier gates.
 
 All authorized lines use the existing `nuget` environment and the same workflow.
 The single-maintainer approval arrangement and administrator bypass remain

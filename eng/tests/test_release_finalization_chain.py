@@ -29,6 +29,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ORCHESTRATOR = REPOSITORY_ROOT / "eng" / "release" / "release-candidate.sh"
 WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "release-candidate.yml"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
+QUALIFICATION_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "quality-gates.yml"
+PACKAGE_QUALIFICATION = REPOSITORY_ROOT / "eng" / "testing" / "qualify-packages.sh"
+ENGINE_QUALIFICATION = REPOSITORY_ROOT / "eng" / "testing" / "qualify-engine.sh"
 TEST_ENTRY = REPOSITORY_ROOT / "eng" / "testing" / "test.sh"
 MIGRATION_GATE = REPOSITORY_ROOT / "eng" / "testing" / "test-migration-deployment.sh"
 MIGRATION_MODEL = REPOSITORY_ROOT / "eng" / "quality" / "check-migration-model.sh"
@@ -67,6 +70,126 @@ def shell_commands(path: Path, module: str) -> list[list[str]]:
 
 class ReleaseLineWorkflowSeamTests(unittest.TestCase):
     """Exercise the actual publisher/qualifier command and artifact boundaries."""
+
+    def run_foundation_metadata(
+        self, root: Path, gate_ids: tuple[str, ...], missing_implementation: str | None = None,
+        implementation_mutation: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        """Execute the real metadata step with branch-local inventory inputs."""
+        workflow = QUALIFICATION_WORKFLOW.read_text(encoding="ascii")
+        foundation = workflow.split("\n  foundation:\n", 1)[1].split("\n  engine-contracts:\n", 1)[0]
+        step = foundation.split("      - name: Resolve the branch-owned package and engine contract\n", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        testing = root / "eng/testing"
+        testing.mkdir(parents=True)
+        (testing / "qualify-engine.sh").write_text(ENGINE_QUALIFICATION.read_text(encoding="ascii"), encoding="ascii")
+        policy = root / "eng/release/evidence-policy.json"
+        policy.parent.mkdir()
+        implementations = {
+            "migration-deployment": "eng/testing/test-migration-deployment.sh",
+            "runtime-posture": "eng/testing/test-runtime-posture.sh",
+            "efcore-patch-matrix": "eng/testing/test-efcore-matrix.sh",
+            "mysqlconnector-patch-matrix": "eng/testing/test-mysqlconnector-matrix.sh",
+        }
+        gates: list[dict[str, object]] = [
+            {"kind": "candidate-produced", "id": gate_id,
+             "implementation": implementations.get(gate_id, "eng/testing/unknown.sh")}
+            for gate_id in gate_ids
+        ]
+        if implementation_mutation is not None:
+            runtime = next(gate for gate in gates if gate["id"] == "runtime-posture")
+            if implementation_mutation == "missing":
+                runtime.pop("implementation")
+            else:
+                runtime["implementation"] = {
+                    "null": None,
+                    "non-string": 42,
+                    "nul-suffix": implementations["runtime-posture"] + "\0",
+                    "wrong-existing-producer": implementations["migration-deployment"],
+                    "missing-path": "eng/testing/missing-producer.sh",
+                    "traversal": "eng/testing/../testing/test-runtime-posture.sh",
+                    "absolute": str(root / implementations["runtime-posture"]),
+                    "symlink": "eng/testing/runtime-alias.sh",
+                }[implementation_mutation]
+        policy.write_text(json.dumps({"gates": gates}), encoding="ascii")
+        for implementation in (
+            "migration-deployment", "runtime-posture", "efcore-matrix", "mysqlconnector-matrix"
+        ):
+            if implementation != missing_implementation:
+                (testing / f"test-{implementation}.sh").write_text("#!/usr/bin/env bash\n", encoding="ascii")
+        if implementation_mutation == "symlink":
+            (testing / "runtime-alias.sh").symlink_to(testing / "test-runtime-posture.sh")
+
+        return subprocess.run(
+            ["bash", "-e", "-o", "pipefail", "-c", "\n".join([
+                "dotnet() { echo 'Unexpected SDK invocation.' >&2; return 1; }", script,
+            ])],
+            cwd=root,
+            env={**os.environ, "REQUESTED_VERSION": "10.6.3", "GITHUB_OUTPUT": str(root / "github-output"),
+                 "PYTHONPATH": str(REPOSITORY_ROOT), "PYTHONDONTWRITEBYTECODE": "1"},
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_foundation_metadata_publishes_valid_branch_inventory(self) -> None:
+        """Keep exact package and engine metadata consumable by downstream jobs."""
+        # Arrange
+        gate_ids = ("migration-deployment", "runtime-posture", "efcore-patch-matrix", "mysqlconnector-patch-matrix")
+        expected_stages = ["migration-deployment", "runtime", "efcore-patch-matrix", "mysqlconnector-patch-matrix"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            # Act
+            result = self.run_foundation_metadata(root, gate_ids)
+
+            # Assert
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(
+                "version=10.6.3\nengine_stages=" + json.dumps(expected_stages, separators=(",", ":")) + "\n",
+                (root / "github-output").read_text(encoding="ascii"),
+            )
+
+    def test_foundation_metadata_rejects_invalid_inventory_before_any_output(self) -> None:
+        """A failed inventory must not leave successful-looking job outputs."""
+        # Arrange
+        gate_ids = ("migration-deployment", "runtime-posture", "efcore-patch-matrix", "mysqlconnector-patch-matrix")
+        cases = (
+            ("duplicate", gate_ids + ("runtime-posture",), None, "Incomplete or duplicate qualification gates."),
+            ("unknown", gate_ids + ("unknown",), None, "Unknown candidate-produced qualification gate."),
+            ("missing", gate_ids, "runtime-posture",
+             "Required qualification implementation is missing or non-regular:"),
+        )
+        for name, stages, missing, error in cases:
+            with self.subTest(invalid_inventory=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+
+                # Act
+                result = self.run_foundation_metadata(root, stages, missing)
+
+                # Assert
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(error, result.stderr)
+                self.assertFalse((root / "github-output").exists())
+
+    def test_foundation_metadata_rejects_mismatched_declared_implementations(self) -> None:
+        """A policy must describe the native producer that the inventory will qualify."""
+        # Arrange
+        gate_ids = ("migration-deployment", "runtime-posture", "efcore-patch-matrix", "mysqlconnector-patch-matrix")
+        mutations = ("missing", "null", "non-string", "nul-suffix", "wrong-existing-producer", "missing-path",
+                     "traversal", "absolute", "symlink")
+        for mutation in mutations:
+            with self.subTest(implementation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+
+                # Act
+                result = self.run_foundation_metadata(root, gate_ids, implementation_mutation=mutation)
+
+                # Assert
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("implementation", result.stderr.lower())
+                self.assertFalse((root / "github-output").exists())
 
     def test_preparation_and_admission_are_visible_before_the_publisher_boundary(self) -> None:
         """Keep retry history able to distinguish preparation from frozen admission and writes."""
@@ -265,15 +388,25 @@ class ReleaseLineWorkflowSeamTests(unittest.TestCase):
         # Arrange
         workflow = WORKFLOW.read_text(encoding="ascii")
         jobs = dict(re.findall(r"(?ms)^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:\n|\Z)", workflow))
-        producers = ("foundation", "engine-contracts", "sbom", "assemble", "attest")
+        shared = QUALIFICATION_WORKFLOW.read_text(encoding="ascii")
+        shared_jobs = dict(re.findall(r"(?ms)^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:\n|\Z)", shared))
 
         # Act
-        missing = [name for name in producers
+        missing = [name for name in ("assemble", "attest")
                    if "name: ${{ needs.preflight.outputs.line_artifact_name }}" not in jobs[name]
                    or "path: artifacts/release-lines" not in jobs[name]]
+        missing += [name for name in ("foundation", "engine-contracts", "sbom")
+                    if "name: ${{ inputs.authorization_artifact }}" not in shared_jobs[name]
+                    or "path: artifacts/release-lines" not in shared_jobs[name]]
 
         # Assert
         self.assertEqual([], missing)
+        # WHY: The authorization input crosses a workflow boundary before its producers run.
+        self.assertIn("needs: preflight", jobs["qualification"])
+        self.assertIn("uses: $/.github/workflows/quality-gates.yml", jobs["qualification"])
+        self.assertIn("version: ${{ inputs.version }}", jobs["qualification"])
+        self.assertIn("authorization_artifact: ${{ needs.preflight.outputs.line_artifact_name }}",
+                      jobs["qualification"])
         self.assertIn("line_artifact_name:", workflow)
         self.assertIn("line_artifact_name: ${{ steps.authority.outputs.line_artifact_name }}", jobs["preflight"])
 
@@ -282,7 +415,7 @@ class ReleaseLineWorkflowSeamTests(unittest.TestCase):
         # Arrange
         qualifier = WORKFLOW.read_text(encoding="ascii")
         publisher = qualifier.split("\n  publish:\n", 1)[1]
-        preflight = qualifier.split("\n  preflight:\n", 1)[1].split("\n  foundation:\n", 1)[0]
+        preflight = qualifier.split("\n  preflight:\n", 1)[1].split("\n  qualification:\n", 1)[0]
 
         # Act
         has_second_entry = (WORKFLOW.parent / "release-lines.yml").exists()
@@ -356,17 +489,45 @@ def required_variables() -> set[str]:
     return set(pattern.findall(finalization_body()))
 
 
-def restored_stages() -> set[str]:
+def restored_stages() -> list[str]:
     """Return every stage the assemble job restores before finalizing."""
-    workflow = WORKFLOW.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="ascii")
     assemble = workflow[workflow.index("\n  assemble:") :]
-    restore = assemble[
-        assemble.index("Restore complete verified stage set") : assemble.index(
-            "Assemble immutable release candidate"
-        )
-    ]
+    restore = assemble.split("      - name: Restore complete verified stage set\n", 1)[1]
+    step = restore.split("\n      - name:", 1)[0]
+    script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+    boundary = "bash ./eng/release/restore-release-stage-artifacts.sh"
+    if script.count(boundary) != 1:
+        raise AssertionError("Expected exactly one artifact-restoration boundary.")
 
-    return set(re.findall(r"--stage (\S+)", restore))
+    # WHY: Execute the workflow's inventory transport without downloading hosted artifacts.
+    script = "\n".join([
+        "set -euo pipefail",
+        "record_restoration() { printf '%s\\n' \"$@\"; }",
+        script.replace(boundary, "record_restoration", 1),
+    ])
+    result = subprocess.run(
+        ["bash", "-c", script],
+        cwd=REPOSITORY_ROOT,
+        env={**os.environ, "DOKA_RELEASE_CANDIDATE_RUN_ID": "contract-run"},
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    arguments = result.stdout.splitlines()
+    expected_scope = [
+        "--output", "artifacts", "--selection-output",
+        "artifacts/release-candidate/contract-run/artifact-selections/assemble-input-artifacts.json",
+    ]
+    if arguments[:4] != expected_scope:
+        raise AssertionError(f"Artifact restoration scope changed: {arguments}")
+    stage_arguments = arguments[4:]
+    if len(stage_arguments) % 2 or stage_arguments[::2] != ["--stage"] * (len(stage_arguments) // 2):
+        raise AssertionError(f"Unexpected stage arguments: {stage_arguments}")
+
+    return stage_arguments[1::2]
 
 
 class FinalizationEvidenceContractTests(unittest.TestCase):
@@ -413,17 +574,78 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         one the check requires but the workflow never runs makes every release
         unfinishable.
         """
-        body = ORCHESTRATOR.read_text(encoding="utf-8")
-        start = body.index("local expected_stages=(")
-        expected = set(
-            body[start + len("local expected_stages=(") : body.index(")", start)].split()
+        # Arrange
+        body = ORCHESTRATOR.read_text(encoding="ascii")
+        start = body.index("verify_required_stage_set() {")
+        verification = body[start : body.index("\n}\n", start) + 2]
+        inventory = subprocess.run(
+            ["bash", str(ENGINE_QUALIFICATION), "--list"],
+            check=False,
+            capture_output=True,
+            text=True,
         )
+        self.assertEqual(0, inventory.returncode, inventory.stderr)
+        candidate_stages = json.loads(inventory.stdout) + ["package", "sbom"]
+        workflow = QUALIFICATION_WORKFLOW.read_text(encoding="ascii")
+        environment = {
+            **os.environ,
+            "repo_root": str(REPOSITORY_ROOT),
+            "stage_checkpoint_module": "eng.release.checkpoint",
+            "release_candidate_dir": str(REPOSITORY_ROOT / "artifacts/release-candidate/contract-run"),
+            "stage_checkpoint_dir": str(REPOSITORY_ROOT / "artifacts/release-candidate-checkpoints/contract-run"),
+            "release_candidate_run_id": "contract-run",
+            "release_source_ref": "refs/heads/main",
+            "expected_release_tag": "v10.0.0-test",
+            "release_run_attempt": "3",
+        }
+        # WHY: Only the verification boundary is replaced; its inventory command still runs.
+        boundary = textwrap.dedent("""\
+            python3() {
+                if [[ "$#" -lt 3 || "$1" != "-m" || "$2" != "eng.release.checkpoint" \\
+                    || "$3" != "verify-set" ]]; then
+                    echo "Unexpected checkpoint verification command." >&2
+                    return 1
+                fi
 
-        workflow = WORKFLOW.read_text(encoding="utf-8")
-        matrix_stages = set(re.findall(r"^\s+- stage: (\S+)$", workflow, re.M))
-        candidate_stages = matrix_stages | {"package", "sbom"}
+                printf '%s\\n' "$@"
+            }
+        """)
 
-        self.assertEqual(candidate_stages, expected)
+        # Act
+        results = [subprocess.run(
+            ["bash", "-c", "\n".join([
+                "set -euo pipefail", boundary, verification, f"verify_required_stage_set {complete}",
+            ])],
+            cwd=REPOSITORY_ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        ) for complete in (0, 1)]
+        restored = restored_stages()
+
+        # Assert
+        self.assertEqual(candidate_stages, restored)
+        for complete, result in enumerate(results):
+            with self.subTest(include_complete=complete):
+                expected = [
+                    "-m", "eng.release.checkpoint", "verify-set",
+                    "--repo", environment["repo_root"],
+                    "--root", environment["release_candidate_dir"],
+                    "--checkpoint-directory", environment["stage_checkpoint_dir"],
+                    "--run-id", environment["release_candidate_run_id"],
+                    "--source-ref", environment["release_source_ref"],
+                    "--expected-release-tag", environment["expected_release_tag"],
+                    "--maximum-run-attempt", environment["release_run_attempt"],
+                ]
+                for stage in candidate_stages + (["complete"] if complete else []):
+                    expected.extend(["--expected-stage", stage])
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(expected, result.stdout.splitlines())
+        self.assertIn('engine_stages="$(bash eng/testing/qualify-engine.sh --list)"', workflow)
+        self.assertIn('echo "engine_stages=${engine_stages}" >> "${GITHUB_OUTPUT}"', workflow)
+        self.assertIn("stage: ${{ fromJSON(needs.foundation.outputs.engine_stages) }}", workflow)
 
     def test_the_finalizer_requires_no_retired_evidence(self) -> None:
         """Name the directories this run stopped producing.
@@ -484,10 +706,15 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
 
     def test_runtime_stage_requires_clean_source_evidence(self) -> None:
         """Bind the runtime producer to the clean source its consumer requires."""
-        body = ORCHESTRATOR.read_text(encoding="utf-8")
+        body = ENGINE_QUALIFICATION.read_text(encoding="ascii")
         start = body.index("run_runtime_posture_gate() {")
         runtime_gate = body[start : body.index("\n}\n", start)]
+        orchestrator = ORCHESTRATOR.read_text(encoding="ascii")
+        wrapper_start = orchestrator.index("run_runtime_posture_gate() {")
+        wrapper = orchestrator[wrapper_start : orchestrator.index("\n}\n", wrapper_start)]
 
+        self.assertIn('bash "${repo_root}/eng/testing/qualify-engine.sh"', wrapper)
+        self.assertIn('"runtime" "${release_candidate_dir}" "${release_candidate_run_id}"', wrapper)
         self.assertEqual(
             1,
             runtime_gate.count("DOKA_RUNTIME_REQUIRE_CLEAN_SOURCE=1"),
@@ -495,18 +722,16 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
 
     def test_package_stage_requires_runtime_readback_evidence(self) -> None:
         """Reject a package checkpoint when the runtime readback made no evidence."""
-        body = ORCHESTRATOR.read_text(encoding="utf-8")
-        start = body.index("run_pack() {")
-        pack = body[start : body.index("\n}\n", start)]
+        pack = PACKAGE_QUALIFICATION.read_text(encoding="ascii")
         readback = 'bash "${repo_root}/eng/testing/test-nuget-readback.sh"'
         evidence = '"${local_package_consumer_dir}/local-package-runtime.json"'
 
         self.assertLess(pack.index(readback), pack.index(evidence))
-        self.assertEqual(1, pack.count("require_evidence_file"))
+        self.assertEqual(1, pack.count(f"require_evidence_file {evidence}"))
 
     def test_release_matrix_stages_copy_only_registered_legs(self) -> None:
         """Exclude stale scratch rows from immutable release evidence."""
-        body = ORCHESTRATOR.read_text(encoding="utf-8")
+        body = ENGINE_QUALIFICATION.read_text(encoding="ascii")
 
         self.assertNotIn('artifacts/efcore-patch-matrix/."', body)
         self.assertNotIn('artifacts/mysqlconnector-patch-matrix/."', body)
@@ -521,7 +746,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
 
     def test_release_efcore_matrix_uses_a_reviewed_exact_patch(self) -> None:
         """Do not let a new upstream patch invalidate a green release commit."""
-        body = ORCHESTRATOR.read_text(encoding="utf-8")
+        body = ENGINE_QUALIFICATION.read_text(encoding="ascii")
         start = body.index("run_efcore_matrix_gate() {")
         matrix = body[start : body.index("\n}\n", start)]
 

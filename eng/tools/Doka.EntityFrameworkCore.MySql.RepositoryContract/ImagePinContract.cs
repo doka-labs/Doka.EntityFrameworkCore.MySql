@@ -43,10 +43,9 @@ internal static partial class ImagePinContract
     private static readonly Dictionary<string, Dictionary<string, int>> s_mirrors =
         new(StringComparer.Ordinal)
         {
-            [".github/workflows/ci.yml"] = new Dictionary<string, int>(StringComparer.Ordinal)
-            {
-                ["mysql84"] = 2,
-            },
+            // WHY: Workflow recipes now resolve native pins; any future literal must still match compose.
+            [".github/workflows/ci.yml"] = new Dictionary<string, int>(StringComparer.Ordinal),
+            [".github/workflows/quality-gates.yml"] = new Dictionary<string, int>(StringComparer.Ordinal),
             [PerformanceContractPath] = SixTargets(1),
             [CSharpPath] = SixTargets(1),
         };

@@ -371,12 +371,14 @@ internal static partial class EngineeringSurfaceContract
     {
         var workflows = Path.Combine(root, ".github", "workflows");
         var ci = File.ReadAllText(Path.Combine(workflows, "ci.yml"));
+        var shared = File.ReadAllText(Path.Combine(workflows, "quality-gates.yml"));
         var benchmark = File.ReadAllText(Path.Combine(workflows, "benchmark.yml"));
         var containerMatrix = File.ReadAllText(Path.Combine(workflows, "container-matrix.yml"));
         var scorecard = File.ReadAllText(Path.Combine(workflows, "scorecard.yml"));
         var dependencyReview = File.ReadAllText(Path.Combine(workflows, "dependency-review.yml"));
         var securityAudit = File.ReadAllText(Path.Combine(workflows, "security-audit.yml"));
         errors.AddRange(ValidateHostedBenchmarkWorkflow(benchmark));
+        errors.AddRange(ValidateQualificationWorkflow(shared));
 
         if (!TriggerBlock(ci)
                 .Contains("  pull_request:\n", StringComparison.Ordinal)
@@ -404,19 +406,12 @@ internal static partial class EngineeringSurfaceContract
             errors.Add(".github/workflows/ci.yml: obsolete admission or benchmark policy remains.");
         }
 
-        foreach (var job in new[]
-                 {
-                     "quality-gates", "repo-tests", "spec-test-suite", "coverage-gate",
-                     "integration-smoke"
-                 })
+        var sharedCall = JobBlock(ci, "qualification");
+        if (!sharedCall.Contains("uses: $/.github/workflows/quality-gates.yml", StringComparison.Ordinal)
+            || !sharedCall.Contains("needs: schedule-identity", StringComparison.Ordinal)
+            || !sharedCall.Contains("if: github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
         {
-            if (!JobBlock(ci, job)
-                    .Contains("if: github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
-            {
-                errors.Add(
-                    $".github/workflows/ci.yml: fixed qualification job '{job}' "
-                    + "must not repeat on the maintenance schedule.");
-            }
+            errors.Add(".github/workflows/ci.yml: ordinary qualification must call the shared workflow after the identity guard.");
         }
 
         var qualification = JobBlock(ci, "repository-qualification");
@@ -426,6 +421,14 @@ internal static partial class EngineeringSurfaceContract
             errors.Add(
                 ".github/workflows/ci.yml: repository-qualification must aggregate PR/manual "
                 + "results and remain absent from the maintenance schedule.");
+        }
+
+        if (!qualification.Contains("RESULTS: ${{ toJSON(needs) }}", StringComparison.Ordinal)
+            || !qualification.Contains(
+                "bash eng/quality/require-qualification.sh schedule-identity qualification",
+                StringComparison.Ordinal))
+        {
+            errors.Add(".github/workflows/ci.yml: repository-qualification must fail closed on the identity and shared qualification results.");
         }
 
         foreach (var (name, workflow) in new[]
