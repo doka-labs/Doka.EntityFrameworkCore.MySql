@@ -19,6 +19,9 @@ class ReleasePackageLockTests(unittest.TestCase):
         self.orchestrator = (
             self.repository_root / "eng" / "release" / "release-candidate.sh"
         ).read_text(encoding="ascii")
+        self.package_qualification = (
+            self.repository_root / "eng" / "testing" / "qualify-packages.sh"
+        ).read_text(encoding="ascii")
         self.quality_gates = (
             self.repository_root / "eng" / "quality" / "quality-gates.sh"
         ).read_text(encoding="ascii")
@@ -47,8 +50,12 @@ class ReleasePackageLockTests(unittest.TestCase):
         run_pack = self.orchestrator[run_pack_start:run_pack_end]
 
         self.assertIn(
-            '"${repo_root}/eng/quality/verify-release-package-locks.sh"',
+            'bash "${repo_root}/eng/testing/qualify-packages.sh"',
             run_pack,
+        )
+        self.assertIn(
+            '"${repo_root}/eng/quality/verify-release-package-locks.sh"',
+            self.package_qualification,
         )
 
     def test_shared_gate_restores_all_shipped_projects_in_locked_mode(self) -> None:

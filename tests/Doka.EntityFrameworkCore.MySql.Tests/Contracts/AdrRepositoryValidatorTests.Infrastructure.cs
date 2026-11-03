@@ -77,34 +77,6 @@ public sealed partial class AdrRepositoryValidatorTests
         return workflow[(triggerStart + 1)..permissionsStart];
     }
 
-    private static void AssertFastLaneJob(
-        string workflow,
-        string jobName
-    )
-    {
-        var jobStart = workflow.IndexOf($"  {jobName}:", StringComparison.Ordinal);
-
-        Assert.True(jobStart >= 0, $"Workflow job '{jobName}' is missing.");
-
-        var runsOn = workflow.IndexOf("    runs-on:", jobStart, StringComparison.Ordinal);
-
-        Assert.True(runsOn > jobStart, $"Workflow job '{jobName}' has no runs-on declaration.");
-
-        var jobConditions = workflow[jobStart..runsOn]
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => line.StartsWith("    if:", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.True(
-            jobConditions.Length <= 1,
-            $"Workflow job '{jobName}' must not have multiple job conditions.");
-        Assert.All(
-            jobConditions,
-            condition => Assert.Equal(
-                "    if: github.event_name != 'schedule' && !inputs.maintenance",
-                condition));
-    }
-
     private static void AssertShellGate(
         string script,
         string firstFollowingCommand,

@@ -27,7 +27,7 @@ SPATIAL = "Doka.EntityFrameworkCore.MySql.NetTopologySuite"
 
 def extract_function() -> str:
     """Return the resolver as written in the orchestrator."""
-    lines = ORCHESTRATOR.read_text(encoding="utf-8").splitlines()
+    lines = ORCHESTRATOR.read_text(encoding="ascii").splitlines()
     start = next(
         index
         for index, line in enumerate(lines)

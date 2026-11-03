@@ -59,20 +59,7 @@ for target in "${supported_target_list[@]}"; do
     mkdir -p "${target_results}"
 
     echo "Running specification and live functional tests for ${target}..."
-    DOKA_SPEC_TEST_TARGET="${target}" \
-    DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_results}/test-database-evidence.json" \
-        dotnet test "${functional_project}" \
-            --configuration Release \
-            --no-build \
-            --no-restore \
-            --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --logger "trx;LogFileName=spec-tests.trx" \
-            --results-directory "${target_results}"
-
-    bash "${repo_root}/eng/testing/check-spec-results.sh" \
-        "${target}" \
-        "${target_results}"
+    bash "${repo_root}/eng/testing/test-spec-target.sh" "${target}" "${target_results}"
 done
 
 echo "Specification and live functional tests passed for ${#supported_target_list[@]} supported targets."

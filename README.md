@@ -76,6 +76,12 @@ Building the repository itself requires the exact .NET SDK declared in
 [`global.json`][global-json]. Docker is required only for live integration,
 example, benchmark, and release-qualification runs.
 
+PRs and release candidates use the same complete, read-only qualification,
+including real package consumers and SBOM generation. Release authorization,
+signed tags and publication remain separate. See the
+[workflow overview][workflow-overview] for the shared checks
+and the meaning of a green PR.
+
 The current stable line remains .NET 10. The prepared release-line contract
 reserves `maintenance/10.x` for later 10.x servicing and optional `preview/11.x`
 for independently qualified platform RCs; both routes are initially inactive.
@@ -607,3 +613,4 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [support]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/SUPPORT.md
 [supported-databases]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/supported-databases.md
 [temporal-tables]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/temporal-tables.md
+[workflow-overview]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/workflow-overview.md

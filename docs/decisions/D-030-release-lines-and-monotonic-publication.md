@@ -8,7 +8,7 @@ informed: [Provider contributors]
 scope: "Exact framework release lines, current publication authority and monotonic Latest"
 supersedes: []
 superseded-by: []
-amends: [D-013, D-026]
+amends: [D-013, D-025, D-026]
 amended-by: []
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
@@ -106,6 +106,61 @@ This amends D-013's earlier branch/multi-targeting proposal and D-026's main-onl
 assumptions while retaining PR merge-tree, signing, attestation, exact-byte
 recovery and complete-package contracts. Hosted activation remains separate.
 
+### 2026-11-03 Amendment: One Complete Qualification Definition
+
+PR CI and release candidates invoke the same read-only reusable
+`.github/workflows/quality-gates.yml`. It owns quality and repository tests,
+six-engine specifications, full integration and examples, migration deployment,
+runtime trim/cache NativeAOT, qualified dependency matrices, exact packing of
+all three packages and symbols, isolated real-package consumers with runtime
+readback, SBOM and coverage. Normal PR green includes package consumers and
+SBOM; it does not require release-only candidate attestation, tagging or
+publication.
+
+The CI caller retains the stable `repository-qualification` check and tested
+merge-tree receipt. The release caller retains line/source preflight, invokes
+the common qualifier once with explicit version and frozen authorization
+artifact inputs, then assembles, attests and publishes the same-run bytes.
+The qualifier has no publisher environment, publishing secrets, OIDC,
+attestations or repository-write permissions. Existing Python release modules
+retain authority, receipt and recovery validation; shared shell recipes avoid
+parallel package, consumer, SBOM and engine implementations.
+
+Same-run stage names, attempts, digests and checkpoints remain binding. Current
+main/10 keeps its six release-stage receipts, separately from the complete
+product job graph, and assembly does not repack. The existing `nuget`
+environment, personal signed tags, single-maintainer approval, administrator
+bypass, qualification-only preparation and admission recovery remain unchanged.
+No hosted grant or publication is introduced by this amendment.
+
+The branch owns its SDK, framework, test runner and applicable reviewed
+dependency policy, including transfer to .NET 11. EF Core qualification records
+the floor graph and exercises the highest exact admitted patch; scheduled
+floating dependency probes remain independent. Benchmarks are independent
+engineering diagnostics; hardware-dependent timing, CPU and working-set
+thresholds are never qualification gates. This amendment records the repository
+contract, not evidence that a hosted reusable dispatch has passed.
+
+The package consumers use nonfloating candidate versions and isolated caches.
+NuGet checks non-HTTP sources before HTTP sources; an available exact local
+version therefore takes precedence over its public copy. This is source-type
+precedence, not priority between two HTTP feeds. The consumers also compare
+restored package hashes with the candidate bytes.
+
+The branch's reviewed evidence policy declares applicable engine stages.
+`qualify-engine.sh --list` supplies the workflow matrix; `--all-stages` adds
+package and SBOM for the same candidate restoration and final receipt checks.
+Declared implementations must match their native producer; missing or
+inconsistent implementations fail rather than silently reduce the gate set.
+Preview policy may omit the stable EF patch-range gate. Both PR and RC
+engine execution retain bounded per-stage deadlines.
+
+Native `global.json` test-runner selection remains branch-owned. Normal manual
+CI uses the shared graph once; standalone drift jobs require schedule or
+maintenance dispatch. These review corrections preserve the existing graph,
+same-run receipts and publication controls. Local regression results alone do
+not establish hosted workflow execution.
+
 ### Consequences
 
 - Good, because ordinary releases keep the existing operator actions.
@@ -185,6 +240,9 @@ operations remain separately approved and observed.
   workflow preparation without replacing missing admission evidence.
 - 2026-10-25: Reconcile documented empty GitHub `starter` upload residue only in
   a verified mutable draft; preserve completed assets and strict public readback.
+- 2026-11-03: Unify complete PR and candidate qualification in one read-only
+  reusable workflow, preserving release-only authority, signing, attestation,
+  same-run artifacts, exact-byte recovery and existing operator actions.
 
 ### Implementation References
 
@@ -194,11 +252,25 @@ operations remain separately approved and observed.
 - `eng/release/schedules.py`
 - `eng/release/consumer.py`
 - `.github/workflows/release-candidate.yml`
+- `.github/workflows/quality-gates.yml`
+- `eng/testing/qualify-packages.sh`
+- `eng/testing/generate-package-sbom.sh`
+- `eng/testing/qualify-engine.sh`
 - `eng/tests/test_release_line_consumer.py`
 - `docs/operations/release-lines.md`
 
 ### Sources
 
+- [GitHub reusable-workflow semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations)
+  (primary source; retrieved 2026-11-03)
+- [GitHub same-commit workflow references](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses)
+  (primary source; retrieved 2026-11-03)
+- [Pinned artifact upload root selection](https://github.com/actions/upload-artifact/blob/cf430e030ddbb5b0abf93d22962f4752f3646cd9/src/shared/search.ts)
+  (primary source; retrieved 2026-11-03)
+- [NuGet local-source precedence](https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders)
+  (primary source; retrieved 2026-11-03)
+- [NuGet source-type order for PackageReference](https://learn.microsoft.com/en-us/nuget/consume-packages/configuring-nuget-behavior#nugetdefaultsconfig-settings)
+  (primary source; retrieved 2026-11-03)
 - [GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
   (primary source; retrieved 2026-10-22)
 - [GitHub environment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)

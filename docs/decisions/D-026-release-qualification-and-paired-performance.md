@@ -16,6 +16,23 @@ doka-profile-version: "1.0"
 
 # D-026 -- Qualify releases from PR-bound, tree-exact evidence
 
+## 2026-11-03 Amendment: Shared complete qualification
+
+[D-030](D-030-release-lines-and-monotonic-publication.md#2026-11-03-amendment-one-complete-qualification-definition)
+now defines one complete read-only qualifier for PRs and candidates. The release
+caller preserves line/source preflight, calls `quality-gates.yml` once, then
+assembles, attests and publishes the same-run bytes. Runtime posture belongs to
+the common `engine-contracts` job; earlier `integration-smoke` ownership and
+reduced PR gate inventories below are historical.
+
+Current main/10 retains its six stage receipts, attempt/digest/checkpoint
+bindings and exact-byte recovery. The common workflow receives no publishing
+authority. Personal signed tags, the existing `nuget` environment,
+single-maintainer approval, administrator bypass and qualification-only
+preparation remain unchanged. Benchmarks remain independent engineering
+diagnostics; hardware-dependent timing, CPU and working-set thresholds never
+qualify a release.
+
 ## 2026-10-23 Amendment: Hosted measurements have no hardware-speed verdict
 
 Monthly and manually dispatched hosted benchmarks keep collecting complete raw
@@ -1612,6 +1629,8 @@ manifest verification.
 - 2026-09-10: Restricted EF Core release qualification to the highest exact
   patch in the reviewed specification baseline while retaining floating patch
   resolution only in scheduled and manually dispatched drift detection.
+- 2026-11-03: D-030 unifies complete PR and candidate qualification without
+  changing release-only authority, same-run recovery or performance independence.
 
 ### Implementation References
 

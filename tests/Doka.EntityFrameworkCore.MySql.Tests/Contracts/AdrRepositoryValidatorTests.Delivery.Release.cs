@@ -13,47 +13,56 @@ public sealed partial class AdrRepositoryValidatorTests
         var releaseCandidateScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
-        var normalizedReleaseCandidateScript = NormalizeShellLayout(releaseCandidateScript);
+        var packageScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-packages.sh"));
+
+        var sbomScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "generate-package-sbom.sh"));
+
+        var normalizedPackageScript = NormalizeShellLayout(packageScript);
+        var normalizedSbomScript = NormalizeShellLayout(sbomScript);
 
         // Assert
         Assert.Contains(
             "dotnet tool run sbom-tool --allow-roll-forward -- Generate",
-            normalizedReleaseCandidateScript,
+            normalizedSbomScript,
             StringComparison.Ordinal);
-        Assert.Contains("-bc \"${sbom_components_dir}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
+        Assert.Contains("-bc \"${sbom_components_dir}\"", normalizedSbomScript, StringComparison.Ordinal);
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json\" "
             + "\"${sbom_components_dir}/runtime/project.assets.json\"",
-            normalizedReleaseCandidateScript,
+            normalizedPackageScript,
             StringComparison.Ordinal);
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json\" "
             + "\"${sbom_components_dir}/spatial/project.assets.json\"",
-            normalizedReleaseCandidateScript,
+            normalizedPackageScript,
             StringComparison.Ordinal);
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.Caching.MySql/project.assets.json\" "
             + "\"${sbom_components_dir}/cache/project.assets.json\"",
-            normalizedReleaseCandidateScript,
+            normalizedPackageScript,
             StringComparison.Ordinal);
         Assert.Contains(
             "--assets \"${cache_assets}\" --project \"${cache_project}\" "
             + "--output-directory \"${repo_root}/artifacts/obj/Doka.Caching.MySql\"",
-            normalizedReleaseCandidateScript,
+            normalizedSbomScript,
             StringComparison.Ordinal);
         Assert.Contains(
             "python3 -m eng.release.sbom",
-            normalizedReleaseCandidateScript,
+            normalizedSbomScript,
             StringComparison.Ordinal);
         Assert.Equal(
             3,
-            normalizedReleaseCandidateScript.Split(
+            normalizedSbomScript.Split(
                 "python3 -m eng.release.sbom",
                 StringSplitOptions.None).Length - 1);
-        Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedReleaseCandidateScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedSbomScript, StringComparison.Ordinal);
+        Assert.Contains("eng/testing/qualify-packages.sh", releaseCandidateScript, StringComparison.Ordinal);
+        Assert.Contains("eng/testing/generate-package-sbom.sh", releaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains(
             "assemble_qualification_manifest",
-            normalizedReleaseCandidateScript,
+            releaseCandidateScript,
             StringComparison.Ordinal);
     }
 
@@ -99,12 +108,16 @@ public sealed partial class AdrRepositoryValidatorTests
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
+        var packageQualifier = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-packages.sh"));
+
         // Assert
         Assert.Contains("all(.libraries[]; .type != \"project\")", packageConsumer, StringComparison.Ordinal);
         Assert.Contains("restored_provider_sha256", packageConsumer, StringComparison.Ordinal);
         Assert.Contains("restored_spatial_sha256", packageConsumer, StringComparison.Ordinal);
-        Assert.Contains("test-local-package-consumer.sh", releaseCandidate, StringComparison.Ordinal);
-        Assert.Contains("${local_package_consumer_dir}", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("eng/testing/qualify-packages.sh", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("test-local-package-consumer.sh", packageQualifier, StringComparison.Ordinal);
+        Assert.Contains("${local_package_consumer_dir}", packageQualifier, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -128,7 +141,10 @@ public sealed partial class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "release", "evidence.py"));
 
         var workflow = File.ReadAllText(
-            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+            Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
+
+        var engineQualifier = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-engine.sh"));
 
         var runtimeSmokeProject = File.ReadAllText(
             Path.Combine(
@@ -154,20 +170,19 @@ public sealed partial class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
         Assert.Contains(
             "DOKA_RUNTIME_POSTURE_EVIDENCE_DIR=\"${runtime_dir}\"",
-            releaseCandidate,
+            engineQualifier,
             StringComparison.Ordinal);
         Assert.Contains("validate_runtime_posture", releaseEvidence, StringComparison.Ordinal);
         Assert.Contains("validate_reconciliation", releaseEvidence, StringComparison.Ordinal);
-        Assert.Contains("DOKA_RUNTIME_TARGET_IMAGE", workflow, StringComparison.Ordinal);
+        Assert.Contains("qualify-engine.sh", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("mysql_container_name", runtimePosture, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Prevents an omitted local version override from expanding an empty
-    /// array under the nounset semantics of the Bash version shipped by macOS.
+    /// Keeps explicit package-version arguments safe under the nounset semantics of macOS Bash.
     /// </summary>
     [Fact]
-    public void Release_candidate_optional_version_is_nounset_safe()
+    public void Package_qualification_version_arguments_are_nounset_safe()
     {
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
@@ -176,13 +191,17 @@ public sealed partial class AdrRepositoryValidatorTests
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
 
+        var packageQualifier = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-packages.sh"));
+
         // Assert
-        Assert.Contains("run_with_release_version()", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("DOKA_RELEASE_VERSION must be an explicit candidate version", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("run_with_release_version()", packageQualifier, StringComparison.Ordinal);
         Assert.Contains(
             "command_arguments+=(\"-p:PackageVersion=${release_version_override}\")",
-            releaseCandidate,
+            packageQualifier,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("${version_arguments[@]}", releaseCandidate, StringComparison.Ordinal);
+        Assert.DoesNotContain("${version_arguments[@]}", releaseCandidate + packageQualifier, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -342,9 +361,7 @@ public sealed partial class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, ".github", "workflows", "release-candidate.yml"));
 
         var preflight = GetWorkflowJob(workflow, "preflight");
-        var foundation = GetWorkflowJob(workflow, "foundation");
-        var engineContracts = GetWorkflowJob(workflow, "engine-contracts");
-        var sbom = GetWorkflowJob(workflow, "sbom");
+        var qualification = GetWorkflowJob(workflow, "qualification");
         var assemble = GetWorkflowJob(workflow, "assemble");
         var attest = GetWorkflowJob(workflow, "attest");
         var publish = GetWorkflowJob(workflow, "publish");
@@ -362,20 +379,14 @@ public sealed partial class AdrRepositoryValidatorTests
             + "      pull-requests: read\n",
             preflight,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("\n    permissions:", foundation, StringComparison.Ordinal);
-        Assert.Contains("    needs: preflight\n", foundation, StringComparison.Ordinal);
-        Assert.DoesNotContain("\n    permissions:", engineContracts, StringComparison.Ordinal);
-        Assert.Contains("    needs:\n      - preflight\n      - foundation\n", engineContracts, StringComparison.Ordinal);
-        Assert.Contains(
-            "    needs:\n      - preflight\n      - foundation\n",
-            sbom,
-            StringComparison.Ordinal);
+        Assert.Contains("    needs: preflight\n", qualification, StringComparison.Ordinal);
+        Assert.Contains("uses: $/.github/workflows/quality-gates.yml", qualification, StringComparison.Ordinal);
         Assert.Contains(
             "    permissions:\n      actions: read\n      contents: read\n",
-            sbom,
+            qualification,
             StringComparison.Ordinal);
         Assert.Contains(
-            "    needs:\n      - preflight\n      - foundation\n      - engine-contracts\n      - sbom\n",
+            "    needs:\n      - preflight\n      - qualification\n",
             assemble,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -413,9 +424,7 @@ public sealed partial class AdrRepositoryValidatorTests
     }
 
     /// <summary>
-    /// Keeps the expensive configuration and failure matrix outside ordinary
-    /// pushes while making its unfiltered six-target evidence mandatory for
-    /// every release candidate.
+    /// Keeps the unfiltered six-target configuration and failure matrix mandatory for every qualifier.
     /// </summary>
     [Fact]
     public void Integration_configuration_matrix_is_mandatory_for_release_candidates()
@@ -425,13 +434,19 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Act
         var workflow = File.ReadAllText(
-            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
+            Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
+
+        var engineQualifier = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-engine.sh"));
 
         var integrationRunner = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "testing", "test-integration.sh"));
 
         var releaseCandidate = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "release", "release-candidate.sh"));
+
+        var specificationTarget = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "test-spec-target.sh"));
 
         var sqlModeTests = File.ReadAllText(
             Path.Combine(
@@ -466,17 +481,18 @@ public sealed partial class AdrRepositoryValidatorTests
                 "TlsDatabaseTestGroup.cs"));
 
         // Assert
-        Assert.Contains("DOKA_INTEGRATION_TEST_FILTER", workflow, StringComparison.Ordinal);
-        Assert.Contains("VerificationLane!=FullIntegration", workflow, StringComparison.Ordinal);
+        Assert.Contains("qualify-engine.sh", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("VerificationLane!=FullIntegration", workflow, StringComparison.Ordinal);
         Assert.Contains("validate_full_configuration_matrix", integrationRunner, StringComparison.Ordinal);
         Assert.Contains("The full configuration matrix cannot use", integrationRunner, StringComparison.Ordinal);
         Assert.Contains("Duplicate integration target", integrationRunner, StringComparison.Ordinal);
         Assert.Contains(
             "DOKA_INTEGRATION_TARGETS=\"mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123\"",
-            releaseCandidate,
+            engineQualifier,
             StringComparison.Ordinal);
-        Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", releaseCandidate, StringComparison.Ordinal);
-        Assert.Contains("--filter \"Category=Spec|Category=Live\"", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", engineQualifier, StringComparison.Ordinal);
+        Assert.Contains("eng/testing/test-spec-target.sh", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains("--filter \"Category=Spec|Category=Live\"", specificationTarget, StringComparison.Ordinal);
         Assert.Contains(
             "run_integration_configuration_and_failure_gate",
             releaseCandidate,

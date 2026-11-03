@@ -1,10 +1,10 @@
 # Release Governance
 
 `Doka.EntityFrameworkCore.MySql` treats release hardening as a reproducible
-engineering contract. Pull-request qualification, exact Git-tree binding, and
-one manually dispatched, untagged qualification workflow create the evidence.
-Hosted assembly freezes the selected identities and payload digests before
-GitHub attests the candidate.
+engineering contract. Pull requests and manually dispatched, untagged candidates
+use one complete reusable qualification definition, with exact Git-tree binding
+for the PR trust root. Hosted candidate assembly freezes the selected identities
+and payload digests before the separate release job attests the candidate.
 
 This document freezes the reviewable governance baseline for:
 
@@ -80,21 +80,33 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 
 - PR workflow:
   - workflow: `.github/workflows/ci.yml`
+  - complete reusable qualifier: `.github/workflows/quality-gates.yml`, also
+    called once by each release-candidate run after preflight
   - shared quality path: `./eng/quality-gates.sh`
   - local commit subset: `./eng/quality-gates.sh --fast`
   - local path: `./eng/test.sh`
-  - representative live DB path:
+  - full live DB path, including configuration and failure categories:
 
     ```bash
-    DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 \
-    DOKA_INTEGRATION_TEST_FILTER='VerificationLane!=FullIntegration' \
     ./eng/test-integration.sh
     ```
 
   - migration model drift gate: `./eng/quality/check-migration-model.sh`
+  - product graph: quality, repository tests, six-engine specifications, full
+    integration and examples, migration deployment, runtime posture, applicable
+    qualified dependency matrices, exact three-package/symbol packing, isolated
+    real-package consumers with runtime readback, SBOM and merged coverage
+  - package and SBOM commands: `eng/testing/qualify-packages.sh` and
+    `eng/testing/generate-package-sbom.sh`; candidate stages delegate to these
+    same recipes rather than maintain release-only copies
+  - engine recipes: `eng/testing/qualify-engine.sh`; the source branch owns
+    SDK, framework, test runner and applicability of its reviewed EF patch policy
+  - reusable authority: typed version and optional frozen authorization artifact
+    inputs; no publisher environment, publishing secrets, OIDC, attestations or
+    repository-write permissions
+  - required-result gate: `required` rejects incomplete or non-success results
   - protected-branch aggregator: `repository-qualification`, which fails closed
-    over quality, repository tests, specification conformance, integration
-    smoke, and merged coverage for GitHub's tested pull-request merge ref
+    over the complete common result for GitHub's tested pull-request merge ref
   - merge binding: release trust accepts that result only for the single merged
     pull request whose recorded merge-ref tree equals the candidate `main` tree;
     the exact artifact ID is frozen for publication
@@ -105,14 +117,17 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - specification targets: `mysql84`, `mysql97`, `mariadb1011`, `mariadb114`,
     `mariadb118`, and `mariadb123`
   - merged source-coverage gate: `coverage-gate`
-  - runtime posture: the real Linux RID path runs inside `integration-smoke`
+  - runtime posture: the real Linux RID path runs through `engine-contracts`
 - Scheduled drift and manually dispatched full workflow:
   - workflow: `.github/workflows/ci.yml`
   - cadence: weekly for the three drift jobs; on demand for product and drift
     lanes together
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
-  - EF Core floor/latest matrix: `efcore-patch-matrix`
-  - MySqlConnector floor/latest matrix: `mysqlconnector-patch-matrix`
+  - independent floating EF Core drift probe: `efcore-patch-matrix`; ordinary
+    qualification uses the reviewed floor/highest-admitted recipe
+  - independent floating MySqlConnector drift probe:
+    `mysqlconnector-patch-matrix`; ordinary qualification retains its reviewed
+    floor/latest recipe
   - supported MySqlConnector range: `[2.6.1, 3.0.0)`
   - driver evidence:
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/resolved-packages.json`
@@ -156,6 +171,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     - `artifacts/benchmarks/<target>/diagnostics/<run-id>.log`
   - authority: independent engineering evidence only; benchmark outcomes and
     artifacts are not release gates and are absent from candidate manifests
+  - hardware-dependent timing, CPU admission and working-set thresholds never
+    enter shared qualification; hosted performance diagnostics retain their
+    separate allocation and resource-ownership contract
 - Hosted candidate and protected publication:
   - workflow: `.github/workflows/release-candidate.yml`
   - trigger: one manual dispatch from exact current `main`, with the package
@@ -165,14 +183,20 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     protected-main reachability, signing material, and successful PR-bound,
     tree-exact `repository-qualification` without allocating a runner or
     creating a tag
-  - imported branch gate: `repository-qualification` aggregates quality,
-    repository tests, specification, integration smoke, and coverage for the
-    tested pull-request merge ref; the release lookup verifies its
+  - imported branch gate: `repository-qualification` aggregates the complete
+    reusable qualification for the tested pull-request merge ref; the release
+    lookup verifies its
     attempt-qualified artifact and binds that tree to the candidate `main`
     commit
-  - candidate-produced gates: migration deployment, runtime posture, both
-    patch matrices, package, and SBOM produce exactly six stage receipts while
-    the source is still untagged
+  - one common call: preflight validates release-line authority, then
+    `quality-gates.yml` executes the complete reversible graph for the explicit
+    candidate version; separate same-run assembly, attestation and publication
+    follow without granting the qualifier publication authority
+  - candidate stage receipts: migration deployment, runtime posture, both
+    patch matrices, package, and SBOM retain exactly six stage receipts on
+    current main/10 while the source is still untagged. This inventory is
+    separate from the complete product job graph; assembly verifies selected
+    artifacts and never repacks qualified bytes
   - dependency evidence: locked restore and vulnerability audit include all
     three release projects; SBOM generation consumes the exact candidate-local
     runtime, spatial, and cache dependency assets captured by the package stage
@@ -198,8 +222,10 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     pinned MySQL 8.4 image
   - performance boundary: candidate and publication code cannot invoke or read
     benchmark workflows, contracts, budgets, artifacts, or verdicts
-  - candidate identity: `github.run_id` owns all stage artifacts; reruns may
-    select only checksum-verified state from the same run and no future attempt
+  - candidate identity: `github.run_id` owns all stage artifacts under
+    `release-stage-<stage>-attempt-N`; checkpoint ownership and digests remain
+    strict, and reruns may select only checksum-verified state from the same
+    run and no future attempt
   - attestation boundary: the `attest` job alone receives attestation and
     artifact-metadata write permissions, and binds the untagged
     `refs/heads/main` source plus candidate bytes; its exact Sigstore bundle is
@@ -286,9 +312,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
 
 ## Integration Configuration and Failure Contract
 
-The scheduled container matrix and the explicit local full-matrix command cover
-configuration and failure modes that unit tests or a healthy default connection
-cannot prove:
+The shared PR/candidate qualifier, scheduled container matrix and explicit local
+full-matrix command cover configuration and failure modes that unit tests or a
+healthy default connection cannot prove:
 
 - provider-generated text literals are executed with the default SQL mode,
   `NO_BACKSLASH_ESCAPES`, `ANSI_QUOTES`, and their strict combined form
@@ -305,15 +331,14 @@ cannot prove:
 - a deliberately unreachable first address followed by the live test proxy
   proves ordered multi-host failover through an actual provider query
 
-The pull-request lane excludes the three dedicated categories. The scheduled
-`container-matrix` workflow selects every active MySQL and MariaDB LTS target
-explicitly and runs without a filter. The shared runner persists its selected
-targets, filter, exit code, and full-matrix marker so the result remains
-auditable instead of being inferred from a green job alone. This scheduled
-lane is compatibility evidence; the release manifest imports only the
-pull-request `integration-smoke` result through `repository-qualification`,
-after release trust proves that the tested merge-ref and merged Git trees are
-identical.
+Both the shared qualification `integration` job and scheduled `container-matrix`
+workflow select every active MySQL and MariaDB LTS target and run without a
+filter. The shared runner persists its selected targets, filter, exit code and
+full-matrix marker so the result remains auditable. The scheduled lane remains
+independent compatibility evidence. Release preflight imports the complete PR
+result through `repository-qualification` only after proving that the tested
+merge-ref and merged Git trees are identical; the candidate then executes the
+same complete qualifier for its own version and retains its stage evidence.
 
 MySQL-family DDL accepts only its quoted comment-literal grammar, so the
 provider cannot use the general `_utf8mb4 X'...'` expression form directly

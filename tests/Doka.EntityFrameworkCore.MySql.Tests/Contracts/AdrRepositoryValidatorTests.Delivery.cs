@@ -53,6 +53,12 @@ public sealed partial class AdrRepositoryValidatorTests
         var workflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"));
 
+        var sharedWorkflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "quality-gates.yml"));
+
+        var engineQualifier = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "testing", "qualify-engine.sh"));
+
         // Assert
         Assert.Contains("migrations has-pending-model-changes", modelGate, StringComparison.Ordinal);
         Assert.Contains("migrations script", deploymentGate, StringComparison.Ordinal);
@@ -79,13 +85,14 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.Contains("run_migration_deployment_gate", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
             "DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT=\"${migration_deployment_root}\"",
-            releaseCandidate,
+            engineQualifier,
             StringComparison.Ordinal);
         Assert.Contains(
             "\"${repo_root}/eng/quality/check-migration-model.sh\"",
             qualityGates,
             StringComparison.Ordinal);
-        Assert.Contains("run: bash eng/quality-gates.sh", workflow, StringComparison.Ordinal);
+        Assert.Contains("run: bash eng/quality-gates.sh", sharedWorkflow, StringComparison.Ordinal);
+        Assert.Contains("uses: $/.github/workflows/quality-gates.yml", workflow, StringComparison.Ordinal);
         Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);
     }
 }

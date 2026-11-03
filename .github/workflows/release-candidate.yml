@@ -118,188 +118,20 @@ jobs:
           bash -n ./eng/testing/test-nuget-readback.sh
           bash ./eng/release/test-tools.sh
 
-  foundation:
+  qualification:
     needs: preflight
-    runs-on: ubuntu-26.04
-    timeout-minutes: 35
-
-    env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 1800
-      DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/package
-
-    steps:
-      - name: Checkout candidate source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Download frozen line authorization
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ${{ needs.preflight.outputs.line_artifact_name }}
-          path: artifacts/release-lines
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Pack and qualify exact local package bytes
-        run: bash ./eng/release-candidate.sh --stage package
-
-      - name: Upload verified package state
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-stage-package-attempt-${{ github.run_attempt }}
-          path: |
-            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Retain incomplete package diagnostics
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-diagnostics-package-${{ github.run_attempt }}
-          path: artifacts
-          if-no-files-found: warn
-          retention-days: 7
-
-  engine-contracts:
-    needs:
-      - preflight
-      - foundation
-    runs-on: ubuntu-26.04
-    timeout-minutes: ${{ matrix.timeout_minutes }}
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include:
-          - stage: migration-deployment
-            timeout_minutes: 60
-            deadline_seconds: 3300
-          - stage: runtime
-            timeout_minutes: 40
-            deadline_seconds: 2100
-          - stage: efcore-patch-matrix
-            timeout_minutes: 60
-            deadline_seconds: 3300
-          - stage: mysqlconnector-patch-matrix
-            timeout_minutes: 45
-            deadline_seconds: 2400
-
-    env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: ${{ matrix.deadline_seconds }}
-      DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/${{ matrix.stage }}
-
-    steps:
-      - name: Checkout candidate source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Download frozen line authorization
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ${{ needs.preflight.outputs.line_artifact_name }}
-          path: artifacts/release-lines
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Run ${{ matrix.stage }} stage
-        run: bash ./eng/release-candidate.sh --stage "${{ matrix.stage }}"
-
-      - name: Upload verified ${{ matrix.stage }} state
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-stage-${{ matrix.stage }}-attempt-${{ github.run_attempt }}
-          path: |
-            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Retain incomplete ${{ matrix.stage }} diagnostics
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-diagnostics-${{ matrix.stage }}-${{ github.run_attempt }}
-          path: artifacts
-          if-no-files-found: warn
-          retention-days: 7
-
-  sbom:
-    needs:
-      - preflight
-      - foundation
-    runs-on: ubuntu-26.04
-    timeout-minutes: 20
-
+    uses: $/.github/workflows/quality-gates.yml
     permissions:
       actions: read
       contents: read
-
-    env:
-      DOKA_RELEASE_CANDIDATE_MAXIMUM_DURATION_SECONDS: 900
-      DOKA_RELEASE_CANDIDATE_RESUME: 1
-      DOKA_RELEASE_RUNNER_IDENTITY: github/${{ github.run_id }}/sbom
-
-    steps:
-      - name: Checkout candidate source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Download frozen line authorization
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ${{ needs.preflight.outputs.line_artifact_name }}
-          path: artifacts/release-lines
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Restore package input
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bash ./eng/release/restore-release-stage-artifacts.sh \
-            --output artifacts \
-            --selection-output \
-              "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/sbom-input-artifacts.json" \
-            --stage package
-
-      - name: Run SBOM stage
-        run: bash ./eng/release-candidate.sh --stage sbom
-
-      - name: Upload verified SBOM state
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-stage-sbom-attempt-${{ github.run_attempt }}
-          path: |
-            artifacts/release-candidate/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-            artifacts/release-candidate-checkpoints/${{ env.DOKA_RELEASE_CANDIDATE_RUN_ID }}
-          if-no-files-found: error
-          retention-days: 7
+    with:
+      version: ${{ inputs.version }}
+      authorization_artifact: ${{ needs.preflight.outputs.line_artifact_name }}
 
   assemble:
     needs:
       - preflight
-      - foundation
-      - engine-contracts
-      - sbom
+      - qualification
     runs-on: ubuntu-26.04
     timeout-minutes: 25
 
@@ -340,16 +172,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          stage_inventory="$(bash eng/testing/qualify-engine.sh --all-stages)"
+          stage_arguments=()
+          while IFS= read -r stage; do
+            stage_arguments+=(--stage "${stage}")
+          done < <(jq -r '.[]' <<< "${stage_inventory}")
+
           bash ./eng/release/restore-release-stage-artifacts.sh \
             --output artifacts \
             --selection-output \
               "artifacts/release-candidate/${DOKA_RELEASE_CANDIDATE_RUN_ID}/artifact-selections/assemble-input-artifacts.json" \
-            --stage migration-deployment \
-            --stage runtime \
-            --stage efcore-patch-matrix \
-            --stage mysqlconnector-patch-matrix \
-            --stage package \
-            --stage sbom
+            "${stage_arguments[@]}"
 
       - name: Assemble immutable release candidate
         env:

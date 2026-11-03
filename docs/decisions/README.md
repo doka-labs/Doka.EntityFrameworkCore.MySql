@@ -31,12 +31,12 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-022](D-022-madr-enterprise-profile.md) | implemented | 2026-07-27 | Adopt MADR 4.0.0 with the Doka enterprise profile | - |
 | [D-023](D-023-tiered-ci-verification.md) | superseded | 2026-07-31 | Use tiered CI verification under a fixed runner budget | superseded by D-025; amends D-009, D-018 |
 | [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-08-04 | Support native CTEs, directed joins, and portable temporal tables | amends D-004 |
-| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026 |
+| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026, D-030 |
 | [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from PR-bound, tree-exact evidence | amends D-019, D-025; amended by D-030 |
 | [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-08-11 | Expose exact-type migration operation handlers | - |
 | [D-028](D-028-explicit-nullability-backfills.md) | implemented | 2026-08-21 | Require explicit migration data transformations | - |
 | [D-029](D-029-ownership-aware-connection-invariants.md) | implemented | 2026-08-30 | Centralize ownership-aware connection invariants | - |
-| [D-030](D-030-release-lines-and-monotonic-publication.md) | implemented | 2026-10-22 | Separate release-line qualification from current publication authority | amends D-013, D-026 |
+| [D-030](D-030-release-lines-and-monotonic-publication.md) | implemented | 2026-10-22 | Separate release-line qualification from current publication authority | amends D-013, D-025, D-026 |
 
 ## Relationship Graph
 
@@ -50,5 +50,6 @@ flowchart LR
   D_026["D-026"] -->|"amends"| D_019["D-019"]
   D_026["D-026"] -->|"amends"| D_025["D-025"]
   D_030["D-030"] -->|"amends"| D_013["D-013"]
+  D_030["D-030"] -->|"amends"| D_025["D-025"]
   D_030["D-030"] -->|"amends"| D_026["D-026"]
 ```

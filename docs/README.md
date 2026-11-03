@@ -51,8 +51,9 @@ EF Core 10.0.8 minimum, supported engines and storage defaults remain unchanged.
 
 ## Operate the Provider
 
-- [Workflow Overview](operations/workflow-overview.md) maps independent PR,
-  scheduled and explicit release paths, including hosted benchmark enforcement.
+- [Workflow Overview](operations/workflow-overview.md) maps shared PR/RC
+  qualification, separate publication and scheduled checks, including hosted
+  benchmark enforcement without hardware-dependent time gates.
 - [Operations Runbook](operations-runbook.md) routes incidents, migrations,
   resilience, publication, and performance work to their owned procedures.
 - [Release Publication](operations/release-publication.md) defines the ordered

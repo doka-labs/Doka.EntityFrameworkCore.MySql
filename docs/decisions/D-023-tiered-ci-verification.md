@@ -16,6 +16,14 @@ doka-profile-version: "1.0"
 
 # D-023 -- Use tiered CI verification under a fixed runner budget
 
+## 2026-11-03 Clarification: Shared qualification
+
+This decision remains superseded by D-025. The current complete PR and candidate
+qualification definition is recorded in
+[D-030](D-030-release-lines-and-monotonic-publication.md#2026-11-03-amendment-one-complete-qualification-definition).
+The representative integration lanes, job counts and cadence rationale below
+describe the original decision, not the current product gate inventory.
+
 ## Context and Problem Statement
 
 The repository CI workflow grew to thirteen Linux jobs for every push and pull

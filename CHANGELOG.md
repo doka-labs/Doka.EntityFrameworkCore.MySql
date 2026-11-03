@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Use one complete read-only qualification workflow for PRs and release
+  candidates, including full integration, deployment/runtime and dependency
+  checks, all three packed-package consumers with runtime readback, SBOM and
+  coverage. Keep scheduled floating dependency probes and performance
+  diagnostics independent; preserve signed tags, protected publication and
+  same-run exact-byte recovery.
+
 ## [10.6.3] - 2026-10-29
 
 Stable patch release raising the MySqlConnector security minimum to 2.6.1 and
