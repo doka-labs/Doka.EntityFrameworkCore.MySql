@@ -28,7 +28,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         };
 
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         var rows = CreateIntegerRows(8);
         AddRows(context, rows);
         capture.Enabled = true;

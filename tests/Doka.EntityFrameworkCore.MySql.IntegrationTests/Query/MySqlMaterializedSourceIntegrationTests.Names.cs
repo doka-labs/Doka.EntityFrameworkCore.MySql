@@ -11,12 +11,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         + NameCollisionUnderscores + NameCollisionUnderscores
         + NameCollisionUnderscores + NameCollisionUnderscores + " */";
 
+    /// <summary>Verifies the raw sql collision has bounded identifier contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRawSqlCollisionHasBoundedIdentifierAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         // WHY: This trusted comment contains every short underscore-appended name
         // and exposes identifier growth without relying on an invalid SQL source.
 
@@ -26,7 +29,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             .WithMaterializedSource(source => source.Concat(source))
             .OrderBy(id => id);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         var expected = Enumerable.Range(1, 32).SelectMany(id => new[] { id, id });
 

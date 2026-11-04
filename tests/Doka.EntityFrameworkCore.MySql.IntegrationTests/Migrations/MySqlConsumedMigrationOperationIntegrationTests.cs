@@ -16,45 +16,51 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql84);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql97);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies consumed only migration history for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertConsumedOnlyMigrationHistoryAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -66,9 +72,9 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        await DropHistoryTableAsync(connection)
+        await DropHistoryTableAsync(connection, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -81,7 +87,7 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
 
             var migrator = context.GetService<IMigrator>();
             var initiallyApplied = await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             var initialInvocationCount = handler.InvocationCount;
@@ -89,20 +95,20 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
             // WHY: Reapplying this migration must observe the history written by the first application.
             // Act
             await migrator
-                .MigrateAsync(cancellationToken: CancellationToken.None)
+                .MigrateAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var firstInvocationCount = handler.InvocationCount;
             var appliedAfterFirstMigration = await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             await migrator
-                .MigrateAsync(cancellationToken: CancellationToken.None)
+                .MigrateAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var appliedAfterRepeatMigration = await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
@@ -117,7 +123,7 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
         }
         finally
         {
-            await DropHistoryTableAsync(connection)
+            await DropHistoryTableAsync(connection, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -142,14 +148,20 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
         return new ConsumedOnlyMigrationContext(builder.Options);
     }
 
+    /// <summary>
+    /// Drops history table for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task DropHistoryTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{ConsumedOnlyMigrationContract.HistoryTable}`;";
         _ = await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

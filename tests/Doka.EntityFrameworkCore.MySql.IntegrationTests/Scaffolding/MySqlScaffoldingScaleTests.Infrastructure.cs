@@ -131,14 +131,21 @@ public sealed partial class MySqlScaffoldingScaleTests
         "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 FOR SHOW CREATE TABLE ",
         StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Creates large schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="tableNames">The table names.</param>
     private static async Task CreateLargeSchemaAsync(
         string connectionString,
-        string[] tableNames
+        string[] tableNames,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         var sql = new StringBuilder();
@@ -186,18 +193,25 @@ public sealed partial class MySqlScaffoldingScaleTests
         command.CommandText = sql.ToString();
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Drops large schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="tableNames">The table names.</param>
     private static async Task DropLargeSchemaAsync(
         string connectionString,
-        string[] tableNames
+        string[] tableNames,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         var sql = new StringBuilder();
@@ -214,7 +228,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         command.CommandText = sql.ToString();
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

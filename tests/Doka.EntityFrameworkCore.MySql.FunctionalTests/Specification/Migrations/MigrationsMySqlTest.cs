@@ -37,10 +37,13 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
         var connectionString = ((MySqlTestStore)Fixture.TestStore).ConnectionString;
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync();
+
+        // WHY: EF's specification hook does not supply a cancellation token.
         await MySqlClientScriptExecutor.ExecuteAsync(
             connection,
             value,
-            MySqlTestStore.DefaultCommandTimeout);
+            MySqlTestStore.DefaultCommandTimeout,
+            CancellationToken.None);
     }
 
     [Fact(Skip = SnapshotInapplicableReason)]

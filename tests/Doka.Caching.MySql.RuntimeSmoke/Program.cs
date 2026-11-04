@@ -12,25 +12,26 @@ internal static class Program
         var connectionString = Environment.GetEnvironmentVariable("DOKA_RUNTIME_SMOKE_CONNECTION_STRING")
             ?? "Server=127.0.0.1;Port=33068;User ID=root;Password=root_password;";
 
-        await VerifyRegistrationAsync(connectionString);
+        // WHY: Main has no cancellation input; helpers require an explicit token at this boundary.
+        await VerifyRegistrationAsync(connectionString, cancellationToken: CancellationToken.None);
         if (arguments.Contains("--registration-only", StringComparer.Ordinal))
         {
             Console.WriteLine("Cache package registration contract OK.");
             return 0;
         }
 
-        await DeploySchemaAsync(connectionString);
-        await VerifyInjectedTimeProviderAsync(connectionString);
+        await DeploySchemaAsync(connectionString, cancellationToken: CancellationToken.None);
+        await VerifyInjectedTimeProviderAsync(connectionString, cancellationToken: CancellationToken.None);
         await using var services = CreateServices(connectionString);
 
         var cache = services.GetRequiredService<IDistributedCache>();
         var bufferCache = services.GetRequiredService<IBufferDistributedCache>();
 
         VerifySynchronousOperations(cache, bufferCache);
-        await VerifyAsynchronousOperationsAsync(cache, bufferCache);
-        await VerifyCancellationAsync(cache);
-        await VerifyConcurrentOperationsAsync(cache);
-        await VerifyExternalDataSourceAsync(connectionString);
+        await VerifyAsynchronousOperationsAsync(cache, bufferCache, cancellationToken: CancellationToken.None);
+        await VerifyCancellationAsync(cache, cancellationToken: CancellationToken.None);
+        await VerifyConcurrentOperationsAsync(cache, cancellationToken: CancellationToken.None);
+        await VerifyExternalDataSourceAsync(connectionString, cancellationToken: CancellationToken.None);
 
         Console.WriteLine(
             "Cache runtime smoke OK (sync, async, buffer, cancellation, concurrency, external pool, time provider).");
@@ -68,14 +69,23 @@ internal static class Program
             });
     }
 
+    /// <summary>
+    /// Checks cache service registration before running database operations.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
     private static async Task VerifyRegistrationAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var services = CreateServices(connectionString);
         services
             .GetRequiredService<IStartupValidator>()
             .Validate();
+
         if (!ReferenceEquals(
                 services.GetRequiredService<IDistributedCache>(),
                 services.GetRequiredService<IBufferDistributedCache>()))
@@ -112,16 +122,24 @@ internal static class Program
         throw new InvalidOperationException("Invalid cache options passed startup validation.");
     }
 
+    /// <summary>
+    /// Checks expiration cleanup against the injected time provider.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
     private static async Task VerifyInjectedTimeProviderAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var time = new ManualTimeProvider();
         await using var services = CreateServices(connectionString, timeProvider: time);
         var cache = services.GetRequiredService<IDistributedCache>();
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None);
+        await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText =
             $"""
@@ -132,7 +150,8 @@ internal static class Program
                  ('runtime-clock-renewed', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 1),
                  ('runtime-clock-expired', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 2);
              """;
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
 
         try
         {
@@ -140,38 +159,38 @@ internal static class Program
                 "runtime-clock-renewed",
                 [2],
                 new DistributedCacheEntryOptions(),
-                CancellationToken.None);
+                cancellationToken);
             await cache.SetAsync(
                 "runtime-clock-live",
                 [3],
                 new DistributedCacheEntryOptions(),
-                CancellationToken.None);
+                cancellationToken);
 
             command.CommandText =
                 $"SELECT COUNT(*) FROM `{DatabaseName}`.`{TableName}` WHERE `ExpiresAtUtc` <= UTC_TIMESTAMP(6);";
             Require(
                 Convert.ToInt64(
-                    await command.ExecuteScalarAsync(CancellationToken.None),
+                    await command.ExecuteScalarAsync(cancellationToken),
                     CultureInfo.InvariantCulture) == 1,
                 "The cleanup clock fixture did not contain exactly one expired row.");
 
             time.Advance(TimeSpan.FromMinutes(5));
             Require(
-                await cache.GetAsync("runtime-clock-miss", CancellationToken.None) is null,
+                await cache.GetAsync("runtime-clock-miss", cancellationToken) is null,
                 "The cleanup trigger unexpectedly returned a value.");
 
             Require(
                 Convert.ToInt64(
-                    await command.ExecuteScalarAsync(CancellationToken.None),
+                    await command.ExecuteScalarAsync(cancellationToken),
                     CultureInfo.InvariantCulture) == 0,
                 "The DI-provided time source did not trigger expired-row cleanup.");
             Require(
-                (await cache.GetAsync("runtime-clock-renewed", CancellationToken.None))
+                (await cache.GetAsync("runtime-clock-renewed", cancellationToken))
                 .AsSpan()
                 .SequenceEqual(new byte[] { 2 }),
                 "Cleanup deleted the renewed entry.");
             Require(
-                (await cache.GetAsync("runtime-clock-live", CancellationToken.None))
+                (await cache.GetAsync("runtime-clock-live", cancellationToken))
                 .AsSpan()
                 .SequenceEqual(new byte[] { 3 }),
                 "Cleanup deleted the live entry.");
@@ -179,23 +198,33 @@ internal static class Program
         finally
         {
             command.CommandText = $"DELETE FROM `{DatabaseName}`.`{TableName}`;";
+
+            // WHY: Fixture cleanup must complete even when the probe operation is canceled.
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
     }
 
+    /// <summary>
+    /// Creates the cache smoke database and entry table.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
     private static async Task DeploySchemaAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None);
+        await connection.OpenAsync(cancellationToken);
         await using var createDatabase = connection.CreateCommand();
         createDatabase.CommandText = $"CREATE DATABASE IF NOT EXISTS `{DatabaseName}`;";
-        await createDatabase.ExecuteNonQueryAsync(CancellationToken.None);
+        await createDatabase.ExecuteNonQueryAsync(cancellationToken);
         await using var createTable = connection.CreateCommand();
         createTable.CommandText = MySqlCacheSchema.GetCreateScript(DatabaseName, TableName);
-        await createTable.ExecuteNonQueryAsync(CancellationToken.None);
-        await createTable.ExecuteNonQueryAsync(CancellationToken.None);
+        await createTable.ExecuteNonQueryAsync(cancellationToken);
+        await createTable.ExecuteNonQueryAsync(cancellationToken);
     }
 
     // WHY: The runtime probe verifies the synchronous public API as well as the asynchronous API.
@@ -237,11 +266,20 @@ internal static class Program
     }
     // ReSharper restore MethodHasAsyncOverload
 
+    /// <summary>
+    /// Checks asynchronous cache and buffer operations against the deployed schema.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="cache">The cache instance used by the smoke probe.</param>
+    /// <param name="bufferCache">The buffer cache instance used by the smoke probe.</param>
     private static async Task VerifyAsynchronousOperationsAsync(
         IDistributedCache cache,
-        IBufferDistributedCache bufferCache
+        IBufferDistributedCache bufferCache,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         const string key = "runtime-async";
         var expected = new byte[32 * 1024];
         for (var index = 0; index < expected.Length; index++)
@@ -254,38 +292,49 @@ internal static class Program
             SlidingExpiration = TimeSpan.FromMinutes(5),
         };
 
-        await cache.SetAsync(key, expected, options, CancellationToken.None);
+        await cache.SetAsync(key, expected, options, cancellationToken);
         Require(
-            (await cache.GetAsync(key, CancellationToken.None))
+            (await cache.GetAsync(key, cancellationToken))
             .AsSpan()
             .SequenceEqual(expected),
             "Asynchronous data did not round-trip.");
 
-        await cache.RefreshAsync(key, CancellationToken.None);
+        await cache.RefreshAsync(key, cancellationToken);
 
         var first = new BufferSegment(expected.AsMemory(0, 13));
         var last = first.Append(expected.AsMemory(13));
         var sequence = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
-        await bufferCache.SetAsync(key, sequence, options, CancellationToken.None);
+        await bufferCache.SetAsync(key, sequence, options, cancellationToken);
         var buffer = new ArrayBufferWriter<byte>(expected.Length);
         Require(
-            await bufferCache.TryGetAsync(key, buffer, CancellationToken.None),
+            await bufferCache.TryGetAsync(key, buffer, cancellationToken),
             "The segmented buffer entry was missing.");
+
         Require(buffer.WrittenSpan.SequenceEqual(expected), "The segmented buffer entry was changed.");
-        await cache.RemoveAsync(key, CancellationToken.None);
-        await cache.RefreshAsync(key, CancellationToken.None);
+        await cache.RemoveAsync(key, cancellationToken);
+        await cache.RefreshAsync(key, cancellationToken);
         buffer.Clear();
         Require(
-            !await bufferCache.TryGetAsync(key, buffer, CancellationToken.None) && buffer.WrittenCount == 0,
+            !await bufferCache.TryGetAsync(key, buffer, cancellationToken) && buffer.WrittenCount == 0,
             "An asynchronous cache miss wrote to the buffer.");
     }
 
+    /// <summary>
+    /// Checks that a deliberately canceled cache write leaves no value behind.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="cache">The cache instance used by the smoke probe.</param>
     private static async Task VerifyCancellationAsync(
-        IDistributedCache cache
+        IDistributedCache cache,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         const string key = "runtime-canceled";
-        await cache.RemoveAsync(key, CancellationToken.None);
+        await cache.RemoveAsync(key, cancellationToken);
+
+        // WHY: Only the write uses this pre-canceled probe token; setup and readback use the caller token.
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
         try
@@ -295,7 +344,7 @@ internal static class Program
         catch (OperationCanceledException)
         {
             Require(
-                await cache.GetAsync(key, CancellationToken.None) is null,
+                await cache.GetAsync(key, cancellationToken) is null,
                 "A pre-canceled write modified the cache.");
             return;
         }
@@ -303,10 +352,18 @@ internal static class Program
         throw new InvalidOperationException("A pre-canceled cache operation did not honor cancellation.");
     }
 
+    /// <summary>
+    /// Checks independent cache operations executed concurrently.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="cache">The cache instance used by the smoke probe.</param>
     private static async Task VerifyConcurrentOperationsAsync(
-        IDistributedCache cache
+        IDistributedCache cache,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await Task.WhenAll(
             Enumerable
                 .Range(0, 8)
@@ -314,14 +371,14 @@ internal static class Program
                 {
                     var key = $"runtime-parallel-{index}";
                     var value = new byte[] { (byte)index, };
-                    await cache.SetAsync(key, value, new DistributedCacheEntryOptions(), CancellationToken.None);
-                    await cache.RefreshAsync(key, CancellationToken.None);
+                    await cache.SetAsync(key, value, new DistributedCacheEntryOptions(), cancellationToken);
+                    await cache.RefreshAsync(key, cancellationToken);
                     Require(
-                        (await cache.GetAsync(key, CancellationToken.None))
+                        (await cache.GetAsync(key, cancellationToken))
                         .AsSpan()
                         .SequenceEqual(value),
                         "Concurrent cache data changed.");
-                    await cache.RemoveAsync(key, CancellationToken.None);
+                    await cache.RemoveAsync(key, cancellationToken);
                 }));
     }
 
@@ -336,27 +393,36 @@ internal static class Program
         .ConnectionString)
         .Build();
 
+    /// <summary>
+    /// Checks that disposing cache services preserves the caller-owned data source.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
     private static async Task VerifyExternalDataSourceAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var dataSource = CreateDataSource(connectionString);
         await using (var services = CreateServices(connectionString, dataSource))
         {
             await VerifyAsynchronousOperationsAsync(
                 services.GetRequiredService<IDistributedCache>(),
-                services.GetRequiredService<IBufferDistributedCache>());
+                services.GetRequiredService<IBufferDistributedCache>(),
+                cancellationToken: cancellationToken);
         }
 
         await using var connection = await dataSource
-            .OpenConnectionAsync(CancellationToken.None);
+            .OpenConnectionAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT 1;";
 
         Require(
             Convert.ToInt32(
-                await command.ExecuteScalarAsync(CancellationToken.None),
+                await command.ExecuteScalarAsync(cancellationToken),
                 CultureInfo.InvariantCulture) == 1,
             "Disposing the cache disposed its caller-owned data source.");
     }

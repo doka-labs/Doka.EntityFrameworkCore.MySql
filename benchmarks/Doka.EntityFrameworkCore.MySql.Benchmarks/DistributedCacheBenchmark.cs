@@ -118,21 +118,36 @@ public class DistributedCacheBenchmark : IDisposable
     public ValueTask SetLargeMultiSegmentAsync() =>
         _cache.SetAsync("write-large", _segmentedSequence, _expiration, CancellationToken.None);
 
+    /// <summary>
+    /// Measures concurrent buffered reads of an absolute-expiration entry.
+    /// </summary>
     [Benchmark]
-    public Task<int> ParallelBufferReadsAsync() => ReadBuffersAsync("small");
+    // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
+    public Task<int> ParallelBufferReadsAsync() => ReadBuffersAsync("small", CancellationToken.None);
 
+    /// <summary>
+    /// Measures concurrent buffered reads that refresh sliding expiration.
+    /// </summary>
     [Benchmark]
-    public Task<int> ParallelSlidingBufferReadsAsync() => ReadBuffersAsync("sliding");
+    // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
+    public Task<int> ParallelSlidingBufferReadsAsync() => ReadBuffersAsync("sliding", CancellationToken.None);
 
+    /// <summary>
+    /// Reads the selected entry concurrently into each reader's owned buffer.
+    /// </summary>
+    /// <param name="key">The cache entry read by every parallel reader.</param>
+    /// <param name="cancellationToken">The token to observe while reading the entry.</param>
+    /// <returns>The total bytes written by the parallel readers.</returns>
     private async Task<int> ReadBuffersAsync(
-        string key
+        string key,
+        CancellationToken cancellationToken
     )
     {
         for (var index = 0; index < ParallelReaders; index++)
         {
             _parallelWriters[index].Reset();
             _parallelReads[index] = _cache
-                .TryGetAsync(key, _parallelWriters[index], CancellationToken.None)
+                .TryGetAsync(key, _parallelWriters[index], cancellationToken)
                 .AsTask();
         }
 

@@ -104,28 +104,36 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     }
 
     /// <summary>Captures table DDL and row presence before the lifecycle's assertion phase.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<(bool HasRow, string? Sql)> ReadShowCreateTableAsync(
         string connectionString,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.OpenAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SHOW CREATE TABLE `{tableName}`;";
-        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-        var hasRow = await reader.ReadAsync().ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var hasRow = await reader.ReadAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
         return (hasRow, hasRow ? reader.GetString(1) : null);
     }
 
+    /// <summary>Drops the spatial contract tables in foreign-key order.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task DropContractTablesAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
@@ -135,7 +143,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                                DROP TABLE IF EXISTS `{SridTable}`;
                                """;
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 }

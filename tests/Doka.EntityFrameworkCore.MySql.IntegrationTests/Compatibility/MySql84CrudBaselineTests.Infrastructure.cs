@@ -24,16 +24,17 @@ public sealed partial class MySql84CrudBaselineTests
     }
 
     private static async Task ResetDatabaseObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -47,18 +48,19 @@ public sealed partial class MySql84CrudBaselineTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task<bool> TableExistsAsync(
         string connectionString,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -76,7 +78,7 @@ public sealed partial class MySql84CrudBaselineTests
         command.Parameters.AddWithValue("@tableName", tableName);
 
         var result = await command
-            .ExecuteScalarAsync()
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return result switch

@@ -18,6 +18,7 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
     /// <summary>Disposes the target-owned tables after the test class has completed.</summary>
     public async Task DisposeAsync()
     {
+        // WHY: Fixture teardown must release every engine dataset after a cancelled test.
         List<Exception>? failures = null;
 
         foreach (var store in _stores.Values.Concat(_expirationStores.Values))
@@ -42,20 +43,33 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
     }
 
     /// <summary>Returns the one deployed store owned by this class for the target.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     internal Task<CacheIntegrationStore> GetStoreAsync(
-        IntegrationDatabaseTarget target
-    ) => GetStoreAsync(target, _stores);
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
+    ) => GetStoreAsync(target, _stores, cancellationToken);
 
     /// <summary>Returns the isolated expiration table for the target.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     internal Task<CacheIntegrationStore> GetExpirationStoreAsync(
-        IntegrationDatabaseTarget target
-    ) => GetStoreAsync(target, _expirationStores);
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
+    ) => GetStoreAsync(target, _expirationStores, cancellationToken);
 
+    /// <summary>Creates and retains the target store unless its deployment already exists.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="stores">The stores used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<CacheIntegrationStore> GetStoreAsync(
         IntegrationDatabaseTarget target,
-        Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> stores
+        Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> stores,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // WHY: xUnit serializes tests in this class, so fixture setup needs no extra lock.
         if (stores.TryGetValue(target, out var existing))
         {
@@ -65,13 +79,13 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
         // WHY: Sharing schema setup avoids a CREATE/DROP cycle for every named contract test.
         // Ordinary and expiration cases use separate tables so expired rows cannot affect other contracts.
         var store = await CacheIntegrationStore
-            .CreateAsync(target, DatabaseOwner)
+            .CreateAsync(target, cancellationToken, DatabaseOwner)
             .ConfigureAwait(false);
 
         try
         {
             await store
-                .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName))
+                .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName), cancellationToken)
                 .ConfigureAwait(false);
 
             stores.Add(target, store);

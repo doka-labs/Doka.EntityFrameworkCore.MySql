@@ -16,7 +16,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -26,7 +27,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -36,7 +38,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -46,7 +49,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -56,7 +60,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -66,13 +71,15 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertCrossLayerContractAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -108,12 +115,12 @@ public sealed class MySqlCrossLayerObservabilityTests
         // one trace so correlation is verified across all three telemetry layers.
         var scalar = await context
             .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-            .SingleAsync()
+            .SingleAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using (var migrationLock = await context
                          .GetService<IHistoryRepository>()
-                         .AcquireDatabaseLockAsync()
+                         .AcquireDatabaseLockAsync(cancellationToken)
                          .ConfigureAwait(false)) { }
 
         await context

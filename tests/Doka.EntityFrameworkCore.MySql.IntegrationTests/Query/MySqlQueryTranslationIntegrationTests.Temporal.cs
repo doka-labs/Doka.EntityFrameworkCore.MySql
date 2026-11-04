@@ -26,7 +26,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {

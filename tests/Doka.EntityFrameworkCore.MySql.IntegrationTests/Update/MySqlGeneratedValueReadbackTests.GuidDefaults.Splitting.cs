@@ -14,7 +14,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitValueMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 8)
             .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
             .Reverse()
@@ -73,7 +73,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 8)
             .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
             .Reverse()
@@ -119,7 +119,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 8)
             .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
             .Reverse()

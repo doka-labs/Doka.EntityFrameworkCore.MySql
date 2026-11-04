@@ -13,12 +13,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         int[] values = [1, RowCount];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Id)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Id)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, RowCount], ids);
@@ -34,12 +36,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string[] values = ["alpha", "\"quoted\"", "\"\\q\""];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Name)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Name)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2, 3], ids);
@@ -55,12 +59,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string?[] values = ["alpha", null];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalName)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalName)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2], ids);
@@ -76,12 +82,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string[] values = ["alpha"];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -97,12 +105,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string[] values = ["Alpha"];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -118,13 +128,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string[] values = ["Alpha"];
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.CaseInsensitiveName)));
+            context.Items.Where(item => EF.Parameter(values).Contains(item.CaseInsensitiveName)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -140,12 +151,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         CollectionStatus[] values = [CollectionStatus.Active];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Status)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Status)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -161,12 +174,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         CollectionStatus[] values = [(CollectionStatus)42];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Status)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Status)),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -182,12 +197,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         CollectionStatus?[] values = [CollectionStatus.Active, null];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalStatus)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalStatus)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2], ids);
@@ -203,12 +220,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         string[] values = ["Alpha"];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Name)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Name)),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -224,12 +243,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         byte[][] values = [BitConverter.GetBytes(0), BitConverter.GetBytes(2)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.Payload)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.Payload)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 3], ids);
@@ -245,11 +266,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var coercibility = await ReadStringDecodeCoercibilityAsync(context);
+        var coercibility = await ReadStringDecodeCoercibilityAsync(context, CancellationToken.None);
 
         // Assert
         Assert.True(

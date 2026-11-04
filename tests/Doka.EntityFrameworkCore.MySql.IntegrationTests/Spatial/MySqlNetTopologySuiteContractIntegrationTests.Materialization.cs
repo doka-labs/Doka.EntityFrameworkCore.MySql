@@ -12,7 +12,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         var connectionString = GetConnectionString(engine, "TrackedLifecycle");
-        await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+        await DropContractTablesAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
         var expected = CreateGeometrySet();
         await using var context = new SpatialMaterializationContext(
             CreateOptions<SpatialMaterializationContext>(connectionString, engine));
@@ -21,7 +21,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
         try
         {
-            await CreateMaterializationTablesAsync(context).ConfigureAwait(false);
+            await CreateMaterializationTablesAsync(context, CancellationToken.None).ConfigureAwait(false);
 
             // WHY: This case intentionally retains tracking across SaveChanges
             // and readback; independent cases exercise the fresh-reader shapes.
@@ -38,7 +38,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         }
         finally
         {
-            await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+            await DropContractTablesAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -52,7 +52,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateMaterializationContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+
         var expected = CreateGeometrySet();
         var query = context.Entities.AsNoTracking();
 

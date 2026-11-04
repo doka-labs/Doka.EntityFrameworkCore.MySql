@@ -18,15 +18,17 @@ public sealed partial class MySqlLikeIntegrationTests
         /// <summary>
         /// Seeds the selected engine once and returns a fresh context for one case.
         /// </summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         internal async Task<LikeContext> CreateContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             // WHY: xUnit serializes this class's cases. Cache the seed task so
             // a failing engine is reported by its rows without retrying partial DDL.
             if (!_seeds.TryGetValue(target, out var seed))
             {
-                seed = SeedAsync(target);
+                seed = SeedAsync(target, cancellationToken);
                 _seeds.Add(target, seed);
             }
 
@@ -61,13 +63,20 @@ public sealed partial class MySqlLikeIntegrationTests
             }
         }
 
+        /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateContext(target);
-            await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript());
+            await context.Database.ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{TableName}`;",
+                cancellationToken: cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(
+                context.Database.GenerateCreateScript(),
+                cancellationToken: cancellationToken);
 
             // WHY: Explicit seed keys need no asynchronous value generation;
             // SaveChangesAsync below owns the database work.
@@ -115,7 +124,7 @@ public sealed partial class MySqlLikeIntegrationTests
                     Text = "different",
                 });
 
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         /// <summary>

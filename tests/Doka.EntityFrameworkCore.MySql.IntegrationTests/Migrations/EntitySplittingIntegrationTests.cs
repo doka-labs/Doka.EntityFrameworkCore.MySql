@@ -24,8 +24,8 @@ public sealed class EntitySplittingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(CancellationToken.None);
+        await CleanupAsync(connection, CancellationToken.None);
 
         try
         {
@@ -47,16 +47,16 @@ public sealed class EntitySplittingIntegrationTests
             {
                 await using var command = connection.CreateCommand();
                 command.CommandText = migrationCommand.CommandText;
-                _ = await command.ExecuteNonQueryAsync();
+                _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
             }
 
-            var principalExtra = await ReadColumnExtraAsync(connection, PrincipalTable);
-            var secondaryExtra = await ReadColumnExtraAsync(connection, SecondaryTable);
-            var secondaryPrimaryKeys = await CountConstraintAsync(connection, "PRIMARY KEY");
-            var secondaryForeignKeys = await CountConstraintAsync(connection, "FOREIGN KEY");
-            var deleteRule = await ReadDeleteRuleAsync(connection);
-            var principalGuidColumns = await CountGuidColumnsAsync(connection, PrincipalTable);
-            var secondaryGuidColumns = await CountGuidColumnsAsync(connection, SecondaryTable);
+            var principalExtra = await ReadColumnExtraAsync(connection, PrincipalTable, CancellationToken.None);
+            var secondaryExtra = await ReadColumnExtraAsync(connection, SecondaryTable, CancellationToken.None);
+            var secondaryPrimaryKeys = await CountConstraintAsync(connection, "PRIMARY KEY", CancellationToken.None);
+            var secondaryForeignKeys = await CountConstraintAsync(connection, "FOREIGN KEY", CancellationToken.None);
+            var deleteRule = await ReadDeleteRuleAsync(connection, CancellationToken.None);
+            var principalGuidColumns = await CountGuidColumnsAsync(connection, PrincipalTable, CancellationToken.None);
+            var secondaryGuidColumns = await CountGuidColumnsAsync(connection, SecondaryTable, CancellationToken.None);
 
             // Assert
             Assert.Equal("auto_increment", principalExtra);
@@ -69,7 +69,7 @@ public sealed class EntitySplittingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
@@ -84,8 +84,8 @@ public sealed class EntitySplittingIntegrationTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         await using var context = CreateContext(target);
         await using var connection = new MySqlConnection(IntegrationTestEnvironment.GetConnectionString(target));
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(CancellationToken.None);
+        await CleanupAsync(connection, CancellationToken.None);
 
         try
         {
@@ -111,7 +111,7 @@ public sealed class EntitySplittingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
@@ -126,8 +126,8 @@ public sealed class EntitySplittingIntegrationTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         await using var context = CreateContext(target);
         await using var connection = new MySqlConnection(IntegrationTestEnvironment.GetConnectionString(target));
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(CancellationToken.None);
+        await CleanupAsync(connection, CancellationToken.None);
 
         try
         {
@@ -155,7 +155,7 @@ public sealed class EntitySplittingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
@@ -170,8 +170,8 @@ public sealed class EntitySplittingIntegrationTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         await using var context = CreateContext(target);
         await using var connection = new MySqlConnection(IntegrationTestEnvironment.GetConnectionString(target));
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(CancellationToken.None);
+        await CleanupAsync(connection, CancellationToken.None);
 
         try
         {
@@ -182,9 +182,12 @@ public sealed class EntitySplittingIntegrationTests
             command.CommandText = $"DELETE FROM `{PrincipalTable}`;";
 
             // Act
-            var deleted = await command.ExecuteNonQueryAsync();
+            var deleted = await command.ExecuteNonQueryAsync(CancellationToken.None);
             command.CommandText = $"SELECT COUNT(*) FROM `{SecondaryTable}`;";
-            var remainingSecondaryRows = Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+            var remainingSecondaryRows = Convert.ToInt64(
+                await command.ExecuteScalarAsync(CancellationToken.None),
+                CultureInfo.InvariantCulture);
+
             var remainingInventory = await context.Inventory.AsNoTracking().ToListAsync();
 
             // Assert
@@ -194,7 +197,7 @@ public sealed class EntitySplittingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
@@ -220,9 +223,16 @@ public sealed class EntitySplittingIntegrationTests
     ) => new(CreateOptions<EntitySplitContext>(
         IntegrationTestEnvironment.GetConnectionString(target), IntegrationTestEnvironment.GetServerVersion(target)));
 
+    /// <summary>
+    /// Reads column extra for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task<string> ReadColumnExtraAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -230,12 +240,21 @@ public sealed class EntitySplittingIntegrationTests
             + "WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = @tableName AND `COLUMN_NAME` = 'Id';";
         command.Parameters.AddWithValue("@tableName", tableName);
 
-        return Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture) ?? string.Empty;
+        return Convert.ToString(
+            await command.ExecuteScalarAsync(cancellationToken),
+            CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
+    /// <summary>
+    /// Counts guid columns for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task<long> CountGuidColumnsAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -244,12 +263,19 @@ public sealed class EntitySplittingIntegrationTests
             + "AND `COLUMN_NAME` IN ('TreeId', 'OptionalTreeId');";
         command.Parameters.AddWithValue("@tableName", tableName);
 
-        return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Counts constraint for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="constraintType">The constraint type.</param>
     private static async Task<long> CountConstraintAsync(
         MySqlConnection connection,
-        string constraintType
+        string constraintType,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -259,11 +285,17 @@ public sealed class EntitySplittingIntegrationTests
         command.Parameters.AddWithValue("@tableName", SecondaryTable);
         command.Parameters.AddWithValue("@constraintType", constraintType);
 
-        return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Reads delete rule for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task<string?> ReadDeleteRuleAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -271,16 +303,22 @@ public sealed class EntitySplittingIntegrationTests
             + "WHERE `CONSTRAINT_SCHEMA` = DATABASE() AND `TABLE_NAME` = @tableName;";
         command.Parameters.AddWithValue("@tableName", SecondaryTable);
 
-        return Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        return Convert.ToString(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{SecondaryTable}`; DROP TABLE IF EXISTS `{PrincipalTable}`;";
-        _ = await command.ExecuteNonQueryAsync();
+        _ = await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(

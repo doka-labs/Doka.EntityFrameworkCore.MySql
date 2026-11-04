@@ -53,8 +53,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         _ => MySqlGuidFormat.Uuid,
     };
 
+    /// <summary>Recreates the GUID-default model tables before the readback assertion.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RecreateGuidDefaultsTablesAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
         // WHY: Dependents must be removed first because the previous case can
@@ -64,8 +68,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             + $"`{GuidDefaultDependentTable}`, `{GuidDefaultPrincipalTable}`, "
             + $"`{GuidDefaultValueTable}`, `{GuidComputedValueTable}`, `{GuidDefaultLiteralKeyTable}`, "
             + $"`{GuidDefaultSharedTable}`;",
-            CancellationToken.None);
-        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
     }
 
     private static string GuidDefaultSql(

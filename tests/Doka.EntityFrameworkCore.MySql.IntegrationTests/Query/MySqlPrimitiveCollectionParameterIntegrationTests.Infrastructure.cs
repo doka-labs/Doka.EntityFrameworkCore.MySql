@@ -56,32 +56,44 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         return new SqlModeStringCollectionContext(builder.Options);
     }
 
+    /// <summary>Selects the ids from the integration table.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> SelectIdsAsync(
-        IQueryable<PrimitiveCollectionEntity> query
+        IQueryable<PrimitiveCollectionEntity> query,
+        CancellationToken cancellationToken
     ) => await query
         .OrderBy(item => item.Id)
         .Select(item => item.Id)
-        .ToArrayAsync(CancellationToken.None);
+        .ToArrayAsync(cancellationToken);
 
     private static Guid CreateGuid(
         int value
     ) => new(value, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
+    /// <summary>Drops the table using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTableAsync(
-        PrimitiveCollectionContext context
+        PrimitiveCollectionContext context,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{TableName}`;",
-        CancellationToken.None);
+        cancellationToken);
 
+    /// <summary>Drops the char table using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropCharTableAsync(
-        CharGuidCollectionContext context
+        CharGuidCollectionContext context,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{CharTableName}`;",
-        CancellationToken.None);
+        cancellationToken);
 
+    /// <summary>Drops the sql mode table using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropSqlModeTableAsync(
-        SqlModeStringCollectionContext context
+        SqlModeStringCollectionContext context,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{SqlModeTableName}`;",
-        CancellationToken.None);
+        cancellationToken);
 }

@@ -91,11 +91,15 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     /// Waits until the armed COMMIT fault reaches its selected protocol boundary.
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the fault.</param>
+    /// <param name="cancellationToken">
+    /// The caller token; canceling a wait does not cancel the armed fault signal.
+    /// </param>
     /// <returns>The protocol boundary observed by the proxy.</returns>
     public async Task<CommitFaultMode> WaitForCommitFaultAsync(
-        TimeSpan timeout
+        TimeSpan timeout,
+        CancellationToken cancellationToken
     ) => await _faultObserved
-        .Task.WaitAsync(timeout)
+        .Task.WaitAsync(timeout, cancellationToken)
         .ConfigureAwait(false);
 
     /// <summary>
@@ -126,10 +130,12 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     /// Waits until the armed response-packet fault disconnects the session.
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the fault.</param>
+    /// <param name="cancellationToken">The caller token; canceling a wait preserves the pending fault signal.</param>
     public async Task WaitForQueryResponseFaultAsync(
-        TimeSpan timeout
+        TimeSpan timeout,
+        CancellationToken cancellationToken
     ) => await _queryFaultObserved
-        .Task.WaitAsync(timeout)
+        .Task.WaitAsync(timeout, cancellationToken)
         .ConfigureAwait(false);
 
     /// <summary>
@@ -225,21 +231,31 @@ public sealed class TcpFaultProxy : IAsyncDisposable
             var sessionId = Interlocked.Increment(ref _nextSessionId);
             var session = new ProxySession(this, sessionId, client);
             _sessions[sessionId] = session;
-            _ = RunSessionAsync(session);
+            _ = RunSessionAsync(session, cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Relays one owned connection until it ends or the proxy lifetime is canceled.
+    /// </summary>
+    /// <param name="session">The connection session owned by this proxy.</param>
+    /// <param name="cancellationToken">The proxy lifetime token supplied by the accept loop.</param>
     private async Task RunSessionAsync(
-        ProxySession session
+        ProxySession session,
+        CancellationToken cancellationToken
     )
     {
         try
         {
             await session
-                .RunAsync(_shutdown.Token)
+                .RunAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception) when (!_shutdown.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // WHY: Shutdown is an expected session outcome, not an unobserved background failure.
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             // Transport failures are the output of this test utility. The test
             // observes them through the client and the explicit fault signal.

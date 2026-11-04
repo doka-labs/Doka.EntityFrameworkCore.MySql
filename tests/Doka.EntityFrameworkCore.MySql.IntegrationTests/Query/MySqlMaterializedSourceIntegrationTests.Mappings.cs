@@ -5,20 +5,23 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string MappingTable = "IntBoundMappingItems";
     private const string MappingExtraTable = "IntBoundMappingExtra";
 
+    /// <summary>Verifies the mapping roundtrip contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertMappingRoundtripAsync<TNode>(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
         where TNode : class
     {
         // Arrange
-        await using var fixture = await CreateMappingFixtureAsync<TNode>(target);
+        await using var fixture = await CreateMappingFixtureAsync<TNode>(target, cancellationToken);
 
         // Act
         var query = CreateMappingQuery(fixture.Context)
             .OrderBy(row => row.Tenant)
             .ThenBy(row => row.Id);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal(2, actual.Length);
@@ -90,8 +93,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             OtherDetail = right.Detail,
         }));
 
+    /// <summary>Creates the mapping fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<MappingFixture<TNode>> CreateMappingFixtureAsync<TNode>(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
         where TNode : class
     {
@@ -107,10 +113,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropMappingTablesAsync(context);
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            await DropMappingTablesAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
             SeedMapping(context);
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
 
@@ -178,11 +184,14 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Drops the mapping tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropMappingTablesAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{MappingExtraTable}`; DROP TABLE IF EXISTS `{MappingTable}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class MappingFixture<TNode>(
         MappingContext<TNode> context,
@@ -198,7 +207,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropMappingTablesAsync(Context);
+                await DropMappingTablesAsync(Context, CancellationToken.None);
             }
             finally
             {

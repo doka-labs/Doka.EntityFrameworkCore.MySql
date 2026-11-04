@@ -7,9 +7,15 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// </summary>
 internal static class PerformanceSoakRunner
 {
+    /// <summary>
+    /// Executes the configured soak scenarios and writes their evidence report.
+    /// </summary>
+    /// <param name="outputPath">The path at which to write the report.</param>
+    /// <param name="cancellationToken">The token to observe while running scenarios and writing their report.</param>
+    /// <returns>Zero when every scenario succeeds; otherwise one.</returns>
     public static async Task<int> RunAsync(
         string outputPath,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         var contract = PerformanceContract.Load();

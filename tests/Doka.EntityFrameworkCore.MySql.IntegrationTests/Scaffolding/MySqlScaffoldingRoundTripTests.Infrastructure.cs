@@ -97,13 +97,19 @@ public sealed partial class MySqlScaffoldingRoundTripTests
             ignoreCase: true);
     }
 
+    /// <summary>
+    /// Creates schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
     private static async Task CreateSchemaAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await ExecuteNonQueryAsync(
@@ -132,17 +138,24 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                 CREATE VIEW `{SummaryView}` AS
                     SELECT `Id`, `OptionalCount`
                     FROM `{ParentTable}`;
-                """)
+                """,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Drops schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
     private static async Task DropSchemaAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await ExecuteNonQueryAsync(
@@ -151,32 +164,46 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                 DROP VIEW IF EXISTS `{SummaryView}`;
                 DROP TABLE IF EXISTS `{ChildTable}`;
                 DROP TABLE IF EXISTS `{ParentTable}`;
-                """)
+                """,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Reads server version for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
     private static async Task<string> ReadServerVersionAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT VERSION();";
 
         return Convert.ToString(
                 await command
-                    .ExecuteScalarAsync()
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture)
             ?? throw new InvalidOperationException("The database did not return a server version.");
     }
 
+    /// <summary>
+    /// Executes scalar int64 for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="commandText">The command text.</param>
     private static async Task<long> ExecuteScalarInt64Async(
         MySqlConnection connection,
-        string commandText
+        string commandText,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -184,21 +211,28 @@ public sealed partial class MySqlScaffoldingRoundTripTests
 
         return Convert.ToInt64(
             await command
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Executes non query for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="commandText">The command text.</param>
     private static async Task ExecuteNonQueryAsync(
         MySqlConnection connection,
-        string commandText
+        string commandText,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 }

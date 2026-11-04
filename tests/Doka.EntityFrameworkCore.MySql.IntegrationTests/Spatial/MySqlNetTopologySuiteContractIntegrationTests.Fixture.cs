@@ -18,32 +18,41 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         public Task InitializeAsync() => Task.CompletedTask;
 
         /// <summary>Creates a fresh context over the immutable geometry/child row.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         internal async Task<SpatialMaterializationContext> CreateMaterializationContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
-            await EnsureSeededAsync(target, SpatialDataSet.Materialization).ConfigureAwait(false);
+            await EnsureSeededAsync(target, SpatialDataSet.Materialization, cancellationToken).ConfigureAwait(false);
 
             return new SpatialMaterializationContext(CreateOptions<SpatialMaterializationContext>(
                 GetConnectionString(target, nameof(SpatialDataSet.Materialization)), target));
         }
 
         /// <summary>Creates a fresh context over the dimension and null-operand matrix.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         internal async Task<SpatialCrossesContext> CreateCrossesContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
-            await EnsureSeededAsync(target, SpatialDataSet.Crosses).ConfigureAwait(false);
+            await EnsureSeededAsync(target, SpatialDataSet.Crosses, cancellationToken).ConfigureAwait(false);
 
             return CreateCrossesContext(target, SpatialDataSet.Crosses);
         }
 
         /// <summary>Creates a fresh context over the supported scalar/aggregate input row.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         internal async Task<SpatialCrossesContext> CreateFunctionContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
-            await EnsureSeededAsync(target, SpatialDataSet.Functions).ConfigureAwait(false);
+            await EnsureSeededAsync(target, SpatialDataSet.Functions, cancellationToken).ConfigureAwait(false);
 
             return CreateCrossesContext(target, SpatialDataSet.Functions);
         }
@@ -51,13 +60,16 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         /// <inheritdoc />
         public async Task DisposeAsync()
         {
+            // WHY: Fixture teardown must release every engine dataset after a cancelled test.
             List<Exception>? failures = null;
 
             foreach (var key in _seeds.Keys)
             {
                 try
                 {
-                    await DropContractTablesAsync(GetConnectionString(key.Target, key.DataSet.ToString()))
+                    await DropContractTablesAsync(
+                        GetConnectionString(key.Target, key.DataSet.ToString()),
+                        CancellationToken.None)
                         .ConfigureAwait(false);
                 }
                 catch (Exception exception)
@@ -75,46 +87,59 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             }
         }
 
+        /// <summary>Initializes the selected dataset once and retains its outcome for later cases.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="dataSet">The data set used by this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         private Task EnsureSeededAsync(
             IntegrationDatabaseTarget target,
-            SpatialDataSet dataSet
+            SpatialDataSet dataSet,
+            CancellationToken cancellationToken
         )
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // WHY: xUnit serializes this class. Retain seed failures per dataset
             // so filtered cases neither repeat partial DDL nor affect another engine.
             if (!_seeds.TryGetValue((target, dataSet), out var seed))
             {
-                seed = SeedAsync(target, dataSet);
+                seed = SeedAsync(target, dataSet, cancellationToken);
                 _seeds.Add((target, dataSet), seed);
             }
 
             return seed;
         }
 
+        /// <summary>Creates and seeds the requested read-only spatial dataset.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="dataSet">The data set used by this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,
-            SpatialDataSet dataSet
+            SpatialDataSet dataSet,
+            CancellationToken cancellationToken
         )
         {
             var connectionString = GetConnectionString(target, dataSet.ToString());
-            await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+            await DropContractTablesAsync(connectionString, cancellationToken).ConfigureAwait(false);
 
             if (dataSet == SpatialDataSet.Materialization)
             {
                 await using var context = new SpatialMaterializationContext(
                     CreateOptions<SpatialMaterializationContext>(connectionString, target));
-                await CreateMaterializationTablesAsync(context).ConfigureAwait(false);
+                await CreateMaterializationTablesAsync(context, cancellationToken).ConfigureAwait(false);
 
                 // WHY: Explicit fixture keys need no asynchronous value generation.
                 // ReSharper disable once MethodHasAsyncOverload
                 context.Entities.Add(CreateMaterializationEntity(CreateGeometrySet()));
-                await context.SaveChangesAsync().ConfigureAwait(false);
+                await context.SaveChangesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 return;
             }
 
             await using var crosses = CreateCrossesContext(target, dataSet);
-            await CreateCrossesTableAsync(crosses, nullable: dataSet == SpatialDataSet.Crosses).ConfigureAwait(false);
+            await CreateCrossesTableAsync(crosses, dataSet == SpatialDataSet.Crosses, cancellationToken)
+                .ConfigureAwait(false);
 
             if (dataSet == SpatialDataSet.Crosses)
             {
@@ -148,7 +173,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                 });
             }
 
-            await crosses.SaveChangesAsync().ConfigureAwait(false);
+            await crosses.SaveChangesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         private static SpatialCrossesContext CreateCrossesContext(
@@ -158,8 +183,11 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     }
 
     /// <summary>Creates the original mixed geometry table and its related child table.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task CreateMaterializationTablesAsync(
-        SpatialMaterializationContext context
+        SpatialMaterializationContext context,
+        CancellationToken cancellationToken
     )
     {
         await context
@@ -185,7 +213,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                      CONSTRAINT `FK_{MaterializationChildTable}` FOREIGN KEY (`ParentId`)
                          REFERENCES `{MaterializationTable}` (`Id`) ON DELETE CASCADE
                  );
-                 """)
+                 """,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -205,9 +234,14 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         Children = [new SpatialMaterializationChild { Id = 1 }],
     };
 
+    /// <summary>Creates the geometry-operand table with the requested nullability.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="nullable">The nullable used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static Task<int> CreateCrossesTableAsync(
         SpatialCrossesContext context,
-        bool nullable
+        bool nullable,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"""
          CREATE TABLE `{CrossesTable}` (
@@ -216,5 +250,6 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
              `RightGeometry` geometry {(nullable ? "NULL" : "NOT NULL")},
              CONSTRAINT `PK_{CrossesTable}` PRIMARY KEY (`Id`)
          );
-         """);
+         """,
+        cancellationToken: cancellationToken);
 }

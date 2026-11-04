@@ -139,6 +139,12 @@ public sealed partial class MySqlCacheRegistrationTests
         options.DataSource = dataSource;
     });
 
+    /// <summary>
+    /// Disposes the cache through the lifecycle contract selected by the test case.
+    /// </summary>
+    /// <param name="cache">The cache whose lifecycle ownership is under test.</param>
+    /// <param name="asynchronousDisposal">Whether to invoke asynchronous disposal.</param>
+    // WHY: IDisposable and IAsyncDisposable intentionally expose no cancellation contract.
     private static async ValueTask DisposeCacheAsync(
         IBufferDistributedCache cache,
         bool asynchronousDisposal

@@ -33,7 +33,7 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MySql84)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -43,7 +43,7 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task MySql97_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MySql97)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -53,7 +53,7 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb1011)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -63,7 +63,7 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb114)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -73,7 +73,7 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb118)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -83,12 +83,18 @@ public sealed partial class MySqlScaffoldingScaleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_large_and_restricted_schemas_meet_declared_budgets()
     {
-        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb123)
+        await RunScaleContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs scale contract for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private async Task RunScaleContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -98,12 +104,12 @@ public sealed partial class MySqlScaffoldingScaleTests
 
         ValidatePolicy(policy);
 
-        await DropLargeSchemaAsync(connectionString, tableNames)
+        await DropLargeSchemaAsync(connectionString, tableNames, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
-            await CreateLargeSchemaAsync(connectionString, tableNames)
+            await CreateLargeSchemaAsync(connectionString, tableNames, cancellationToken)
                 .ConfigureAwait(false);
 
             var measuredRuns = new List<ScaffoldingRunMetrics>(policy.MeasuredRuns);
@@ -149,7 +155,8 @@ public sealed partial class MySqlScaffoldingScaleTests
                     tableNames,
                     policy.RestrictedVisibleTableCount,
                     policy.Budgets.MaximumSetBasedMetadataCommandsPerRun,
-                    target)
+                    target,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             _output.WriteLine(
@@ -183,7 +190,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         }
         finally
         {
-            await DropLargeSchemaAsync(connectionString, tableNames)
+            await DropLargeSchemaAsync(connectionString, tableNames, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

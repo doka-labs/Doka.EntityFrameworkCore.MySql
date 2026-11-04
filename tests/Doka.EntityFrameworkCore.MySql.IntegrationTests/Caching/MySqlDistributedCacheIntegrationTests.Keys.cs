@@ -12,7 +12,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         string[] keys =
@@ -69,7 +69,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var oversizedKey = new string('\u00e9', 513);
@@ -108,7 +108,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         const string malformedKey = "invalid\ud800";

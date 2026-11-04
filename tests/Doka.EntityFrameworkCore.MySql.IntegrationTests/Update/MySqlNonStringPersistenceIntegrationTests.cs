@@ -35,7 +35,8 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
     ) => AssertCharInsertAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that entity updates retain each character's encoded database bytes.
@@ -49,7 +50,8 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
     ) => AssertCharUpdateAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that binary inserts do not reinterpret quote, slash, NUL, or high bytes as text.
@@ -61,7 +63,8 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         bool noBackslashEscapes
     ) => AssertBinaryInsertAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        noBackslashEscapes);
+        noBackslashEscapes,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that binary updates retain every byte and leave other rows unchanged.
@@ -73,17 +76,24 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         bool noBackslashEscapes
     ) => AssertBinaryUpdateAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        noBackslashEscapes);
+        noBackslashEscapes,
+        CancellationToken.None);
 
+    /// <summary>Verifies character inserts preserve the original database bytes.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="value">The value used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertCharInsertAsync(
         IntegrationDatabaseTarget target,
         bool noBackslashEscapes,
-        char value
+        char value,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -96,13 +106,14 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             });
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.CharacterValue),
-                [Convert.ToHexString(Encoding.UTF8.GetBytes(value.ToString()))]);
+                [Convert.ToHexString(Encoding.UTF8.GetBytes(value.ToString()))],
+                cancellationToken);
         }
         finally
         {
@@ -110,15 +121,21 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Verifies character updates preserve the original database bytes.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="value">The value used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertCharUpdateAsync(
         IntegrationDatabaseTarget target,
         bool noBackslashEscapes,
-        char value
+        char value,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -126,7 +143,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `CharacterValue`, `BinaryValue`) "
                     + "VALUES (1, 'x', X'01'), (2, 'y', X'02');";
-                _ = await seed.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await using var context = CreateContext(connection, target);
@@ -141,13 +158,14 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             context.Entry(item).Property(entry => entry.CharacterValue).IsModified = true;
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.CharacterValue),
-                [Convert.ToHexString(Encoding.UTF8.GetBytes(value.ToString())), "79"]);
+                [Convert.ToHexString(Encoding.UTF8.GetBytes(value.ToString())), "79"],
+                cancellationToken);
         }
         finally
         {
@@ -155,14 +173,19 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Verifies binary inserts preserve every input byte.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertBinaryInsertAsync(
         IntegrationDatabaseTarget target,
-        bool noBackslashEscapes
+        bool noBackslashEscapes,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -175,13 +198,14 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             });
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.BinaryValue),
-                [Convert.ToHexString(s_binaryValue)]);
+                [Convert.ToHexString(s_binaryValue)],
+                cancellationToken);
         }
         finally
         {
@@ -189,14 +213,19 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Verifies binary updates preserve every input byte.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertBinaryUpdateAsync(
         IntegrationDatabaseTarget target,
-        bool noBackslashEscapes
+        bool noBackslashEscapes,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -204,7 +233,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `CharacterValue`, `BinaryValue`) "
                     + "VALUES (1, 'x', X'01'), (2, 'y', X'02');";
-                _ = await seed.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await using var context = CreateContext(connection, target);
@@ -219,13 +248,14 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             context.Entry(item).Property(entry => entry.BinaryValue).IsModified = true;
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
             await AssertStoredHexAsync(
                 connection,
                 nameof(NonStringValue.BinaryValue),
-                [Convert.ToHexString(s_binaryValue), "02"]);
+                [Convert.ToHexString(s_binaryValue), "02"],
+                cancellationToken);
         }
         finally
         {
@@ -233,9 +263,14 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Opens the target connection with the requested session SQL mode.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<MySqlConnection> OpenConnectionAsync(
         IntegrationDatabaseTarget target,
-        bool noBackslashEscapes
+        bool noBackslashEscapes,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = new MySqlConnectionStringBuilder(
@@ -250,13 +285,13 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
 
         try
         {
-            await connection.OpenAsync(CancellationToken.None);
+            await connection.OpenAsync(cancellationToken);
 
             if (noBackslashEscapes)
             {
                 await using var command = connection.CreateCommand();
                 command.CommandText = "SET SESSION sql_mode = 'ANSI_QUOTES,NO_BACKSLASH_ESCAPES,STRICT_TRANS_TABLES';";
-                _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
             return connection;
@@ -269,8 +304,12 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Creates the session-local persistence table.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task CreateTemporaryTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         // A session-local table isolates exact-byte assertions from other test processes.
@@ -278,22 +317,31 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         command.CommandText = $"CREATE TEMPORARY TABLE `{TableName}` "
             + "(`Id` int NOT NULL PRIMARY KEY, `CharacterValue` char(1) NOT NULL, "
             + "`BinaryValue` varbinary(16) NOT NULL) CHARACTER SET utf8mb4;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>Drops the session-local table after the persistence assertion completes.</summary>
+    /// <param name="connection">The connection that owns the temporary table.</param>
     private static async Task DropTemporaryTableAsync(
         MySqlConnection connection
     )
     {
+        // WHY: Teardown must finish even when the assertion's operation has been cancelled.
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TEMPORARY TABLE `{TableName}`;";
         _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
+    /// <summary>Compares raw database bytes with the expected persisted values.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="columnName">The column name used by this operation.</param>
+    /// <param name="expectedHex">The expected hex used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertStoredHexAsync(
         MySqlConnection connection,
         string columnName,
-        string[] expectedHex
+        string[] expectedHex,
+        CancellationToken cancellationToken
     )
     {
         // Read raw bytes so an EF read conversion cannot conceal a write error.
@@ -303,10 +351,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         command.CommandText = $"SELECT HEX(`{columnName}`) FROM `{TableName}` ORDER BY `Id`;";
 
         // Act
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var actualHex = new List<string>();
 
-        while (await reader.ReadAsync(CancellationToken.None))
+        while (await reader.ReadAsync(cancellationToken))
         {
             actualHex.Add(reader.GetString(0));
         }

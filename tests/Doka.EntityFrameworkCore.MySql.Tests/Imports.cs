@@ -10,6 +10,7 @@ global using System.IO;
 global using System.IO.Compression;
 global using System.Linq;
 global using System.Linq.Expressions;
+global using System.Net;
 global using System.Net.Sockets;
 global using System.Runtime.InteropServices;
 global using System.Text.Json;

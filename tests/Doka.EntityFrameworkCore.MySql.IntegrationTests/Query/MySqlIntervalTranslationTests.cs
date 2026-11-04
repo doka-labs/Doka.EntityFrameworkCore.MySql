@@ -18,39 +18,42 @@ public sealed class MySqlIntervalTranslationTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Parametrized_AddDays_filters_server_side_on_mysql84() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql84);
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task Parametrized_AddDays_filters_server_side_on_mysql97() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql97);
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Parametrized_AddDays_filters_server_side_on_mariadb1011() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb1011);
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Parametrized_AddDays_filters_server_side_on_mariadb118() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb118);
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Parametrized_AddDays_filters_server_side_on_mariadb123() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb123);
+        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Parametrized_AddHours_filters_server_side_on_mysql84() =>
-        await RunParametrizedAddHoursAsync(IntegrationDatabaseTarget.MySql84);
+        await RunParametrizedAddHoursAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Constant_AddDays_still_filters_server_side_on_mysql84() =>
-        await RunConstantAddDaysAsync(IntegrationDatabaseTarget.MySql84);
+        await RunConstantAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
+    /// <summary>Runs the parametrized add days integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunParametrizedAddDaysAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new IntervalContext(CreateOptions(connectionString, target));
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         try
         {
@@ -66,7 +69,8 @@ public sealed class MySqlIntervalTranslationTests
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(-5) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(5) });
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var offsetDays = 1;
@@ -80,7 +84,8 @@ public sealed class MySqlIntervalTranslationTests
 
             var matched = await context
                 .Items.Where(i => i.CreatedAt.AddDays(offsetDays) > anchor)
-                .CountAsync()
+                .CountAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal(1, matched);
@@ -92,13 +97,16 @@ public sealed class MySqlIntervalTranslationTests
         }
     }
 
+    /// <summary>Runs the parametrized add hours integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunParametrizedAddHoursAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new IntervalContext(CreateOptions(connectionString, target));
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         try
         {
@@ -106,7 +114,8 @@ public sealed class MySqlIntervalTranslationTests
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddHours(-2) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddHours(2) });
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var offsetHours = 1;
@@ -120,7 +129,8 @@ public sealed class MySqlIntervalTranslationTests
 
             var matched = await context
                 .Items.Where(i => i.CreatedAt.AddHours(offsetHours) > anchor)
-                .CountAsync()
+                .CountAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal(1, matched);
@@ -132,13 +142,16 @@ public sealed class MySqlIntervalTranslationTests
         }
     }
 
+    /// <summary>Runs the constant add days integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunConstantAddDaysAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new IntervalContext(CreateOptions(connectionString, target));
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         try
         {
@@ -146,7 +159,8 @@ public sealed class MySqlIntervalTranslationTests
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(-5) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(5) });
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var sql = context
@@ -159,7 +173,8 @@ public sealed class MySqlIntervalTranslationTests
 
             var matched = await context
                 .Items.Where(i => i.CreatedAt.AddDays(1) > anchor)
-                .CountAsync()
+                .CountAsync(
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal(1, matched);
@@ -184,13 +199,17 @@ public sealed class MySqlIntervalTranslationTests
         return builder.Options;
     }
 
+    /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
-        IntervalContext context
+        IntervalContext context,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(context.Database.GetConnectionString());
         await connection
-            .OpenAsync()
+            .OpenAsync(
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
@@ -200,22 +219,24 @@ public sealed class MySqlIntervalTranslationTests
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
+    // WHY: Failure cleanup must complete after cancellation before this schema is reused.
     private static async Task TearDownAsync(
         IntervalContext context
     )
     {
         await using var connection = new MySqlConnection(context.Database.GetConnectionString());
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

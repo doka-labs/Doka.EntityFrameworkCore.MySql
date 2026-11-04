@@ -45,7 +45,10 @@ public sealed class MySqlGuidFormatTests
 
         try
         {
-            await CreateDatabaseAsync(MySqlTestEnvironment.ConnectionString, dbName);
+            await CreateDatabaseAsync(
+                MySqlTestEnvironment.ConnectionString,
+                dbName,
+                cancellationToken: CancellationToken.None);
 
             switch (bootstrap)
             {
@@ -55,7 +58,8 @@ public sealed class MySqlGuidFormatTests
                             connectionString,
                             MySqlTestEnvironment.ServerVersion),
                         connectionString,
-                        useMigrations);
+                        useMigrations,
+                        cancellationToken: CancellationToken.None);
                     break;
                 case "db-connection":
                     await using (var connection = new MySqlConnection(
@@ -66,7 +70,8 @@ public sealed class MySqlGuidFormatTests
                                 connection,
                                 MySqlTestEnvironment.ServerVersion),
                             connectionString,
-                            useMigrations);
+                            useMigrations,
+                            cancellationToken: CancellationToken.None);
                     }
 
                     break;
@@ -79,7 +84,8 @@ public sealed class MySqlGuidFormatTests
                                 dataSource,
                                 MySqlTestEnvironment.ServerVersion),
                             connectionString,
-                            useMigrations);
+                            useMigrations,
+                            cancellationToken: CancellationToken.None);
                     }
 
                     break;
@@ -144,7 +150,11 @@ public sealed class MySqlGuidFormatTests
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
-                var storageShape = await ReadRawIdStringsAsync(connectionString, dbName, "Char36Entities");
+                var storageShape = await ReadRawIdStringsAsync(
+                    connectionString,
+                    dbName,
+                    "Char36Entities",
+                    cancellationToken: CancellationToken.None);
 
                 // Assert
                 Assert.Equal("seeded", seeded.Name);
@@ -211,7 +221,11 @@ public sealed class MySqlGuidFormatTests
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
-                var rawHex = await ReadRawIdHexAsync(connectionString, dbName, "Binary16Entities");
+                var rawHex = await ReadRawIdHexAsync(
+                    connectionString,
+                    dbName,
+                    "Binary16Entities",
+                    cancellationToken: CancellationToken.None);
 
                 // Assert
                 Assert.Equal("seeded", seeded.Name);
@@ -227,12 +241,22 @@ public sealed class MySqlGuidFormatTests
         }
     }
 
+    /// <summary>
+    /// Checks the default GUID storage and readback contract after schema initialization.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="options">The configured GUID storage context options.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
+    /// <param name="useMigrations">Whether schema setup applies the initial migration.</param>
     private static async Task AssertDefaultChar36ContractAsync(
         DbContextOptions<DefaultChar36GuidContext> options,
         string connectionString,
-        bool useMigrations
+        bool useMigrations,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Arrange
         var expectedCanonical = s_defaultGuid.ToString("D", CultureInfo.InvariantCulture);
         DefaultChar36Principal principal;
@@ -241,12 +265,12 @@ public sealed class MySqlGuidFormatTests
         // Act: Model creation, relational writes, and independent wire readback form one persistence pipeline.
         if (useMigrations)
         {
-            await ApplyInitialMigrationAsync(connectionString);
+            await ApplyInitialMigrationAsync(connectionString, cancellationToken: cancellationToken);
         }
         else
         {
             await using var createContext = new DefaultChar36GuidContext(options);
-            _ = await createContext.Database.EnsureCreatedAsync();
+            _ = await createContext.Database.EnsureCreatedAsync(cancellationToken: cancellationToken);
         }
 
         await using (var insertContext = new DefaultChar36GuidContext(options))
@@ -272,7 +296,7 @@ public sealed class MySqlGuidFormatTests
                     Name = "binary",
                 });
 
-            await insertContext.SaveChangesAsync();
+            await insertContext.SaveChangesAsync(cancellationToken: cancellationToken);
         }
 
         await using (var readContext = new DefaultChar36GuidContext(options))
@@ -280,30 +304,36 @@ public sealed class MySqlGuidFormatTests
             principal = await readContext
                 .Principals
                 .Include(item => item.Dependents)
-                .SingleAsync(item => item.Id == s_defaultGuid);
+                .SingleAsync(item => item.Id == s_defaultGuid, cancellationToken: cancellationToken);
 
             binary = await readContext
                 .BinaryEntities
                 .AsNoTracking()
-                .SingleAsync(item => item.Id == s_explicitBinaryGuid);
+                .SingleAsync(item => item.Id == s_explicitBinaryGuid, cancellationToken: cancellationToken);
 
         }
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken: cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT CAST(`Id` AS CHAR(36)) FROM `DefaultChar36Principals`;";
 
-        var storedPrincipal = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        var storedPrincipal = Convert.ToString(
+            await command.ExecuteScalarAsync(cancellationToken: cancellationToken),
+            CultureInfo.InvariantCulture);
 
         command.CommandText = "SELECT CAST(`PrincipalId` AS CHAR(36)) FROM `DefaultChar36Dependents`;";
 
-        var storedDependent = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        var storedDependent = Convert.ToString(
+            await command.ExecuteScalarAsync(cancellationToken: cancellationToken),
+            CultureInfo.InvariantCulture);
 
         command.CommandText = "SELECT HEX(`Id`) FROM `ExplicitBinary16UnderChar36`;";
 
-        var storedBinary = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        var storedBinary = Convert.ToString(
+            await command.ExecuteScalarAsync(cancellationToken: cancellationToken),
+            CultureInfo.InvariantCulture);
 
         // Assert
         var dependent = Assert.Single(principal.Dependents);
@@ -316,10 +346,18 @@ public sealed class MySqlGuidFormatTests
         Assert.Equal("FEDCBA0987654321FEDCBA0987654321", storedBinary);
     }
 
+    /// <summary>
+    /// Applies the initial GUID contract migration to the configured database.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connectionString">The connection string used by the scenario.</param>
     private static async Task ApplyInitialMigrationAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var source = new EmptyDefaultChar36GuidContext(
             BuildDefaultChar36Options<EmptyDefaultChar36GuidContext>(
                 connectionString,
@@ -350,13 +388,13 @@ public sealed class MySqlGuidFormatTests
                     .Model);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken: cancellationToken);
 
         foreach (var migrationCommand in commands)
         {
             await using var command = connection.CreateCommand();
             command.CommandText = migrationCommand.CommandText;
-            _ = await command.ExecuteNonQueryAsync();
+            _ = await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
@@ -375,27 +413,46 @@ public sealed class MySqlGuidFormatTests
         GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
     }.ConnectionString;
 
+    /// <summary>
+    /// Creates the isolated database used by a GUID storage scenario.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="baseConnectionString">The server connection string used for administration.</param>
+    /// <param name="databaseName">The isolated database owned by the scenario.</param>
     private static async Task CreateDatabaseAsync(
         string baseConnectionString,
-        string databaseName
+        string databaseName,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var builder = new MySqlConnectionStringBuilder(baseConnectionString);
         builder.Remove("Database");
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken: cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE `{databaseName}`;";
-        _ = await command.ExecuteNonQueryAsync();
+        _ = await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// Reads stored GUID text directly from the selected table.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="baseConnectionString">The server connection string used for administration.</param>
+    /// <param name="databaseName">The isolated database owned by the scenario.</param>
+    /// <param name="tableName">The table whose stored values are inspected.</param>
     private static async Task<List<string>> ReadRawIdStringsAsync(
         string baseConnectionString,
         string databaseName,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var builder = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Database = databaseName,
@@ -403,13 +460,13 @@ public sealed class MySqlGuidFormatTests
         };
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken: cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT `Id` FROM `{tableName}`;";
 
         var results = new List<string>();
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken: cancellationToken);
+        while (await reader.ReadAsync(cancellationToken: cancellationToken))
         {
             results.Add(reader.GetString(0));
         }
@@ -417,25 +474,35 @@ public sealed class MySqlGuidFormatTests
         return results;
     }
 
+    /// <summary>
+    /// Reads stored GUID bytes as hexadecimal values from the selected table.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="baseConnectionString">The server connection string used for administration.</param>
+    /// <param name="databaseName">The isolated database owned by the scenario.</param>
+    /// <param name="tableName">The table whose stored values are inspected.</param>
     private static async Task<List<string>> ReadRawIdHexAsync(
         string baseConnectionString,
         string databaseName,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var builder = new MySqlConnectionStringBuilder(baseConnectionString)
         {
             Database = databaseName,
         };
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken: cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT HEX(`Id`) FROM `{tableName}`;";
 
         var results = new List<string>();
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken: cancellationToken);
+        while (await reader.ReadAsync(cancellationToken: cancellationToken))
         {
             results.Add(reader.GetString(0));
         }
@@ -443,6 +510,12 @@ public sealed class MySqlGuidFormatTests
         return results;
     }
 
+    /// <summary>
+    /// Removes the isolated database after a GUID storage scenario completes.
+    /// </summary>
+    /// <param name="baseConnectionString">The server connection used for cleanup.</param>
+    /// <param name="databaseName">The test-owned database to remove.</param>
+    // WHY: All callers are finally blocks; cancellation must not leave test databases behind.
     private static async Task DropDatabaseAsync(
         string baseConnectionString,
         string databaseName
@@ -452,10 +525,10 @@ public sealed class MySqlGuidFormatTests
         builder.Remove("Database");
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     private sealed class Char36Entity

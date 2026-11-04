@@ -42,7 +42,8 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
             _ = await ExecuteOperationsAsync(
                     sourceContext,
                     connection,
-                    CreateGuidDefaultTable(tableName, format, "UUID()").Operations)
+                    CreateGuidDefaultTable(tableName, format, "UUID()").Operations,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Act
@@ -67,11 +68,14 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
                 ?? throw new InvalidOperationException("The compiled scaffolded model lost its ID property.");
             var replaySql = generatedContext.Database.GenerateCreateScript();
 
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
-            await ExecuteRawAsync(connection, replaySql).ConfigureAwait(false);
-            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);")
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await ExecuteRawAsync(connection, replaySql, CancellationToken.None).ConfigureAwait(false);
+            await ExecuteRawAsync(
+                connection,
+                $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);",
+                CancellationToken.None)
                 .ConfigureAwait(false);
-            var rows = await ReadRowsAsync(connection, tableName, format).ConfigureAwait(false);
+            var rows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None).ConfigureAwait(false);
             var replayedDatabaseModel = services.GetRequiredService<IDatabaseModelFactory>()
                 .Create(connectionString, databaseOptions);
 
@@ -96,7 +100,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
         }
     }
 }

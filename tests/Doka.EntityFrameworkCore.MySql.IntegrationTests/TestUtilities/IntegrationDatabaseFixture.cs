@@ -25,7 +25,7 @@ internal sealed class IntegrationDatabaseFixture : IAsyncLifetime
             .ToArray();
 
         var session = await TestDatabaseSession
-            .StartAsync(requests)
+            .StartAsync(requests, CancellationToken.None)
             .ConfigureAwait(false);
 
         try

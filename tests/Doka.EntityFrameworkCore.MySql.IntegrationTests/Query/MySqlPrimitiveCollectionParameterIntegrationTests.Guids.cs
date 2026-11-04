@@ -13,12 +13,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [CreateGuid(0)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -34,12 +36,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [CreateGuid(0), CreateGuid(1), CreateGuid(2)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2, 3], ids);
@@ -55,12 +59,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var values = Enumerable.Range(0, RowCount).Select(CreateGuid).ToArray();
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal(Enumerable.Range(1, RowCount), ids);
@@ -76,12 +82,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [CreateGuid(0), CreateGuid(2)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.CharId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => values.Contains(item.CharId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 3], ids);
@@ -97,12 +105,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => values.Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -118,12 +128,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [CreateGuid(0), CreateGuid(0), CreateGuid(RowCount + 1)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => values.Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -139,13 +151,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid?[] values = [CreateGuid(0), null];
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalBinaryId)));
+            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalBinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2], ids);
@@ -161,12 +174,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid?[] values = [CreateGuid(0), null];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalCharId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalCharId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1, 2], ids);
@@ -182,12 +197,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         Guid[] values = [CreateGuid(1), CreateGuid(2)];
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => values.Contains(item.BinaryId)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => values.Contains(item.BinaryId)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([2, 3], ids);
@@ -203,11 +220,13 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectIdsAsync(context.Items.Where(item => item.BinaryId == CreateGuid(0)));
+        var ids = await SelectIdsAsync(
+            context.Items.Where(item => item.BinaryId == CreateGuid(0)),
+            CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -223,7 +242,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
@@ -247,7 +266,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateCharContext(target);
 
         // Act

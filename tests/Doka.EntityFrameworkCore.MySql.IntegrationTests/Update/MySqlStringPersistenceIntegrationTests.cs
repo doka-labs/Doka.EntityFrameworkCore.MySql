@@ -46,7 +46,8 @@ public sealed class MySqlStringPersistenceIntegrationTests
     ) => AssertInsertPreservesValueAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that parameterized entity updates do not substitute one quote kind for another.
@@ -60,7 +61,8 @@ public sealed class MySqlStringPersistenceIntegrationTests
     ) => AssertUpdatePreservesValueAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that tracked inserts preserve text requiring escaping or UTF-8 encoding.
@@ -74,7 +76,8 @@ public sealed class MySqlStringPersistenceIntegrationTests
     ) => AssertInsertPreservesValueAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks that tracked updates preserve text requiring escaping or UTF-8 encoding.
@@ -88,7 +91,8 @@ public sealed class MySqlStringPersistenceIntegrationTests
     ) => AssertUpdatePreservesValueAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         noBackslashEscapes,
-        value);
+        value,
+        CancellationToken.None);
 
     /// <summary>
     /// Checks the separate set-based update path while another row remains unchanged.
@@ -100,17 +104,24 @@ public sealed class MySqlStringPersistenceIntegrationTests
         bool noBackslashEscapes
     ) => AssertExecuteUpdatePreservesQuotesAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        noBackslashEscapes);
+        noBackslashEscapes,
+        CancellationToken.None);
 
+    /// <summary>Verifies string inserts preserve the original text and database bytes.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="value">The value used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertInsertPreservesValueAsync(
         IntegrationDatabaseTarget target,
         bool noBackslashEscapes,
-        string value
+        string value,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -122,10 +133,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
             });
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
-            await AssertStoredValuesAsync(connection, [value]);
+            await AssertStoredValuesAsync(connection, [value], cancellationToken);
         }
         finally
         {
@@ -133,15 +144,21 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Verifies string updates preserve the original text and database bytes.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="value">The value used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertUpdatePreservesValueAsync(
         IntegrationDatabaseTarget target,
         bool noBackslashEscapes,
-        string value
+        string value,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -151,7 +168,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `Value`) VALUES "
                     + "(1, 'before'), (2, 'unchanged');";
-                _ = await seed.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await using var context = CreateContext(connection, target);
@@ -165,10 +182,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
             context.Entry(item).Property(entry => entry.Value).IsModified = true;
 
             // Act
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // Assert
-            await AssertStoredValuesAsync(connection, [value, "unchanged"]);
+            await AssertStoredValuesAsync(connection, [value, "unchanged"], cancellationToken);
         }
         finally
         {
@@ -176,14 +193,19 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Verifies bulk updates preserve mixed quotation marks.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertExecuteUpdatePreservesQuotesAsync(
         IntegrationDatabaseTarget target,
-        bool noBackslashEscapes
+        bool noBackslashEscapes,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes);
-        await CreateTemporaryTableAsync(connection);
+        await using var connection = await OpenConnectionAsync(target, noBackslashEscapes, cancellationToken);
+        await CreateTemporaryTableAsync(connection, cancellationToken);
 
         try
         {
@@ -191,7 +213,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `Value`) "
                     + "VALUES (1, 'before'), (2, 'unchanged');";
-                _ = await seed.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await using var context = CreateContext(connection, target);
@@ -201,11 +223,11 @@ public sealed class MySqlStringPersistenceIntegrationTests
                 .Where(item => item.Id == 1)
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(item => item.Value, MixedQuoteValue),
-                    CancellationToken.None);
+                    cancellationToken);
 
             // Assert
             Assert.Equal(1, affected);
-            await AssertStoredValuesAsync(connection, [MixedQuoteValue, "unchanged"]);
+            await AssertStoredValuesAsync(connection, [MixedQuoteValue, "unchanged"], cancellationToken);
         }
         finally
         {
@@ -213,9 +235,14 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Opens the target connection with the requested session SQL mode.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="noBackslashEscapes">Whether the session enables NO_BACKSLASH_ESCAPES.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<MySqlConnection> OpenConnectionAsync(
         IntegrationDatabaseTarget target,
-        bool noBackslashEscapes
+        bool noBackslashEscapes,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = new MySqlConnectionStringBuilder(
@@ -230,13 +257,13 @@ public sealed class MySqlStringPersistenceIntegrationTests
 
         try
         {
-            await connection.OpenAsync(CancellationToken.None);
+            await connection.OpenAsync(cancellationToken);
 
             if (noBackslashEscapes)
             {
                 await using var command = connection.CreateCommand();
                 command.CommandText = "SET SESSION sql_mode = 'ANSI_QUOTES,NO_BACKSLASH_ESCAPES,STRICT_TRANS_TABLES';";
-                _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
+                _ = await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
             return connection;
@@ -249,8 +276,12 @@ public sealed class MySqlStringPersistenceIntegrationTests
         }
     }
 
+    /// <summary>Creates the session-local persistence table.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task CreateTemporaryTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         // A session-local table avoids permanent schema changes and keeps
@@ -258,21 +289,29 @@ public sealed class MySqlStringPersistenceIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE TEMPORARY TABLE `{TableName}` "
             + "(`Id` int NOT NULL PRIMARY KEY, `Value` varchar(128) NOT NULL) CHARACTER SET utf8mb4;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>Drops the session-local table after the persistence assertion completes.</summary>
+    /// <param name="connection">The connection that owns the temporary table.</param>
     private static async Task DropTemporaryTableAsync(
         MySqlConnection connection
     )
     {
+        // WHY: Teardown must finish even when the assertion's operation has been cancelled.
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TEMPORARY TABLE `{TableName}`;";
         _ = await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
+    /// <summary>Compares persisted string bytes with the expected UTF-8 values.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="expectedValues">The expected values used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertStoredValuesAsync(
         MySqlConnection connection,
-        string[] expectedValues
+        string[] expectedValues,
+        CancellationToken cancellationToken
     )
     {
         // Read database bytes without EF materialization so a read converter
@@ -286,10 +325,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
             .ToArray();
 
         // Act
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var actualHex = new List<string>();
 
-        while (await reader.ReadAsync(CancellationToken.None))
+        while (await reader.ReadAsync(cancellationToken))
         {
             actualHex.Add(reader.GetString(0));
         }

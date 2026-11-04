@@ -120,12 +120,33 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
             }
             else
             {
-                await lockInstance.AcquireLockAsync();
+                await lockInstance.AcquireLockAsync(CancellationToken.None);
             }
         });
 
         // Assert
         Assert.IsType<ObjectDisposedException>(exception);
+    }
+
+    /// <summary>
+    /// Verifies a canceled caller token prevents lock acquisition before database access.
+    /// </summary>
+    [Fact]
+    public async Task AcquireLockAsync_honors_a_pre_canceled_caller_token()
+    {
+        // Arrange
+        await using var context = new StubContext(BuildOptions());
+        var historyRepository = (MySqlHistoryRepository)context.GetService<IHistoryRepository>();
+        await using var lockInstance = new MySqlHistoryRepository.MySqlMigrationsDatabaseLock(historyRepository);
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => lockInstance.AcquireLockAsync(cancellation.Token));
+
+        // Assert
+        var cancellationException = Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        Assert.Equal(cancellation.Token, cancellationException.CancellationToken);
     }
 
     /// <summary>

@@ -28,8 +28,9 @@ public static class Program
 
             if (TryReadOutputArgument(args, "--soak", out var soakOutput))
             {
+                // WHY: The standalone command-line entry point has no caller cancellation token.
                 return await PerformanceSoakRunner
-                    .RunAsync(soakOutput)
+                    .RunAsync(soakOutput, CancellationToken.None)
                     .ConfigureAwait(false);
             }
 

@@ -74,18 +74,34 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         return migrationBuilder;
     }
 
+    /// <summary>
+    /// Creates populated table for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static Task CreatePopulatedTableAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     ) => ExecuteRawAsync(
         connection,
         $"CREATE TABLE `{tableName}` (`Value` int NOT NULL PRIMARY KEY); "
-        + $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);");
+        + $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);",
+        cancellationToken);
 
+    /// <summary>
+    /// Executes operations for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="operations">The migration operations to execute.</param>
     private static async Task<string> ExecuteOperationsAsync(
         DbContext context,
         MySqlConnection connection,
-        IReadOnlyList<MigrationOperation> operations
+        IReadOnlyList<MigrationOperation> operations,
+        CancellationToken cancellationToken
     )
     {
         // WHY: A literal MigrationBuilder operation must work without a model supplying missing column facets.
@@ -93,41 +109,63 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
         foreach (var migrationCommand in commands)
         {
-            await ExecuteRawAsync(connection, migrationCommand.CommandText).ConfigureAwait(false);
+            await ExecuteRawAsync(connection, migrationCommand.CommandText, cancellationToken).ConfigureAwait(false);
         }
 
         return string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
     }
 
+    /// <summary>
+    /// Executes raw for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sql">The sql.</param>
     private static async Task ExecuteRawAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Drops table for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static Task DropTableAsync(
         MySqlConnection connection,
-        string tableName
-    ) => ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{tableName}`;");
+        string tableName,
+        CancellationToken cancellationToken
+    ) => ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{tableName}`;", cancellationToken);
 
+    /// <summary>
+    /// Reads rows for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="format">The format.</param>
     private static async Task<GuidDefaultRow[]> ReadRowsAsync(
         MySqlConnection connection,
         string tableName,
-        MySqlGuidFormat format
+        MySqlGuidFormat format,
+        CancellationToken cancellationToken
     )
     {
         var idExpression = format == MySqlGuidFormat.Binary16 ? "HEX(`Id`)" : "CAST(`Id` AS CHAR(36))";
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT `Value`, {idExpression}, OCTET_LENGTH(`Id`) "
             + $"FROM `{tableName}` ORDER BY `Value`;";
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<GuidDefaultRow>();
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             rows.Add(new GuidDefaultRow(reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2)));
         }
@@ -135,17 +173,24 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         return rows.ToArray();
     }
 
+    /// <summary>
+    /// Reads values for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task<int[]> ReadValuesAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT `Value` FROM `{tableName}` ORDER BY `Value`;";
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var values = new List<int>();
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             values.Add(reader.GetInt32(0));
         }
@@ -153,15 +198,22 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         return values.ToArray();
     }
 
+    /// <summary>
+    /// Reads table definition for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task<string> ReadTableDefinitionAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"SHOW CREATE TABLE `{tableName}`;";
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
-        _ = await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        _ = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
 
         return reader.GetString(1);
     }

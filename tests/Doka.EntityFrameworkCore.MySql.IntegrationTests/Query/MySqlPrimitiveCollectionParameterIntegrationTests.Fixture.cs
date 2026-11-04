@@ -16,16 +16,18 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         /// <summary>Ensures the 2,200-row fixture is written once for the selected engine.</summary>
         /// <param name="target">The selected database engine.</param>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         /// <returns>A task that completes when both primitive-collection tables are ready.</returns>
         internal Task EnsureSeededAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             // WHY: xUnit serializes methods in this class. Retaining the Task
             // also retains seed failures, so later cases do not retry partial DDL.
             if (!_seeds.TryGetValue(target, out var seed))
             {
-                seed = SeedAsync(target);
+                seed = SeedAsync(target, cancellationToken);
                 _seeds.Add(target, seed);
             }
 
@@ -33,7 +35,10 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         }
 
         /// <summary>Ensures the MariaDB SQL-mode rows are written once for this class.</summary>
-        internal Task EnsureSqlModeSeededAsync() => _sqlModeSeed ??= SeedSqlModeAsync();
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        internal Task EnsureSqlModeSeededAsync(
+            CancellationToken cancellationToken
+        ) => _sqlModeSeed ??= SeedSqlModeAsync(cancellationToken);
 
         /// <summary>Drops every table created by this class, including after test failure.</summary>
         public async Task DisposeAsync()
@@ -47,7 +52,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 try
                 {
                     await using var charContext = CreateCharContext(target);
-                    await DropCharTableAsync(charContext);
+                    await DropCharTableAsync(charContext, CancellationToken.None);
                 }
                 catch (Exception exception)
                 {
@@ -58,7 +63,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 try
                 {
                     await using var context = CreateContext(target);
-                    await DropTableAsync(context);
+                    await DropTableAsync(context, CancellationToken.None);
                 }
                 catch (Exception exception)
                 {
@@ -72,7 +77,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 try
                 {
                     await using var context = CreateSqlModeContext();
-                    await DropSqlModeTableAsync(context);
+                    await DropSqlModeTableAsync(context, CancellationToken.None);
                 }
                 catch (Exception exception)
                 {
@@ -87,13 +92,17 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
             }
         }
 
-        private static async Task SeedSqlModeAsync()
+        /// <summary>Seeds sql mode data for subsequent integration queries.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        private static async Task SeedSqlModeAsync(
+            CancellationToken cancellationToken
+        )
         {
             await using var context = CreateSqlModeContext();
-            await DropSqlModeTableAsync(context);
+            await DropSqlModeTableAsync(context, cancellationToken);
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
             context.AddRange(
                 new SqlModeStringCollectionEntity
                 {
@@ -128,17 +137,20 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                     ConvertedValue = "delta",
                     ConvertedText = new TextValue("gr\u00FCn"),
                 });
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
+        /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateContext(target);
             await using var charContext = CreateCharContext(target);
-            await DropTableAsync(context);
-            await DropCharTableAsync(charContext);
+            await DropTableAsync(context, cancellationToken);
+            await DropCharTableAsync(charContext, cancellationToken);
 
             // WHY: each independent assertion needs the same large cardinality;
             // one seed per engine avoids multiplying schema DDL and 2,200 inserts.
@@ -197,21 +209,21 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
             context.Items.AddRange(entities);
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             await charContext.Database.ExecuteSqlRawAsync(
                 charContext.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
             charContext.Add(
                 new CharGuidCollectionEntity
                 {
                     Id = 1,
                     GuidValues = [CreateGuid(10), Guid.Empty],
                 });
-            await charContext.SaveChangesAsync(CancellationToken.None);
+            await charContext.SaveChangesAsync(cancellationToken);
             charContext.ChangeTracker.Clear();
         }
     }

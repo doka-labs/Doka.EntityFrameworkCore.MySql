@@ -3,12 +3,14 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies source metadata and navigation shaping with a supplied runtime model.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertSuppliedRuntimeModelPreservesSourceMetadataAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var probe = new BindingCommandProbe();
         var connectionString = fixture.Context.Database.GetConnectionString()
             ?? throw new InvalidOperationException("The populated fixture must provide a connection string.");
@@ -40,7 +42,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var commandsDuringConstruction = probe.Count;
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Same(fixture.Context.Model, context.Model);

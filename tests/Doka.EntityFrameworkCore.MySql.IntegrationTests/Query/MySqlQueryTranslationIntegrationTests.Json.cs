@@ -18,7 +18,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new JsonQueryContext(CreateJsonOptions(connectionString, target));
 
-        await CleanupJsonAsync(context);
+        await CleanupJsonAsync(context, CancellationToken.None);
 
         try
         {
@@ -50,29 +50,32 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         }
         finally
         {
-            await CleanupJsonAsync(context);
+            await CleanupJsonAsync(context, CancellationToken.None);
         }
     }
 
     /// <summary>Verifies constructor result types within a single server projection.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Json_constructors_materialize_server_results_on_mysql84() =>
-        RunJsonConstructorTest(IntegrationDatabaseTarget.MySql84);
+        RunJsonConstructorTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Verifies constructor result types within a single server projection.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Json_constructors_materialize_server_results_on_mariadb118() =>
-        RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118);
+        RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
+    /// <summary>Runs the json constructor test integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunJsonConstructorTest(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = GetConnectionString(target);
         var interceptor = new CommandCaptureInterceptor();
         await using var context = new JsonQueryContext(CreateJsonOptions(connectionString, target, interceptor));
-        await CleanupJsonAsync(context);
+        await CleanupJsonAsync(context, cancellationToken);
 
         try
         {
@@ -83,10 +86,12 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                     `Data` json NOT NULL,
                     CONSTRAINT `PK_IntJsonItems` PRIMARY KEY (`Id`)
                 ) CHARACTER SET utf8mb4;
-                """);
+                """,
+                cancellationToken: cancellationToken);
             await context.Database.ExecuteSqlRawAsync(
                 "INSERT INTO `IntJsonItems` (`Data`) VALUES ({0});",
-                "{}");
+                new object[] { "{}" },
+                cancellationToken);
 
             var suffix = "tail";
 
@@ -101,7 +106,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
             // Act
             var sql = query.ToQueryString();
-            var result = await query.SingleAsync();
+            var result = await query.SingleAsync(cancellationToken: cancellationToken);
 
             // Assert
             Assert.Contains("JSON_ARRAY(", sql, StringComparison.Ordinal);
@@ -125,7 +130,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         }
         finally
         {
-            await CleanupJsonAsync(context);
+            await CleanupJsonAsync(context, CancellationToken.None);
         }
     }
 }

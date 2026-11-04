@@ -17,21 +17,27 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         public Task InitializeAsync() => Task.CompletedTask;
 
         /// <summary>Returns a fresh context after seeding the native model once.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         internal async Task<NativeUuidContext> CreateNativeContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
-            await EnsureSeededAsync(target, UuidDataSet.Native).ConfigureAwait(false);
+            await EnsureSeededAsync(target, UuidDataSet.Native, cancellationToken).ConfigureAwait(false);
 
             return CreateNativeContext(target, nameof(UuidDataSet.Native));
         }
 
         /// <summary>Returns a fresh context after seeding versioned UUID rows once.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         internal async Task<VersionedUuidContext> CreateVersionedContextAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
-            await EnsureSeededAsync(target, UuidDataSet.Versioned).ConfigureAwait(false);
+            await EnsureSeededAsync(target, UuidDataSet.Versioned, cancellationToken).ConfigureAwait(false);
 
             return CreateVersionedContext(target);
         }
@@ -39,6 +45,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         /// <inheritdoc />
         public async Task DisposeAsync()
         {
+            // WHY: Fixture teardown must release every engine dataset after a cancelled test.
             List<Exception>? failures = null;
 
             foreach (var key in _seeds.Keys)
@@ -51,11 +58,11 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
                     if (key.DataSet == UuidDataSet.Native)
                     {
-                        await DropModelTablesAsync(connection).ConfigureAwait(false);
+                        await DropModelTablesAsync(connection, CancellationToken.None).ConfigureAwait(false);
                     }
                     else
                     {
-                        await DropVersionedTableAsync(connection).ConfigureAwait(false);
+                        await DropVersionedTableAsync(connection, CancellationToken.None).ConfigureAwait(false);
                     }
                 }
                 catch (Exception exception)
@@ -72,46 +79,61 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             }
         }
 
+        /// <summary>Initializes the selected dataset once and retains its outcome for later cases.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="dataSet">The data set used by this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         private Task EnsureSeededAsync(
             IntegrationDatabaseTarget target,
-            UuidDataSet dataSet
+            UuidDataSet dataSet,
+            CancellationToken cancellationToken
         )
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // WHY: xUnit serializes this class. Retaining the task also retains a
             // failed seed without retrying partial DDL or poisoning another engine.
             if (!_seeds.TryGetValue((target, dataSet), out var seed))
             {
                 seed = dataSet == UuidDataSet.Native
-                    ? SeedNativeAsync(target)
-                    : SeedVersionedAsync(target);
+                    ? SeedNativeAsync(target, cancellationToken)
+                    : SeedVersionedAsync(target, cancellationToken);
                 _seeds.Add((target, dataSet), seed);
             }
 
             return seed;
         }
 
+        /// <summary>Creates and seeds the native UUID model for the selected engine.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         private static async Task SeedNativeAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateNativeContext(target, nameof(UuidDataSet.Native));
-            await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+            await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             var connection = (MySqlConnection)context.Database.GetDbConnection();
-            await DropModelTablesAsync(connection).ConfigureAwait(false);
-            await CreateNativeModelAsync(context).ConfigureAwait(false);
+            await DropModelTablesAsync(connection, cancellationToken).ConfigureAwait(false);
+            await CreateNativeModelAsync(context, cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>Creates the UUID-version comparison dataset for the selected engine.</summary>
+        /// <param name="target">The database target used for this operation.</param>
+        /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
         private static async Task SeedVersionedAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateVersionedContext(target);
-            await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+            await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             var connection = (MySqlConnection)context.Database.GetDbConnection();
-            await DropVersionedTableAsync(connection).ConfigureAwait(false);
+            await DropVersionedTableAsync(connection, cancellationToken).ConfigureAwait(false);
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
 
             // WHY: Explicit fixture keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
@@ -133,7 +155,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
                     Id = 4, NativeId = s_v7Last, BinaryId = s_v7Last, CharId = s_v7Last,
                 });
 
-            await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 }

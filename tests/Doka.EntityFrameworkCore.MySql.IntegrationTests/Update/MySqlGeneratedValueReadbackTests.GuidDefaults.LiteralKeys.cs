@@ -14,7 +14,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsLiteralKeyMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var id = CreateGuid(7001);
         var entity = context.Model.FindEntityType(typeof(GuidDefaultLiteralKeyRow))!;
         var idMapping = entity.FindProperty(nameof(GuidDefaultLiteralKeyRow.Id))!.GetRelationalTypeMapping();

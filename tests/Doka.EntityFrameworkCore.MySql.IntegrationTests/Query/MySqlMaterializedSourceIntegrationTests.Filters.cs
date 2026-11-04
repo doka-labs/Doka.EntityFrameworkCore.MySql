@@ -2,17 +2,20 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
+    /// <summary>Verifies the distinct global filter parameters contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDistinctGlobalFilterParametersAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFilterFixtureAsync(target);
+        await using var fixture = await CreateFilterFixtureAsync(target, cancellationToken);
 
         // Act
         var query = CreateFilteredTripleQuery(fixture.Context);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         AssertFilteredTriples(actual, 2, 4, 6);
 
@@ -24,21 +27,26 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>
+    /// Verifies the cached global filters use current context values contract against the live database.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCachedGlobalFiltersUseCurrentContextValuesAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFilterFixtureAsync(target);
+        await using var fixture = await CreateFilterFixtureAsync(target, cancellationToken);
 
         // Act
         var query = CreateFilteredTripleQuery(fixture.Context);
-        var previous = await query.ToArrayAsync(CancellationToken.None);
+        var previous = await query.ToArrayAsync(cancellationToken);
         fixture.Context.MinimumAValue = 3;
         fixture.Context.MinimumBValue = 5;
         fixture.Probe.Reset();
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         AssertFilteredTriples(previous, 2, 4, 6);
         AssertFilteredTriples(actual, 3, 5, 6);
@@ -82,12 +90,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(expected, actual.Select(row => (row.AId, row.BId, row.CId)));
     }
 
+    /// <summary>Verifies the paged global filter applied only to source contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertPagedGlobalFilterAppliedOnlyToSourceAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFilterFixtureAsync(target);
+        await using var fixture = await CreateFilterFixtureAsync(target, cancellationToken);
 
         // Act
         var query = fixture.Context.SourceA.OrderBy(row => row.Id)
@@ -100,7 +111,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 (left, _) => left))
             .OrderBy(row => row.Id);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([3, 4], actual.Select(row => row.Id));
@@ -110,13 +121,16 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the ignored filters keep query wide semantics contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertIgnoredFiltersKeepQueryWideSemanticsAsync(
         IntegrationDatabaseTarget target,
-        bool ignoreOnSource
+        bool ignoreOnSource,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFilterFixtureAsync(target);
+        await using var fixture = await CreateFilterFixtureAsync(target, cancellationToken);
         IQueryable<FilterSourceA> source = fixture.Context.SourceA;
 
         if (ignoreOnSource)
@@ -143,7 +157,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         var ordered = query.OrderBy(row => row.AId).ThenBy(row => row.CId);
 
-        var actual = await ordered.ToArrayAsync(CancellationToken.None);
+        var actual = await ordered.ToArrayAsync(cancellationToken);
 
         var expected = Enumerable.Range(2, 2)
             .SelectMany(_ => Enumerable.Range(1, 6), (first, third) => (first, third));

@@ -17,18 +17,22 @@ public sealed class MySqlBulkInsertReturningTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb118);
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb1011);
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb123);
+        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Verifies multirow inserts populate generated keys through MariaDB RETURNING.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMariaDbInsertReturningAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -36,9 +40,10 @@ public sealed class MySqlBulkInsertReturningTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `BulkItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, `Score` int NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `BulkItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, `Score` int NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
 
         try
         {
@@ -54,12 +59,12 @@ public sealed class MySqlBulkInsertReturningTests
             context.Items.AddRange(items);
 
             // Act
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
 
             context.ChangeTracker.Clear();
             var roundTripped = await context
                 .Items.OrderBy(e => e.Id)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: cancellationToken);
 
             // Assert
             Assert.All(items, item => Assert.True(item.Id > 0));
@@ -70,7 +75,8 @@ public sealed class MySqlBulkInsertReturningTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
+            // WHY: Teardown must remove the table even when the insert caller canceled.
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;", CancellationToken.None);
         }
     }
 
@@ -168,14 +174,18 @@ public sealed class MySqlBulkInsertReturningTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
-        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql84);
+        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
-        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql97);
+        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
+    /// <summary>Verifies MySQL populates each auto-increment key through its per-row fallback.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMySqlAutoIncrementFallbackAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -183,9 +193,10 @@ public sealed class MySqlBulkInsertReturningTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
         await using var context = new BulkContext(CreateOptions<BulkContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `BulkItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, `Score` int NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `BulkItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, `Score` int NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
 
         try
         {
@@ -201,7 +212,7 @@ public sealed class MySqlBulkInsertReturningTests
             context.Items.AddRange(items);
 
             // Act
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
 
             // Assert
             Assert.All(items, item => Assert.True(item.Id > 0));
@@ -216,7 +227,8 @@ public sealed class MySqlBulkInsertReturningTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;");
+            // WHY: Teardown must remove the table even when the insert caller canceled.
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `BulkItems`;", CancellationToken.None);
         }
     }
 

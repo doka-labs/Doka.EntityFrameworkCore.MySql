@@ -206,7 +206,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         try
         {
-            // Session cleanup must outlive caller cancellation so pooled state cannot leak.
+            // WHY: Session cleanup must outlive caller cancellation so pooled state cannot leak.
             await ExecuteAsync(
                     _restoreCommand!,
                     connection,
@@ -331,6 +331,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IRelationalConnection connection
     )
     {
+        // WHY: Every restoration command must run even when the migration body was canceled.
         Exception? cleanupException = null;
 
         foreach (var cleanupCommand in _handlerCleanupCommands)
@@ -502,6 +503,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IRelationalConnection connection
     )
     {
+        // WHY: Both token-less close APIs must run before an unsafe physical session can be reused.
         Exception? relationalCloseException = null;
 
         try
@@ -561,6 +563,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         Exception? cleanupException
     )
     {
+        // WHY: Pool cleanup must finish before the original migration or cleanup failure is rethrown.
         if (cleanupException is not null)
         {
             await TryClearPoolAsync(connection, cleanupException)
@@ -627,7 +630,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 
         try
         {
-            // Pool cleanup must complete even when the migration was cancelled.
+            // WHY: Pool cleanup must complete even when the migration was canceled.
             await MySqlConnection
                 .ClearPoolAsync(mySqlConnection, CancellationToken.None)
                 .ConfigureAwait(false);

@@ -36,11 +36,18 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     public string QualifiedTableName { get; }
     public IBufferDistributedCache Cache { get; }
 
+    /// <summary>Creates an isolated cache store for the selected database target.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    /// <param name="ownerFilePath">The source file that owns the isolated database.</param>
     public static async Task<CacheIntegrationStore> CreateAsync(
         IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken,
         [CallerFilePath] string ownerFilePath = ""
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // WHY: Forward the test-class source path so both cache test classes
         // retain separate databases even though connection creation is shared.
         var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target, ownerFilePath))
@@ -61,7 +68,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
         {
             await store
                 ._connection
-                .OpenAsync(CancellationToken.None)
+                .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             return store;
@@ -82,14 +89,16 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
         }
     }
 
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        // WHY: Disposal must remove the cache table and release owned resources after a cancelled test.
         await _provider
             .DisposeAsync()
             .ConfigureAwait(false);
         try
         {
-            await ExecuteAsync($"DROP TABLE IF EXISTS {QualifiedTableName};")
+            await ExecuteAsync($"DROP TABLE IF EXISTS {QualifiedTableName};", CancellationToken.None)
                 .ConfigureAwait(false);
         }
         finally
@@ -132,40 +141,57 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
         logger ?? new CacheRecordingLogger(),
         timeProvider);
 
+    /// <summary>Executes a SQL statement on the store's open connection.</summary>
+    /// <param name="commandText">The SQL statement to execute.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     public async Task ExecuteAsync(
-        string commandText
+        string commandText,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand(commandText, _connection);
         await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Executes a SQL statement with a bound cache key.</summary>
+    /// <param name="commandText">The SQL statement to execute.</param>
+    /// <param name="key">The cache key for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     public async Task ExecuteForKeyAsync(
         string commandText,
-        string key
+        string key,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand(commandText, _connection);
         command.Parameters.AddWithValue("@key", key);
         await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
-    public async Task<DateTime> ReadUtcNowAsync()
+    /// <summary>Reads the database server's current UTC timestamp.</summary>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    public async Task<DateTime> ReadUtcNowAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var command = new MySqlCommand("SELECT UTC_TIMESTAMP(6);", _connection);
         var value = await command
-            .ExecuteScalarAsync(CancellationToken.None)
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return Assert.IsType<DateTime>(value);
     }
 
+    /// <summary>Reads persisted expiration metadata for one cache key.</summary>
+    /// <param name="key">The cache key for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     public async Task<EntryState> ReadEntryAsync(
-        string key
+        string key,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand(
@@ -177,12 +203,12 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         command.Parameters.AddWithValue("@key", key);
         await using var reader = await command
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
         Assert.True(
             await reader
-                .ReadAsync(CancellationToken.None)
+                .ReadAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         return new EntryState(
@@ -192,8 +218,12 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
             reader.GetInt64(3));
     }
 
+    /// <summary>Counts the persisted rows for one cache key.</summary>
+    /// <param name="key">The cache key for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     public async Task<long> CountKeyAsync(
-        string key
+        string key,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand(
@@ -204,33 +234,45 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         return Convert.ToInt64(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
-    public async Task<long> CountTablesAsync()
+    /// <summary>Counts the store table in database metadata.</summary>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    public async Task<long> CountTablesAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var command = CreateTableMetadataCommand("COUNT(*)");
 
         return Convert.ToInt64(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
-    public async Task<string> ReadTableCommentAsync()
+    /// <summary>Reads the comment attached to the store table.</summary>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    public async Task<string> ReadTableCommentAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var command = CreateTableMetadataCommand("TABLE_COMMENT");
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 
-    public async Task<long> CountExpiredAsync()
+    /// <summary>Counts rows whose expiration has passed on the server.</summary>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    public async Task<long> CountExpiredAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var command = new MySqlCommand(
             $"SELECT COUNT(*) FROM {QualifiedTableName} WHERE `ExpiresAtUtc` <= UTC_TIMESTAMP(6);",
@@ -238,13 +280,17 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         return Convert.ToInt64(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Adds expired rows for the cleanup workload.</summary>
+    /// <param name="count">The count used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     public Task InsertExpiredEntriesAsync(
-        int count
+        int count,
+        CancellationToken cancellationToken
     )
     {
         var values = string.Join(
@@ -259,7 +305,8 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
              INSERT INTO {QualifiedTableName}
                  (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
              VALUES {values};
-             """);
+             """,
+            cancellationToken);
     }
 
     private MySqlCommand CreateTableMetadataCommand(

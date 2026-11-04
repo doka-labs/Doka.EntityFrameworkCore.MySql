@@ -37,7 +37,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertIncompleteMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     /// <summary>A complete string mapping rejects an unknown discriminator.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -47,7 +48,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertCompleteMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     /// <summary>An incomplete integer mapping filters rows with an unknown discriminator.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -57,7 +59,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertIncompleteIntMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     /// <summary>A complete integer mapping rejects an unknown discriminator.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -67,7 +70,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertCompleteIntMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     /// <summary>An incomplete converted mapping filters rows with an unknown discriminator.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -77,7 +81,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertIncompleteConvertedMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     /// <summary>A complete converted mapping rejects an unknown discriminator.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -87,7 +92,8 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         string probe
     ) => AssertCompleteConvertedMappingAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
-        Enum.Parse<DiscriminatorProbe>(probe));
+        Enum.Parse<DiscriminatorProbe>(probe),
+        CancellationToken.None);
 
     private static TheoryData<string, string> CreateDiscriminatorCases()
     {
@@ -109,9 +115,16 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         return cases;
     }
 
+    /// <summary>
+    /// Verifies incomplete mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertIncompleteMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -135,7 +148,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateStringTableWithUnknownDiscriminatorAsync(context)
+        await RecreateStringTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -145,7 +158,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             {
                 DiscriminatorProbe.Sync => query.ToList(),
                 DiscriminatorProbe.Async => await query
-                    .ToListAsync(CancellationToken.None)
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
             };
@@ -155,14 +168,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, StringTableName)
+            await DropTableAsync(context, StringTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies complete mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertCompleteMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -184,7 +204,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateStringTableWithUnknownDiscriminatorAsync(context)
+        await RecreateStringTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -195,7 +215,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
-                        .ToListAsync(CancellationToken.None)
+                        .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
@@ -206,14 +226,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, StringTableName)
+            await DropTableAsync(context, StringTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies incomplete int mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertIncompleteIntMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -237,7 +264,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateIntTableWithUnknownDiscriminatorAsync(context)
+        await RecreateIntTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -247,7 +274,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             {
                 DiscriminatorProbe.Sync => query.ToList(),
                 DiscriminatorProbe.Async => await query
-                    .ToListAsync(CancellationToken.None)
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
             };
@@ -257,14 +284,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, IntTableName)
+            await DropTableAsync(context, IntTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies complete int mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertCompleteIntMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -287,7 +321,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateIntTableWithUnknownDiscriminatorAsync(context)
+        await RecreateIntTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -298,7 +332,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
-                        .ToListAsync(CancellationToken.None)
+                        .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
@@ -309,14 +343,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, IntTableName)
+            await DropTableAsync(context, IntTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies incomplete converted mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertIncompleteConvertedMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -343,7 +384,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context)
+        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -353,7 +394,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             {
                 DiscriminatorProbe.Sync => query.ToList(),
                 DiscriminatorProbe.Async => await query
-                    .ToListAsync(CancellationToken.None)
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
             };
@@ -363,14 +404,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, ConvertedTableName)
+            await DropTableAsync(context, ConvertedTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies complete converted mapping for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="probe">The probe.</param>
     private static async Task AssertCompleteConvertedMappingAsync(
         IntegrationDatabaseTarget target,
-        DiscriminatorProbe probe
+        DiscriminatorProbe probe,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -393,7 +441,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             return;
         }
 
-        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context)
+        await RecreateConvertedTableWithUnknownDiscriminatorAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -404,7 +452,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Sync => Assert.Throws<InvalidOperationException>(query.ToList),
                 DiscriminatorProbe.Async => await Assert
                     .ThrowsAsync<InvalidOperationException>(async () => await query
-                        .ToListAsync(CancellationToken.None)
+                        .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
                 _ => throw new ArgumentOutOfRangeException(nameof(probe))
@@ -415,7 +463,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context, ConvertedTableName)
+            await DropTableAsync(context, ConvertedTableName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -470,11 +518,17 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         Assert.Contains(unknownValue, exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Recreates string table with unknown discriminator for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
     private static async Task RecreateStringTableWithUnknownDiscriminatorAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
-        await DropTableAsync(context, StringTableName).ConfigureAwait(false);
+        await DropTableAsync(context, StringTableName, cancellationToken).ConfigureAwait(false);
         await context.Database.ExecuteSqlRawAsync(
                 $"""
                 CREATE TABLE `{StringTableName}` (
@@ -490,15 +544,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                     (1, 'Known', 'known', 'mapped'),
                     (2, 'Future', 'future', NULL);
                 """,
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Recreates int table with unknown discriminator for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
     private static async Task RecreateIntTableWithUnknownDiscriminatorAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
-        await DropTableAsync(context, IntTableName).ConfigureAwait(false);
+        await DropTableAsync(context, IntTableName, cancellationToken).ConfigureAwait(false);
         await context.Database.ExecuteSqlRawAsync(
                 $"""
                 CREATE TABLE `{IntTableName}` (
@@ -514,15 +574,21 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                     (1, 1, 'known', 'mapped'),
                     (2, 2, 'future', NULL);
                 """,
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Recreates converted table with unknown discriminator for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
     private static async Task RecreateConvertedTableWithUnknownDiscriminatorAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
-        await DropTableAsync(context, ConvertedTableName)
+        await DropTableAsync(context, ConvertedTableName, cancellationToken)
             .ConfigureAwait(false);
         await context.Database.ExecuteSqlRawAsync(
                 $"""
@@ -534,7 +600,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                     CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
                 ) CHARACTER SET utf8mb4;
                 """,
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
 
         // Parameterize fixture rows so the query assertion, not test SQL,
@@ -543,16 +609,23 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 $"INSERT INTO `{ConvertedTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`) "
                 + "VALUES (1, {0}, 'known', 'mapped'), (2, {1}, 'future', NULL);",
                 new object[] { KnownConvertedValue, "F" },
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Drops table for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task DropTableAsync(
         DbContext context,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{tableName}`;",
-            CancellationToken.None)
+            cancellationToken)
         .ConfigureAwait(false);
 
     private abstract class DiscriminatorContext(DbContextOptions options) : DbContext(options)

@@ -22,15 +22,27 @@ public sealed class IntegrationDatabaseIsolationTests
         await using var secondConnection = new MySqlConnection(secondConnectionString);
         await firstConnection.OpenAsync(CancellationToken.None);
         await secondConnection.OpenAsync(CancellationToken.None);
-        await ExecuteAsync(firstConnection, "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);");
-        await ExecuteAsync(secondConnection, "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);");
+        await ExecuteAsync(
+            firstConnection,
+            "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);",
+            CancellationToken.None);
+        await ExecuteAsync(
+            secondConnection,
+            "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);",
+            CancellationToken.None);
 
         // Act
-        await ExecuteAsync(firstConnection, "INSERT INTO `ParallelIsolation` (`Value`) VALUES (1);");
-        await ExecuteAsync(secondConnection, "INSERT INTO `ParallelIsolation` (`Value`) VALUES (2);");
+        await ExecuteAsync(
+            firstConnection,
+            "INSERT INTO `ParallelIsolation` (`Value`) VALUES (1);",
+            CancellationToken.None);
+        await ExecuteAsync(
+            secondConnection,
+            "INSERT INTO `ParallelIsolation` (`Value`) VALUES (2);",
+            CancellationToken.None);
 
-        var firstValue = await ReadValueAsync(firstConnection);
-        var secondValue = await ReadValueAsync(secondConnection);
+        var firstValue = await ReadValueAsync(firstConnection, CancellationToken.None);
+        var secondValue = await ReadValueAsync(secondConnection, CancellationToken.None);
 
         // Assert
         Assert.NotEqual(
@@ -61,19 +73,21 @@ public sealed class IntegrationDatabaseIsolationTests
 
     private static async Task ExecuteAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task<int> ReadValueAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = new MySqlCommand("SELECT `Value` FROM `ParallelIsolation`;", connection);
-        var result = await command.ExecuteScalarAsync(CancellationToken.None);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
 
         return Assert.IsType<int>(result);
     }

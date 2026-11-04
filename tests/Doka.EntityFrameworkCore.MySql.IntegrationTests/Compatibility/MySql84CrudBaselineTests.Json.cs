@@ -11,7 +11,7 @@ public sealed partial class MySql84CrudBaselineTests
         // Arrange
         var connectionString = GetConnectionString();
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -65,7 +65,7 @@ public sealed partial class MySql84CrudBaselineTests
             if (dbConnection.State != ConnectionState.Open)
             {
                 await dbConnection
-                    .OpenAsync()
+                    .OpenAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
@@ -74,7 +74,7 @@ public sealed partial class MySql84CrudBaselineTests
                 await using var ddlCommand = dbConnection.CreateCommand();
                 ddlCommand.CommandText = command.CommandText;
                 await ddlCommand
-                    .ExecuteNonQueryAsync()
+                    .ExecuteNonQueryAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
@@ -92,17 +92,17 @@ public sealed partial class MySql84CrudBaselineTests
             insertCommand.Parameters.Add(payloadParameter);
 
             await insertCommand
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             await using var scalarCommand = dbConnection.CreateCommand();
             scalarCommand.CommandText = $"SELECT `StoredCount` FROM `{JsonTableName}` WHERE `Id` = 1;";
 
             var result = await scalarCommand
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
-            var tableExists = await TableExistsAsync(connectionString, JsonTableName)
+            var tableExists = await TableExistsAsync(connectionString, JsonTableName, CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -112,7 +112,8 @@ public sealed partial class MySql84CrudBaselineTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

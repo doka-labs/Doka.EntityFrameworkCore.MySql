@@ -82,11 +82,18 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Assert
         Assert.Equal(1, waiting);
     }
+
     /// <summary>Waits for the expected command to reach a real database row lock.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="pending">The pending used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    /// <param name="cleanupOnly">Whether to require the cleanup command's primary-index clause.</param>
     private static async Task AssertLockingStatementStartedAsync(
         MySqlConnection observer,
         string tableName,
         Task pending,
+        CancellationToken cancellationToken,
         bool cleanupOnly = false
     )
     {
@@ -108,7 +115,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
             var waiting = Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
@@ -118,7 +125,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             }
 
             await Task
-                .Delay(10, CancellationToken.None)
+                .Delay(10, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -145,10 +152,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
            """;
 
     /// <summary>Waits for the selected cache command to block on a table lock.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="pending">The pending used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertWaitingForTableLockAsync(
         MySqlConnection observer,
         string tableName,
-        Task pending
+        Task pending,
+        CancellationToken cancellationToken
     )
     {
         await using var command = observer.CreateCommand();
@@ -164,7 +176,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
             var waiting = Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
@@ -174,7 +186,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             }
 
             await Task
-                .Delay(10, CancellationToken.None)
+                .Delay(10, cancellationToken)
                 .ConfigureAwait(false);
         }
 

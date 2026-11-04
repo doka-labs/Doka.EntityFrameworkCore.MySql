@@ -84,7 +84,12 @@ public sealed class MySqlSequenceValueGeneratorTests
 
         // Act
         var recordedException = await Record.ExceptionAsync(() =>
-            MySqlSequenceValueGenerator.GetNextValueAsync(connection, "orders", 1, supportsNativeSequences: false));
+            MySqlSequenceValueGenerator.GetNextValueAsync(
+                connection,
+                "orders",
+                1,
+                supportsNativeSequences: false,
+                cancellationToken: CancellationToken.None));
 
         // Assert
         Assert.Equal("connection", Assert.IsType<ArgumentNullException>(recordedException).ParamName);

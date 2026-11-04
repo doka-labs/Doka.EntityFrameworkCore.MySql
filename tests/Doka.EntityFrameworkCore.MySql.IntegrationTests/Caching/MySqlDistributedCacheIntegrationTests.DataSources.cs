@@ -13,7 +13,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var key = useAsync ? "ambient-async" : "ambient-sync";
@@ -56,7 +56,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var passwordRequests = 0;
@@ -93,7 +93,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var dataSource = CreateExternalDataSource(store);
@@ -152,7 +152,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var dataSource = CreateExternalDataSource(store);

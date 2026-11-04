@@ -9,8 +9,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string TemporalStartColumn = "ValidFrom";
     private const string TemporalEndColumn = "ValidTo";
 
+    /// <summary>Creates the temporal lineage fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<TemporalLineageFixture> CreateTemporalLineageFixtureAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var probe = new BindingCommandProbe();
@@ -25,8 +28,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropTemporalLineageTablesAsync(context);
-            await CreateTemporalLineageTablesAsync(context);
+            await DropTemporalLineageTablesAsync(context, cancellationToken);
+            await CreateTemporalLineageTablesAsync(context, cancellationToken);
             var historicalNext = new BoundHistoricalChild { Id = 3, Name = "historical-next" };
             var currentNext = new BoundHistoricalChild { Id = 4, Name = "current-next" };
             var historicalChild = new BoundHistoricalChild
@@ -39,12 +42,12 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             var currentChild = new BoundHistoricalChild { Id = 2, Name = "current-parent-target" };
             var parent = new BoundHistoricalParent { Id = 1, Child = historicalChild };
             context.AddRange(parent, currentChild, currentNext);
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             parent.Child = currentChild;
             historicalChild.Name = "changed-child";
             historicalChild.Next = currentNext;
             historicalNext.Name = "changed-next";
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             var parentPeriod = await context.Parents.TemporalAll()
@@ -52,21 +55,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
                     EF.Property<DateTime>(row, TemporalEndColumn)))
-                .SingleAsync(CancellationToken.None);
+                .SingleAsync(cancellationToken);
 
             var childPeriod = await context.Children.TemporalAll()
                 .Where(row => row.Name == "historical-child")
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
                     EF.Property<DateTime>(row, TemporalEndColumn)))
-                .SingleAsync(CancellationToken.None);
+                .SingleAsync(cancellationToken);
 
             var nextPeriod = await context.Children.TemporalAll()
                 .Where(row => row.Name == "historical-next")
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
                     EF.Property<DateTime>(row, TemporalEndColumn)))
-                .SingleAsync(CancellationToken.None);
+                .SingleAsync(cancellationToken);
 
             // WHY: Use the recorded common historical interval instead of a sleep or
             // the client clock, so both native and emulated temporal tables are stable.
@@ -86,8 +89,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Creates the temporal lineage tables with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CreateTemporalLineageTablesAsync(
-        TemporalLineageContext context
+        TemporalLineageContext context,
+        CancellationToken cancellationToken
     )
     {
         var model = context.GetService<IDesignTimeModel>().Model;
@@ -98,19 +104,22 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // boundaries intact, as in the existing temporal integration fixtures.
         foreach (var command in generator.Generate(operations, model))
         {
-            await context.Database.ExecuteSqlRawAsync(command.CommandText, CancellationToken.None);
+            await context.Database.ExecuteSqlRawAsync(command.CommandText, cancellationToken);
         }
     }
 
+    /// <summary>Drops the temporal lineage tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropTemporalLineageTablesAsync(
-        TemporalLineageContext context
+        TemporalLineageContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"""
          DROP TABLE IF EXISTS `{TemporalParentTable}`;
          DROP TABLE IF EXISTS `{TemporalChildTable}`;
          DROP TABLE IF EXISTS `{TemporalParentHistoryTable}`, `{TemporalChildHistoryTable}`;
          """,
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class TemporalLineageFixture(
         TemporalLineageContext context,
@@ -128,7 +137,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropTemporalLineageTablesAsync(Context);
+                await DropTemporalLineageTablesAsync(Context, CancellationToken.None);
             }
             finally
             {

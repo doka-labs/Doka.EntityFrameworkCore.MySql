@@ -74,7 +74,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await DropProbeTableAsync(connection).ConfigureAwait(false);
+        await DropProbeTableAsync(connection, CancellationToken.None).ConfigureAwait(false);
 
         try
         {
@@ -105,7 +105,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }
         finally
         {
-            await DropProbeTableAsync(connection).ConfigureAwait(false);
+            await DropProbeTableAsync(connection, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -119,7 +119,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         var connectionString = GetConnectionString(IntegrationDatabaseTarget.MariaDb118, "Probes");
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await DropProbeTableAsync(connection).ConfigureAwait(false);
+        await DropProbeTableAsync(connection, CancellationToken.None).ConfigureAwait(false);
 
         try
         {
@@ -154,7 +154,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }
         finally
         {
-            await DropProbeTableAsync(connection).ConfigureAwait(false);
+            await DropProbeTableAsync(connection, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -205,7 +205,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
                 .AsNoTracking()
                 .SingleAsync(value => value.NativeId == s_seededId, CancellationToken.None)
                 .ConfigureAwait(false);
-            var columnTypes = await ReadOptInColumnTypesAsync(context).ConfigureAwait(false);
+            var columnTypes = await ReadOptInColumnTypesAsync(context, CancellationToken.None).ConfigureAwait(false);
 
             // Assert
             Assert.Equal(s_seededId, actual.NativeId);

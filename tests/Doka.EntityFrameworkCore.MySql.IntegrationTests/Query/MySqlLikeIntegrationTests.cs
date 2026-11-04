@@ -63,7 +63,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var testCase = s_scalarCases.Single(item => item.PropertyName == propertyName && item.Name == scenario);
         var query = CreateLikeQuery(context, testCase);
         var sql = query.ToQueryString();
@@ -115,7 +118,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var pattern = "00112233-%-aabbccddeeff";
         var formattedQuery = context.Items
             .Where(item => EF.Functions.Like(item.BinaryToken.ToString(), pattern))
@@ -143,7 +149,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var query = context.Items.Where(item => item.Id == 1).Select(item => item.BinaryToken.ToString());
 
         // Act
@@ -164,7 +173,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var token = s_matchingGuid;
         Guid? optionalToken = scenario == "Null" ? null : token;
         var query = scenario == "Required"
@@ -188,7 +200,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var escapedPattern = "sale!_25!%!!";
         var escapeCharacter = "!";
         var genericQuery = context.Items.Where(item =>
@@ -215,7 +230,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var escapedPattern = "sale!_25!%!!";
         var escapeCharacter = "!";
         var query = overload switch

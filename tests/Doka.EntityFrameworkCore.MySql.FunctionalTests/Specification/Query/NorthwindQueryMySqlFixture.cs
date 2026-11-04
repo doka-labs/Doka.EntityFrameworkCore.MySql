@@ -147,7 +147,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         await context.SaveChangesAsync();
 
-        await CreateRawSqlCompatibilitySurfaceAsync(context);
+        await CreateRawSqlCompatibilitySurfaceAsync(context, cancellationToken: CancellationToken.None);
 
         // EnsureCreated deliberately does not create objects mapped with ToView. Build the
         // Northwind projection after seeding so the database-view contract exercises an actual
@@ -213,17 +213,23 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
     /// Keeping the compatibility columns physical-only preserves the official raw-SQL surface
     /// without changing the provider model or every generated query projection.
     /// </remarks>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task CreateRawSqlCompatibilitySurfaceAsync(
-        NorthwindContext context
+        NorthwindContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await context.Database.ExecuteSqlRawAsync(
             """
             ALTER TABLE `Products`
                 ADD COLUMN `QuantityPerUnit` varchar(20) NULL,
                 ADD COLUMN `UnitsOnOrder` smallint unsigned NULL,
                 ADD COLUMN `ReorderLevel` smallint unsigned NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -238,7 +244,8 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
                 ADD COLUMN `ShipRegion` varchar(15) NULL,
                 ADD COLUMN `ShipPostalCode` varchar(10) NULL,
                 ADD COLUMN `ShipCountry` varchar(15) NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -255,42 +262,57 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
                 ADD COLUMN `Photo` longblob NULL,
                 ADD COLUMN `Notes` longtext NULL,
                 ADD COLUMN `PhotoPath` varchar(255) NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
-        await context.Database.OpenConnectionAsync();
+        await context.Database.OpenConnectionAsync(cancellationToken: cancellationToken);
 
         try
         {
             var connection = (MySqlConnection)context.Database.GetDbConnection();
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken: cancellationToken);
 
             await UpdateProductCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Product>().Select(entry => entry.Entity));
+                context.ChangeTracker.Entries<Product>().Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
             await UpdateOrderCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Order>().Select(entry => entry.Entity));
+                context.ChangeTracker.Entries<Order>().Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
             await UpdateEmployeeCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Employee>().Select(entry => entry.Entity));
+                context.ChangeTracker.Entries<Employee>().Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
 
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(cancellationToken: cancellationToken);
         }
         finally
         {
+            // WHY: Closing the connection must complete even when compatibility setup is canceled.
             await context.Database.CloseConnectionAsync();
         }
     }
 
+    /// <summary>
+    /// Writes product compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="products">The seeded products whose physical compatibility columns are updated.</param>
     private static async Task UpdateProductCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Product> products
+        IEnumerable<Product> products,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -311,7 +333,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         var reorderLevel = command.Parameters.Add("@reorderLevel", MySqlDbType.UInt16);
         var productId = command.Parameters.Add("@productId", MySqlDbType.Int32);
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var product in products)
         {
@@ -320,16 +342,26 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             reorderLevel.Value = (object?)product.ReorderLevel ?? DBNull.Value;
             productId.Value = product.ProductID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Writes order compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="orders">The seeded orders whose physical compatibility columns are updated.</param>
     private static async Task UpdateOrderCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Order> orders
+        IEnumerable<Order> orders,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -363,7 +395,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         freight.Precision = 18;
         freight.Scale = 3;
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var order in orders)
         {
@@ -379,16 +411,26 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             shipCountry.Value = (object?)order.ShipCountry ?? DBNull.Value;
             orderId.Value = order.OrderID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Writes employee compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="employees">The seeded employees whose physical compatibility columns are updated.</param>
     private static async Task UpdateEmployeeCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Employee> employees
+        IEnumerable<Employee> employees,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -427,7 +469,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         var photoPath = command.Parameters.Add("@photoPath", MySqlDbType.VarChar, 255);
         var employeeId = command.Parameters.Add("@employeeId", MySqlDbType.UInt32);
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var employee in employees)
         {
@@ -445,7 +487,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             photoPath.Value = (object?)employee.PhotoPath ?? DBNull.Value;
             employeeId.Value = employee.EmployeeID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 }

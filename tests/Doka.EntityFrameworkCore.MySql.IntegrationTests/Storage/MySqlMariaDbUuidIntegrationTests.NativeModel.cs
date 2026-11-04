@@ -15,7 +15,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var ids = s_seedMembership;
         var query = context.Principals.AsNoTracking().Include(principal => principal.Dependents);
@@ -49,7 +49,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         await using var context = CreateNativeContext(engine, "Lifecycle");
         await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
         var connection = (MySqlConnection)context.Database.GetDbConnection();
-        await DropModelTablesAsync(connection).ConfigureAwait(false);
+        await DropModelTablesAsync(connection, CancellationToken.None).ConfigureAwait(false);
         var runtime = new NativeUuidPrincipal
         {
             Id = s_runtimeId,
@@ -63,7 +63,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         try
         {
             // Act
-            await CreateNativeModelAsync(context).ConfigureAwait(false);
+            await CreateNativeModelAsync(context, CancellationToken.None).ConfigureAwait(false);
 
             // WHY: Explicit runtime keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
@@ -96,7 +96,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }
         finally
         {
-            await DropModelTablesAsync(connection).ConfigureAwait(false);
+            await DropModelTablesAsync(connection, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -113,7 +113,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
 
         // Act
@@ -138,7 +138,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
 
         // Act
@@ -163,7 +163,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var query = context.Principals.Where(principal => principal.Id == s_seededId)
             .Select(principal => principal.Id.ToString());
@@ -188,7 +188,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var query = context.Principals.Select(_ => Guid.NewGuid());
 
@@ -212,7 +212,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
         var connection = (MySqlConnection)context.Database.GetDbConnection();
@@ -242,13 +242,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
         var connection = (MySqlConnection)context.Database.GetDbConnection();
 
         // Act
-        var columnTypes = await ReadColumnTypesAsync(connection).ConfigureAwait(false);
+        var columnTypes = await ReadColumnTypesAsync(connection, CancellationToken.None).ConfigureAwait(false);
 
         // Assert
         Assert.Equal("uuid", columnTypes["Id"]);

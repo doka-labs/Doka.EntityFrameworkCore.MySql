@@ -14,7 +14,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 24)
             .Select(id => new GuidComputedValueRow { Id = id, Input = (id * 7) + 3 })
             .Reverse()
@@ -60,7 +60,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 8)
             .Select(id => new GuidComputedValueRow { Id = id, Input = id })
             .Reverse()

@@ -15,87 +15,108 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql84);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql97);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql84, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MySql84,
+            CancellationToken.None,
+            useJsonParameter: true);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql97, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MySql97,
+            CancellationToken.None,
+            useJsonParameter: true);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb1011, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MariaDb1011,
+            CancellationToken.None,
+            useJsonParameter: true);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb114, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MariaDb114,
+            CancellationToken.None,
+            useJsonParameter: true);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb118, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MariaDb118,
+            CancellationToken.None,
+            useJsonParameter: true);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb123, useJsonParameter: true);
+        AssertCollectionMembershipWithSplitIncludeAsync(
+            IntegrationDatabaseTarget.MariaDb123,
+            CancellationToken.None,
+            useJsonParameter: true);
 
+    /// <summary>Verifies the collection membership with split include contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCollectionMembershipWithSplitIncludeAsync(
         IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken,
         bool useJsonParameter = false
     )
     {
@@ -114,7 +135,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
                 }
             });
         await using var context = new CollectionDefaultContext(builder.Options);
-        await DropTablesAsync(context);
+        await DropTablesAsync(context, cancellationToken);
 
         var includedRequestId = Guid.Parse("a671f743-7ac1-4273-9563-f9b5278e4790");
         var deletedRequestId = Guid.Parse("40fa3317-3e10-40b1-a777-95673252e29c");
@@ -124,7 +145,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
         {
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
             context.Approvals.AddRange(
                 new CollectionApproval
                 {
@@ -149,7 +170,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
                     RequestId = unrelatedRequestId,
                     Responses = [new CollectionResponse { Id = 4 }],
                 });
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             var requestIds = new[] { includedRequestId, deletedRequestId };
@@ -166,7 +187,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             var responses = await query.ToDictionaryAsync(
                 approval => approval.RequestId,
                 approval => approval.Responses,
-                CancellationToken.None);
+                cancellationToken);
 
             // Assert
             Assert.Contains("@requestIds", sql, StringComparison.Ordinal);
@@ -188,20 +209,23 @@ public sealed class MySqlCollectionDefaultIntegrationTests
         }
         finally
         {
-            await DropTablesAsync(context);
+            await DropTablesAsync(context, CancellationToken.None);
         }
     }
 
+    /// <summary>Drops the tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTablesAsync(
-        CollectionDefaultContext context
+        CollectionDefaultContext context,
+        CancellationToken cancellationToken
     )
     {
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{ResponseTableName}`",
-            CancellationToken.None);
+            cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{ApprovalTableName}`",
-            CancellationToken.None);
+            cancellationToken);
     }
 
     private sealed class CollectionDefaultContext(

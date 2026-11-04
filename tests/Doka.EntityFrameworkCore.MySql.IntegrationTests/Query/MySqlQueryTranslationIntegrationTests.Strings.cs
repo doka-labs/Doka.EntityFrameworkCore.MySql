@@ -60,11 +60,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             var query = method switch
             {
@@ -108,11 +108,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             // WHY: These calls are expression-tree nodes translated to SQL;
             // the CLR culture is never consulted by UPPER()/LOWER().
@@ -162,11 +162,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             var query = method switch
             {
@@ -188,8 +188,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         }
     }
 
+    /// <summary>Seeds string items data for subsequent integration queries.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SeedStringItemsAsync(
-        QueryContext context
+        QueryContext context,
+        CancellationToken cancellationToken
     )
     {
         context.Items.AddRange(
@@ -215,7 +218,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 CreatedAt = new DateTime(2024, 12, 25, 18, 0, 0),
             });
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken: cancellationToken);
         context.ChangeTracker.Clear();
     }
 }

@@ -37,48 +37,63 @@ public sealed class CommonTableExpressionIntegrationTests
         """;
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Cte_contract_executes_on_mysql84() => RunQueryContractAsync(IntegrationDatabaseTarget.MySql84);
+    public Task Cte_contract_executes_on_mysql84() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Cte_contract_executes_on_mysql97() => RunQueryContractAsync(IntegrationDatabaseTarget.MySql97);
+    public Task Cte_contract_executes_on_mysql97() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task Cte_contract_executes_on_mariadb1011() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Cte_contract_executes_on_mariadb114() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb114);
+    public Task Cte_contract_executes_on_mariadb114() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Cte_contract_executes_on_mariadb118() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb118);
+    public Task Cte_contract_executes_on_mariadb118() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Cte_contract_executes_on_mariadb123() => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb123);
+    public Task Cte_contract_executes_on_mariadb123() =>
+        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Cte_update_executes_on_mysql84() => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql84);
+    public Task Cte_update_executes_on_mysql84() =>
+        RunUpdateContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Cte_update_executes_on_mysql97() => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql97);
+    public Task Cte_update_executes_on_mysql97() =>
+        RunUpdateContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Cte_update_executes_on_mariadb123() => RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123);
+    public Task Cte_update_executes_on_mariadb123() =>
+        RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Runs the update contract integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunUpdateContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         await using var context = CreateContext(target);
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         try
         {
-            await SeedAsync(context);
+            await SeedAsync(context, cancellationToken);
 
             var affectedRows = await context.Database.ExecuteSqlRawAsync(
                 UpdateCteSql,
-                new MySqlParameter("@minimumScore", 20),
-                new MySqlParameter("@category", "updated"));
+                new object[]
+                {
+                    new MySqlParameter("@minimumScore", 20),
+                    new MySqlParameter("@category", "updated"),
+                },
+                cancellationToken);
 
             Assert.Equal(2, affectedRows);
 
@@ -86,7 +101,7 @@ public sealed class CommonTableExpressionIntegrationTests
                 .Items.Where(item => item.Category == "updated")
                 .OrderBy(item => item.Id)
                 .Select(item => item.Name)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: cancellationToken);
 
             Assert.Equal(["bravo", "charlie"], updatedNames);
         }
@@ -96,16 +111,19 @@ public sealed class CommonTableExpressionIntegrationTests
         }
     }
 
+    /// <summary>Runs the query contract integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunQueryContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         await using var context = CreateContext(target);
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         try
         {
-            await SeedAsync(context);
+            await SeedAsync(context, cancellationToken);
             context.ChangeTracker.Clear();
 
             // The first CTE proves recursion while the second proves that a CTE can
@@ -113,7 +131,7 @@ public sealed class CommonTableExpressionIntegrationTests
             var trackedItems = await CreateComposedQuery(context, 2)
                 .Where(item => item.Category == "selected")
                 .OrderBy(item => item.Id)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: cancellationToken);
 
             Assert.Equal(["alpha", "bravo"], trackedItems.Select(item => item.Name));
             Assert.All(
@@ -133,10 +151,14 @@ public sealed class CommonTableExpressionIntegrationTests
             Assert.Equal(["charlie", "bravo", "alpha"], untrackedItems.Select(item => item.Name));
             Assert.Empty(context.ChangeTracker.Entries());
 
-            Assert.Equal(3, await CreateComposedQuery(context, 3).CountAsync());
-            Assert.Equal(60, await CreateComposedQuery(context, 3).SumAsync(item => item.Score));
+            Assert.Equal(3, await CreateComposedQuery(context, 3).CountAsync(cancellationToken: cancellationToken));
+            Assert.Equal(
+                60,
+                await CreateComposedQuery(context, 3).SumAsync(
+                    item => item.Score,
+                    cancellationToken: cancellationToken));
 
-            await AssertCancellationContractAsync(target);
+            await AssertCancellationContractAsync(target, cancellationToken);
         }
         finally
         {
@@ -144,24 +166,28 @@ public sealed class CommonTableExpressionIntegrationTests
         }
     }
 
+    /// <summary>Verifies the cancellation contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCancellationContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var interceptor = new CommandCancellationProbeInterceptor();
 
         await using var context = CreateContext(target, interceptor);
-        using var cancellationSource = new CancellationTokenSource();
-        var cancellationToken = cancellationSource.Token;
+        // WHY: Keep the deliberate probe token distinct while honoring cancellation from its caller.
+        using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var probeCancellationToken = cancellationSource.Token;
 
         // Act
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateComposedQuery(context, 3)
-            .CountAsync(cancellationToken));
+            .CountAsync(probeCancellationToken));
 
         // Assert
-        Assert.Equal(cancellationToken, exception.CancellationToken);
-        Assert.Equal(cancellationToken, interceptor.ReceivedCancellationToken);
+        Assert.Equal(probeCancellationToken, exception.CancellationToken);
+        Assert.Equal(probeCancellationToken, interceptor.ReceivedCancellationToken);
         Assert.Equal(1, interceptor.InvocationCount);
     }
 
@@ -191,11 +217,16 @@ public sealed class CommonTableExpressionIntegrationTests
         return new CteContext(optionsBuilder.Options);
     }
 
+    /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
-        CteContext context
+        CteContext context,
+        CancellationToken cancellationToken
     )
     {
-        await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
+        await context.Database.ExecuteSqlRawAsync(
+            $"DROP TABLE IF EXISTS `{TableName}`;",
+            cancellationToken: cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
             $"""
              CREATE TABLE `{TableName}` (
@@ -205,11 +236,15 @@ public sealed class CommonTableExpressionIntegrationTests
                  `Category` varchar(32) NOT NULL,
                  CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
              ) CHARACTER SET utf8mb4;
-             """);
+             """,
+            cancellationToken: cancellationToken);
     }
 
+    /// <summary>Seeds the integration tables with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SeedAsync(
-        CteContext context
+        CteContext context,
+        CancellationToken cancellationToken
     )
     {
         context.Items.AddRange(
@@ -232,12 +267,15 @@ public sealed class CommonTableExpressionIntegrationTests
                 Category = "other"
             });
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken: cancellationToken);
     }
 
+    // WHY: Failure cleanup must complete after cancellation so later tests do not inherit leftover tables.
     private static Task<int> CleanupAsync(
         CteContext context
-    ) => context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
+    ) => context.Database.ExecuteSqlRawAsync(
+        $"DROP TABLE IF EXISTS `{TableName}`;",
+        CancellationToken.None);
 
     private sealed class CteItem
     {

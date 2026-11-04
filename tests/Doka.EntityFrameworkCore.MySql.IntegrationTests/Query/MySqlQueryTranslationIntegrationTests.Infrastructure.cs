@@ -31,11 +31,16 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         return builder.Options;
     }
 
+    /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
-        QueryContext context
+        QueryContext context,
+        CancellationToken cancellationToken
     )
     {
-        await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
+        await context.Database.ExecuteSqlRawAsync(
+            $"DROP TABLE IF EXISTS `{TableName}`;",
+            cancellationToken: cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
             $"""
              CREATE TABLE `{TableName}` (
@@ -52,16 +57,26 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                  `Token` binary(16) NOT NULL,
                  CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
              ) CHARACTER SET utf8mb4;
-             """);
+             """,
+            cancellationToken: cancellationToken);
     }
 
+    // WHY: Failure cleanup must complete after cancellation so later tests do not inherit leftover tables.
     private static async Task CleanupAsync(
         QueryContext context
-    ) => await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
+    ) => await context.Database.ExecuteSqlRawAsync(
+        $"DROP TABLE IF EXISTS `{TableName}`;",
+        CancellationToken.None);
 
+    /// <summary>Executes the cleanup json database scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CleanupJsonAsync(
-        JsonQueryContext context
-    ) => await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `IntJsonItems`;");
+        JsonQueryContext context,
+        CancellationToken cancellationToken
+    ) =>
+        await context.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS `IntJsonItems`;",
+            cancellationToken: cancellationToken);
 
     private sealed class QueryItem
     {

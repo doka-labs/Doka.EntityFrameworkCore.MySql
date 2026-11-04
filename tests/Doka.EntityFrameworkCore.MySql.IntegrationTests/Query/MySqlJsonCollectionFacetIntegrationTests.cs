@@ -34,11 +34,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.Text == ExactText);
+        var ids = await SelectMarkersAsync(context, value => value.Text == ExactText, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -55,11 +55,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.Text == "alph");
+        var ids = await SelectMarkersAsync(context, value => value.Text == "alph", CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -76,11 +76,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.Amount == ExactAmount);
+        var ids = await SelectMarkersAsync(context, value => value.Amount == ExactAmount, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -97,11 +97,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.Amount == 123.5m);
+        var ids = await SelectMarkersAsync(context, value => value.Amount == 123.5m, CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -118,12 +118,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactDateTime = s_exactDateTime;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.OccurredAt == exactDateTime);
+        var ids = await SelectMarkersAsync(context, value => value.OccurredAt == exactDateTime, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -140,13 +140,14 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
         var ids = await SelectMarkersAsync(
             context,
-            value => value.OccurredAt == new DateTime(2026, 9, 19, 12, 34, 56));
+            value => value.OccurredAt == new DateTime(2026, 9, 19, 12, 34, 56),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -163,12 +164,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactDate = s_exactDate;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate);
+        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -185,12 +186,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactDate = s_exactDate;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate.Date);
+        var ids = await SelectMarkersAsync(context, value => value.DateValue == exactDate.Date, CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -207,12 +208,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactTime = s_exactTime;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.StartsAt == exactTime);
+        var ids = await SelectMarkersAsync(context, value => value.StartsAt == exactTime, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -229,11 +230,14 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.StartsAt == new TimeOnly(12, 34, 56));
+        var ids = await SelectMarkersAsync(
+            context,
+            value => value.StartsAt == new TimeOnly(12, 34, 56),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -250,12 +254,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactDuration = s_exactDuration;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.Duration == exactDuration);
+        var ids = await SelectMarkersAsync(context, value => value.Duration == exactDuration, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -272,13 +276,14 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
         var ids = await SelectMarkersAsync(
             context,
-            value => value.Duration == TimeSpan.FromHours(27));
+            value => value.Duration == TimeSpan.FromHours(27),
+            CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -295,12 +300,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactGuid = s_exactGuid;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.GuidValue == exactGuid);
+        var ids = await SelectMarkersAsync(context, value => value.GuidValue == exactGuid, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -317,11 +322,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.GuidValue == Guid.Empty);
+        var ids = await SelectMarkersAsync(context, value => value.GuidValue == Guid.Empty, CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -338,12 +343,12 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
         var exactGuid = s_exactGuid;
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == exactGuid);
+        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == exactGuid, CancellationToken.None);
 
         // Assert
         Assert.Equal([1], ids);
@@ -360,11 +365,11 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
-        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == Guid.Empty);
+        var ids = await SelectMarkersAsync(context, value => value.CharGuidValue == Guid.Empty, CancellationToken.None);
 
         // Assert
         Assert.Empty(ids);
@@ -381,7 +386,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act
@@ -407,7 +412,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         // Arrange
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
 
-        await _fixture.EnsureSeededAsync(target);
+        await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
 
         // Act

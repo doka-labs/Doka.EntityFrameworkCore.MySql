@@ -29,10 +29,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         return new ReadbackContext<TKey, TMode>(builder.Options);
     }
 
-    private static async Task RecreateTableAsync(DbContext context)
+    /// <summary>Recreates the generated-value table before each readback assertion.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task RecreateTableAsync(
+        DbContext context,
+        CancellationToken cancellationToken
+    )
     {
-        await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;", CancellationToken.None);
-        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+        await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
     }
 
     private static void AddRows<TKey, TMode>(

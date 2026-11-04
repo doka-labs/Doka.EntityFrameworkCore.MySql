@@ -24,7 +24,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 11)))
+                MySqlServerVersion.MySql(new Version(8, 4, 11)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -36,7 +37,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MySql97,
-                MySqlServerVersion.MySql(new Version(9, 7, 2)))
+                MySqlServerVersion.MySql(new Version(9, 7, 2)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -48,7 +50,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                MySqlServerVersion.MariaDb(new Version(10, 11, 18)))
+                MySqlServerVersion.MariaDb(new Version(10, 11, 18)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -60,7 +63,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 12)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 12)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -72,7 +76,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 8)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 8)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -84,7 +89,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await AssertColumnDefaultMatrixAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                MySqlServerVersion.MariaDb(new Version(12, 3, 2)))
+                MySqlServerVersion.MariaDb(new Version(12, 3, 2)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -96,9 +102,16 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         Pooling = false,
     }.ConnectionString);
 
+    /// <summary>
+    /// Verifies column default matrix for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
     private static async Task AssertColumnDefaultMatrixAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         var tableName = $"ColumnDefaults_{Guid.NewGuid():N}";
@@ -110,7 +123,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         }.ConnectionString;
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var context = new ColumnDefaultContext(
             IntegrationTestDbContextOptions.Create<ColumnDefaultContext>()
                 .UseMySql(connection, serverVersion)
@@ -122,16 +135,16 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         try
         {
             var createTable = CreateTableOperation(tableName);
-            await ExecuteAsync(generator, context.Model, relationalConnection, [createTable])
+            await ExecuteAsync(generator, context.Model, relationalConnection, [createTable], cancellationToken)
                 .ConfigureAwait(false);
 
-            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Id`) VALUES (1);")
+            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Id`) VALUES (1);", cancellationToken)
                 .ConfigureAwait(false);
-            await AssertInitialDefaultsAsync(connection, tableName)
+            await AssertInitialDefaultsAsync(connection, tableName, cancellationToken)
                 .ConfigureAwait(false);
-            await AssertJsonMetadataAsync(connection, tableName)
+            await AssertJsonMetadataAsync(connection, tableName, cancellationToken)
                 .ConfigureAwait(false);
-            await AssertGuidDefaultMetadataAsync(connection, tableName, serverVersion)
+            await AssertGuidDefaultMetadataAsync(connection, tableName, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
 
             var addedDate = CreateColumn(
@@ -148,9 +161,14 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 "time(6)",
                 new TimeOnly(3, 4, 5).Add(TimeSpan.FromTicks(7_654_321)));
 
-            await ExecuteAsync(generator, context.Model, relationalConnection, [addedDate, addedTime])
+            await ExecuteAsync(
+                generator,
+                context.Model,
+                relationalConnection,
+                [addedDate, addedTime],
+                cancellationToken)
                 .ConfigureAwait(false);
-            await AssertAddedDefaultsAsync(connection, tableName, 1, "03:04:05.765432")
+            await AssertAddedDefaultsAsync(connection, tableName, 1, "03:04:05.765432", cancellationToken)
                 .ConfigureAwait(false);
 
             var alterTime = new AlterColumnOperation
@@ -170,33 +188,35 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 },
             };
 
-            await ExecuteAsync(generator, context.Model, relationalConnection, [alterTime])
+            await ExecuteAsync(generator, context.Model, relationalConnection, [alterTime], cancellationToken)
                 .ConfigureAwait(false);
-            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Id`) VALUES (2);")
+            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Id`) VALUES (2);", cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertAddedDefaultsAsync(connection, tableName, 1, "03:04:05.765432")
+            await AssertAddedDefaultsAsync(connection, tableName, 1, "03:04:05.765432", cancellationToken)
                 .ConfigureAwait(false);
-            await AssertAddedDefaultsAsync(connection, tableName, 2, "23:59:58.123456")
+            await AssertAddedDefaultsAsync(connection, tableName, 2, "23:59:58.123456", cancellationToken)
                 .ConfigureAwait(false);
             await AssertNullableTemporalRepairAsync(
                     generator,
                     context.Model,
                     relationalConnection,
                     connection,
-                    tableName)
+                    tableName,
+                    cancellationToken)
                 .ConfigureAwait(false);
             await AssertConstrainedNullableRepairAsync(
                     generator,
                     context.Model,
                     relationalConnection,
                     connection,
-                    tableName)
+                    tableName,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
-            await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{tableName}`;")
+            await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{tableName}`;", CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

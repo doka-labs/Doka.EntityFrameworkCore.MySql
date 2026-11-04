@@ -19,8 +19,10 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var request = CreateRequest();
+
+        // WHY: xUnit 2 fixes this lifecycle signature and does not supply a cancellation token.
         var session = await TestDatabaseSession
-            .StartAsync([request])
+            .StartAsync([request], CancellationToken.None)
             .ConfigureAwait(false);
 
         var endpoint = session.GetEndpoint(request.TargetId);

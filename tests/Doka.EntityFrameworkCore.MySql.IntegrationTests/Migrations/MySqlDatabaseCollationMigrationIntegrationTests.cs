@@ -13,45 +13,51 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql84);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql97);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies database collation migration for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertDatabaseCollationMigrationAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var databaseName = $"DokaCollation_{Guid.NewGuid():N}";
@@ -64,11 +70,12 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
 
         await using var adminConnection = new MySqlConnection(adminConnectionString);
         await adminConnection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await ExecuteNonQueryAsync(
                 adminConnection,
-                $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;")
+                $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;",
+                cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -81,30 +88,43 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
 
             await using var connection = new MySqlConnection(databaseConnectionString);
             await connection
-                .OpenAsync(CancellationToken.None)
+                .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
-            await CreateExistingPrincipalAsync(connection)
+            await CreateExistingPrincipalAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertCharsetOnlyDatabaseChangeCannotSatisfyBrownfieldForeignKeyAsync(connection, target)
+            await AssertCharsetOnlyDatabaseChangeCannotSatisfyBrownfieldForeignKeyAsync(
+                connection,
+                target,
+                cancellationToken)
                 .ConfigureAwait(false);
-            await ResetFailedMigrationStateAsync(connection)
+            await ResetFailedMigrationStateAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
-            await AssertCompleteDatabaseOptionsMigrateAsync(connection, target)
+            await AssertCompleteDatabaseOptionsMigrateAsync(connection, target, cancellationToken)
                 .ConfigureAwait(false);
-            await AssertIncompatibleForeignKeyIsRejectedAsync(connection, target)
+            await AssertIncompatibleForeignKeyIsRejectedAsync(connection, target, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
-            await ExecuteNonQueryAsync(adminConnection, $"DROP DATABASE IF EXISTS `{databaseName}`;")
+            await ExecuteNonQueryAsync(
+                adminConnection,
+                $"DROP DATABASE IF EXISTS `{databaseName}`;",
+                CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies charset only database change cannot satisfy brownfield foreign key for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertCharsetOnlyDatabaseChangeCannotSatisfyBrownfieldForeignKeyAsync(
         MySqlConnection connection,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -118,16 +138,16 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
 
         // Act
         var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => migrator.MigrateAsync(cancellationToken: CancellationToken.None))
+                () => migrator.MigrateAsync(cancellationToken: cancellationToken))
             .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(GetExpectedForeignKeyDefinitionError(target), exception.Number);
         Assert.Empty(
             await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false));
-        var databaseCollation = await ReadDatabaseCollationAsync(connection)
+        var databaseCollation = await ReadDatabaseCollationAsync(connection, cancellationToken)
             .ConfigureAwait(false);
 
         Assert.NotEqual(
@@ -136,9 +156,16 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         Assert.NotEqual(DatabaseCollationMigrationContract.InitialCollation, databaseCollation);
     }
 
+    /// <summary>
+    /// Verifies complete database options migrate for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertCompleteDatabaseOptionsMigrateAsync(
         MySqlConnection connection,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -150,40 +177,42 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
 
         var migrator = context.GetService<IMigrator>();
         var initiallyApplied = await context.Database
-            .GetAppliedMigrationsAsync(CancellationToken.None)
+            .GetAppliedMigrationsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // WHY: The repeated migration verifies the history produced by this same application.
         // Act
         await migrator
-            .MigrateAsync(cancellationToken: CancellationToken.None)
+            .MigrateAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        var databaseCollation = await ReadDatabaseCollationAsync(connection).ConfigureAwait(false);
+        var databaseCollation = await ReadDatabaseCollationAsync(connection, cancellationToken).ConfigureAwait(false);
         var tableCollation = await ReadTableCollationAsync(
                     connection,
-                    DatabaseCollationMigrationContract.DependentTable)
+                    DatabaseCollationMigrationContract.DependentTable,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         var columnCollation = await ReadColumnCollationAsync(
                     connection,
                     DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId")
+                    "PrincipalId",
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         var appliedAfterFirstMigration = await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-        await AssertTableDefaultTransitionDoesNotConvertColumnsAsync(context, connection)
+        await AssertTableDefaultTransitionDoesNotConvertColumnsAsync(context, connection, cancellationToken)
             .ConfigureAwait(false);
 
         await migrator
-            .MigrateAsync(cancellationToken: CancellationToken.None)
+            .MigrateAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         var appliedAfterRepeatMigration = await context.Database
-                .GetAppliedMigrationsAsync(CancellationToken.None)
+                .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
         // Assert
@@ -195,9 +224,16 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         Assert.Equal([DatabaseCollationMigrationContract.MigrationId], appliedAfterRepeatMigration);
     }
 
+    /// <summary>
+    /// Verifies table default transition does not convert columns for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task AssertTableDefaultTransitionDoesNotConvertColumnsAsync(
         DbContext context,
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -217,18 +253,20 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         // Act
         var setCommand = Assert.Single(generator.Generate([setExplicitDefault], context.Model));
 
-        await ExecuteNonQueryAsync(connection, setCommand.CommandText)
+        await ExecuteNonQueryAsync(connection, setCommand.CommandText, cancellationToken)
             .ConfigureAwait(false);
 
         var explicitTableCollation = await ReadTableCollationAsync(
                     connection,
-                    DatabaseCollationMigrationContract.DependentTable)
+                    DatabaseCollationMigrationContract.DependentTable,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         var explicitColumnCollation = await ReadColumnCollationAsync(
                     connection,
                     DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId")
+                    "PrincipalId",
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         var resetToDatabaseDefault = new AlterTableOperation
@@ -242,18 +280,20 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         resetToDatabaseDefault.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
         var resetCommand = Assert.Single(generator.Generate([resetToDatabaseDefault], context.Model));
 
-        await ExecuteNonQueryAsync(connection, resetCommand.CommandText)
+        await ExecuteNonQueryAsync(connection, resetCommand.CommandText, cancellationToken)
             .ConfigureAwait(false);
 
         var resetTableCollation = await ReadTableCollationAsync(
                     connection,
-                    DatabaseCollationMigrationContract.DependentTable)
+                    DatabaseCollationMigrationContract.DependentTable,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         var resetColumnCollation = await ReadColumnCollationAsync(
                     connection,
                     DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId")
+                    "PrincipalId",
+                    cancellationToken)
                 .ConfigureAwait(false);
 
         // Assert
@@ -264,9 +304,16 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         Assert.Equal(DatabaseCollationMigrationContract.RequiredCollation, resetColumnCollation);
     }
 
+    /// <summary>
+    /// Verifies incompatible foreign key is rejected for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertIncompatibleForeignKeyIsRejectedAsync(
         MySqlConnection connection,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var sql = $"""
@@ -282,14 +329,20 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             """;
 
         var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteNonQueryAsync(connection, sql))
+                () => ExecuteNonQueryAsync(connection, sql, cancellationToken))
             .ConfigureAwait(false);
 
         Assert.Equal(GetExpectedForeignKeyDefinitionError(target), exception.Number);
     }
 
+    /// <summary>
+    /// Creates existing principal for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CreateExistingPrincipalAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         var sql = $"""
@@ -300,27 +353,36 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
 
             """;
 
-        await ExecuteNonQueryAsync(connection, sql)
+        await ExecuteNonQueryAsync(connection, sql, cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Reset failed migration state for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task ResetFailedMigrationStateAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await ExecuteNonQueryAsync(
                 connection,
-                $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.DependentTable}`;")
+                $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.DependentTable}`;",
+                cancellationToken)
             .ConfigureAwait(false);
         await ExecuteNonQueryAsync(
                 connection,
-                $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.IncompleteHistoryTable}`;")
+                $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.IncompleteHistoryTable}`;",
+                cancellationToken)
             .ConfigureAwait(false);
         await ExecuteNonQueryAsync(
                 connection,
                 "ALTER DATABASE CHARACTER SET = utf8mb4 COLLATE = "
                 + DatabaseCollationMigrationContract.InitialCollation
-                + ";")
+                + ";",
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -339,55 +401,93 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
                 .MigrationsHistoryTable(historyTable))
         .Options;
 
+    /// <summary>
+    /// Reads database collation for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task<string> ReadDatabaseCollationAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     ) => await ExecuteScalarStringAsync(
             connection,
-            "SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE();")
+            "SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE();",
+            cancellationToken)
         .ConfigureAwait(false);
 
+    /// <summary>
+    /// Reads table collation for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task<string> ReadTableCollationAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     ) => await ExecuteScalarStringAsync(
             connection,
             "SELECT TABLE_COLLATION FROM information_schema.TABLES "
-            + $"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{tableName}';")
+            + $"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{tableName}';",
+            cancellationToken)
         .ConfigureAwait(false);
 
+    /// <summary>
+    /// Reads column collation for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="columnName">The column name.</param>
     private static async Task<string> ReadColumnCollationAsync(
         MySqlConnection connection,
         string tableName,
-        string columnName
+        string columnName,
+        CancellationToken cancellationToken
     ) => await ExecuteScalarStringAsync(
             connection,
             "SELECT COLLATION_NAME FROM information_schema.COLUMNS "
-            + $"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{tableName}' AND COLUMN_NAME = '{columnName}';")
+            + $"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{tableName}' AND COLUMN_NAME = '{columnName}';",
+            cancellationToken)
         .ConfigureAwait(false);
 
+    /// <summary>
+    /// Executes scalar string for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sql">The sql.</param>
     private static async Task<string> ExecuteScalarStringAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         var result = await command
-            .ExecuteScalarAsync(CancellationToken.None)
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return Assert.IsType<string>(result);
     }
 
+    /// <summary>
+    /// Executes non query for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sql">The sql.</param>
     private static async Task ExecuteNonQueryAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         _ = await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

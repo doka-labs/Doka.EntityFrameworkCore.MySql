@@ -13,7 +13,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -40,8 +40,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var writer = new ExactBufferWriter(0);
 
         // Act
@@ -70,7 +71,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -104,7 +105,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -138,8 +139,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"sync-byte-sync-get-{size}";
 
@@ -165,8 +167,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"sync-byte-async-get-{size}";
 
@@ -193,8 +196,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"async-byte-sync-get-{size}";
 
@@ -222,8 +226,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"sync-buffer-get-{size}";
         var destination = new ExactBufferWriter(size);
@@ -258,8 +263,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"async-buffer-get-{size}";
         var destination = new ExactBufferWriter(size);
@@ -295,8 +301,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var key = $"sync-byte-remove-{size}";
 
         await store
@@ -327,8 +334,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var key = $"async-byte-remove-{size}";
 
         await store

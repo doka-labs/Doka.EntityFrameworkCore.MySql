@@ -19,7 +19,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MySql84_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MySql84, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MySql84, guidFormat, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 executes native JSON seeds.
@@ -29,7 +29,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MySql97_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MySql97, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MySql97, guidFormat, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 executes native JSON seeds.
@@ -39,7 +39,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb1011_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb1011, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb1011, guidFormat, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 executes native JSON seeds.
@@ -49,7 +49,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb114_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb114, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb114, guidFormat, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 executes native JSON seeds.
@@ -59,7 +59,7 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb118_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb118, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb118, guidFormat, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 executes native JSON seeds.
@@ -69,11 +69,18 @@ public sealed class MySqlJsonSeedIntegrationTests
     [InlineData(MySqlGuidFormat.Char36)]
     public Task MariaDb123_executes_native_json_seeds(
         MySqlGuidFormat guidFormat
-    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb123, guidFormat);
+    ) => AssertNativeJsonSeedsAsync(IntegrationDatabaseTarget.MariaDb123, guidFormat, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies native json seeds for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="guidFormat">The guid format.</param>
     private static async Task AssertNativeJsonSeedsAsync(
         IntegrationDatabaseTarget target,
-        MySqlGuidFormat guidFormat
+        MySqlGuidFormat guidFormat,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = new MySqlConnectionStringBuilder(
@@ -86,23 +93,32 @@ public sealed class MySqlJsonSeedIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await CleanupAsync(connection).ConfigureAwait(false);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await AssertNativeJsonSeedsAsync(connection, serverVersion, guidFormat).ConfigureAwait(false);
+            await AssertNativeJsonSeedsAsync(connection, serverVersion, guidFormat, cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
-            await CleanupAsync(connection).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies native json seeds for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
+    /// <param name="guidFormat">The guid format.</param>
     private static async Task AssertNativeJsonSeedsAsync(
         MySqlConnection connection,
         MySqlServerVersion serverVersion,
-        MySqlGuidFormat guidFormat
+        MySqlGuidFormat guidFormat,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -127,14 +143,14 @@ public sealed class MySqlJsonSeedIntegrationTests
         foreach (var command in generator.Generate(operations, model))
         {
             _ = await command
-                .ExecuteNonQueryAsync(relationalConnection, cancellationToken: CancellationToken.None)
+                .ExecuteNonQueryAsync(relationalConnection, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
         context.ChangeTracker.Clear();
         var record = await context
             .Set<JsonSeedIntegrationRecord>()
-            .SingleAsync(entity => entity.Id == 1, CancellationToken.None)
+            .SingleAsync(entity => entity.Id == 1, cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
@@ -177,13 +193,19 @@ public sealed class MySqlJsonSeedIntegrationTests
         Assert.True(JsonNode.DeepEquals(expectedNode, actualNode));
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{JsonSeedIntegrationContract.Table}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
 

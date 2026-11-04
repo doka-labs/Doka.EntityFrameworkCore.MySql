@@ -18,26 +18,29 @@ public sealed class MySqlComprehensiveCoverageTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Scaffolding_roundtrip_on_mysql84() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql84);
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task Scaffolding_roundtrip_on_mysql97() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql97);
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Scaffolding_roundtrip_on_mariadb1011() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb1011);
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Scaffolding_roundtrip_on_mariadb118() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb118);
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Scaffolding_roundtrip_on_mariadb123() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123);
+        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Runs the scaffolding round trip test integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunScaffoldingRoundTripTest(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -46,10 +49,10 @@ public sealed class MySqlComprehensiveCoverageTests
 
         // Create a schema with diverse column types.
         await using var setupConn = new MySqlConnection(connectionString);
-        await setupConn.OpenAsync();
+        await setupConn.OpenAsync(cancellationToken: cancellationToken);
 
-        await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldChild`;");
-        await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldParent`;");
+        await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldChild`;", cancellationToken);
+        await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldParent`;", cancellationToken);
 
         await ExecuteRawAsync(
             setupConn,
@@ -64,7 +67,8 @@ public sealed class MySqlComprehensiveCoverageTests
                 PRIMARY KEY (`Id`),
                 INDEX `IX_ScaffoldParent_Name` (`Name`)
             ) CHARACTER SET utf8mb4;
-            """);
+            """,
+            cancellationToken);
 
         await ExecuteRawAsync(
             setupConn,
@@ -76,7 +80,8 @@ public sealed class MySqlComprehensiveCoverageTests
                 PRIMARY KEY (`Id`),
                 CONSTRAINT `FK_Child_Parent` FOREIGN KEY (`ParentId`) REFERENCES `ScaffoldParent` (`Id`) ON DELETE CASCADE
             ) CHARACTER SET utf8mb4;
-            """);
+            """,
+            cancellationToken);
 
         try
         {
@@ -125,8 +130,8 @@ public sealed class MySqlComprehensiveCoverageTests
         }
         finally
         {
-            await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldChild`;");
-            await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldParent`;");
+            await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldChild`;", CancellationToken.None);
+            await ExecuteRawAsync(setupConn, "DROP TABLE IF EXISTS `ScaffoldParent`;", CancellationToken.None);
         }
     }
 
@@ -245,48 +250,61 @@ public sealed class MySqlComprehensiveCoverageTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_crud_and_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "contains", 1);
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "contains", 1, CancellationToken.None);
 
     /// <summary>Checks the legacy server's substring translation independently from CRUD.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_contains_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "contains", 1);
+    public Task MySql80_contains_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "contains", 1, CancellationToken.None);
 
     /// <summary>Checks the legacy server's prefix translation independently from substring matching.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_starts_with_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "starts", 1);
+    public Task MySql80_starts_with_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "starts", 1, CancellationToken.None);
 
     /// <summary>Checks the legacy server's day arithmetic on one deterministic seeded row.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_datetime_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "days", 25);
+    public Task MySql80_datetime_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "days", 25, CancellationToken.None);
 
     /// <summary>Checks the legacy server's scalar absolute-value translation.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "absolute", 42.5);
+    public Task MySql80_absolute_value_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "absolute", 42.5, CancellationToken.None);
 
     /// <summary>Checks suffix translation on MariaDB independently from the substring probe.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_ends_with_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "ends", 1);
+    public Task MariaDb114_ends_with_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "ends", 1, CancellationToken.None);
 
     /// <summary>Checks absolute-value translation for a negative MariaDB input.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "absolute", 5);
+    public Task MariaDb114_absolute_value_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "absolute", 5, CancellationToken.None);
 
     /// <summary>Checks calendar-month translation on one deterministic MariaDB row.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_datetime_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5);
+    public Task MariaDb114_datetime_query_parity() =>
+        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5, CancellationToken.None);
 
+    /// <summary>Verifies the parity query contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertParityQueryAsync(
         IntegrationDatabaseTarget target,
         string scenario,
-        double expected
+        double expected,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new ParityContext(CreateOptions<ParityContext>(connectionString, GetServerVersion(target)));
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `ParityItems`;");
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `ParityItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Value` double NOT NULL, `CreatedAt` datetime(6) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "DROP TABLE IF EXISTS `ParityItems`;",
+            cancellationToken: cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE `ParityItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Value` double NOT NULL, `CreatedAt` datetime(6) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken: cancellationToken);
 
         try
         {
@@ -304,19 +322,44 @@ public sealed class MySqlComprehensiveCoverageTests
                     Value = mariaDb ? -5 : 7,
                     CreatedAt = mariaDb ? new DateTime(2025, 7, 20, 8, 0, 0) : new DateTime(2025, 6, 1),
                 });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
             var contains = mariaDb ? "MariaDB" : "Hello";
 
             // Act
             var actual = scenario switch
             {
-                "contains" => await context.Items.CountAsync(item => item.Name.Contains(contains)),
-                "starts" => await context.Items.CountAsync(item => item.Name.StartsWith("Good")),
-                "ends" => await context.Items.CountAsync(item => item.Name.EndsWith("Test")),
-                "days" => (await context.Items.OrderBy(item => item.Id).Select(item => item.CreatedAt.AddDays(10)).FirstAsync()).Day,
-                "months" => (await context.Items.OrderBy(item => item.Id).Select(item => item.CreatedAt.AddMonths(2)).FirstAsync()).Month,
-                "absolute" when mariaDb => await context.Items.Where(item => item.Value < 0).Select(item => Math.Abs(item.Value)).FirstAsync(),
-                "absolute" => await context.Items.OrderBy(item => item.Id).Select(item => Math.Abs(item.Value)).FirstAsync(),
+                "contains" =>
+                    await context.Items.CountAsync(
+                        item => item.Name.Contains(contains),
+                        cancellationToken: cancellationToken),
+                "starts" =>
+                    await context.Items.CountAsync(
+                        item => item.Name.StartsWith("Good"),
+                        cancellationToken: cancellationToken),
+                "ends" =>
+                    await context.Items.CountAsync(
+                        item => item.Name.EndsWith("Test"),
+                        cancellationToken: cancellationToken),
+                "days" =>
+                    (await context.Items
+                        .OrderBy(item => item.Id)
+                        .Select(item => item.CreatedAt.AddDays(10))
+                        .FirstAsync(cancellationToken: cancellationToken)).Day,
+                "months" =>
+                    (await context.Items
+                        .OrderBy(item => item.Id)
+                        .Select(item => item.CreatedAt.AddMonths(2))
+                        .FirstAsync(cancellationToken: cancellationToken)).Month,
+                "absolute" when mariaDb =>
+                    await context.Items
+                        .Where(item => item.Value < 0)
+                        .Select(item => Math.Abs(item.Value))
+                        .FirstAsync(cancellationToken: cancellationToken),
+                "absolute" =>
+                    await context.Items
+                        .OrderBy(item => item.Id)
+                        .Select(item => Math.Abs(item.Value))
+                        .FirstAsync(cancellationToken: cancellationToken),
                 _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
             };
 
@@ -325,7 +368,8 @@ public sealed class MySqlComprehensiveCoverageTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `ParityItems`;");
+            // WHY: Teardown must remove the table even when the scenario's caller canceled.
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `ParityItems`;", CancellationToken.None);
         }
     }
 
@@ -423,8 +467,8 @@ public sealed class MySqlComprehensiveCoverageTests
         await using var conn = new MySqlConnector.MySqlConnection(connectionString);
         await conn.OpenAsync();
 
-        await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;");
-        await ExecuteRawAsync(conn, $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;");
+        await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;", CancellationToken.None);
+        await ExecuteRawAsync(conn, $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;", CancellationToken.None);
         await ExecuteRawAsync(
             conn,
             $"CREATE TABLE `__efsequence_{seqName}` ("
@@ -433,13 +477,16 @@ public sealed class MySqlComprehensiveCoverageTests
             + "`is_called` BOOLEAN NOT NULL,"
             + "PRIMARY KEY (`id`),"
             + "CHECK (`id` = 1)"
-            + ") ENGINE=InnoDB;");
+            + ") ENGINE=InnoDB;",
+            CancellationToken.None);
         await ExecuteRawAsync(
             conn,
-            $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);");
+            $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);",
+            CancellationToken.None);
         await ExecuteRawAsync(
             conn,
-            "CREATE TABLE `HiLoE2EItems` (`Id` int NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `HiLoE2EItems` (`Id` int NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            CancellationToken.None);
 
         try
         {
@@ -462,8 +509,8 @@ public sealed class MySqlComprehensiveCoverageTests
         }
         finally
         {
-            await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;");
-            await ExecuteRawAsync(conn, $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;");
+            await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;", CancellationToken.None);
+            await ExecuteRawAsync(conn, $"DROP TABLE IF EXISTS `__efsequence_{seqName}`;", CancellationToken.None);
         }
     }
 
@@ -524,26 +571,29 @@ public sealed class MySqlComprehensiveCoverageTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql84);
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql97() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql97);
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb1011() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb1011);
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb118() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb118);
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb123() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123);
+        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Runs the ensure created deleted test integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunEnsureCreatedDeletedTest(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -553,7 +603,7 @@ public sealed class MySqlComprehensiveCoverageTests
         var serverVersion = GetServerVersion(target);
 
         // Pre-cleanup.
-        await DropDatabaseIfExistsAsync(baseConnectionString, testDbName);
+        await DropDatabaseIfExistsAsync(baseConnectionString, testDbName, cancellationToken);
 
         try
         {
@@ -561,16 +611,16 @@ public sealed class MySqlComprehensiveCoverageTests
                 new SimpleParityContext(CreateOptions<SimpleParityContext>(testConnectionString, serverVersion));
 
             // Act: The row proves that creation worked before the same database is deleted.
-            var created = await context.Database.EnsureCreatedAsync();
+            var created = await context.Database.EnsureCreatedAsync(cancellationToken: cancellationToken);
 
             // Insert data to verify tables work.
             context.Items.Add(new SimpleItem { Name = "Test" });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
 
-            var rowCount = await context.Items.CountAsync();
+            var rowCount = await context.Items.CountAsync(cancellationToken: cancellationToken);
 
             // EnsureDeleted drops the DB.
-            var deleted = await context.Database.EnsureDeletedAsync();
+            var deleted = await context.Database.EnsureDeletedAsync(cancellationToken: cancellationToken);
 
             // Assert
             Assert.True(created);
@@ -579,7 +629,7 @@ public sealed class MySqlComprehensiveCoverageTests
         }
         finally
         {
-            await DropDatabaseIfExistsAsync(baseConnectionString, testDbName);
+            await DropDatabaseIfExistsAsync(baseConnectionString, testDbName, CancellationToken.None);
         }
     }
 
@@ -679,25 +729,31 @@ public sealed class MySqlComprehensiveCoverageTests
         return csb.ConnectionString;
     }
 
+    /// <summary>Drops the database if exists using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropDatabaseIfExistsAsync(
         string cs,
-        string db
+        string db,
+        CancellationToken cancellationToken
     )
     {
         var csb = new MySqlConnectionStringBuilder(cs) { Database = string.Empty };
         await using var conn = new MySqlConnection(csb.ConnectionString);
-        await conn.OpenAsync();
-        await ExecuteRawAsync(conn, $"DROP DATABASE IF EXISTS `{db}`;");
+        await conn.OpenAsync(cancellationToken: cancellationToken);
+        await ExecuteRawAsync(conn, $"DROP DATABASE IF EXISTS `{db}`;", cancellationToken);
     }
 
+    /// <summary>Executes the raw with the caller's cancellation token.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task ExecuteRawAsync(
         MySqlConnection conn,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
     }
 
     // ======================================================================

@@ -21,14 +21,14 @@ public sealed class MySqlScaffoldingFilterTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var factory = new MySqlDatabaseModelFactory(
@@ -63,14 +63,14 @@ public sealed class MySqlScaffoldingFilterTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var factory = new MySqlDatabaseModelFactory(
@@ -99,13 +99,19 @@ public sealed class MySqlScaffoldingFilterTests
         }
     }
 
+    /// <summary>
+    /// Prepares schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
     private static async Task PrepareSchemaAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         for (var index = 0; index < TableCount; index++)
@@ -119,18 +125,19 @@ public sealed class MySqlScaffoldingFilterTests
                 + "  PRIMARY KEY (`Id`)"
                 + ") CHARACTER SET utf8mb4;";
             await command
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
     }
 
+    // WHY: Cleanup must finish after caller cancellation to leave no test resources behind.
     private static async Task TearDownSchemaAsync(
         string connectionString
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         for (var index = 0; index < TableCount; index++)
@@ -139,7 +146,7 @@ public sealed class MySqlScaffoldingFilterTests
             var tableName = TablePrefix + index.ToString("D2", CultureInfo.InvariantCulture);
             command.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
             await command
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

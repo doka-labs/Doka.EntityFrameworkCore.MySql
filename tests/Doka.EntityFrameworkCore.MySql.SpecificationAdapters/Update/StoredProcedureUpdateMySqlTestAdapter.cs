@@ -644,7 +644,7 @@ END
 
         var entity1 = new Child1 { Name = "Child", Child1Property = 8 };
         context.Set<Child1>().Add(entity1);
-        await SaveChanges(context, async);
+        await SaveChanges(context, async, cancellationToken: CancellationToken.None);
 
         context.ChangeTracker.Clear();
 
@@ -699,16 +699,28 @@ SELECT @_out_p4;
 """);
     }
 
-    private static async Task SaveChanges(DbContext context, bool async)
+    /// <summary>
+    /// Persists the stored-procedure scenario through its selected synchronous or asynchronous path.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
+    private static async Task SaveChanges(
+        DbContext context,
+        bool async,
+        CancellationToken cancellationToken
+    )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (async)
         {
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
         }
         else
         {
-            // The false theory row intentionally exercises EF's synchronous
-            // update pipeline.
+            // WHY: The false theory row intentionally exercises the synchronous update pipeline.
+            // ReSharper disable once MethodHasAsyncOverload
             context.SaveChanges();
         }
     }

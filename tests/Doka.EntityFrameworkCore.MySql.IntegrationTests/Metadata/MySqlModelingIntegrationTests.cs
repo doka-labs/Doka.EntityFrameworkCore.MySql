@@ -19,7 +19,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TphCrudContext(CreateOptions<TphCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_TphAnimals");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_TphAnimals");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -47,7 +47,7 @@ public sealed class MySqlModelingIntegrationTests
                     Name = "Whiskers",
                     IsIndoor = true
                 });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var dogs = await context
@@ -62,7 +62,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_TphAnimals");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_TphAnimals");
         }
     }
 
@@ -76,7 +76,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new OwnedCrudContext(CreateOptions<OwnedCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_OwnedCustomers");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_OwnedCustomers");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -101,7 +101,7 @@ public sealed class MySqlModelingIntegrationTests
                         City = "Berlin"
                     },
                 });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var customer = await context.Customers.FirstAsync();
@@ -113,7 +113,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_OwnedCustomers");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_OwnedCustomers");
         }
     }
 
@@ -127,7 +127,12 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new M2MCrudContext(CreateOptions<M2MCrudContext>(connectionString));
 
-        await CleanupAsync(context, "M2MCourseM2MStudent", "Phase5_M2MStudents", "Phase5_M2MCourses");
+        await CleanupAsync(
+            context,
+            CancellationToken.None,
+            "M2MCourseM2MStudent",
+            "Phase5_M2MStudents",
+            "Phase5_M2MCourses");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -162,7 +167,7 @@ public sealed class MySqlModelingIntegrationTests
             var course = new M2MCourse { Title = "Databases" };
             student.Courses.Add(course);
             context.Students.Add(student);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var loaded = await context
@@ -175,7 +180,12 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "M2MCourseM2MStudent", "Phase5_M2MStudents", "Phase5_M2MCourses");
+            await CleanupAsync(
+                context,
+                CancellationToken.None,
+                "M2MCourseM2MStudent",
+                "Phase5_M2MStudents",
+                "Phase5_M2MCourses");
         }
     }
 
@@ -186,7 +196,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TptCrudContext(CreateOptions<TptCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_TptCars", "Phase5_TptVehicles");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_TptCars", "Phase5_TptVehicles");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -214,7 +224,7 @@ public sealed class MySqlModelingIntegrationTests
                     Make = "BMW",
                     SeatCount = 5
                 });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var vehicle = await context.Vehicles.FirstAsync();
@@ -230,7 +240,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_TptCars", "Phase5_TptVehicles");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_TptCars", "Phase5_TptVehicles");
         }
     }
 
@@ -244,7 +254,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context1 = new ConcurrencyCrudContext(CreateOptions<ConcurrencyCrudContext>(connectionString));
 
-        await CleanupAsync(context1, "Phase5_ConcurrencyEntities");
+        await CleanupAsync(context1, CancellationToken.None, "Phase5_ConcurrencyEntities");
 
         await context1.Database.ExecuteSqlRawAsync(
             """
@@ -264,7 +274,7 @@ public sealed class MySqlModelingIntegrationTests
                     Name = "Original",
                     Version = 1
                 });
-            await context1.SaveChangesAsync();
+            await context1.SaveChangesAsync(CancellationToken.None);
 
             // Simulate concurrent modification.
             await context1.Database.ExecuteSqlRawAsync(
@@ -274,14 +284,14 @@ public sealed class MySqlModelingIntegrationTests
             entity.Name = "Modified";
 
             // Act
-            var failure = await Record.ExceptionAsync(() => context1.SaveChangesAsync());
+            var failure = await Record.ExceptionAsync(() => context1.SaveChangesAsync(CancellationToken.None));
 
             // Assert
             Assert.IsType<DbUpdateConcurrencyException>(failure);
         }
         finally
         {
-            await CleanupAsync(context1, "Phase5_ConcurrencyEntities");
+            await CleanupAsync(context1, CancellationToken.None, "Phase5_ConcurrencyEntities");
         }
     }
 
@@ -295,7 +305,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new ConverterCrudContext(CreateOptions<ConverterCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_ConverterEntities");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_ConverterEntities");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -315,7 +325,7 @@ public sealed class MySqlModelingIntegrationTests
                     IsActive = true,
                     Price = new Money(42.50m)
                 });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Clear tracker to force fresh read.
             context.ChangeTracker.Clear();
@@ -329,7 +339,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_ConverterEntities");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_ConverterEntities");
         }
     }
 
@@ -458,8 +468,15 @@ public sealed class MySqlModelingIntegrationTests
         return builder.Options;
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="tables">The tables.</param>
     private static async Task CleanupAsync(
         DbContext context,
+        CancellationToken cancellationToken,
         params string[] tables
     )
     {
@@ -468,7 +485,9 @@ public sealed class MySqlModelingIntegrationTests
             // Escape any backticks defensively so the helper is safe-by-construction
             // even if a future caller passes a non-literal identifier.
             var quoted = table.Replace("`", "``", StringComparison.Ordinal);
-            await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{quoted}`;");
+            await context.Database.ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{quoted}`;",
+                cancellationToken: cancellationToken);
         }
     }
 

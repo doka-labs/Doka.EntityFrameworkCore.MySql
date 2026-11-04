@@ -27,7 +27,7 @@ public sealed class MySqlHiLoConcurrencyTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var expectedCount = ContextCount * InsertsPerContext;
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
         MySqlHiLoStateCache.ResetForTesting();
 
@@ -86,9 +86,9 @@ public sealed class MySqlHiLoConcurrencyTests
 
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
-        await PrepareSequenceAuditAsync(connectionString)
+        await PrepareSequenceAuditAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
         MySqlHiLoStateCache.ResetForTesting();
 
@@ -112,7 +112,7 @@ public sealed class MySqlHiLoConcurrencyTests
                     })
                 .ConfigureAwait(false);
 
-            var roundtripCount = await ReadSequenceAuditCountAsync(connectionString)
+            var roundtripCount = await ReadSequenceAuditCountAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -140,7 +140,7 @@ public sealed class MySqlHiLoConcurrencyTests
         var connectionString = CreateBorrowedConnectionString(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
         MySqlHiLoStateCache.ResetForTesting();
 
@@ -155,12 +155,12 @@ public sealed class MySqlHiLoConcurrencyTests
             {
                 context.Items.Add(entity);
                 await context
-                    .SaveChangesAsync()
+                    .SaveChangesAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
             await using var verificationConnection = await dataSource
-                .OpenConnectionAsync()
+                .OpenConnectionAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -185,7 +185,7 @@ public sealed class MySqlHiLoConcurrencyTests
         var connectionString = CreateBorrowedConnectionString(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84));
 
-        await PrepareSchemaAsync(connectionString)
+        await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
         MySqlHiLoStateCache.ResetForTesting();
 
@@ -193,7 +193,7 @@ public sealed class MySqlHiLoConcurrencyTests
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var entity = new HiLoEntity { Name = "external-connection" };
@@ -204,7 +204,7 @@ public sealed class MySqlHiLoConcurrencyTests
             {
                 context.Items.Add(entity);
                 await context
-                    .SaveChangesAsync()
+                    .SaveChangesAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
@@ -213,7 +213,7 @@ public sealed class MySqlHiLoConcurrencyTests
             command.CommandText = $"SELECT COUNT(*) FROM `{TableName}`;";
 
             var persistedCount = Convert.ToInt64(
-                await command.ExecuteScalarAsync().ConfigureAwait(false),
+                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
             // Assert
@@ -272,12 +272,13 @@ public sealed class MySqlHiLoConcurrencyTests
     private const string SequenceAuditTrigger = "trg_hilo_sequence_audit";
 
     private static async Task PrepareSequenceAuditAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
@@ -290,50 +291,53 @@ public sealed class MySqlHiLoConcurrencyTests
             + $"CREATE TRIGGER `{SequenceAuditTrigger}` AFTER UPDATE ON `__efsequence_{SequenceName}`"
             + $"  FOR EACH ROW INSERT INTO `{SequenceAuditTable}` (`at`) VALUES (CURRENT_TIMESTAMP(6));";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task<int> ReadSequenceAuditCountAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM `{SequenceAuditTable}`;";
         var result = await command
-            .ExecuteScalarAsync()
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return Convert.ToInt32(result, CultureInfo.InvariantCulture);
     }
 
+    // WHY: Test-owned schema cleanup must finish even after the test operation is canceled.
     private static async Task TearDownSequenceAuditAsync(
         string connectionString
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
             + $"DROP TABLE IF EXISTS `{SequenceAuditTable}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task PrepareSchemaAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
@@ -352,23 +356,24 @@ public sealed class MySqlHiLoConcurrencyTests
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    // WHY: Test-owned schema cleanup must finish even after the test operation is canceled.
     private static async Task TearDownSchemaAsync(
         string connectionString
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

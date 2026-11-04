@@ -15,11 +15,16 @@ public static class MySqlClientScriptExecutor
     /// <summary>
     /// Executes every parsed statement sequentially on an open connection.
     /// </summary>
+    /// <param name="connection">The open connection on which to execute the script.</param>
+    /// <param name="script">The MySQL client script, including any delimiter directives.</param>
+    /// <param name="commandTimeout">The timeout in seconds for each statement.</param>
+    /// <param name="cancellationToken">The token to observe while executing the statements.</param>
+    /// <returns>A task that completes after all statements have executed.</returns>
     public static async Task ExecuteAsync(
         MySqlConnection connection,
         string script,
         int commandTimeout,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(connection);

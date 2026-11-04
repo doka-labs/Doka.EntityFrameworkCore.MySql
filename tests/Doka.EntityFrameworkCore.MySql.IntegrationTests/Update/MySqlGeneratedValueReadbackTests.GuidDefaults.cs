@@ -40,7 +40,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsKeyMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 24)
             .Select(marker => new GuidDefaultPrincipal { Marker = marker })
             .Reverse()
@@ -113,7 +113,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsKeyMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var row = new GuidDefaultPrincipal { Marker = 17 };
         context.Add(row);
         var wasTemporary = context.Entry(row).Property(item => item.Id).IsTemporary;
@@ -158,7 +158,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsKeyMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 8)
             .Select(marker => new GuidDefaultPrincipal { Id = CreateGuid(marker), Marker = marker })
             .Reverse()
@@ -201,7 +201,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsValueMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var rows = Enumerable.Range(1, 24)
             .Select(id => new GuidDefaultValueRow { Id = id })
             .Reverse()

@@ -41,7 +41,8 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var token = s_matchingGuid;
         Guid? optionalToken = operand == "NullParameter" ? null : token;
@@ -75,7 +76,8 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = context.Set<GuidItem>()
             .Where(item => item.Id == 1)
@@ -102,7 +104,8 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = context.Set<GuidItem>()
             .Where(item => EF.Functions.Like(EF.Property<Guid>(item, UppercasePropertyName), pattern));

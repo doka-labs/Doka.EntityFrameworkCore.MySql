@@ -42,11 +42,12 @@ public static class Program
 
         var supportsQueryExecution = RuntimeFeature.IsDynamicCodeSupported;
 
-        await RunBasicCompiledModelSmokeAsync(supportsQueryExecution);
+        // WHY: Main has no cancellation input; helpers require an explicit token at this boundary.
+        await RunBasicCompiledModelSmokeAsync(supportsQueryExecution, cancellationToken: CancellationToken.None);
 
         if (supportsQueryExecution)
         {
-            await RunSpatialCompiledModelSmokeAsync(true);
+            await RunSpatialCompiledModelSmokeAsync(true, cancellationToken: CancellationToken.None);
         }
 
         Console.WriteLine("Runtime smoke OK.");
@@ -355,14 +356,22 @@ public static class Program
             $"The package-only migration-operation handler did not fail with {expectedFailureCode}.");
     }
 
+    /// <summary>
+    /// Runs basic provider checks against the generated compiled model.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="supportsQueryExecution">Whether the current runtime supports dynamic query compilation.</param>
     [RequiresUnreferencedCode(
         "This smoke verifies the documented trimmed runtime path for the compiled-model baseline.")]
     [RequiresDynamicCode("This smoke verifies the documented NativeAOT runtime path for the compiled-model baseline.")]
     private static async Task RunBasicCompiledModelSmokeAsync(
-        bool supportsQueryExecution
+        bool supportsQueryExecution,
+        CancellationToken cancellationToken
     )
     {
-        await ResetDatabaseAsync(BasicDatabaseName)
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await ResetDatabaseAsync(BasicDatabaseName, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         var connectionString = CreateConnectionString(BasicDatabaseName);
@@ -375,12 +384,12 @@ public static class Program
         if (supportsQueryExecution)
         {
             await context
-                .Database.EnsureCreatedAsync(CancellationToken.None)
+                .Database.EnsureCreatedAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
-            await CreateBasicNativeAotSchemaAsync(context)
+            await CreateBasicNativeAotSchemaAsync(context, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -390,7 +399,7 @@ public static class Program
                 Name = "runtime-smoke",
             });
         await context
-            .SaveChangesAsync(CancellationToken.None)
+            .SaveChangesAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (!supportsQueryExecution)
@@ -408,7 +417,7 @@ public static class Program
             return;
         }
 
-        if (!await HasRuntimeSmokeBasicEntityAsync(context))
+        if (!await HasRuntimeSmokeBasicEntityAsync(context, cancellationToken: cancellationToken))
         {
             throw new InvalidOperationException(
                 "The compiled-model basic smoke query did not execute through the MySQL provider path.");
@@ -684,15 +693,23 @@ public static class Program
         ConflictingOperation,
     }
 
+    /// <summary>
+    /// Runs spatial provider checks against the generated compiled model.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="supportsQueryExecution">Whether the current runtime supports dynamic query compilation.</param>
     [RequiresUnreferencedCode(
         "This smoke verifies the documented trimmed runtime path for the spatial compiled-model baseline.")]
     [RequiresDynamicCode(
         "This smoke verifies the documented NativeAOT runtime path for the spatial compiled-model baseline.")]
     private static async Task RunSpatialCompiledModelSmokeAsync(
-        bool supportsQueryExecution
+        bool supportsQueryExecution,
+        CancellationToken cancellationToken
     )
     {
-        await ResetDatabaseAsync(SpatialDatabaseName)
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await ResetDatabaseAsync(SpatialDatabaseName, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         var connectionString = CreateConnectionString(SpatialDatabaseName);
@@ -705,12 +722,12 @@ public static class Program
         if (supportsQueryExecution)
         {
             await context
-                .Database.EnsureCreatedAsync(CancellationToken.None)
+                .Database.EnsureCreatedAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
-            await CreateSpatialNativeAotSchemaAsync(context)
+            await CreateSpatialNativeAotSchemaAsync(context, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -723,7 +740,7 @@ public static class Program
                 },
             });
         await context
-            .SaveChangesAsync(CancellationToken.None)
+            .SaveChangesAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (!supportsQueryExecution)
@@ -741,7 +758,7 @@ public static class Program
             return;
         }
 
-        if (!await HasRuntimeSmokeSpatialEntityAsync(context))
+        if (!await HasRuntimeSmokeSpatialEntityAsync(context, cancellationToken: cancellationToken))
         {
             throw new InvalidOperationException(
                 "The compiled-model spatial smoke query did not execute through the approved spatial translation path.");
@@ -773,10 +790,18 @@ public static class Program
             + $"Password={RuntimeSmokePassword};";
     }
 
+    /// <summary>
+    /// Recreates the runtime smoke database before schema setup.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="databaseName">The isolated database owned by the scenario.</param>
     private static async Task ResetDatabaseAsync(
-        string databaseName
+        string databaseName,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var builder = new MySqlConnectionStringBuilder(CreateConnectionString(databaseName))
         {
             Database = string.Empty,
@@ -787,32 +812,55 @@ public static class Program
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        await ExecuteServerCommandAsync(connection, $"DROP DATABASE IF EXISTS `{databaseName}`;")
+        await ExecuteServerCommandAsync(
+            connection,
+            $"DROP DATABASE IF EXISTS `{databaseName}`;",
+            cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        await ExecuteServerCommandAsync(connection, $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4;")
+        await ExecuteServerCommandAsync(
+            connection,
+            $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4;",
+            cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Executes one runtime smoke administration command.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="commandText">The server administration statement to execute.</param>
     private static async Task ExecuteServerCommandAsync(
         MySqlConnection connection,
-        string commandText
+        string commandText,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
 
         await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Creates the basic provider schema used by the NativeAOT runtime smoke.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task CreateBasicNativeAotSchemaAsync(
-        BasicSmokeContext context
+        BasicSmokeContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var entityType = context.Model.FindEntityType(typeof(BasicSmokeEntity))
             ?? throw new InvalidOperationException(
                 "The NativeAOT basic smoke path could not resolve the compiled entity type.");
@@ -844,14 +892,22 @@ public static class Program
                               """;
 
         await context
-            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
+            .Database.ExecuteSqlRawAsync(createTableSql, cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Creates the spatial schema used by the NativeAOT runtime smoke.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task CreateSpatialNativeAotSchemaAsync(
-        SpatialSmokeContext context
+        SpatialSmokeContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var entityType = context.Model.FindEntityType(typeof(SpatialSmokeEntity))
             ?? throw new InvalidOperationException(
                 "The NativeAOT spatial smoke path could not resolve the compiled entity type.");
@@ -883,7 +939,7 @@ public static class Program
                               """;
 
         await context
-            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
+            .Database.ExecuteSqlRawAsync(createTableSql, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -891,16 +947,30 @@ public static class Program
         string identifier
     ) => $"`{identifier.Replace("`", "``", StringComparison.Ordinal)}`";
 
+    /// <summary>
+    /// Checks the basic smoke query using a cancellation-aware enumerator.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task<bool> HasRuntimeSmokeBasicEntityAsync(
-        BasicSmokeContext context
+        BasicSmokeContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var enumerator = GetRuntimeSmokeBasicEntities(context)
-            .GetAsyncEnumerator(CancellationToken.None);
+            .GetAsyncEnumerator(cancellationToken);
 
         return await enumerator.MoveNextAsync();
     }
 
+    /// <summary>
+    /// Creates the deferred basic query consumed by the cancellation-aware smoke enumerator.
+    /// </summary>
+    /// <param name="context">The compiled-model context that owns the query.</param>
+    /// <returns>The deferred query; the consumer supplies cancellation during enumeration.</returns>
+    // WHY: Building the query performs no I/O; GetAsyncEnumerator receives the caller token.
     private static IAsyncEnumerable<BasicSmokeEntity> GetRuntimeSmokeBasicEntities(
         BasicSmokeContext context
     )
@@ -910,16 +980,30 @@ public static class Program
             .AsAsyncEnumerable();
     }
 
+    /// <summary>
+    /// Checks the spatial smoke query using a cancellation-aware enumerator.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task<bool> HasRuntimeSmokeSpatialEntityAsync(
-        SpatialSmokeContext context
+        SpatialSmokeContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var enumerator = GetRuntimeSmokeSpatialEntities(context)
-            .GetAsyncEnumerator(CancellationToken.None);
+            .GetAsyncEnumerator(cancellationToken);
 
         return await enumerator.MoveNextAsync();
     }
 
+    /// <summary>
+    /// Creates the deferred spatial query consumed by the cancellation-aware smoke enumerator.
+    /// </summary>
+    /// <param name="context">The compiled-model context that owns the query.</param>
+    /// <returns>The deferred query; the consumer supplies cancellation during enumeration.</returns>
+    // WHY: Building the query performs no I/O; GetAsyncEnumerator receives the caller token.
     private static IAsyncEnumerable<SpatialSmokeEntity> GetRuntimeSmokeSpatialEntities(
         SpatialSmokeContext context
     )

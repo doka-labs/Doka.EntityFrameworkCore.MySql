@@ -21,8 +21,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         return new BindingContext(options);
     }
 
+    /// <summary>Creates the fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<BindingFixture> CreateFixtureAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var probe = new BindingCommandProbe();
@@ -30,8 +33,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropTablesAsync(context);
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            await DropTablesAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
 
             for (var id = 1; id <= 32; id++)
             {
@@ -65,7 +68,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 context.Add(item);
             }
 
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
 
@@ -79,11 +82,14 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Drops the tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropTablesAsync(
-        BindingContext context
+        BindingContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{ChildTable}`; DROP TABLE IF EXISTS `{ItemTable}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class BindingFixture(
         BindingContext context,
@@ -98,7 +104,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropTablesAsync(Context);
+                await DropTablesAsync(Context, CancellationToken.None);
             }
             finally
             {

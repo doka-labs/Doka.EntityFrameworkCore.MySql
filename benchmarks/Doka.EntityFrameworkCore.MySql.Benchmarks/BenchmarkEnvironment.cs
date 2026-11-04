@@ -104,8 +104,12 @@ internal static class BenchmarkEnvironment
         context.Database.ExecuteSqlRaw(ClearSaveChangesTableSql);
     }
 
+    /// <summary>
+    /// Removes the previous write workload's rows before the next measurement.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while clearing the table.</param>
     public static async Task ResetSaveChangesTableAsync(
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         await using var context = CreateContext();
@@ -114,8 +118,15 @@ internal static class BenchmarkEnvironment
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Reads the server version reported by the configured benchmark target.
+    /// </summary>
+    /// <param name="cancellationToken">
+    /// The token to observe while opening the connection and reading the version.
+    /// </param>
+    /// <returns>The server's version string.</returns>
     public static async Task<string> ReadServerVersionAsync(
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(CreateConnectionString(DatabaseName));

@@ -12,27 +12,31 @@ public sealed class MySqlSpecTestAnchorTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Migration_infrastructure_spec_anchor_executes_against_mysql84()
-        => AssertMigrationInfrastructureAnchorAsync(activeProvider: false);
+        => AssertMigrationInfrastructureAnchorAsync(activeProvider: false, cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Verifies the official active-provider specification independently of migration scripting.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Active_provider_spec_anchor_executes_against_mysql84()
-        => AssertMigrationInfrastructureAnchorAsync(activeProvider: true);
+        => AssertMigrationInfrastructureAnchorAsync(activeProvider: true, cancellationToken: CancellationToken.None);
 
     private static async Task AssertMigrationInfrastructureAnchorAsync(
-        bool activeProvider
+        bool activeProvider,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await IntegrationDatabaseUtilities
             .EnsureDatabaseExistsAsync(
-                IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84))
+                IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84),
+                cancellationToken)
             .ConfigureAwait(false);
 
         var fixture = new MySqlMigrationsInfrastructureFixture();
 
+        // WHY: The inherited specification fixture has a fixed tokenless lifecycle contract.
+        cancellationToken.ThrowIfCancellationRequested();
         await fixture
             .InitializeAsync()
             .ConfigureAwait(false);
@@ -56,7 +60,8 @@ public sealed class MySqlSpecTestAnchorTests
                 .ConfigureAwait(false);
             await IntegrationDatabaseUtilities
                 .EnsureDatabaseExistsAsync(
-                    IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84))
+                    IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84),
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -84,11 +89,12 @@ public sealed class MySqlSpecTestAnchorTests
         {
             await using var connection = new MySqlConnection(Fixture.TestStore.ConnectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
+            // WHY: EF's specification hook does not supply a cancellation token.
             await MySqlClientScriptExecutor
-                .ExecuteAsync(connection, sql, DefaultCommandTimeoutSeconds)
+                .ExecuteAsync(connection, sql, DefaultCommandTimeoutSeconds, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

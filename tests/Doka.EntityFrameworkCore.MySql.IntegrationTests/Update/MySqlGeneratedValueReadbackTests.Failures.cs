@@ -9,7 +9,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
 
         var rows = CreateIntegerRows(8);
@@ -32,7 +32,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
         await using var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None);
 
@@ -56,7 +56,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, IdentityMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
 
         var rows = Enumerable.Range(1, 8).Select(value => new GeneratedRow<int> { Input = value }).ToArray();
 
@@ -85,7 +85,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, IdentityZeroMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         await context.Database.OpenConnectionAsync(CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
             "SET SESSION sql_mode = REPLACE(@@SESSION.sql_mode, 'NO_AUTO_VALUE_ON_ZERO', '');",
@@ -122,7 +122,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, IdentityMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         // WHY: Temporary keys may sort first; disjoint supplied keys prevent an
         // auto-increment allocation from colliding with the arranged explicit rows.
 
@@ -157,7 +157,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, DeclaredTriggerMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
             $"CREATE TRIGGER `ReadbackBeforeInsert` BEFORE INSERT ON `{TableName}` "
             + "FOR EACH ROW SET NEW.`Input` = NEW.`Input` + 100;", CancellationToken.None);
@@ -182,7 +182,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, DeclaredTriggerMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
             $"CREATE TRIGGER `ReadbackBeforeInsert` BEFORE INSERT ON `{TableName}` "
             + "FOR EACH ROW SET NEW.`Id` = NEW.`Id` + 100;", CancellationToken.None);
@@ -207,7 +207,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         // Arrange
         await using var context = CreateContext<long, ShadowCompositeMode>(IntegrationDatabaseTarget.MySql84);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         var first = new GeneratedRow<long> { Id = 41, Input = 1 };
         var second = new GeneratedRow<long> { Id = 41, Input = 2 };
         AddRows(context, [first, second]);
@@ -230,7 +230,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         // Arrange
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         var rows = CreateIntegerRows(1001);
         rows[^1].Input = -1;
         AddRows(context, rows);
@@ -252,11 +252,11 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         // Arrange
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         var rows = CreateIntegerRows(1001);
         rows[^1].Input = -1;
         AddRows(context, rows);
-        await FailInitialSaveAsync(context);
+        await FailInitialSaveAsync(context, CancellationToken.None);
         rows[^1].Input = 1001;
 
         // Act
@@ -275,7 +275,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         // Arrange
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         await using var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
             $"INSERT INTO `{TableName}` (`Id`, `Input`) VALUES (9000, 9000);", CancellationToken.None);
@@ -298,11 +298,17 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         .Select(value => new GeneratedRow<int> { Id = value, Input = value })
         .ToArray();
 
-    private static async Task FailInitialSaveAsync(DbContext context)
+    /// <summary>Observes the arranged insert failure before testing recovery.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task FailInitialSaveAsync(
+        DbContext context,
+        CancellationToken cancellationToken
+    )
     {
         try
         {
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException)
         {

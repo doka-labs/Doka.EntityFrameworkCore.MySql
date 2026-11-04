@@ -14,45 +14,51 @@ public sealed class MySqlSpatialSeedIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql84);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql97);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies spatial seed for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertSpatialSeedAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -66,8 +72,8 @@ public sealed class MySqlSpatialSeedIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await CleanupAsync(connection).ConfigureAwait(false);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -92,21 +98,21 @@ public sealed class MySqlSpatialSeedIntegrationTests
             foreach (var migrationCommand in generator.Generate(operations, model))
             {
                 _ = await migrationCommand
-                    .ExecuteNonQueryAsync(relationalConnection, cancellationToken: CancellationToken.None)
+                    .ExecuteNonQueryAsync(relationalConnection, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
             }
 
             context.ChangeTracker.Clear();
             var record = await context
                 .Set<SpatialSeedIntegrationRecord>()
-                .SingleAsync(entity => entity.Id == 1, CancellationToken.None)
+                .SingleAsync(entity => entity.Id == 1, cancellationToken)
                 .ConfigureAwait(false);
 
             await using var readCommand = connection.CreateCommand();
             readCommand.CommandText =
                 $"SELECT ST_SRID(`Location`) FROM `{SpatialSeedIntegrationContract.Table}` WHERE `Id` = 1;";
             var nativeSrid = Convert.ToInt32(
-                await readCommand.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                await readCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
             // Assert
@@ -128,17 +134,23 @@ public sealed class MySqlSpatialSeedIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{SpatialSeedIntegrationContract.Table}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
 

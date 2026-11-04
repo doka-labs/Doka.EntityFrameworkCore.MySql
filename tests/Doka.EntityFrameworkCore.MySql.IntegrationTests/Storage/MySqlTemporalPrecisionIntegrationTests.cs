@@ -14,17 +14,21 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_round_trips_supported_temporal_precision() =>
-        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MySql84);
+        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies precision-six temporal round trips on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_round_trips_supported_temporal_precision() =>
-        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
+    /// <summary>Verifies supported temporal fractions survive a database round trip.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertTemporalPrecisionAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -33,7 +37,7 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
             IntegrationTestEnvironment.GetConnectionString(target),
             IntegrationTestEnvironment.GetServerVersion(target));
         await using var context = new TemporalPrecisionContext(builder.Options);
-        await DropTableAsync(context);
+        await DropTableAsync(context, cancellationToken);
 
         try
         {
@@ -51,13 +55,13 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
 
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
             context.Add(entity);
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             var actual = await context.Items
-                .SingleAsync(CancellationToken.None);
+                .SingleAsync(cancellationToken);
 
             // Assert
             Assert.Equal(entity.DateTime, actual.DateTime);
@@ -67,15 +71,19 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
         }
         finally
         {
-            await DropTableAsync(context);
+            await DropTableAsync(context, CancellationToken.None);
         }
     }
 
+    /// <summary>Drops the temporal table before setup or during explicit teardown.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task DropTableAsync(
-        TemporalPrecisionContext context
+        TemporalPrecisionContext context,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{TableName}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class TemporalPrecisionContext(
         DbContextOptions<TemporalPrecisionContext> options

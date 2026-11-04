@@ -80,7 +80,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         var connectionString = GetConnectionString(engine, "Srid");
-        await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+        await DropContractTablesAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
         await using var source = new EmptySpatialContractContext(
             CreateOptions<EmptySpatialContractContext>(connectionString, engine));
         await using var context = new SpatialSridContractContext(
@@ -108,7 +108,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                 await context.Database.ExecuteSqlRawAsync(command.CommandText).ConfigureAwait(false);
             }
 
-            var showCreate = await ReadShowCreateTableAsync(connectionString, SridTable).ConfigureAwait(false);
+            var showCreate = await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var failure = await Record.ExceptionAsync(() => context.Database.ExecuteSqlRawAsync(
                 $"INSERT INTO `{SridTable}` (`Id`, `Location`) VALUES (1, ST_GeomFromText('POINT (1 2)', 0));"));
             var databaseModel = services.GetRequiredService<IDatabaseModelFactory>()
@@ -138,7 +140,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         }
         finally
         {
-            await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+            await DropContractTablesAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
         }
     }
 }

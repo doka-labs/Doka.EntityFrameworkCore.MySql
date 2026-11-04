@@ -247,6 +247,7 @@ internal static class IntegrationTestEnvironment
         TestDatabaseSession session
     )
     {
+        // WHY: Fixture teardown must attempt all owned schema drops after cancellation or a prior failure.
         ArgumentNullException.ThrowIfNull(session);
 
         if (!ReferenceEquals(Interlocked.CompareExchange(ref s_session, null, session), session))

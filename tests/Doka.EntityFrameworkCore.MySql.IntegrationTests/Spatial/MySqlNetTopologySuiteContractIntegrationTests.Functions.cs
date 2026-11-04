@@ -14,7 +14,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateFunctionContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var query = context.Rows.Select(row => row.LeftGeometry!.IsValid);
 
@@ -38,7 +38,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
-        await using var context = await _fixture.CreateFunctionContextAsync(engine);
+        await using var context = await _fixture.CreateFunctionContextAsync(engine, CancellationToken.None);
         var query = function switch
         {
             "Buffer" when engine == IntegrationDatabaseTarget.MariaDb123 =>
@@ -76,7 +76,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateCrossesContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var cases = CreateCrossesCases();
         var expected = cases.Select(pair => (bool?)pair.Left.Crosses(pair.Right))

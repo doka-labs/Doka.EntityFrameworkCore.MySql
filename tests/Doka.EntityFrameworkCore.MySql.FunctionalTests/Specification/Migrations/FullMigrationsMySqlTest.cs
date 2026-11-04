@@ -209,57 +209,77 @@ public sealed class FullMigrationsMySqlTest
 
     /// <inheritdoc />
     public override Task Add_column_with_required() =>
-        AssertExplicitBackfillRequired(base.Add_column_with_required);
+        AssertExplicitBackfillRequired(base.Add_column_with_required, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_column_with_check_constraint() =>
-        AssertExplicitBackfillRequired(base.Add_column_with_check_constraint);
+        AssertExplicitBackfillRequired(
+            base.Add_column_with_check_constraint,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_json_columns_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_json_columns_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_json_columns_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_primary_key_with_name() =>
-        AssertExplicitBackfillRequired(base.Add_primary_key_with_name);
+        AssertExplicitBackfillRequired(base.Add_primary_key_with_name, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_required_primitive_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitive_collection_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
     public override Task Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_with_custom_converter_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitive_collection_with_custom_converter_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_required_primitve_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitve_collection_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
     public override Task Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_with_custom_converter_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitve_collection_with_custom_converter_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required);
+        AssertExplicitBackfillRequired(base.Alter_column_make_required, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_composite_index() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_composite_index);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_composite_index,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_index() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_index);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_index,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_null_data() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_null_data);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_null_data,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Convert_string_column_to_a_json_column_containing_required_reference() =>
-        AssertExplicitBackfillRequired(base.Convert_string_column_to_a_json_column_containing_required_reference);
+        AssertExplicitBackfillRequired(
+            base.Convert_string_column_to_a_json_column_containing_required_reference,
+            cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Verifies every sequence option while adapting the relational schema assertion to
@@ -309,10 +329,19 @@ public sealed class FullMigrationsMySqlTest
                 Assert.Null(sequence.Schema);
             });
 
+    /// <summary>
+    /// Checks that the upstream migration scenario requires an explicit backfill.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="migrationTest">The upstream migration assertion to invoke.</param>
     private static async Task AssertExplicitBackfillRequired(
-        Func<Task> migrationTest
+        Func<Task> migrationTest,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(migrationTest);
 
         Assert.Contains(
@@ -537,6 +566,12 @@ public sealed class FullMigrationsMySqlTest
             .ToArray();
     }
 
+    /// <summary>
+    /// Removes secondary databases owned by the completed migration scenario.
+    /// </summary>
+    /// <param name="connection">The connection used for cleanup administration commands.</param>
+    /// <param name="databaseNames">The test-owned secondary databases to remove.</param>
+    // WHY: This finally-only cleanup must finish after a test fails or is canceled.
     private static async Task DropSecondaryDatabasesAsync(
         DbConnection connection,
         IEnumerable<string> databaseNames
@@ -546,7 +581,7 @@ public sealed class FullMigrationsMySqlTest
 
         if (shouldCloseConnection)
         {
-            await connection.OpenAsync();
+            await connection.OpenAsync(CancellationToken.None);
         }
 
         try
@@ -556,7 +591,7 @@ public sealed class FullMigrationsMySqlTest
                 await using var command = connection.CreateCommand();
                 command.CommandText =
                     $"DROP DATABASE IF EXISTS {MySqlIdentifierEscaping.DelimitIdentifier(databaseName)};";
-                await command.ExecuteNonQueryAsync();
+                await command.ExecuteNonQueryAsync(CancellationToken.None);
             }
         }
         finally

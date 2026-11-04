@@ -12,7 +12,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var concurrentConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
@@ -61,7 +61,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Equal(
             1L,
             await store
-                .CountKeyAsync("concurrent")
+                .CountKeyAsync("concurrent", CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -74,7 +74,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var concurrentConnectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
@@ -122,7 +122,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var key = $"read-replacement-race-{useAsync}";
@@ -164,11 +164,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     $"UPDATE {store.QualifiedTableName} "
                     + "SET `ExpiresAtUtc` = TIMESTAMPADD(MINUTE, 1, UTC_TIMESTAMP(6)) "
                     + "WHERE `Id` = CAST(@key AS BINARY);",
-                    key)
+                    key,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             replacement = await store
-                .ReadEntryAsync(key)
+                .ReadEntryAsync(key, CancellationToken.None)
                 .ConfigureAwait(false);
         }
         finally
@@ -187,7 +188,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Equal(
             replacement,
             await store
-                .ReadEntryAsync(key)
+                .ReadEntryAsync(key, CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -201,7 +202,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var key = $"read-removal-race-{useAsync}";

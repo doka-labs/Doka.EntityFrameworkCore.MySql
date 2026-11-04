@@ -14,7 +14,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSharedTableMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var principal = new GuidDefaultSharedPrincipal { Payload = "principal-marker" };
         var dependent = new GuidDefaultSharedDependent
         {

@@ -11,11 +11,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName))
+        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         await store
-            .InsertExpiredEntriesAsync(1005)
+            .InsertExpiredEntriesAsync(1005, CancellationToken.None)
             .ConfigureAwait(false);
 
         var time = new CacheManualTimeProvider();
@@ -26,7 +26,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .SetAsync("live", [1], new DistributedCacheEntryOptions(), CancellationToken.None)
             .ConfigureAwait(false);
 
-        var initialCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var initialCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
 
         // Act
         // WHY: Interval, bounded batches, immediate continuation, and cooldown
@@ -34,28 +34,28 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // WHY: A synchronous miss must leave expired rows untouched before the cleanup interval is due.
         // ReSharper disable once MethodHasAsyncOverload
         var beforeIntervalMiss = cache.Get("cleanup-miss");
-        var beforeIntervalCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var beforeIntervalCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
 
         time.Advance(TimeSpan.FromMinutes(5));
 
         // WHY: Verify the synchronous 1,000-row cleanup bound before exercising the asynchronous path.
         // ReSharper disable once MethodHasAsyncOverload
         var firstBatchMiss = cache.Get("cleanup-miss");
-        var firstBatchCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var firstBatchCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
         var continuationMiss = await cache.GetAsync("cleanup-miss", CancellationToken.None).ConfigureAwait(false);
-        var continuationCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var continuationCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
 
         await store
-            .InsertExpiredEntriesAsync(2)
+            .InsertExpiredEntriesAsync(2, CancellationToken.None)
             .ConfigureAwait(false);
 
         var cooldownMiss = await cache.GetAsync("cleanup-miss", CancellationToken.None).ConfigureAwait(false);
-        var cooldownCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var cooldownCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
 
         time.Advance(TimeSpan.FromMinutes(5));
 
         var nextIntervalMiss = await cache.GetAsync("cleanup-miss", CancellationToken.None).ConfigureAwait(false);
-        var nextIntervalCount = await store.CountExpiredAsync().ConfigureAwait(false);
+        var nextIntervalCount = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
         var liveValue = await cache.GetAsync("live", CancellationToken.None).ConfigureAwait(false);
 
         // Assert
@@ -83,11 +83,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        await using var store = await CreateDeployedStoreAsync(target)
+        await using var store = await CreateDeployedStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
         await store
-            .InsertExpiredEntriesAsync(2)
+            .InsertExpiredEntriesAsync(2, CancellationToken.None)
             .ConfigureAwait(false);
 
         var time = new CacheManualTimeProvider();
@@ -100,7 +100,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         await using var cleanupDataSource = new MySqlDataSource(cleanupConnectionString);
 
-        await WarmCleanupProbePoolAsync(cleanupDataSource)
+        await WarmCleanupProbePoolAsync(cleanupDataSource, CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var cache = store.CreateCache(time, cleanupDataSource, logger);
@@ -120,19 +120,22 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ExecuteForKeyAsync(
                 $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -2, UTC_TIMESTAMP(6)) "
                 + "WHERE `Id` = CAST(@key AS BINARY);",
-                "expired-0")
+                "expired-0",
+                CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
         // WHY: The canceled cleanup and its next scheduled attempt must share
         // one active-cleanup state and clock to prove recovery after cancellation.
-        var result = await CancelCleanupWhileBlockedAsync(store, cache, time, initiator)
+        var result = await CancelCleanupWhileBlockedAsync(store, cache, time, initiator, CancellationToken.None)
             .ConfigureAwait(false);
+
         var entriesBeforeRecovery = logger.Entries.ToArray();
         var liveValue = await cache.GetAsync("live", CancellationToken.None).ConfigureAwait(false);
-        var expiredBeforeRecovery = await store.CountExpiredAsync().ConfigureAwait(false);
-        var initiatorValue = await ReadCleanupInitiatorResultAsync(cache, initiator, result)
+        var expiredBeforeRecovery = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
+        var initiatorValue = await ReadCleanupInitiatorResultAsync(cache, initiator, result, CancellationToken.None)
             .ConfigureAwait(false);
+
         var expectedValue = initiator switch
         {
             "get" or "try-get" => new byte[] { 1 },
@@ -147,7 +150,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // WHY: Recovery is verified with a small blocked batch; the separate bound test covers full batches.
         // ReSharper disable once MethodHasAsyncOverload
         var recoveryMiss = cache.Get("cleanup-miss");
-        var expiredAfterRecovery = await store.CountExpiredAsync().ConfigureAwait(false);
+        var expiredAfterRecovery = await store.CountExpiredAsync(CancellationToken.None).ConfigureAwait(false);
 
         // Assert
         Assert.Empty(entriesBeforeRecovery);
@@ -159,27 +162,33 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     }
 
     /// <summary>Coordinates a blocked cleanup, foreground probe, cancellation, and lock release.</summary>
+    /// <param name="store">The store used by this operation.</param>
+    /// <param name="cache">The cache used by this operation.</param>
+    /// <param name="time">The time used by this operation.</param>
+    /// <param name="initiator">The initiator used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<byte[]?> CancelCleanupWhileBlockedAsync(
         CacheIntegrationStore store,
         MySqlDistributedCache cache,
         CacheManualTimeProvider time,
-        string initiator
+        string initiator,
+        CancellationToken cancellationToken
     )
     {
         await using var lockConnection = new MySqlConnection(store.ConnectionString);
 
         await lockConnection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var observer = new MySqlConnection(store.ConnectionString);
 
         await observer
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var transaction = await lockConnection
-            .BeginTransactionAsync(CancellationToken.None)
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
@@ -189,7 +198,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                          transaction))
         {
             var lockedRevision = await locked
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal(0L, Assert.IsType<long>(lockedRevision));
@@ -201,7 +210,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         try
         {
-            await AssertLockingStatementStartedAsync(observer, store.TableName, pending, cleanupOnly: true)
+            await AssertLockingStatementStartedAsync(
+                    observer,
+                    store.TableName,
+                    pending,
+                    cancellationToken,
+                    cleanupOnly: true)
                 .ConfigureAwait(false);
 
             if (initiator == "get")
@@ -209,7 +223,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 // WHY: The isolated pool makes this a cleanup-coordination assertion, not a pool-capacity test.
                 Assert.Null(
                     await cache
-                        .GetAsync("cleanup-miss", CancellationToken.None)
+                        .GetAsync("cleanup-miss", cancellationToken)
                         .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                         .ConfigureAwait(false));
             }
@@ -317,36 +331,44 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     }
 
     /// <summary>Reads the foreground result without triggering another scheduled cleanup.</summary>
+    /// <param name="cache">The cache used by this operation.</param>
+    /// <param name="initiator">The initiator used by this operation.</param>
+    /// <param name="result">The result used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<byte[]?> ReadCleanupInitiatorResultAsync(
         MySqlDistributedCache cache,
         string initiator,
-        byte[]? result
+        byte[]? result,
+        CancellationToken cancellationToken
     )
     {
         return initiator switch
         {
             "get" or "try-get" or "refresh" => result,
-            "set-array" or "remove" => await cache.GetAsync("cleanup-array", CancellationToken.None)
+            "set-array" or "remove" => await cache.GetAsync("cleanup-array", cancellationToken)
                 .ConfigureAwait(false),
-            "set-sequence" => await cache.GetAsync("cleanup-sequence", CancellationToken.None)
+            "set-sequence" => await cache.GetAsync("cleanup-sequence", cancellationToken)
                 .ConfigureAwait(false),
-            "set-segmented" => await cache.GetAsync("cleanup-segmented", CancellationToken.None)
+            "set-segmented" => await cache.GetAsync("cleanup-segmented", cancellationToken)
                 .ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(initiator)),
         };
     }
 
     /// <summary>Primes both leases so lock-observer timing excludes connection startup.</summary>
+    /// <param name="dataSource">The data source used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task WarmCleanupProbePoolAsync(
-        MySqlDataSource dataSource
+        MySqlDataSource dataSource,
+        CancellationToken cancellationToken
     )
     {
         await using var cleanupConnection = await dataSource
-            .OpenConnectionAsync(CancellationToken.None)
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var probeConnection = await dataSource
-            .OpenConnectionAsync(CancellationToken.None)
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 }

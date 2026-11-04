@@ -25,7 +25,7 @@ public sealed partial class MySql84CrudBaselineTests
 
         if (useAsync)
         {
-            exists = await creator.ExistsAsync().ConfigureAwait(false);
+            exists = await creator.ExistsAsync(CancellationToken.None).ConfigureAwait(false);
         }
         else
         {
@@ -61,7 +61,7 @@ public sealed partial class MySql84CrudBaselineTests
 
         if (useAsync)
         {
-            exception = await Assert.ThrowsAsync<MySqlException>(() => creator.ExistsAsync())
+            exception = await Assert.ThrowsAsync<MySqlException>(() => creator.ExistsAsync(CancellationToken.None))
                 .ConfigureAwait(false);
         }
         else

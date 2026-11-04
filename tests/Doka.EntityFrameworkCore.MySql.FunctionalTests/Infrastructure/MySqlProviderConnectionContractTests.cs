@@ -41,7 +41,7 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<MatchedRowContext>(bootstrap, requireUserVariables: false);
         await using var context = new MatchedRowContext(lease.Options);
 
-        await ResetMatchedRowTableAsync(context);
+        await ResetMatchedRowTableAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
@@ -128,7 +128,7 @@ public sealed class MySqlProviderConnectionContractTests
 
         await using var context = new MatchedRowContext(lease.Options);
 
-        await ResetMatchedRowTableAsync(context);
+        await ResetMatchedRowTableAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
@@ -256,11 +256,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
 
             // Act
             var tracked = await context.Items.Include(item => item.Children)
@@ -276,7 +276,7 @@ public sealed class MySqlProviderConnectionContractTests
         }
         finally
         {
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -294,11 +294,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
 
             // Act
             var loaded = await context.Items.AsNoTracking()
@@ -309,7 +309,7 @@ public sealed class MySqlProviderConnectionContractTests
         }
         finally
         {
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -327,11 +327,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
 
             // Act
             var found = await context.Items.FindAsync([expected.Id], CancellationToken.None);
@@ -342,7 +342,7 @@ public sealed class MySqlProviderConnectionContractTests
         }
         finally
         {
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -360,11 +360,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
             var query = CreateCompiledGuidQuery();
 
             // Act
@@ -376,7 +376,7 @@ public sealed class MySqlProviderConnectionContractTests
         }
         finally
         {
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -394,11 +394,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
             var query = CreateCompiledGuidQuery();
             var compiled = await query(context, expected.Id).SingleAsync(CancellationToken.None);
             var optionalBinary = expected.Children.Single().ExternalId;
@@ -419,7 +419,7 @@ public sealed class MySqlProviderConnectionContractTests
         }
         finally
         {
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -437,11 +437,11 @@ public sealed class MySqlProviderConnectionContractTests
         await using var lease = CreateOptionsLease<GuidContext>(bootstrap, requireUserVariables: false);
         await using var context = new GuidContext(lease.Options);
 
-        await ResetGuidTablesAsync(context);
+        await ResetGuidTablesAsync(context, cancellationToken: CancellationToken.None);
 
         try
         {
-            var expected = await SeedGuidItemAsync(context);
+            var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
             var connection = context.Database.GetDbConnection();
 
             await context.Database.OpenConnectionAsync(CancellationToken.None);
@@ -465,7 +465,7 @@ public sealed class MySqlProviderConnectionContractTests
         finally
         {
             await context.Database.CloseConnectionAsync();
-            await DropGuidTablesAsync(context);
+            await DropGuidTablesAsync(context, cancellationToken: CancellationToken.None);
         }
     }
 
@@ -487,10 +487,18 @@ public sealed class MySqlProviderConnectionContractTests
         },
     ];
 
+    /// <summary>
+    /// Seeds the complete GUID transport graph before observing its query behavior.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task<GuidItem> SeedGuidItemAsync(
-        GuidContext context
+        GuidContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var item = new GuidItem
         {
             Id = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff"),
@@ -513,7 +521,7 @@ public sealed class MySqlProviderConnectionContractTests
 
         // WHY: Every transport case requires the same complete parent/child
         // graph; qualify the seed before observing a particular query path.
-        Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
+        Assert.Equal(2, await context.SaveChangesAsync(cancellationToken));
         context.ChangeTracker.Clear();
 
         return item;
@@ -583,13 +591,21 @@ public sealed class MySqlProviderConnectionContractTests
         UseAffectedRows = false,
     }.ConnectionString;
 
+    /// <summary>
+    /// Recreates the matched-row contract table for an independent scenario.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task ResetMatchedRowTableAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{MatchedRowTable}`;",
-            CancellationToken.None);
+            cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             $"CREATE TABLE `{MatchedRowTable}` ("
@@ -598,14 +614,22 @@ public sealed class MySqlProviderConnectionContractTests
             + "`NormalizedValue` varchar(64) NOT NULL, "
             + "`Token` varchar(64) NOT NULL, "
             + "PRIMARY KEY (`Id`));",
-            CancellationToken.None);
+            cancellationToken);
     }
 
+    /// <summary>
+    /// Recreates the GUID parent and child tables before a transport scenario.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task ResetGuidTablesAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
-        await DropGuidTablesAsync(context);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await DropGuidTablesAsync(context, cancellationToken: cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             $"CREATE TABLE `{GuidItemTable}` ("
@@ -617,7 +641,7 @@ public sealed class MySqlProviderConnectionContractTests
             + "`OptionalTextValue` char(36) NULL, "
             + "PRIMARY KEY (`Id`), "
             + "UNIQUE KEY `AK_ProviderContractGuidItems_AlternateId` (`AlternateId`));",
-            CancellationToken.None);
+            cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             $"CREATE TABLE `{GuidChildTable}` ("
@@ -627,19 +651,31 @@ public sealed class MySqlProviderConnectionContractTests
             + "PRIMARY KEY (`OwnerId`, `Sequence`), "
             + "CONSTRAINT `FK_ProviderContractGuidChildren_Items` FOREIGN KEY (`OwnerId`) "
             + $"REFERENCES `{GuidItemTable}` (`Id`) ON DELETE CASCADE);",
-            CancellationToken.None);
+            cancellationToken);
     }
 
+    /// <summary>
+    /// Removes the GUID transport tables during setup or explicit cleanup.
+    /// </summary>
+    /// <remarks>
+    /// Setup observes its caller token; finally blocks pass <see cref="CancellationToken.None"/>
+    /// so cleanup can finish after cancellation.
+    /// </remarks>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task DropGuidTablesAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{GuidChildTable}`;",
-            CancellationToken.None);
+            cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{GuidItemTable}`;",
-            CancellationToken.None);
+            cancellationToken);
     }
 
     private static async Task ExecuteNonQueryAsync(

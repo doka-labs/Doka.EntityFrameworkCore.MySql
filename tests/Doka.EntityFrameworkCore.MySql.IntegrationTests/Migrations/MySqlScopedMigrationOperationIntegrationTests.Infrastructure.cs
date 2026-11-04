@@ -32,9 +32,13 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
     }
 
     /// <summary>Captures async cleanup evidence while the physical session is still open.</summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="operation">The operation.</param>
     private static async Task<SessionObservation> ObserveSessionAsync(
         MySqlConnection connection,
-        ScopedHandlerOperation operation
+        ScopedHandlerOperation operation,
+        CancellationToken cancellationToken
     )
     {
         // WHY: Preserve the explicit connection-state assertion instead of
@@ -47,7 +51,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         await using var variable = connection.CreateCommand();
         variable.CommandText = $"SELECT {operation.VariableName} IS NULL;";
         var clearedVariable = Convert.ToInt64(
-            await variable.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+            await variable.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
             CultureInfo.InvariantCulture);
 
         await using var table = connection.CreateCommand();
@@ -56,7 +60,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
         try
         {
-            _ = await table.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await table.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (MySqlException exception)
         {
@@ -118,8 +122,11 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         MySqlException? MissingTableException);
 
     /// <summary>Identifies the physical server session for quarantine and reuse assertions.</summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task<long> ReadConnectionIdAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -127,21 +134,25 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
         return Convert.ToInt64(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
     /// <summary>Executes fixture-owned setup or teardown SQL on an already-open session.</summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="commandText">The command text.</param>
     private static async Task ExecuteNonQueryAsync(
         MySqlConnection connection,
-        string commandText
+        string commandText,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
         _ = await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

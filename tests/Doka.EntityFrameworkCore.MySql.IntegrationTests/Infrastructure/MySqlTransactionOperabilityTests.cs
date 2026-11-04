@@ -17,21 +17,21 @@ public sealed class MySqlTransactionOperabilityTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MySql97);
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies every reusable transaction-operability contract against MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies every reusable transaction-operability contract against MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies that rolling back to a savepoint preserves the pre-savepoint state.
@@ -41,7 +41,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertSavepointsPreserveStateAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -53,7 +54,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertSavepointsPreserveStateAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -65,7 +67,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertSavepointsPreserveStateAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -77,7 +80,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertUserManagedTransactionsAreRejectedAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -91,7 +95,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertUserManagedTransactionsAreRejectedAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -104,7 +109,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertUserManagedTransactionsAreRejectedAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -116,7 +122,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertVerifySucceededPatternAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -128,7 +135,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertVerifySucceededPatternAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -140,7 +148,8 @@ public sealed class MySqlTransactionOperabilityTests
     {
         await AssertVerifySucceededPatternAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -153,7 +162,8 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)),
-                complete: true)
+                complete: true,
+                cancellationToken: CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -166,7 +176,8 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MariaDb114,
                 MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-                complete: true)
+                complete: true,
+                cancellationToken: CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -179,7 +190,8 @@ public sealed class MySqlTransactionOperabilityTests
         await AssertTransactionScopeAsyncFlowAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-                complete: true)
+                complete: true,
+                cancellationToken: CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -195,7 +207,8 @@ public sealed class MySqlTransactionOperabilityTests
         return AssertTransactionScopeAsyncFlowAsync(
             target,
             IntegrationTestEnvironment.GetServerVersion(target),
-            complete: false);
+            complete: false,
+            cancellationToken: CancellationToken.None);
     }
 
     private static TheoryData<string> CreateRollbackTargets()
@@ -212,30 +225,36 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     private static async Task AssertTransactionOperabilityContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
-        await AssertSavepointsPreserveStateAsync(target, serverVersion)
+        await AssertSavepointsPreserveStateAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
-        await AssertUserManagedTransactionsAreRejectedAsync(target, serverVersion)
+        await AssertUserManagedTransactionsAreRejectedAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
-        await AssertVerifySucceededPatternAsync(target, serverVersion)
+        await AssertVerifySucceededPatternAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
-        await AssertTransactionScopeAsyncFlowAsync(target, serverVersion, complete: true)
+        await AssertTransactionScopeAsyncFlowAsync(
+            target,
+            serverVersion,
+            complete: true,
+            cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertSavepointsPreserveStateAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -248,10 +267,10 @@ public sealed class MySqlTransactionOperabilityTests
             // WHY: Both writes and rollback belong to one transaction; the final
             // state proves the savepoint preserved only the earlier write.
             await strategy
-                .ExecuteAsync(async () =>
+                .ExecuteAsync(async (executionCancellationToken) =>
                 {
                     await using var transaction = await context
-                        .Database.BeginTransactionAsync()
+                        .Database.BeginTransactionAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     supportsSavepoints = transaction.SupportsSavepoints;
@@ -262,11 +281,13 @@ public sealed class MySqlTransactionOperabilityTests
                             Name = "before-savepoint",
                         });
                     await context
-                        .SaveChangesAsync()
+                        .SaveChangesAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     await transaction
-                        .CreateSavepointAsync("before-second-insert")
+                        .CreateSavepointAsync(
+                            "before-second-insert",
+                            executionCancellationToken)
                         .ConfigureAwait(false);
 
                     context.Entities.Add(
@@ -275,16 +296,19 @@ public sealed class MySqlTransactionOperabilityTests
                             Name = "after-savepoint",
                         });
                     await context
-                        .SaveChangesAsync()
+                        .SaveChangesAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     await transaction
-                        .RollbackToSavepointAsync("before-second-insert")
+                        .RollbackToSavepointAsync(
+                            "before-second-insert",
+                            executionCancellationToken)
                         .ConfigureAwait(false);
                     await transaction
-                        .CommitAsync()
+                        .CommitAsync(executionCancellationToken)
                         .ConfigureAwait(false);
-                })
+                },
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             await using var verificationContext = new TransactionOperabilityContext(
@@ -293,7 +317,7 @@ public sealed class MySqlTransactionOperabilityTests
             var names = await verificationContext
                 .Entities.OrderBy(entity => entity.Id)
                 .Select(entity => entity.Name)
-                .ToListAsync()
+                .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
@@ -305,14 +329,16 @@ public sealed class MySqlTransactionOperabilityTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
     private static async Task AssertUserManagedTransactionsAreRejectedAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -320,21 +346,22 @@ public sealed class MySqlTransactionOperabilityTests
 
         await using var context = new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion));
         await using var transaction = await context
-            .Database.BeginTransactionAsync()
+            .Database.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var strategy = context.Database.CreateExecutionStrategy();
 
         // Act
         var caught = await Record
-            .ExceptionAsync(() => strategy.ExecuteAsync(async () =>
+            .ExceptionAsync(() => strategy.ExecuteAsync(async (executionCancellationToken) =>
             {
                 await context
-                    .Database.ExecuteSqlRawAsync("SELECT 1")
+                    .Database.ExecuteSqlRawAsync("SELECT 1", executionCancellationToken)
                     .ConfigureAwait(false);
 
                 return 1;
-            }))
+            },
+                cancellationToken))
             .ConfigureAwait(false);
 
         // Assert
@@ -345,13 +372,14 @@ public sealed class MySqlTransactionOperabilityTests
 
     private static async Task AssertVerifySucceededPatternAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken callerCancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, callerCancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -377,7 +405,8 @@ public sealed class MySqlTransactionOperabilityTests
                     async cancellationToken => await context
                         .Entities.AnyAsync(entity => entity.Name == "verify-succeeded", cancellationToken)
                         .ConfigureAwait(false),
-                    IsolationLevel.ReadCommitted)
+                    IsolationLevel.ReadCommitted,
+                    callerCancellationToken)
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
@@ -385,12 +414,15 @@ public sealed class MySqlTransactionOperabilityTests
             // Assert
             Assert.True(
                 await context
-                    .Entities.AnyAsync(entity => entity.Name == "verify-succeeded")
+                    .Entities.AnyAsync(
+                        entity => entity.Name == "verify-succeeded",
+                        callerCancellationToken)
                     .ConfigureAwait(false));
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -398,7 +430,8 @@ public sealed class MySqlTransactionOperabilityTests
     private static async Task AssertTransactionScopeAsyncFlowAsync(
         IntegrationDatabaseTarget target,
         MySqlServerVersion serverVersion,
-        bool complete
+        bool complete,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -408,7 +441,7 @@ public sealed class MySqlTransactionOperabilityTests
             AutoEnlist = true,
         }.ConnectionString;
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -422,7 +455,7 @@ public sealed class MySqlTransactionOperabilityTests
                 var strategy = context.Database.CreateExecutionStrategy();
 
                 await strategy
-                    .ExecuteAsync(async () =>
+                    .ExecuteAsync(async (executionCancellationToken) =>
                     {
                         using var scope = new System.Transactions.TransactionScope(
                             System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
@@ -433,14 +466,15 @@ public sealed class MySqlTransactionOperabilityTests
                                 Name = "ambient-transaction",
                             });
                         await context
-                            .SaveChangesAsync(CancellationToken.None)
+                            .SaveChangesAsync(executionCancellationToken)
                             .ConfigureAwait(false);
 
                         if (complete)
                         {
                             scope.Complete();
                         }
-                    })
+                    },
+                        cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -451,12 +485,13 @@ public sealed class MySqlTransactionOperabilityTests
             Assert.Equal(
                 complete,
                 await verificationContext
-                    .Entities.AnyAsync(entity => entity.Name == "ambient-transaction", CancellationToken.None)
+                    .Entities.AnyAsync(entity => entity.Name == "ambient-transaction", cancellationToken)
                     .ConfigureAwait(false));
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -477,16 +512,17 @@ public sealed class MySqlTransactionOperabilityTests
     }
 
     private static async Task ResetDatabaseObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -500,7 +536,7 @@ public sealed class MySqlTransactionOperabilityTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

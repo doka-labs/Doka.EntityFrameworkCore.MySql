@@ -66,7 +66,8 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = context.Set<GuidItem>()
             .OrderBy(item => item.Id)
@@ -94,7 +95,8 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = CreateMatchingQuery(context, propertyName, operation);
         var expected = operation switch
@@ -124,7 +126,8 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = context.Set<GuidItem>().Select(item => Guid.NewGuid());
 
@@ -150,7 +153,8 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = context.Set<GuidItem>().Select(item => Guid.NewGuid().ToString());
 

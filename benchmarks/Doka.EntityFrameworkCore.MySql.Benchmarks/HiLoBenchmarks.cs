@@ -42,8 +42,12 @@ public class HiLoBulkInsertBenchmarks : IDisposable
     [GlobalSetup]
     public void GlobalSetup() => _database = new HiLoBenchmarkDatabase();
 
+    /// <summary>
+    /// Resets the database and HiLo state before each measurement iteration.
+    /// </summary>
     [IterationSetup]
-    public void IterationSetup() => _database.Reset();
+    // WHY: BenchmarkDotNet does not supply a cancellation token to iteration hooks.
+    public void IterationSetup() => _database.Reset(CancellationToken.None);
 
     [GlobalCleanup]
     public void GlobalCleanup() => Dispose();
@@ -69,17 +73,26 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
     private readonly string _connectionString;
     private bool _disposed;
 
+    /// <summary>
+    /// Prepares the table and sequence shared by this benchmark workload.
+    /// </summary>
     public HiLoBenchmarkDatabase()
     {
         BenchmarkEnvironment.EnsureInitialized();
         _connectionString = BenchmarkEnvironment.CreateConnectionString(BenchmarkEnvironment.DatabaseNameValue);
-        PrepareSchemaAsync()
+
+        // WHY: The synchronous benchmark constructor has no caller cancellation token.
+        PrepareSchemaAsync(CancellationToken.None)
             .GetAwaiter()
             .GetResult();
     }
 
+    /// <summary>
+    /// Resets the shared HiLo state and database rows for a synchronous workload.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while resetting the workload.</param>
     public void Reset(
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -89,6 +102,11 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .GetResult();
     }
 
+    /// <summary>
+    /// Resets the shared HiLo state and database rows for an asynchronous workload.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while resetting the workload.</param>
+    /// <returns>A task that completes after the shared state and database rows are reset.</returns>
     public async Task ResetAsync(
         CancellationToken cancellationToken
     )
@@ -99,10 +117,17 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Inserts the requested rows across concurrent synchronous contexts.
+    /// </summary>
+    /// <param name="contextCount">The number of concurrent contexts.</param>
+    /// <param name="rowCount">The total number of rows, evenly divided across the contexts.</param>
+    /// <param name="cancellationToken">The token to observe while scheduling and inserting rows.</param>
+    /// <returns>The total number of inserted rows.</returns>
     public int Insert(
         int contextCount,
         int rowCount,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         ValidateShape(contextCount, rowCount);
@@ -142,6 +167,13 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
         return insertedRows;
     }
 
+    /// <summary>
+    /// Inserts the requested rows across concurrent asynchronous contexts.
+    /// </summary>
+    /// <param name="contextCount">The number of concurrent contexts.</param>
+    /// <param name="rowCount">The total number of rows, evenly divided across the contexts.</param>
+    /// <param name="cancellationToken">The token to observe while scheduling and inserting rows.</param>
+    /// <returns>The total number of inserted rows.</returns>
     public async Task<int> InsertAsync(
         int contextCount,
         int rowCount,
@@ -206,12 +238,19 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
         return builder.Options;
     }
 
-    private async Task PrepareSchemaAsync()
+    /// <summary>
+    /// Creates the table and sequence used by the HiLo workload.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while preparing the database.</param>
+    private async Task PrepareSchemaAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + CreateSequenceSql()
@@ -220,13 +259,18 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             + "  `Name` VARCHAR(64) NOT NULL,"
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
+
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Clears the table and restores the initial sequence value for the next workload.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while resetting the database state.</param>
     private async Task ResetSchemaAsync(
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(_connectionString);
@@ -241,17 +285,23 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Removes the benchmark-owned table and sequence independently of workload cancellation.
+    /// </summary>
     private async Task TearDownSchemaAsync()
     {
+        // WHY: Teardown must release the owned table and sequence after workload cancellation.
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + DropSequenceSql();
+
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

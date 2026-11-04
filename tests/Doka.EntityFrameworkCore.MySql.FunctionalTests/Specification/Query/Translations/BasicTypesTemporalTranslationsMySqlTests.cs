@@ -50,17 +50,28 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
     /// <inheritdoc />
     public override Task Parse_with_constant()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant());
+            () => base.Parse_with_constant(),
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Parse_with_parameter()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter());
+            () => base.Parse_with_parameter(),
+            cancellationToken: CancellationToken.None);
 
+    /// <summary>
+    /// Runs the upstream temporal assertion under a stable English culture.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="test">The upstream assertion to execute under the selected culture.</param>
     private static async Task ExecuteWithUsEnglishCulture(
-        Func<Task> test
+        Func<Task> test,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var previousCulture = CultureInfo.CurrentCulture;
 
         try

@@ -21,7 +21,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var query = context.Set<VersionedUuidEntity>().AsNoTracking()
             .Where(entity => entity.Id >= 3).OrderBy(entity => entity.Id).Select(entity => entity.NativeId);
@@ -46,7 +46,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var query = context.Set<VersionedUuidEntity>().AsNoTracking();
 
@@ -72,7 +72,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var membership = s_v7Membership;
         var query = context.Set<VersionedUuidEntity>().AsNoTracking();
@@ -99,7 +99,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         // Act
         var actual = await context.Set<VersionedUuidEntity>().AnyAsync(
@@ -124,7 +124,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         var testCase = s_versionedOrderCases.Single(item => item.Name == scenario);
         var columnName = testCase.Column;
@@ -155,7 +155,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
 
         await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
         var connection = (MySqlConnection)context.Database.GetDbConnection();
@@ -167,7 +167,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             testCase.Column,
             testCase.FirstId,
             testCase.LastId,
-            testCase.Pivot).ConfigureAwait(false);
+            testCase.Pivot,
+            CancellationToken.None).ConfigureAwait(false);
 
         // Assert
         Assert.Equal(testCase.ExpectedNextId, actual);
@@ -183,12 +184,19 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         int? ExpectedNextId);
 
     /// <summary>Captures raw range semantics without routing through Guid.CompareTo translation.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="columnName">The column name used by this operation.</param>
+    /// <param name="firstId">The first id used by this operation.</param>
+    /// <param name="lastId">The last id used by this operation.</param>
+    /// <param name="pivot">The pivot used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<int?> ReadFirstIdAfterAsync(
         MySqlConnection connection,
         string columnName,
         int firstId,
         int lastId,
-        Guid pivot
+        Guid pivot,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -210,7 +218,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             command.Parameters.AddWithValue("@pivot", pivot.ToString("D", CultureInfo.InvariantCulture));
         }
 
-        var value = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
         return value is null ? null : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }

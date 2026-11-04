@@ -34,16 +34,18 @@ public sealed partial class MySqlGuidTextIntegrationTests
         /// <summary>
         /// Seeds one selected engine/format pair once and returns a fresh context.
         /// </summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         internal async Task<GuidContext> CreateContextAsync(
             IntegrationDatabaseTarget target,
-            MySqlGuidFormat format
+            MySqlGuidFormat format,
+            CancellationToken cancellationToken
         )
         {
             // WHY: xUnit serializes this class's cases. Retain a failed seed task
             // so filtered rows stay independent without retrying partial DDL.
             if (!_seeds.TryGetValue((target, format), out var seed))
             {
-                seed = SeedAsync(target, format);
+                seed = SeedAsync(target, format, cancellationToken);
                 _seeds.Add((target, format), seed);
             }
 
@@ -62,7 +64,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
                 try
                 {
                     await using var context = CreateContext(key.Target, key.Format);
-                    await DropTableAsync(context);
+                    await DropTableAsync(context, CancellationToken.None);
                 }
                 catch (Exception exception)
                 {
@@ -78,16 +80,19 @@ public sealed partial class MySqlGuidTextIntegrationTests
             }
         }
 
+        /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,
-            MySqlGuidFormat format
+            MySqlGuidFormat format,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateContext(target, format);
-            await DropTableAsync(context);
+            await DropTableAsync(context, cancellationToken);
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
 
             foreach (var id in new[] { 1, 2 })
             {
@@ -109,14 +114,14 @@ public sealed partial class MySqlGuidTextIntegrationTests
                 entry.Property(UppercasePropertyName).CurrentValue = id == 1 ? s_matchingGuid : Guid.Empty;
             }
 
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
 
             // WHY: A dedicated column keeps the collation probe immutable;
             // independently scheduled mapping tests retain lowercase data.
             await context.Database.ExecuteSqlRawAsync(
                 $"UPDATE `{TableName}` SET `{UppercasePropertyName}` = UPPER(`{UppercasePropertyName}`) "
                 + "WHERE `Id` = 1;",
-                CancellationToken.None);
+                cancellationToken);
         }
 
         /// <summary>
@@ -142,9 +147,12 @@ public sealed partial class MySqlGuidTextIntegrationTests
             return new GuidContext(builder.Options);
         }
 
+        /// <summary>Drops the table using the caller's cancellation policy.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static Task<int> DropTableAsync(
-            GuidContext context
-        ) => context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;", CancellationToken.None);
+            GuidContext context,
+            CancellationToken cancellationToken
+        ) => context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;", cancellationToken);
     }
 
     /// <summary>

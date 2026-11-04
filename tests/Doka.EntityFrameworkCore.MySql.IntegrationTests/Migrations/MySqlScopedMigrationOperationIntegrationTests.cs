@@ -73,7 +73,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         }
 
         var state = connection.State;
-        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
+        var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(bodyFailure, generated.Command.TransactionSuppressed);
@@ -165,7 +166,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
             context.GetService<IRelationalConnection>(),
             cancellationToken: CancellationToken.None));
         var state = connection.State;
-        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
+        var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(1644, exception.Number);
@@ -193,7 +195,9 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: CancellationToken.None));
-        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
+        var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
+            .ConfigureAwait(false);
+
         var deallocateException = await Assert.ThrowsAsync<MySqlException>(() =>
             deallocate.ExecuteNonQueryAsync(CancellationToken.None));
 
@@ -223,7 +227,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
             context.GetService<IRelationalConnection>(),
             cancellationToken: cancellation.Token));
         var state = connection.State;
-        var session = await ObserveSessionAsync(connection, generated.Operation).ConfigureAwait(false);
+        var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.NotNull(exception);
@@ -253,13 +258,14 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var connectionString = CreateConnectionString(engine, pooling: true, connectionReset: false);
         await using var connection = new MySqlConnection(connectionString);
         await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        var unsafeConnectionId = await ReadConnectionIdAsync(connection).ConfigureAwait(false);
+        var unsafeConnectionId = await ReadConnectionIdAsync(connection, CancellationToken.None).ConfigureAwait(false);
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.CleanupFailure, transactionSuppressed: true);
         var operation = generated.Operation;
         await ExecuteNonQueryAsync(
             connection,
-            $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine)
+            $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine,
+            CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var replacementConnection = new MySqlConnection(connectionString);
@@ -280,7 +286,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
             if (state == ConnectionState.Closed)
             {
                 await replacementConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-                replacementId = await ReadConnectionIdAsync(replacementConnection).ConfigureAwait(false);
+                replacementId = await ReadConnectionIdAsync(replacementConnection, CancellationToken.None)
+                    .ConfigureAwait(false);
                 await using var audit = replacementConnection.CreateCommand();
                 audit.CommandText = $"SELECT COUNT(*) FROM `{operation.CleanupAuditTableName}`;";
                 cleanupCount = Convert.ToInt64(
@@ -300,7 +307,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
             if (replacementConnection.State == ConnectionState.Open)
             {
-                await ExecuteNonQueryAsync(replacementConnection, dropSql).ConfigureAwait(false);
+                await ExecuteNonQueryAsync(replacementConnection, dropSql, CancellationToken.None)
+                    .ConfigureAwait(false);
             }
             else
             {
@@ -308,7 +316,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
                 // when the quarantine assertion itself fails.
                 await using var cleanupConnection = CreateConnection(engine, pooling: false);
                 await cleanupConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-                await ExecuteNonQueryAsync(cleanupConnection, dropSql).ConfigureAwait(false);
+                await ExecuteNonQueryAsync(cleanupConnection, dropSql, CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
@@ -360,7 +368,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         await using (var seedConnection = new MySqlConnection(connectionString))
         {
             await seedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-            initialConnectionId = await ReadConnectionIdAsync(seedConnection).ConfigureAwait(false);
+            initialConnectionId = await ReadConnectionIdAsync(seedConnection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         ScopedHandlerOperation operation;
@@ -380,8 +389,11 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
         await using var reusedConnection = new MySqlConnection(connectionString);
         await reusedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        var reusedConnectionId = await ReadConnectionIdAsync(reusedConnection).ConfigureAwait(false);
-        var session = await ObserveSessionAsync(reusedConnection, operation).ConfigureAwait(false);
+        var reusedConnectionId = await ReadConnectionIdAsync(reusedConnection, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var session = await ObserveSessionAsync(reusedConnection, operation, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(1062, exception.Number);

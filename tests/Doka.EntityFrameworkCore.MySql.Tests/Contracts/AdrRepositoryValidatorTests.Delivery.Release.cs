@@ -507,7 +507,10 @@ public sealed partial class AdrRepositoryValidatorTests
             "[Trait(\"VerificationLane\", \"FullIntegration\")]",
             securityTests,
             StringComparison.Ordinal);
-        Assert.Contains("StartAsync(requests, evidenceScope: \"tls\")", tlsFixture, StringComparison.Ordinal);
+        Assert.Contains(
+            "StartAsync(requests, CancellationToken.None, evidenceScope: \"tls\")",
+            tlsFixture,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("TargetId = $\"{request.TargetId}-tls\"", tlsFixture, StringComparison.Ordinal);
         Assert.Contains(
             "[Trait(\"Category\", \"FailureConfigurationContract\")]",

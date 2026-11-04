@@ -12,7 +12,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql84)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -23,7 +23,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task MySql97_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql97)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -33,7 +33,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -43,7 +43,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb114)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -53,7 +53,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb118)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -63,18 +63,24 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_index_and_store_metadata_roundtrips()
     {
-        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb123)
+        await RunIndexAndStoreRoundTripAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs index and store round trip for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task RunIndexAndStoreRoundTripAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await CreateIndexAndStoreSchemaAsync(connectionString, target)
+        await CreateIndexAndStoreSchemaAsync(connectionString, target, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -118,7 +124,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         }
         finally
         {
-            await DropIndexAndStoreSchemaAsync(connectionString, target)
+            await DropIndexAndStoreSchemaAsync(connectionString, target, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -250,17 +256,24 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         Assert.Contains("Point Location", entityCode, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Creates index and store schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task CreateIndexAndStoreSchemaAsync(
         string connectionString,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
-        await DropIndexAndStoreSchemaAsync(connectionString, target)
+        await DropIndexAndStoreSchemaAsync(connectionString, target, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await ExecuteNonQueryAsync(
@@ -293,7 +306,8 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                     FULLTEXT INDEX `{FullTextIndex}` (`Body`),
                     SPATIAL INDEX `{SpatialIndex}` (`Location`)
                 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-                """)
+                """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (IsMariaDb(target))
@@ -307,7 +321,8 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                         MINVALUE 7
                         MAXVALUE 700
                         CYCLE;
-                    """)
+                    """,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             return;
@@ -346,18 +361,26 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                     `is_cyclic`,
                     `is_called`
                 ) VALUES (1, 7, 7, 3, 7, 700, TRUE, FALSE);
-                """)
+                """,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Drops index and store schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task DropIndexAndStoreSchemaAsync(
         string connectionString,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var dropSequenceSql = IsMariaDb(target)
@@ -369,7 +392,8 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                 $"""
                 {dropSequenceSql}
                 DROP TABLE IF EXISTS `{IndexStoreTable}`;
-                """)
+                """,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 }

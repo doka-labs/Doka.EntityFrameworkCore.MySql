@@ -14,22 +14,26 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84);
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MySQL 9.7 runtime can persist, query, and materialize the spatial baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97);
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
+    /// <summary>Verifies MySQL spatial query translation and geometry materialization.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMySqlSpatialQueriesAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -44,7 +48,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                          `Location` point NOT NULL,
                          CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
                      );
-                     """)
+                     """,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             context.PointEntities.AddRange(
@@ -60,18 +65,18 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 });
 
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var berlin = CreatePoint(13.4050, 52.5200);
             var matchingIds = await context
                 .PointEntities.Where(entity => EF.Functions.DistanceSphere(entity.Location, berlin) < 500)
                 .Select(entity => entity.Id)
-                .ToListAsync()
+                .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedBerlin = await context
-                .PointEntities.SingleAsync(entity => entity.Id == 1)
+                .PointEntities.SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -81,7 +86,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -91,36 +96,40 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 10.11 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 11.4 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 12.3 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Verifies the supported MariaDB spatial query helpers.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMariaDbSpatialHelpersAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -135,7 +144,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                          `Region` polygon NOT NULL,
                          CONSTRAINT `PK_{PolygonTableName}` PRIMARY KEY (`Id`)
                      );
-                     """)
+                     """,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             context.PolygonEntities.AddRange(
@@ -151,7 +161,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 });
 
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var searchPolygon = CreatePolygon(13.4045, 52.5195, 13.4055, 52.5205);
@@ -159,11 +169,11 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             var matchingIds = await context
                 .PolygonEntities.Where(entity => EF.Functions.MbrIntersects(entity.Region, searchPolygon))
                 .Select(entity => entity.Id)
-                .ToListAsync()
+                .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedRegion = await context
-                .PolygonEntities.SingleAsync(entity => entity.Id == 1)
+                .PolygonEntities.SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -172,7 +182,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -189,7 +199,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -233,7 +243,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -250,7 +260,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -299,7 +309,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -473,13 +483,17 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         return builder.Options;
     }
 
+    /// <summary>Drops the spatial tables before setup or during explicit teardown.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task ResetSpatialObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -489,7 +503,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 

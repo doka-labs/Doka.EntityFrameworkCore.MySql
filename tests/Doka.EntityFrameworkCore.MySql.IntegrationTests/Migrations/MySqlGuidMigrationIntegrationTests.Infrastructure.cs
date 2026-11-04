@@ -2,27 +2,41 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlGuidMigrationIntegrationTests
 {
+    /// <summary>
+    /// Executes long scalar for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sql">The sql.</param>
     private static async Task<long> ExecuteLongScalarAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
 
         return Convert.ToInt64(
-            await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+            await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Executes raw for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sql">The sql.</param>
     private static async Task ExecuteRawAsync(
         MySqlConnection connection,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<MigrationOperation> GetDifferences(
@@ -40,10 +54,18 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                 .Model
                 .GetRelationalModel());
 
+    /// <summary>
+    /// Executes operations for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="operations">The migration operations to execute.</param>
     private static async Task ExecuteOperationsAsync(
         DbContext context,
         MySqlConnection connection,
-        IReadOnlyList<MigrationOperation> operations
+        IReadOnlyList<MigrationOperation> operations,
+        CancellationToken cancellationToken
     )
     {
         var commands = context
@@ -57,19 +79,25 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         {
             await using var command = connection.CreateCommand();
             command.CommandText = migrationCommand.CommandText;
-            _ = await command.ExecuteNonQueryAsync();
+            _ = await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "DROP TABLE IF EXISTS `TextGuidDocumentRevisions`; "
             + "DROP TABLE IF EXISTS `TextGuidDocuments`; "
             + $"DROP TABLE IF EXISTS `{StorageTransitionTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(

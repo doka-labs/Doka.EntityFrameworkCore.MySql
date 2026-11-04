@@ -2,9 +2,16 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlColumnDefaultIntegrationTests
 {
+    /// <summary>
+    /// Verifies initial defaults for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task AssertInitialDefaultsAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -18,10 +25,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + $"FROM `{tableName}` WHERE `Id` = 1;";
 
         // Act
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         // Assert
-        Assert.True(await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.True(await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
         Assert.Equal("2026-08-17", reader.GetString(0));
         Assert.Equal("12:34:56.123456", reader.GetString(1));
         Assert.Equal("5C", reader.GetString(2));
@@ -35,9 +42,16 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         Assert.Equal(4326L, reader.GetInt64(10));
     }
 
+    /// <summary>
+    /// Verifies json metadata for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task AssertJsonMetadataAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -49,18 +63,26 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         command.Parameters.AddWithValue("@tableName", tableName);
 
         // Act
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         // Assert
-        Assert.True(await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.True(await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
         Assert.Equal("json\\comment", reader.GetString(0));
         Assert.Contains("INVISIBLE", reader.GetString(1), StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies guid default metadata for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
     private static async Task AssertGuidDefaultMetadataAsync(
         MySqlConnection connection,
         string tableName,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -72,9 +94,9 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND COLUMN_NAME = 'GuidValue';";
         catalogCommand.Parameters.AddWithValue("@tableName", tableName);
 
-        await using (var reader = await catalogCommand.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false))
+        await using (var reader = await catalogCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            Assert.True(await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+            Assert.True(await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
 
             var catalogDefaultHex = reader.GetString(0);
             var catalogLength = reader.GetInt64(1);
@@ -115,11 +137,11 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
 
         // Act
         await using var showCreateReader = await showCreateCommand
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
-        Assert.True(await showCreateReader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.True(await showCreateReader.ReadAsync(cancellationToken).ConfigureAwait(false));
         var createTableSql = showCreateReader.GetString(1);
 
         if (serverVersion.IsMariaDb
@@ -133,11 +155,20 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         }
     }
 
+    /// <summary>
+    /// Verifies added defaults for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
+    /// <param name="id">The id.</param>
+    /// <param name="expectedTime">The expected time.</param>
     private static async Task AssertAddedDefaultsAsync(
         MySqlConnection connection,
         string tableName,
         int id,
-        string expectedTime
+        string expectedTime,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -147,10 +178,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         command.Parameters.AddWithValue("@id", id);
 
         // Act
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         // Assert
-        Assert.True(await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.True(await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
         Assert.Equal("2027-01-02", reader.GetString(0));
         Assert.Equal(expectedTime, reader.GetString(1));
     }

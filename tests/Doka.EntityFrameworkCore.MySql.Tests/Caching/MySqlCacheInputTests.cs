@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Net;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;

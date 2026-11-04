@@ -13,8 +13,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"sync-contiguous-set-{size}";
         var sequence = new ReadOnlySequence<byte>(value);
@@ -42,8 +43,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"async-contiguous-set-{size}";
         var sequence = new ReadOnlySequence<byte>(value);
@@ -72,8 +74,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"sync-segmented-set-{size}";
         var sequence = CreateSegmentedSequence(value);
@@ -101,8 +104,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         var value = CreatePayload(size);
         var key = $"async-segmented-set-{size}";
         var sequence = CreateSegmentedSequence(value);

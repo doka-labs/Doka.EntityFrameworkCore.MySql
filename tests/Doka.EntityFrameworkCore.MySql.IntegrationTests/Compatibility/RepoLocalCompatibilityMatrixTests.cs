@@ -17,7 +17,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(8, 0, 0),
             isMariaDb: false,
             usesJsonAlias: false,
-            supportsNativeJsonType: true);
+            supportsNativeJsonType: true,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -31,7 +32,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(8, 4, 0),
             isMariaDb: false,
             usesJsonAlias: false,
-            supportsNativeJsonType: true);
+            supportsNativeJsonType: true,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -45,7 +47,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(9, 7, 0),
             isMariaDb: false,
             usesJsonAlias: false,
-            supportsNativeJsonType: true);
+            supportsNativeJsonType: true,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -59,7 +62,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(10, 11, 0),
             isMariaDb: true,
             usesJsonAlias: true,
-            supportsNativeJsonType: false);
+            supportsNativeJsonType: false,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -73,7 +77,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(11, 4, 0),
             isMariaDb: true,
             usesJsonAlias: true,
-            supportsNativeJsonType: false);
+            supportsNativeJsonType: false,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -87,7 +92,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(11, 8, 0),
             isMariaDb: true,
             usesJsonAlias: true,
-            supportsNativeJsonType: false);
+            supportsNativeJsonType: false,
+            cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
@@ -101,7 +107,8 @@ public sealed class RepoLocalCompatibilityMatrixTests
             expectedVersion: new Version(12, 3, 0),
             isMariaDb: true,
             usesJsonAlias: true,
-            supportsNativeJsonType: false);
+            supportsNativeJsonType: false,
+            cancellationToken: CancellationToken.None);
     }
 
     private static async Task VerifyMatrixContractAsync(
@@ -109,14 +116,15 @@ public sealed class RepoLocalCompatibilityMatrixTests
         Version expectedVersion,
         bool isMariaDb,
         bool usesJsonAlias,
-        bool supportsNativeJsonType
+        bool supportsNativeJsonType,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var detectedServerVersion = MySqlServerVersion.AutoDetect(connection);

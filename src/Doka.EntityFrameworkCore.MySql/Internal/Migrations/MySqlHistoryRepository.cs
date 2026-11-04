@@ -314,8 +314,9 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         /// <summary>
         /// Acquires a MySQL advisory lock asynchronously on a dedicated connection.
         /// </summary>
+        /// <param name="cancellationToken">The token to observe while waiting for and acquiring the lock.</param>
         public async Task AcquireLockAsync(
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken
         )
         {
             await _lifecycleGate
@@ -530,6 +531,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         /// </summary>
         private async ValueTask DisposeAsyncCore()
         {
+            // WHY: Disposal must finish releasing the advisory lock after caller cancellation.
             await _lifecycleGate
                 .WaitAsync()
                 .ConfigureAwait(false);
@@ -588,6 +590,7 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
 
         private async ValueTask ReleaseAndDisposeCurrentCoreAsync()
         {
+            // WHY: An acquired advisory lock and its dedicated connection must never survive cleanup.
             var connection = _dedicatedConnection;
             _dedicatedConnection = null;
             if (connection is null)

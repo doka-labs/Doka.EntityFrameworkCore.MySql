@@ -58,8 +58,10 @@ internal static class IntegrationDatabaseUtilities
     /// does not already exist.
     /// </summary>
     /// <param name="connectionString">Connection string selecting the database.</param>
+    /// <param name="cancellationToken">Cancels connection establishment and database creation.</param>
     public static async Task EnsureDatabaseExistsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         var builder = new MySqlConnectionStringBuilder(connectionString);
@@ -76,14 +78,14 @@ internal static class IntegrationDatabaseUtilities
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE IF NOT EXISTS {DelimitIdentifier(databaseName)};";
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -95,6 +97,7 @@ internal static class IntegrationDatabaseUtilities
         string connectionString
     )
     {
+        // WHY: Fixture disposal must remove run-owned databases even after caller cancellation.
         var builder = new MySqlConnectionStringBuilder(connectionString);
         var databaseName = builder.Database;
 
@@ -109,14 +112,14 @@ internal static class IntegrationDatabaseUtilities
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS {DelimitIdentifier(databaseName)};";
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

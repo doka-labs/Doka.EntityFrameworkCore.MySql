@@ -15,7 +15,8 @@ public sealed class MariaDbCompatibilityBaselineTests
     public Task MariaDb1011_capability_driven_runtime_baseline_succeeds() =>
         VerifyMariaDbCompatibilityBaselineAsync(
             IntegrationDatabaseTarget.MariaDb1011,
-            new Version(10, 11, 0));
+            new Version(10, 11, 0),
+            CancellationToken.None);
 
     /// <summary>
     /// Verifies the approved capability-driven baseline against MariaDB 11.4.
@@ -23,7 +24,8 @@ public sealed class MariaDbCompatibilityBaselineTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_capability_driven_runtime_baseline_succeeds() => VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget.MariaDb114,
-        new Version(11, 4, 0));
+        new Version(11, 4, 0),
+        CancellationToken.None);
 
     /// <summary>
     /// Verifies the approved capability-driven baseline against MariaDB 11.8.
@@ -31,7 +33,8 @@ public sealed class MariaDbCompatibilityBaselineTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_capability_driven_runtime_baseline_succeeds() => VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget.MariaDb118,
-        new Version(11, 8, 0));
+        new Version(11, 8, 0),
+        CancellationToken.None);
 
     /// <summary>
     /// Verifies the approved capability-driven baseline against MariaDB 12.3.
@@ -40,23 +43,25 @@ public sealed class MariaDbCompatibilityBaselineTests
     public Task MariaDb123_capability_driven_runtime_baseline_succeeds() =>
         VerifyMariaDbCompatibilityBaselineAsync(
             IntegrationDatabaseTarget.MariaDb123,
-            new Version(12, 3, 0));
+            new Version(12, 3, 0),
+            CancellationToken.None);
 
     private static async Task VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget target,
-        Version expectedVersion
+        Version expectedVersion,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync()
+                .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             var detectedServerVersion = MySqlServerVersion.AutoDetect(connection);
@@ -76,10 +81,10 @@ public sealed class MariaDbCompatibilityBaselineTests
             var strategy = context.Database.CreateExecutionStrategy();
 
             await strategy
-                .ExecuteAsync(async () =>
+                .ExecuteAsync(async (executionCancellationToken) =>
                 {
                     await using var transaction = await context
-                        .Database.BeginTransactionAsync()
+                        .Database.BeginTransactionAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     Assert.True(transaction.SupportsSavepoints);
@@ -91,11 +96,13 @@ public sealed class MariaDbCompatibilityBaselineTests
                             Payload = """{"kind":"alpha","items":[1,2]}""",
                         });
                     await context
-                        .SaveChangesAsync()
+                        .SaveChangesAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     await transaction
-                        .CreateSavepointAsync("before-second-row")
+                        .CreateSavepointAsync(
+                            "before-second-row",
+                            executionCancellationToken)
                         .ConfigureAwait(false);
 
                     context.Entities.Add(
@@ -105,16 +112,19 @@ public sealed class MariaDbCompatibilityBaselineTests
                             Payload = """{"kind":"beta","items":[1,2,3]}""",
                         });
                     await context
-                        .SaveChangesAsync()
+                        .SaveChangesAsync(executionCancellationToken)
                         .ConfigureAwait(false);
 
                     await transaction
-                        .RollbackToSavepointAsync("before-second-row")
+                        .RollbackToSavepointAsync(
+                            "before-second-row",
+                            executionCancellationToken)
                         .ConfigureAwait(false);
                     await transaction
-                        .CommitAsync()
+                        .CommitAsync(executionCancellationToken)
                         .ConfigureAwait(false);
-                })
+                },
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             await using var verificationContext =
@@ -123,7 +133,7 @@ public sealed class MariaDbCompatibilityBaselineTests
             var entity = Assert.Single(
                 await verificationContext
                     .Entities.OrderBy(candidate => candidate.Id)
-                    .ToListAsync()
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false));
 
             Assert.Equal("before-savepoint", entity.Name);
@@ -145,19 +155,20 @@ public sealed class MariaDbCompatibilityBaselineTests
             metadataCommand.Parameters.Add(tableNameParameter);
 
             await using var reader = await metadataCommand
-                .ExecuteReaderAsync()
+                .ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.True(
                 await reader
-                    .ReadAsync()
+                    .ReadAsync(cancellationToken)
                     .ConfigureAwait(false));
             Assert.Equal("longtext", reader.GetString(0));
             Assert.Equal("utf8mb4_bin", reader.GetString(1));
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -178,16 +189,17 @@ public sealed class MariaDbCompatibilityBaselineTests
     }
 
     private static async Task ResetDatabaseObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -204,7 +216,7 @@ public sealed class MariaDbCompatibilityBaselineTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

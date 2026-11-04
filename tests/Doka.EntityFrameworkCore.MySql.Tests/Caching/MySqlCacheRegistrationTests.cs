@@ -1,4 +1,3 @@
-using System.Net;
 using Doka.Caching.MySql;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;

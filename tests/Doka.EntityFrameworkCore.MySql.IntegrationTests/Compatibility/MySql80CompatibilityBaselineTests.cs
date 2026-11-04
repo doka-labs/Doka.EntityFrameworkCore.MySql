@@ -17,9 +17,10 @@ public sealed class MySql80CompatibilityBaselineTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
 
-        await IntegrationDatabaseUtilities.EnsureDatabaseExistsAsync(connectionString).ConfigureAwait(false);
+        await IntegrationDatabaseUtilities.EnsureDatabaseExistsAsync(connectionString, CancellationToken.None)
+            .ConfigureAwait(false);
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
 
         // Act
         var detectedServerVersion = MySqlServerVersion.AutoDetect(
@@ -45,7 +46,7 @@ public sealed class MySql80CompatibilityBaselineTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -60,7 +61,8 @@ public sealed class MySql80CompatibilityBaselineTests
                          `Name` longtext NOT NULL,
                          CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
                      ) CHARACTER SET utf8mb4;
-                     """)
+                     """,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var entity = new MySql80CompatibilityEntity
@@ -72,13 +74,15 @@ public sealed class MySql80CompatibilityBaselineTests
 
             // Act
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
 
             var loadedEntity = await context
-                .Entities.SingleAsync(candidate => candidate.Id == entity.Id)
+                .Entities.SingleAsync(
+                    candidate => candidate.Id == entity.Id,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -87,7 +91,8 @@ public sealed class MySql80CompatibilityBaselineTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -109,23 +114,24 @@ public sealed class MySql80CompatibilityBaselineTests
     }
 
     private static async Task ResetDatabaseObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 

@@ -92,7 +92,8 @@ public class MySqlTestStore : RelationalTestStore
             Name,
             static _ => new SemaphoreSlim(1, 1));
 
-        await initializationLock.WaitAsync();
+        // WHY: EF fixes this lifecycle signature and does not provide a cancellation token.
+        await initializationLock.WaitAsync(CancellationToken.None);
 
         var initializesSharedStore = false;
 
@@ -107,10 +108,11 @@ public class MySqlTestStore : RelationalTestStore
 
             if (!Shared || initializesSharedStore)
             {
-                await DropDatabaseAsync();
+                await DropDatabaseAsync(cancellationToken: CancellationToken.None);
             }
 
-            var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync();
+            var databaseFreshlyCreated = await EnsureDatabaseCreatedIfMissingAsync(
+                cancellationToken: CancellationToken.None);
 
             await using var context = createContext();
 
@@ -152,8 +154,9 @@ public class MySqlTestStore : RelationalTestStore
         // provides no public helper that walks the model and emits TRUNCATE statements
         // engine-agnostically. The provider's own MySqlRelationalDatabaseCreator handles
         // the recreate path consistently with the rest of the suite.
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
+        // WHY: EF fixes the reset callback signature and does not provide a cancellation token.
+        await context.Database.EnsureDeletedAsync(CancellationToken.None);
+        await context.Database.EnsureCreatedAsync(CancellationToken.None);
     }
 
     public override async ValueTask DisposeAsync()
@@ -162,57 +165,101 @@ public class MySqlTestStore : RelationalTestStore
 
         if (!Shared)
         {
-            await DropDatabaseAsync();
+            // WHY: Disposal must remove the owned database even after a canceled operation.
+            await DropDatabaseAsync(cancellationToken: CancellationToken.None);
         }
 
         GC.SuppressFinalize(this);
     }
 
-    private async Task<bool> EnsureDatabaseCreatedIfMissingAsync()
+    /// <summary>
+    /// Creates the specification database only when it does not already exist.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    private async Task<bool> EnsureDatabaseCreatedIfMissingAsync(
+        CancellationToken cancellationToken
+    )
     {
-        await using var admin = new MySqlConnection(s_adminConnectionString);
-        await admin.OpenAsync();
+        cancellationToken.ThrowIfCancellationRequested();
 
-        if (await DatabaseExistsAsync(admin, Name))
+        await using var admin = new MySqlConnection(s_adminConnectionString);
+        await admin.OpenAsync(cancellationToken: cancellationToken);
+
+        if (await DatabaseExistsAsync(admin, Name, cancellationToken: cancellationToken))
         {
             return false;
         }
 
-        await ExecuteNonQueryAsync(admin, $"CREATE DATABASE `{Name}` CHARACTER SET utf8mb4;");
+        await ExecuteNonQueryAsync(
+            admin,
+            $"CREATE DATABASE `{Name}` CHARACTER SET utf8mb4;",
+            cancellationToken: cancellationToken);
+
         return true;
     }
 
-    private async Task DropDatabaseAsync()
-    {
-        await using var admin = new MySqlConnection(s_adminConnectionString);
-        await admin.OpenAsync();
-        await ExecuteNonQueryAsync(admin, $"DROP DATABASE IF EXISTS `{Name}`;");
-    }
-
-    private static async Task<bool> DatabaseExistsAsync(
-        MySqlConnection admin,
-        string name
+    /// <summary>
+    /// Drops the specification database during reset or explicit disposal cleanup.
+    /// </summary>
+    /// <remarks>
+    /// Reset observes its caller token; disposal passes <see cref="CancellationToken.None"/>
+    /// so cleanup can finish after cancellation.
+    /// </remarks>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    private async Task DropDatabaseAsync(
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var admin = new MySqlConnection(s_adminConnectionString);
+        await admin.OpenAsync(cancellationToken: cancellationToken);
+        await ExecuteNonQueryAsync(admin, $"DROP DATABASE IF EXISTS `{Name}`;", cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Checks whether the named specification database exists.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="admin">The server administration connection.</param>
+    /// <param name="name">The database name to inspect.</param>
+    private static async Task<bool> DatabaseExistsAsync(
+        MySqlConnection admin,
+        string name,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = admin.CreateCommand();
         command.CommandText =
             "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name;";
         command.CommandTimeout = DefaultCommandTimeout;
         command.Parameters.AddWithValue("@name", name);
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken: cancellationToken);
+
         return result is not null && Convert.ToInt64(result, CultureInfo.InvariantCulture) > 0;
     }
 
+    /// <summary>
+    /// Executes one specification administration command on the supplied connection.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="admin">The server administration connection.</param>
+    /// <param name="sql">The SQL text used by the scenario.</param>
     private static async Task ExecuteNonQueryAsync(
         MySqlConnection admin,
-        string sql
+        string sql,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = admin.CreateCommand();
         command.CommandText = sql;
         command.CommandTimeout = DefaultCommandTimeout;
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
     }
 
     private static string BuildConnectionString(

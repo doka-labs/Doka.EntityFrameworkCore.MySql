@@ -57,11 +57,19 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         try
         {
             // Act
-            var sql = await ExecuteOperationsAsync(context, connection, migrationBuilder.Operations)
+            var sql = await ExecuteOperationsAsync(
+                context,
+                connection,
+                migrationBuilder.Operations,
+                CancellationToken.None)
                 .ConfigureAwait(false);
-            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);")
+
+            await ExecuteRawAsync(
+                connection,
+                $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);",
+                CancellationToken.None)
                 .ConfigureAwait(false);
-            var rows = await ReadRowsAsync(connection, tableName, format).ConfigureAwait(false);
+            var rows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None).ConfigureAwait(false);
 
             // Assert
             Assert.Contains($"DEFAULT ({DefaultSqlFor(format)})", sql, StringComparison.OrdinalIgnoreCase);
@@ -69,7 +77,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -96,16 +104,27 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
         try
         {
-            await CreatePopulatedTableAsync(connection, tableName).ConfigureAwait(false);
+            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
             var migrationBuilder = CreateAddGuidDefaultColumn(tableName, format);
 
             // Act
-            var sql = await ExecuteOperationsAsync(context, connection, migrationBuilder.Operations)
+            var sql = await ExecuteOperationsAsync(
+                context,
+                connection,
+                migrationBuilder.Operations,
+                CancellationToken.None)
                 .ConfigureAwait(false);
-            var backfilledRows = await ReadRowsAsync(connection, tableName, format).ConfigureAwait(false);
-            await ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Value`) VALUES (3), (4);")
+
+            var backfilledRows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None)
                 .ConfigureAwait(false);
-            var allRows = await ReadRowsAsync(connection, tableName, format).ConfigureAwait(false);
+
+            await ExecuteRawAsync(
+                connection,
+                $"INSERT INTO `{tableName}` (`Value`) VALUES (3), (4);",
+                CancellationToken.None)
+                .ConfigureAwait(false);
+            var allRows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Contains($"DEFAULT ({DefaultSqlFor(format)})", sql, StringComparison.OrdinalIgnoreCase);
@@ -115,7 +134,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -138,16 +157,21 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
         try
         {
-            await CreatePopulatedTableAsync(connection, tableName).ConfigureAwait(false);
-            var definitionBefore = await ReadTableDefinitionAsync(connection, tableName).ConfigureAwait(false);
+            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            var definitionBefore = await ReadTableDefinitionAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var migrationBuilder = CreateAddGuidDefaultColumn(tableName, format);
 
             // Act
             // WHY: This is an engine restriction; changing binary logging would remove the tested contract.
             var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteOperationsAsync(context, connection, migrationBuilder.Operations));
-            var definitionAfter = await ReadTableDefinitionAsync(connection, tableName).ConfigureAwait(false);
-            var values = await ReadValuesAsync(connection, tableName).ConfigureAwait(false);
+                () => ExecuteOperationsAsync(context, connection, migrationBuilder.Operations, CancellationToken.None));
+
+            var definitionAfter = await ReadTableDefinitionAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
 
             // Assert
             Assert.Equal(1674, exception.Number);
@@ -156,7 +180,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -179,12 +203,17 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
         try
         {
-            _ = await ExecuteOperationsAsync(context, connection, migrationBuilder.Operations).ConfigureAwait(false);
+            _ = await ExecuteOperationsAsync(context, connection, migrationBuilder.Operations, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Act
             var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteRawAsync(connection, $"INSERT INTO `{tableName}` (`Value`) VALUES (1);"));
-            var values = await ReadValuesAsync(connection, tableName).ConfigureAwait(false);
+                () => ExecuteRawAsync(
+                    connection,
+                    $"INSERT INTO `{tableName}` (`Value`) VALUES (1);",
+                    CancellationToken.None));
+
+            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
 
             // Assert
             Assert.Equal(1406, exception.Number);
@@ -192,7 +221,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
