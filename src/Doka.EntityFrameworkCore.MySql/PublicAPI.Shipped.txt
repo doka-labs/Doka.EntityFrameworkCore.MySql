@@ -365,3 +365,8 @@ static Doka.EntityFrameworkCore.MySql.MySqlDatabaseFacadeExtensions.IsMariaDb(th
 Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions
 static Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(this System.Linq.IQueryable<TSource>! source, System.Linq.Expressions.Expression<System.Func<System.Linq.IQueryable<TSource>!, System.Linq.IQueryable<TResult>!>!>! compose) -> System.Linq.IQueryable<TResult>!
 static Doka.EntityFrameworkCore.MySql.MySqlQueryableExtensions.StraightJoin<TOuter, TInner, TKey, TResult>(this System.Linq.IQueryable<TOuter>! outer, System.Linq.IQueryable<TInner>! inner, System.Linq.Expressions.Expression<System.Func<TOuter, TKey>!>! outerKeySelector, System.Linq.Expressions.Expression<System.Func<TInner, TKey>!>! innerKeySelector, System.Linq.Expressions.Expression<System.Func<TOuter, TInner, TResult>!>! resultSelector) -> System.Linq.IQueryable<TResult>!
+Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping
+Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.MySqlBinaryByteArrayTypeMapping(string! storeType, int? size = null) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.CustomizeDataReaderExpression(System.Linq.Expressions.Expression! expression) -> System.Linq.Expressions.Expression!
+override Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.GetDataReaderMethod() -> System.Reflection.MethodInfo!
+static Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping!

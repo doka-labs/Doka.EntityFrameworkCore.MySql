@@ -8,9 +8,13 @@ and operational procedures.
 For the 10.6.4 patch release, see the [changelog](../CHANGELOG.md#1064---2026-11-05),
 [asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
 [shared qualification overview](operations/workflow-overview.md). The release
-strengthens internal cancellation and lifecycle handling and aligns repository
-cleanup with the reviewed Rider rules. Public APIs, the .NET 10 requirement,
-EF Core 10.0.8 minimum, supported engines and storage defaults remain unchanged.
+corrects [fixed binary byte-array reads](provider-configuration.md#fixed-binary-byte-arrays),
+strengthens cancellation and lifecycle handling, and improves generated-context
+runtime qualification. Repository cleanup follows the reviewed Rider rules.
+Application configuration, the .NET 10 requirement, EF Core 10.0.8 minimum,
+supported engines and storage defaults remain unchanged. The stable API baseline
+adds mapping infrastructure for generated compiled models; regenerate existing
+compiled models after upgrading to adopt the corrected binary reader.
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
 remains `>= 2.6.1` and `< 3.0.0`.
 
