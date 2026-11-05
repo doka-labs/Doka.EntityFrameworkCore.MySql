@@ -1,1 +1,6 @@
 #nullable enable
+Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping
+Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.MySqlBinaryByteArrayTypeMapping(string! storeType, int? size = null) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.CustomizeDataReaderExpression(System.Linq.Expressions.Expression! expression) -> System.Linq.Expressions.Expression!
+override Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.GetDataReaderMethod() -> System.Reflection.MethodInfo!
+static Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping.Default.get -> Doka.EntityFrameworkCore.MySql.MySqlBinaryByteArrayTypeMapping!

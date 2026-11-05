@@ -32,6 +32,9 @@
 
   <ItemGroup>
     <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Storage/MySqlBinaryByteArrayIntegrationTests.*.cs">
+      <DependentUpon>MySqlBinaryByteArrayIntegrationTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Caching/MySqlDistributedCacheIntegrationTests.*.cs">
       <DependentUpon>MySqlDistributedCacheIntegrationTests.cs</DependentUpon>
     </Compile>

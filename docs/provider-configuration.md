@@ -444,6 +444,31 @@ migration described in [Migration Operations](operations/migrations.md#guid-repr
 Native UUID can also change sort, range, and keyset behavior; see
 [Supported Databases](supported-databases.md#mariadb-native-uuid).
 
+### Fixed binary byte arrays
+
+An application-owned `byte[]` property may explicitly use `binary(16)` without
+becoming a GUID property. MySqlConnector's required Binary16 transport can expose
+that column as a `Guid`; Doka reconstructs its exact big-endian stored bytes.
+This also applies to retry-buffered queries and application converters whose
+provider CLR type is `byte[]`. Other binary arrays pass through without another
+copy. SQL types, parameter values, fixed-length zero padding and genuine GUID
+mappings retain their existing behavior. No schema change or data rewrite is
+needed to repair reads of existing fixed-binary byte arrays.
+
+`MySqlBinaryByteArrayTypeMapping` is public infrastructure so EF-generated
+compiled models can reference and clone it. Applications do not need to create
+it or add a converter to obtain this behavior. Regenerate existing compiled
+models with `dotnet ef dbcontext optimize` after updating Doka: models generated
+by an older provider embed that provider's previous mapping and do not adopt
+the corrected reader merely through a package update. Database reverse engineering
+cannot infer whether an unannotated `binary(16)` column originally represented
+a `Guid` or raw bytes; its existing GUID inference remains unchanged. Retain an
+explicit byte-array property configuration when that is the application's intent.
+Implicit byte-array length-16 mappings continue to use `varbinary(17)` to avoid
+the connector's separate 16-byte variable-binary inference.
+
+### Native UUID property configuration
+
 For a new MariaDB-native column, select the format explicitly:
 
 ```csharp
