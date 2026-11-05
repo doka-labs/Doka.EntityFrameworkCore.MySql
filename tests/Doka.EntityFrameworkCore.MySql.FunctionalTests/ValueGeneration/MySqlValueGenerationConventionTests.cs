@@ -290,12 +290,12 @@ public sealed class MySqlValueGenerationConventionTests
 
     private sealed class OwnedCollectionElement
     {
-        public string Name { get; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class CompositeOwnedCollectionElement
     {
-        public string Name { get; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class GuidStringPrincipal

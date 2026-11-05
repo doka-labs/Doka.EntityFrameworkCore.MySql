@@ -7,14 +7,49 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.6.4] - 2026-11-05
+
+Stable patch release strengthening internal cancellation and lifecycle handling
+and consolidating complete PR/release-candidate qualification. All three packages
+use the same version. Public APIs, the .NET 10 requirement, EF Core 10.0.8
+minimum, MySqlConnector range, supported engines, GUID/collection defaults and
+cache schema remain unchanged. No database schema migration is required.
+
+MySqlConnector remains `>= 2.6.1` and `< 3.0.0`. Review direct driver pins against
+the [security upgrade guidance](docs/security/dependency-audits.md#mysqlconnector-security-floor).
+SDK 10.0.403 remains the repository build toolchain, not a consumer SDK minimum.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.4
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.4
+dotnet package add Doka.Caching.MySql --version 10.6.4
+```
+
 ### Changed
 
+- Require explicit cancellation-token arguments in Doka-owned asynchronous
+  helpers and forward caller tokens through cancellable work. Preserve EF Core
+  and .NET signatures and deliberately uncancelable cleanup, with the reasons
+  documented in code and the [contributor policy](CONTRIBUTING.md#code-style).
+- Align repository C# layout and reference cleanup with the reviewed Rider
+  configuration. Preserve XML/MSBuild values, Markdown tables, YAML layout and
+  documentation links while keeping short lambdas and empty bodies compact.
 - Use one complete read-only qualification workflow for PRs and release
   candidates, including full integration, deployment/runtime and dependency
   checks, all three packed-package consumers with runtime readback, SBOM and
   coverage. Keep scheduled floating dependency probes and performance
   diagnostics independent; preserve signed tags, protected publication and
   same-run exact-byte recovery.
+
+### Fixed
+
+- Distinguish caller cancellation from execution deadlines in fixture startup,
+  fault proxies and generated-context child processes. Await owned teardown and
+  drain child output before reporting completion; retain startup, cancellation,
+  fault and child-process regression coverage.
+- Preserve writable scalar properties in EF query fixtures after IDE cleanup.
+  Protect convention discovery for owned references, owned collections and
+  ordinary join payloads with focused MySQL/MariaDB model regression tests.
 
 ## [10.6.3] - 2026-10-29
 
@@ -1666,7 +1701,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.3...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.4...HEAD
+[10.6.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.4
 [10.6.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.3
 [10.6.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.2
 [10.6.1]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.1

@@ -382,8 +382,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         /// <summary>Gets or sets the identifier within the owner.</summary>
         public int Id { get; set; }
 
+        // WHY: Translation-only probes still need EF to discover this writable scalar by convention.
         /// <summary>Gets or sets the collection payload.</summary>
-        public string Value { get; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
     }
 
     /// <summary>A flat set of owned reference values.</summary>

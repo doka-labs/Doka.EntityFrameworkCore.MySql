@@ -394,7 +394,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
     private sealed class TemporalProfile
     {
-        public string DisplayName { get; } = null!;
+        // WHY: Query translation must see the scalar in EF's convention-built owned model.
+        public string DisplayName { get; set; } = null!;
     }
 
     private sealed class TemporalNote

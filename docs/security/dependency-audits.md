@@ -8,7 +8,7 @@ that a maintained graph is safe.
 
 ## MySqlConnector security floor
 
-Doka 10.6.3 requires MySqlConnector `>= 2.6.1` and `< 3.0.0` for
+Since 10.6.3, Doka requires MySqlConnector `>= 2.6.1` and `< 3.0.0` for
 [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
 The upstream issue permits password disclosure to an intercepting attacker
 with `VerifyCA`/`VerifyFull`, no `SslCa` and a nonempty password. Update direct

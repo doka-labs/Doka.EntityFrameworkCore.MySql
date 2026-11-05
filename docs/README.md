@@ -5,12 +5,14 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.3 patch release, see the [changelog](../CHANGELOG.md#1063---2026-10-29)
-and [MySqlConnector security upgrade guidance](security/dependency-audits.md#mysqlconnector-security-floor).
-The release raises the driver minimum to 2.6.1 and corrects
-[publication recovery](operations/release-publication.md), dependency
-qualification and audit-artifact handling. Public APIs, the .NET 10 requirement,
+For the 10.6.4 patch release, see the [changelog](../CHANGELOG.md#1064---2026-11-05),
+[asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
+[shared qualification overview](operations/workflow-overview.md). The release
+strengthens internal cancellation and lifecycle handling and aligns repository
+cleanup with the reviewed Rider rules. Public APIs, the .NET 10 requirement,
 EF Core 10.0.8 minimum, supported engines and storage defaults remain unchanged.
+The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
+remains `>= 2.6.1` and `< 3.0.0`.
 
 ## Use the Provider
 

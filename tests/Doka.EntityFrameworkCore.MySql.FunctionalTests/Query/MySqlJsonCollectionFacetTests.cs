@@ -186,7 +186,7 @@ public sealed class MySqlJsonCollectionFacetTests
     {
         public int Marker { get; set; }
 
-        public string Text { get; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
 
         public decimal Amount { get; set; }
 

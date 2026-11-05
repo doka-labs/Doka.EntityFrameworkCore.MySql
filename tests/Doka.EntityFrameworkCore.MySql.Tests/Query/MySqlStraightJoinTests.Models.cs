@@ -120,15 +120,17 @@ public sealed partial class MySqlStraightJoinTests
     /// <summary>Represents an owned reference projection.</summary>
     private sealed class JoinDetails
     {
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the reference payload.</summary>
-        public string Text { get; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
     }
 
     /// <summary>Represents one occurrence in an owned collection.</summary>
     private sealed class JoinTag
     {
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the collection payload.</summary>
-        public string Text { get; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
     }
 
     /// <summary>Represents an ordinary collection with its own stable identifier.</summary>
@@ -140,8 +142,9 @@ public sealed partial class MySqlStraightJoinTests
         /// <summary>Gets or sets the owning node key.</summary>
         public int OwnerId { get; set; }
 
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the ordinary collection payload.</summary>
-        public string Text { get; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
     }
 
     /// <summary>Identifies the intentional no-I/O stopping point after SQL translation.</summary>

@@ -277,6 +277,9 @@ publication authorization, and public package and GitHub release readback. Never
 
 - Follow the existing naming, formatting, and layout conventions in the codebase.
 - Use the repository `.editorconfig` and existing Rider-formatted code as the layout reference. Do not run `dotnet format whitespace`; its output does not match the repository's Rider layout.
+- Treat IDE cleanup as a semantic change when it modifies members. Keep
+  convention-mapped EF scalar properties writable in translation-only fixtures:
+  their setters can be required for model discovery even without test writes.
 - All code comments must be in English.
 - Document public APIs with XML comments and add documentation for internal APIs when it helps IDE users understand a non-obvious contract. Explain non-obvious implementation choices with short WHY comments rather than narrating the code.
 - Require an explicit `CancellationToken` argument on Doka-owned asynchronous

@@ -312,7 +312,7 @@ public sealed class MySqlMaterializedSourceOwnedTests
     private sealed class ReferenceProfile
     {
         /// <summary>Gets or sets the owned string payload.</summary>
-        public string Name { get; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
 
         /// <summary>Gets or sets the owned native binary GUID payload.</summary>
         public Guid Token { get; set; }
