@@ -725,9 +725,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         if (normalizedStoreType == "binary"
             && !string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
         {
-            return new ByteArrayTypeMapping(
+            return new MySqlBinaryByteArrayTypeMapping(
                 mappingInfo.StoreTypeName,
-                DbType.Binary,
                 size);
         }
 

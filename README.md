@@ -121,17 +121,24 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.4` strengthens cancellation propagation and lifecycle handling in
-Doka-owned asynchronous helpers and uses one complete qualification path for
-PRs and release candidates. Repository cleanup follows the reviewed Rider
-formatting rules. See the [changelog][changelog].
+`10.6.4` corrects explicit fixed-binary byte-array reads under Binary16
+transport, including buffered queries and application converters. It also
+strengthens cancellation propagation and lifecycle handling and uses one
+complete qualification path for PRs and release candidates. Scaffolding runtime
+qualification reuses the selected provider binaries and retains sanitized
+failure diagnostics. Repository cleanup follows the reviewed Rider formatting
+rules. See the [changelog][changelog].
 
 The MySqlConnector requirement remains `>= 2.6.1` and `< 3.0.0`. Review direct
 driver pins against the [security upgrade guidance][dependency-security-upgrade].
 
-Public APIs, the .NET 10 requirement, EF Core 10.0.8 minimum, supported engines,
-GUID storage defaults, cache schema and multiple-parameter collection default
-are unchanged. No database schema migration is required for this update.
+Application configuration, the .NET 10 requirement, EF Core 10.0.8 minimum,
+supported engines, GUID storage defaults, cache schema and multiple-parameter
+collection default are unchanged. No database schema migration is required.
+The stable API baseline adds a public mapping infrastructure type for generated
+compiled models. Regenerate existing compiled models after upgrading to adopt
+the corrected binary reader; see
+[fixed binary byte arrays][fixed-binary-byte-arrays].
 SDK 10.0.403 is required to build this repository, not to consume its packages.
 Applications using the optional SafeMigrations MySQL adapter must verify that
 its published dependency range includes 10.6.4 before upgrading the provider.
@@ -585,6 +592,7 @@ The product is MIT-licensed. See [LICENSE][license]. The adapted
 [documentation-index]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/README.md
 [distributed-cache]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/distributed-cache.md
 [external-limitations]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/limitations.md
+[fixed-binary-byte-arrays]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#fixed-binary-byte-arrays
 [generated-value-readback]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/provider-configuration.md#generated-value-readback
 [global-json]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/global.json
 [guid-sql-defaults]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/migrations.md#guid-sql-defaults

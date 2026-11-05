@@ -12,6 +12,7 @@ internal static class GeneratedContextRuntimeVerifier
     private const string ConnectionStringVariable = "DOKA_GENERATED_CONTEXT_CONNECTION";
     private const string ServerVersionVariable = "DOKA_GENERATED_CONTEXT_SERVER_VERSION";
     private const string SuccessMarker = "DOKA_GENERATED_CONTEXT_OK";
+    private const int MaximumDiagnosticCharacters = 32_768;
 
     /// <summary>
     /// Compiles and runs the scaffolded model against the configured database.
@@ -20,10 +21,44 @@ internal static class GeneratedContextRuntimeVerifier
     /// <param name="connectionString">The target database connection string.</param>
     /// <param name="serverVersionText">The provider server-version identity.</param>
     /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
-    public static async Task VerifyAsync(
+    public static Task VerifyAsync(
         ScaffoldedModel scaffoldedModel,
         string connectionString,
         string serverVersionText,
+        CancellationToken cancellationToken
+    ) => VerifyCoreAsync(scaffoldedModel, connectionString, serverVersionText, null, cancellationToken);
+
+    /// <summary>Verifies a scaffold with an independently controlled execution deadline.</summary>
+    /// <param name="scaffoldedModel">The generated model source to compile.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersionText">The provider server-version identity.</param>
+    /// <param name="executionDeadlineToken">The deadline signaled after the child has started.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <remarks>Tests signal the deadline after child readiness instead of depending on machine speed.</remarks>
+    internal static Task VerifyAsync(
+        ScaffoldedModel scaffoldedModel,
+        string connectionString,
+        string serverVersionText,
+        CancellationToken executionDeadlineToken,
+        CancellationToken cancellationToken
+    ) => VerifyCoreAsync(
+        scaffoldedModel,
+        connectionString,
+        serverVersionText,
+        executionDeadlineToken,
+        cancellationToken);
+
+    /// <summary>Prepares and owns one isolated generated-context execution.</summary>
+    /// <param name="scaffoldedModel">The generated model source to compile.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersionText">The provider server-version identity.</param>
+    /// <param name="executionDeadlineToken">An explicit deadline, or null for the normal launch-time deadline.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    private static async Task VerifyCoreAsync(
+        ScaffoldedModel scaffoldedModel,
+        string connectionString,
+        string serverVersionText,
+        CancellationToken? executionDeadlineToken,
         CancellationToken cancellationToken
     )
     {
@@ -50,6 +85,7 @@ internal static class GeneratedContextRuntimeVerifier
                     temporaryDirectory,
                     connectionString,
                     serverVersionText,
+                    executionDeadlineToken,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -59,9 +95,7 @@ internal static class GeneratedContextRuntimeVerifier
                 throw new InvalidOperationException(
                     $"Generated context execution exited with code {result.ExitCode}."
                     + Environment.NewLine
-                    + $"stdout: {result.StandardOutput}"
-                    + Environment.NewLine
-                    + $"stderr: {result.StandardError}");
+                    + FormatDiagnostics(result.StandardOutput, result.StandardError, connectionString));
             }
         }
         finally
@@ -94,45 +128,10 @@ internal static class GeneratedContextRuntimeVerifier
             Path.Combine(temporaryDirectory, "global.json"),
             overwrite: true);
 
-        var providerProject = EscapeXml(
-            Path.Combine(
-                repositoryRoot,
-                "src",
-                "Doka.EntityFrameworkCore.MySql",
-                "Doka.EntityFrameworkCore.MySql.csproj"));
-
-        var spatialProject = EscapeXml(
-            Path.Combine(
-                repositoryRoot,
-                "src",
-                "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
-                "Doka.EntityFrameworkCore.MySql.NetTopologySuite.csproj"));
-
-        var efCoreVersion = GetEfCoreVersion();
-        var projectCode =
-            $"""
-             <Project Sdk="Microsoft.NET.Sdk">
-               <PropertyGroup>
-                 <OutputType>Exe</OutputType>
-                 <TargetFramework>net10.0</TargetFramework>
-                 <Nullable>enable</Nullable>
-                 <ImplicitUsings>disable</ImplicitUsings>
-                 <WarningsAsErrors>true</WarningsAsErrors>
-                 <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
-                 <NuGetAudit>false</NuGetAudit>
-                 <DokaEfCoreVersion>{efCoreVersion}</DokaEfCoreVersion>
-               </PropertyGroup>
-               <ItemGroup>
-                 <ProjectReference Include="{providerProject}" />
-                 <ProjectReference Include="{spatialProject}" />
-               </ItemGroup>
-             </Project>
-             """;
-
         await File
             .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, "GeneratedContext.csproj"),
-                projectCode,
+                CreateProjectCode(),
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
@@ -151,6 +150,60 @@ internal static class GeneratedContextRuntimeVerifier
             await WriteScaffoldedFileAsync(temporaryDirectory, additionalFile, cancellationToken)
                 .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Creates an SDK project bound to the binaries qualified by this test host.</summary>
+    /// <returns>The standalone project XML with explicit compile references and copy-local runtime dependencies.</returns>
+    internal static string CreateProjectCode()
+    {
+        // WHY: Rebuilding source ProjectReferences in each isolated child duplicates
+        // provider compilation across parallel tests. Loaded assembly paths also keep
+        // the child on the exact EF patch and provider binaries selected by this run.
+        var references = string.Join(
+            Environment.NewLine,
+            new[]
+                {
+                    typeof(MySqlServerVersion).Assembly,
+                    typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly,
+                    typeof(DbContext).Assembly,
+                    typeof(RelationalDatabaseFacadeExtensions).Assembly,
+                    typeof(OwnedAttribute).Assembly,
+                    typeof(IReverseEngineerScaffolder).Assembly,
+                    typeof(Geometry).Assembly,
+                    typeof(IServiceCollection).Assembly,
+                    typeof(ILoggerFactory).Assembly,
+                    typeof(MySqlConnection).Assembly,
+                }
+                .Distinct()
+                .Select(assembly =>
+                {
+                    var assemblyName = assembly.GetName().Name
+                        ?? throw new InvalidOperationException("A required assembly has no name.");
+
+                    return $"""
+                            <Reference Include="{EscapeXml(assemblyName)}">
+                              <HintPath>{EscapeXml(assembly.Location)}</HintPath>
+                              <Private>true</Private>
+                            </Reference>
+                            """;
+                }));
+
+        return $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net10.0</TargetFramework>
+                    <Nullable>enable</Nullable>
+                    <ImplicitUsings>disable</ImplicitUsings>
+                    <WarningsAsErrors>true</WarningsAsErrors>
+                    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                    <NuGetAudit>false</NuGetAudit>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    {references}
+                  </ItemGroup>
+                </Project>
+                """;
     }
 
     /// <summary>
@@ -186,11 +239,13 @@ internal static class GeneratedContextRuntimeVerifier
     /// <param name="temporaryDirectory">The isolated project directory.</param>
     /// <param name="connectionString">The target database connection string.</param>
     /// <param name="serverVersionText">The provider server-version identity.</param>
+    /// <param name="executionDeadlineToken">An explicit deadline, or null for the normal two-minute deadline.</param>
     /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     private static async Task<ProcessResult> RunProjectAsync(
         string temporaryDirectory,
         string connectionString,
         string serverVersionText,
+        CancellationToken? executionDeadlineToken,
         CancellationToken cancellationToken
     )
     {
@@ -216,7 +271,7 @@ internal static class GeneratedContextRuntimeVerifier
         startInfo.ArgumentList.Add("--no-launch-profile");
         startInfo.ArgumentList.Add("--nologo");
         startInfo.ArgumentList.Add("--verbosity");
-        startInfo.ArgumentList.Add("quiet");
+        startInfo.ArgumentList.Add("minimal");
         startInfo.ArgumentList.Add("-p:UseSharedCompilation=false");
         startInfo.Environment[ConnectionStringVariable] = connectionString;
         startInfo.Environment[ServerVersionVariable] = serverVersionText;
@@ -230,6 +285,21 @@ internal static class GeneratedContextRuntimeVerifier
         var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
         var exited = process.WaitForExitAsync(CancellationToken.None);
+        using var automaticDeadline = new CancellationTokenSource();
+
+        if (executionDeadlineToken is null)
+        {
+            // WHY: Start hang protection at launch, after project preparation; this
+            // bounds an unresponsive child rather than rating provider performance.
+            automaticDeadline.CancelAfter(TimeSpan.FromMinutes(2));
+        }
+
+        var deadlineToken = executionDeadlineToken ?? automaticDeadline.Token;
+        using var observerCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            deadlineToken);
+
+        OperationCanceledException? deadlineFailure = null;
         string[] output;
 
         try
@@ -237,14 +307,20 @@ internal static class GeneratedContextRuntimeVerifier
             // WHY: The observer distinguishes timeout from caller cancellation;
             // finally still completes the owned exit task before either outcome escapes.
             await exited
-                .WaitAsync(TimeSpan.FromMinutes(2), cancellationToken)
+                .WaitAsync(observerCancellation.Token)
                 .ConfigureAwait(false);
         }
-        catch (TimeoutException exception)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException(
-                "Generated context compilation and execution exceeded two minutes.",
-                exception);
+            // WHY: The linked observer carries its own token; callers must receive
+            // their original token, including when their cancellation and deadline race.
+            throw new OperationCanceledException(exception.Message, exception, cancellationToken);
+        }
+        catch (OperationCanceledException exception) when (deadlineToken.IsCancellationRequested)
+        {
+            // WHY: Freeze the observed outcome before teardown. Later caller
+            // cancellation cannot reclassify this deadline as a caller cancellation.
+            deadlineFailure = exception;
         }
         finally
         {
@@ -270,16 +346,68 @@ internal static class GeneratedContextRuntimeVerifier
                 .ConfigureAwait(false);
         }
 
+        if (deadlineFailure is not null)
+        {
+            // WHY: Construct the failure only after termination and pipe draining,
+            // so the diagnostic identifies whether build or runtime was reached.
+            throw new TimeoutException(
+                "Generated context compilation and execution exceeded its execution deadline."
+                + Environment.NewLine
+                + FormatDiagnostics(output[0], output[1], connectionString),
+                deadlineFailure);
+        }
+
         return new ProcessResult(process.ExitCode, output[0], output[1]);
     }
 
-    private static string GetEfCoreVersion()
+    /// <summary>Formats bounded child diagnostics without exposing supplied credentials.</summary>
+    /// <param name="standardOutput">The drained child standard output.</param>
+    /// <param name="standardError">The drained child standard error.</param>
+    /// <param name="connectionString">The supplied connection string to redact.</param>
+    /// <returns>Labeled diagnostic excerpts safe for test failure output.</returns>
+    private static string FormatDiagnostics(
+        string standardOutput,
+        string standardError,
+        string connectionString
+    )
     {
-        var version = typeof(DbContext).Assembly.GetName()
-                .Version
-            ?? throw new InvalidOperationException("The EF Core assembly has no version.");
+        var connection = new MySqlConnectionStringBuilder(connectionString);
+        var password = connection.Password;
+        var doubleQuotedPassword = password.Replace("\"", "\"\"", StringComparison.Ordinal);
+        var singleQuotedPassword = password.Replace("'", "''", StringComparison.Ordinal);
 
-        return FormattableString.Invariant($"{version.Major}.{version.Minor}.{version.Build}");
+        return $"stdout: {Sanitize(standardOutput)}{Environment.NewLine}stderr: {Sanitize(standardError)}";
+
+        string Sanitize(
+            string text
+        )
+        {
+            var sanitized = text.Replace(connectionString, "[redacted connection]", StringComparison.Ordinal);
+
+            if (connection.ConnectionString.Length > 0)
+            {
+                sanitized = sanitized.Replace(
+                    connection.ConnectionString,
+                    "[redacted connection]",
+                    StringComparison.Ordinal);
+            }
+
+            if (password.Length > 0)
+            {
+                // WHY: Connection-string serializers double their enclosing quote.
+                // Reordered output may not match either full connection string, so
+                // redact both escaped forms before the decoded credential as well.
+                sanitized = sanitized.Replace(doubleQuotedPassword, "[redacted password]", StringComparison.Ordinal);
+                sanitized = sanitized.Replace(singleQuotedPassword, "[redacted password]", StringComparison.Ordinal);
+                sanitized = sanitized.Replace(password, "[redacted password]", StringComparison.Ordinal);
+            }
+
+            // WHY: Redact before truncating so cutting through a credential cannot
+            // leave its prefix visible at the diagnostic excerpt boundary.
+            return sanitized.Length <= MaximumDiagnosticCharacters
+                ? sanitized
+                : sanitized[..MaximumDiagnosticCharacters] + " [output truncated]";
+        }
     }
 
     private static string EscapeXml(
@@ -317,6 +445,9 @@ internal static class GeneratedContextRuntimeVerifier
         using Microsoft.EntityFrameworkCore.Metadata;
         using Microsoft.EntityFrameworkCore.Migrations;
 
+        // WHY: These boundaries distinguish compilation from model, DDL and CRUD
+        // execution in retained timeout diagnostics without evaluating elapsed time.
+        Console.WriteLine("DOKA_GENERATED_CONTEXT_STAGE: started");
         var connectionString = Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_CONNECTION")
             ?? throw new InvalidOperationException("The generated context connection string is missing.");
         var serverVersionText = Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_SERVER_VERSION")
@@ -333,6 +464,7 @@ internal static class GeneratedContextRuntimeVerifier
         var designTimeModel = context.GetService<IDesignTimeModel>().Model;
         var modelDiffer = context.GetService<IMigrationsModelDiffer>();
         var sqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+        Console.WriteLine("DOKA_GENERATED_CONTEXT_STAGE: model-ready");
         var operations = modelDiffer.GetDifferences(
             null,
             designTimeModel.GetRelationalModel());
@@ -342,6 +474,7 @@ internal static class GeneratedContextRuntimeVerifier
             await context.Database.ExecuteSqlRawAsync(command.CommandText);
         }
 
+        Console.WriteLine("DOKA_GENERATED_CONTEXT_STAGE: schema-created");
         var parentEntityType = context.Model.GetEntityTypes()
             .Single(entityType => entityType.GetTableName() == "doka_scaffold_core_parent");
         var childEntityType = context.Model.GetEntityTypes()

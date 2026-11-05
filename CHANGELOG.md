@@ -9,11 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [10.6.4] - 2026-11-05
 
-Stable patch release strengthening internal cancellation and lifecycle handling
-and consolidating complete PR/release-candidate qualification. All three packages
-use the same version. Public APIs, the .NET 10 requirement, EF Core 10.0.8
-minimum, MySqlConnector range, supported engines, GUID/collection defaults and
-cache schema remain unchanged. No database schema migration is required.
+Stable patch release correcting fixed-binary byte-array reads, strengthening
+internal cancellation and lifecycle handling, and consolidating complete
+PR/release-candidate qualification. All three packages use the same version.
+Application configuration, the .NET 10 requirement, EF Core 10.0.8 minimum,
+MySqlConnector range, supported engines, GUID/collection defaults and cache
+schema remain unchanged. No database schema migration is required.
 
 MySqlConnector remains `>= 2.6.1` and `< 3.0.0`. Review direct driver pins against
 the [security upgrade guidance](docs/security/dependency-audits.md#mysqlconnector-security-floor).
@@ -24,6 +25,12 @@ dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.4
 dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.4
 dotnet package add Doka.Caching.MySql --version 10.6.4
 ```
+
+### Added
+
+- Add `MySqlBinaryByteArrayTypeMapping` as public infrastructure for EF-generated
+  compiled models, preserving the byte-reader mapping through cloning. Its
+  declarations are included in the stable API baseline.
 
 ### Changed
 
@@ -43,6 +50,17 @@ dotnet package add Doka.Caching.MySql --version 10.6.4
 
 ### Fixed
 
+- Preserve exact bytes when reading explicit `byte[]` `binary(16)` properties
+  under the required Binary16 connector transport, including buffered queries
+  and application-owned converters. Keep SQL declarations, parameters and
+  genuine GUID mappings unchanged. Regenerate existing compiled models after
+  the package update to adopt the corrected reader.
+  See [binary storage](docs/provider-configuration.md#fixed-binary-byte-arrays).
+- Compile generated scaffolding contexts against the exact provider, EF and
+  spatial assemblies selected by the test host, avoiding redundant recursive
+  provider builds across parallel integration tests. Preserve real child-process
+  schema reconstruction and CRUD checks, retain sanitized timeout diagnostics,
+  and distinguish deadlines from caller cancellation with deterministic tests.
 - Remove the fixed scaffolding-scale runtime ceiling so CPU speed and host load
   cannot fail its performance verdict. Keep elapsed times as diagnostics and
   preserve resource, metadata-command, determinism and cleanup checks.
