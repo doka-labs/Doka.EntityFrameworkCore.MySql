@@ -24,7 +24,9 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
         // Logger factories belong to the active context options and are not part
         // of the provider service-provider identity. Capturing the scoped factory
         // here prevents the first context from defining logging for later contexts.
-        _resilienceLogger = connection.Context?
+        _resilienceLogger = connection
+            .Context
+            ?
             .GetService<ILoggerFactory>()
             .CreateLogger(MySqlLoggerCategory.Resilience);
     }

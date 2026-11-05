@@ -19,11 +19,11 @@ internal sealed partial class MySqlMigrationsModelDiffer
             createIndexOperation.RemoveAnnotation(MySqlAnnotationNames.IndexPrefixLength);
 
             if (!indexMetadata.TryGetValue(
-                    new ProviderIndexIdentity(
-                        createIndexOperation.Schema,
-                        createIndexOperation.Table,
-                        createIndexOperation.Name),
-                    out var metadata))
+                new ProviderIndexIdentity(
+                    createIndexOperation.Schema,
+                    createIndexOperation.Table,
+                    createIndexOperation.Name),
+                out var metadata))
             {
                 continue;
             }
@@ -87,10 +87,10 @@ internal sealed partial class MySqlMigrationsModelDiffer
         var creates = new List<CreateIndexOperation>();
 
         foreach (var sourceIndex in sourceIndexes
-                     .Values
-                     .OrderBy(index => index.Identity.Schema, StringComparer.Ordinal)
-                     .ThenBy(index => index.Identity.Table, StringComparer.Ordinal)
-                     .ThenBy(index => index.Identity.IndexName, StringComparer.Ordinal))
+            .Values
+            .OrderBy(index => index.Identity.Schema, StringComparer.Ordinal)
+            .ThenBy(index => index.Identity.Table, StringComparer.Ordinal)
+            .ThenBy(index => index.Identity.IndexName, StringComparer.Ordinal))
         {
             var targetIndex = ResolveTargetIndex(sourceIndex, targetIndexes);
             if (targetIndex is null
@@ -100,12 +100,12 @@ internal sealed partial class MySqlMigrationsModelDiffer
             }
 
             if (!operations
-                    .OfType<DropIndexOperation>()
-                    .Any(operation => MatchesIndex(
-                        operation.Schema,
-                        operation.Table,
-                        operation.Name,
-                        sourceIndex.Identity)))
+                .OfType<DropIndexOperation>()
+                .Any(operation => MatchesIndex(
+                    operation.Schema,
+                    operation.Table,
+                    operation.Name,
+                    sourceIndex.Identity)))
             {
                 drops.Add(
                     new DropIndexOperation
@@ -308,7 +308,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         public int GetHashCode(
             ProviderIndexIdentity identity
         ) => HashCode.Combine(
-            identity.Schema is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(identity.Schema),
+            identity.Schema is null
+                ? 0
+                : StringComparer.OrdinalIgnoreCase.GetHashCode(identity.Schema),
             StringComparer.OrdinalIgnoreCase.GetHashCode(identity.Table),
             StringComparer.OrdinalIgnoreCase.GetHashCode(identity.IndexName));
     }

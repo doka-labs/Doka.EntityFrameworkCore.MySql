@@ -26,6 +26,12 @@ public sealed partial class MySqlNewFeatureTests
     ) => target
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
-            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+            source
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel(),
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel());
 }

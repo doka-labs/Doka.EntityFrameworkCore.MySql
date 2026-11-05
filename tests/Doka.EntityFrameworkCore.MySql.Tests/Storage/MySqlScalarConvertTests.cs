@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Tests all branches of <see cref="MySqlScalarConvert.ToBoolean"/>.
+/// Tests all branches of <see cref="MySqlScalarConvert.ToBoolean" />.
 /// </summary>
 public sealed class MySqlScalarConvertTests
 {
@@ -254,10 +254,10 @@ public sealed class MySqlScalarConvertTests
 
     /// <summary>
     /// String dispatch contract: <c>"1"</c> compares ordinal-equal; every other input
-    /// routes through <see cref="bool.TryParse(string, out bool)"/> which is
+    /// routes through <see cref="bool.TryParse(string, out bool)" /> which is
     /// case-insensitive and whitespace-tolerant. Inputs the parser does not recognize
     /// (numeric strings other than "1", yes / no, empty string, non-ASCII, etc.) return
-    /// <see langword="false"/>.
+    /// <see langword="false" />.
     /// </summary>
     [Theory]
     [InlineData("1", true)]

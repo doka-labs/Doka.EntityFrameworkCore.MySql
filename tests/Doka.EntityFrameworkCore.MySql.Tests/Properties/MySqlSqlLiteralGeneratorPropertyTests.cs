@@ -34,7 +34,9 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
         var (literal, rejected) = CaptureGeneratedLiteral(raw, MySqlSqlLiteralGenerator.Generate);
 
         // Assert
-        return expected is null ? rejected : !rejected && literal == expected;
+        return expected is null
+            ? rejected
+            : !rejected && literal == expected;
     }
 
     /// <summary>Verifies generated text roundtrips and malformed UTF-16 inputs are rejected.</summary>
@@ -60,14 +62,16 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
             return !validInput;
         }
 
-        if (!validInput || literal is null)
+        if (!validInput
+            || literal is null)
         {
             return false;
         }
 
         var recovered = literal.StartsWith("_utf8mb4 X'", StringComparison.Ordinal)
             ? s_strictUtf8.GetString(Convert.FromHexString(literal[11..^1]))
-            : literal[1..^1].Replace("''", "'", StringComparison.Ordinal);
+            : literal[1..^1]
+                .Replace("''", "'", StringComparison.Ordinal);
 
         return recovered == raw;
     }
@@ -95,7 +99,8 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
             return !validInput;
         }
 
-        if (!validInput || literal is null)
+        if (!validInput
+            || literal is null)
         {
             return false;
         }
@@ -148,7 +153,9 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
         var (literal, rejected) = CaptureGeneratedLiteral(raw, MySqlSqlLiteralGenerator.GenerateDdlComment);
 
         // Assert
-        return expected is null ? rejected : !rejected && literal == expected;
+        return expected is null
+            ? rejected
+            : !rejected && literal == expected;
     }
 
     /// <summary>Verifies that literal generation rejects an explicitly unpaired UTF-16 surrogate.</summary>

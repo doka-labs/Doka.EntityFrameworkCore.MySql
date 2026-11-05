@@ -51,7 +51,10 @@ public sealed partial class MySqlQueryTranslationCoverageTests
             {
                 e.ToTable("CoverageEntities");
                 e.HasKey(x => x.Id);
-                e.Property(x => x.CustomValue).HasConversion<int>();
+                e
+                    .Property(x => x.CustomValue)
+                    .HasConversion<int>();
+
                 e
                     .Property(x => x.TextToken)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);

@@ -34,7 +34,9 @@ internal static class TemporalTableLoader
     )
     {
         var temporalTables = context
-            .TableLookup.Values.Where(table => table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+            .TableLookup
+            .Values
+            .Where(table => table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value is true)
             .ToArray();
 
@@ -283,12 +285,7 @@ internal static class TemporalTableLoader
         }
 
         var marker = triggers[0].Marker;
-        var eventNames = new[]
-        {
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-        };
+        var eventNames = new[] { "INSERT", "UPDATE", "DELETE" };
 
         foreach (var eventName in eventNames)
         {
@@ -353,6 +350,7 @@ internal static class TemporalTableLoader
             expected
                 .Append("DECLARE __doka_temporal_timestamp datetime(6); ")
                 .Append("SET __doka_temporal_timestamp = UTC_TIMESTAMP(6); ");
+
             AppendHistoryInsert(expected, table, marker);
 
             if (string.Equals(eventName, "UPDATE", StringComparison.OrdinalIgnoreCase))
@@ -376,7 +374,8 @@ internal static class TemporalTableLoader
     )
     {
         var columns = table
-            .Columns.Where(column => string.IsNullOrWhiteSpace(column.ComputedColumnSql))
+            .Columns
+            .Where(column => string.IsNullOrWhiteSpace(column.ComputedColumnSql))
             .Select(column => column.Name)
             .ToArray();
 
@@ -456,7 +455,9 @@ internal static class TemporalTableLoader
         {
             var identity = (reader.GetString(0), reader.GetString(1));
             tables[identity] = new PhysicalTableMetadata(
-                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(2)
+                    ? null
+                    : reader.GetString(2),
                 reader.GetString(3));
         }
 
@@ -508,8 +509,12 @@ internal static class TemporalTableLoader
                     reader.GetString(2),
                     reader.GetString(3),
                     string.Equals(reader.GetString(4), "YES", StringComparison.OrdinalIgnoreCase),
-                    reader.IsDBNull(5) ? null : reader.GetString(5),
-                    reader.IsDBNull(6) ? null : reader.GetString(6)));
+                    reader.IsDBNull(5)
+                        ? null
+                        : reader.GetString(5),
+                    reader.IsDBNull(6)
+                        ? null
+                        : reader.GetString(6)));
         }
 
         return columns;
@@ -591,6 +596,7 @@ internal static class TemporalTableLoader
         candidate.Table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourcePeriodStartColumn,
             candidate.Marker.PeriodStartColumn);
+
         candidate.Table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourcePeriodEndColumn,
             candidate.Marker.PeriodEndColumn);
@@ -613,21 +619,25 @@ internal static class TemporalTableLoader
             context.TableLookup.Remove(historyIdentity.TableName);
 
             foreach (var key in context
-                         .Columns.Keys.Where(key => string.Equals(
-                             key.TableName,
-                             historyIdentity.TableName,
-                             StringComparison.Ordinal))
-                         .ToArray())
+                .Columns
+                .Keys
+                .Where(key => string.Equals(
+                    key.TableName,
+                    historyIdentity.TableName,
+                    StringComparison.Ordinal))
+                .ToArray())
             {
                 context.Columns.Remove(key);
             }
         }
 
         foreach (var key in context
-                     .DatabaseColumns.Keys.Where(key =>
-                         string.Equals(key.DatabaseName, historyIdentity.DatabaseName, StringComparison.Ordinal)
-                         && string.Equals(key.TableName, historyIdentity.TableName, StringComparison.Ordinal))
-                     .ToArray())
+            .DatabaseColumns
+            .Keys
+            .Where(key =>
+                string.Equals(key.DatabaseName, historyIdentity.DatabaseName, StringComparison.Ordinal)
+                && string.Equals(key.TableName, historyIdentity.TableName, StringComparison.Ordinal))
+            .ToArray())
         {
             context.DatabaseColumns.Remove(key);
         }
@@ -636,11 +646,7 @@ internal static class TemporalTableLoader
     private static (string DatabaseName, string TableName)[] GetCandidateIdentities(
         IEnumerable<EmulationCandidate> candidates
     ) => candidates
-        .SelectMany(candidate => new[]
-        {
-            candidate.SourceIdentity,
-            candidate.HistoryIdentity
-        })
+        .SelectMany(candidate => new[] { candidate.SourceIdentity, candidate.HistoryIdentity })
         .Distinct()
         .ToArray();
 
@@ -745,7 +751,7 @@ internal static class TemporalTableLoader
                 inQuotedIdentifier = !inQuotedIdentifier;
             }
             else if (character == '\''
-                     && !inQuotedIdentifier)
+                && !inQuotedIdentifier)
             {
                 if (inStringLiteral
                     && index + 1 < sql.Length

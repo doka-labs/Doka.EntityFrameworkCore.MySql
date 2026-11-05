@@ -12,7 +12,5 @@ public sealed class BasicTypesStringTranslationsMySqlTest
 {
     public BasicTypesStringTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }

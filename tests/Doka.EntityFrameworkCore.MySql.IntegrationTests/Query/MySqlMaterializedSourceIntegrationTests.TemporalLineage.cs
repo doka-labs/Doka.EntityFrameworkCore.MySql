@@ -2,15 +2,21 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
+    /// <summary>Verifies the temporal navigation after binding contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertTemporalNavigationAfterBindingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+        await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
+        var query = fixture
+            .Context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
             .WithMaterializedSource(source => source.Select(parent => new
             {
                 parent.Id,
@@ -18,7 +24,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 ChildName = parent.Child.Name,
             }));
 
-        var actual = await query.SingleAsync(CancellationToken.None);
+        var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
         Assert.Equal(1, actual.Id);
@@ -27,15 +33,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the projected temporal navigation after binding contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertProjectedTemporalNavigationAfterBindingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+        await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
+        var query = fixture
+            .Context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
             .Select(parent => parent.Child)
             .WithMaterializedSource(source => source.Select(child => new
             {
@@ -44,7 +56,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 NextName = child.Next!.Name,
             }));
 
-        var actual = await query.SingleAsync(CancellationToken.None);
+        var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
         Assert.Equal(1, actual.Id);
@@ -53,20 +65,30 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the matching temporal bindings can concatenate contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertMatchingTemporalBindingsCanConcatenateAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+        await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
-        var second = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
+        var first = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
 
         // Act
         var query = first.Concat(second);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([1, 1], actual.Select(parent => parent.Id));
@@ -74,43 +96,61 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>
+    /// Verifies the current and historical bindings reject before io contract against the live database.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCurrentAndHistoricalBindingsRejectBeforeIoAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+        await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var historical = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
+        var historical = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
         var current = context.Parents.WithMaterializedSource(source => source);
 
         // Act
         var query = historical.Concat(current);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => query.ToArrayAsync(CancellationToken.None));
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Contains("matching temporal operators", exception.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the different temporal bindings reject before io contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDifferentTemporalBindingsRejectBeforeIoAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateTemporalLineageFixtureAsync(target);
+        await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
-        var second = context.Parents.TemporalAsOf(fixture.Instant.AddDays(1))
+        var first = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(fixture.Instant.AddDays(1))
             .WithMaterializedSource(source => source);
 
         // Act
         var query = first.Concat(second);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => query.ToArrayAsync(CancellationToken.None));
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Contains("identical UTC boundaries", exception.ToString(), StringComparison.Ordinal);

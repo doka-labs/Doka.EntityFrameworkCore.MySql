@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Translates the scalar one-argument <see cref="Convert"/> methods supported by
+/// Translates the scalar one-argument <see cref="Convert" /> methods supported by
 /// EF Core's relational basic-types contract.
 /// </summary>
 internal sealed class MySqlConvertMethodTranslator : IMethodCallTranslator
@@ -20,12 +20,15 @@ internal sealed class MySqlConvertMethodTranslator : IMethodCallTranslator
         .SelectMany(methodName => typeof(Convert)
             .GetRuntimeMethods()
             .Where(method => method.Name == methodName
-                && method.GetParameters().Length == 1))
+                && method.GetParameters()
+                    .Length
+                == 1))
         .ToFrozenSet();
+
+    private readonly MySqlObjectToStringTranslator _objectToStringTranslator;
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
-    private readonly MySqlObjectToStringTranslator _objectToStringTranslator;
 
     public MySqlConvertMethodTranslator(
         ISqlExpressionFactory sqlExpressionFactory,

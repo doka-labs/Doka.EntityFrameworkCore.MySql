@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class ScaffoldingHelpers
 {
     /// <summary>
-    /// Runs <paramref name="commandText"/> as a scalar query and returns the result
+    /// Runs <paramref name="commandText" /> as a scalar query and returns the result
     /// as a string. Returns an empty string when the scalar is null or DBNull.
     /// </summary>
     public static string ExecuteScalarString(
@@ -106,7 +106,9 @@ internal static class ScaffoldingHelpers
 
         var separatorIndex = collation.IndexOf('_');
 
-        return separatorIndex > 0 ? collation[..separatorIndex] : null;
+        return separatorIndex > 0
+            ? collation[..separatorIndex]
+            : null;
     }
 
     /// <summary>
@@ -122,14 +124,17 @@ internal static class ScaffoldingHelpers
         ArgumentNullException.ThrowIfNull(checkClause);
 
         const string functionName = "json_valid";
-        var clause = checkClause.AsSpan().Trim();
+        var clause = checkClause
+            .AsSpan()
+            .Trim();
 
         if (!clause.StartsWith(functionName, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        clause = clause[functionName.Length..].TrimStart();
+        clause = clause[functionName.Length..]
+            .TrimStart();
 
         if (clause.Length < 3
             || clause[0] != '('
@@ -138,7 +143,8 @@ internal static class ScaffoldingHelpers
             return null;
         }
 
-        var columnReference = clause[1..^1].Trim();
+        var columnReference = clause[1..^1]
+            .Trim();
 
         if (columnReference.Length >= 2
             && columnReference[0] == '`'
@@ -184,12 +190,14 @@ internal static class ScaffoldingHelpers
             }
         }
 
-        return columnReference.IsEmpty ? null : columnReference.ToString();
+        return columnReference.IsEmpty
+            ? null
+            : columnReference.ToString();
     }
 
     /// <summary>
-    /// Appends a parametrized TABLE_NAME IN (@t0, @t1, ...) clause to <paramref name="sql"/>
-    /// and binds the values via <paramref name="command"/>. When the filter is MatchAll
+    /// Appends a parametrized TABLE_NAME IN (@t0, @t1, ...) clause to <paramref name="sql" />
+    /// and binds the values via <paramref name="command" />. When the filter is MatchAll
     /// the method is a no-op so the caller's query stays unfiltered. Returns the number
     /// of parameters bound so the caller can short-circuit further filter logic.
     /// </summary>

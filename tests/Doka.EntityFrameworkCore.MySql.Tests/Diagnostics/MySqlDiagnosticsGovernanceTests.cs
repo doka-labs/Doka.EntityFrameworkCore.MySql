@@ -51,8 +51,8 @@ public sealed class MySqlDiagnosticsGovernanceTests
     };
 
     /// <summary>Returns every governed event and subsystem boundary as an independent case.</summary>
-    public static IEnumerable<object[]> EventRangeCases => s_eventRanges.Select(
-        item => new object[] { item.Key, item.Value.Start, item.Value.End });
+    public static IEnumerable<object[]> EventRangeCases =>
+        s_eventRanges.Select(item => new object[] { item.Key, item.Value.Start, item.Value.End });
 
     /// <summary>
     /// Verifies that the stable provider logging categories match the documented taxonomy.
@@ -136,19 +136,21 @@ public sealed class MySqlDiagnosticsGovernanceTests
             Assert.True(
                 actualEventIds.TryGetValue(expectedEventId.Key, out var actualEventId),
                 $"Missing expected MySqlEventId field '{expectedEventId.Key}'.");
+
             Assert.Equal(expectedEventId.Value, actualEventId);
         }
 
         Assert.Equal(
             actualEventIds.Count,
             actualEventIds
-                .Values.Distinct()
+                .Values
+                .Distinct()
                 .Count());
     }
 
     /// <summary>
-    /// Reverse-coverage drift gate: every <see cref="MySqlEventId"/> field must
-    /// have a matching emitter method on <see cref="MySqlLoggerMessages"/> with
+    /// Reverse-coverage drift gate: every <see cref="MySqlEventId" /> field must
+    /// have a matching emitter method on <see cref="MySqlLoggerMessages" /> with
     /// the same name. The pairing convention is intentional: the EventId is the
     /// stable consumer-facing surface, the emitter method is the only legitimate
     /// way to fire that EventId. Drift between the two means either an EventId
@@ -169,7 +171,8 @@ public sealed class MySqlDiagnosticsGovernanceTests
         var emitterMethodNames = typeof(MySqlLoggerMessages)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(method =>
-                method.GetParameters()
+                method
+                    .GetParameters()
                     .FirstOrDefault()
                     ?.ParameterType
                 == typeof(ILogger))

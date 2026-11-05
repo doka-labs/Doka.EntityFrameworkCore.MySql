@@ -38,7 +38,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
     [MemberData(nameof(SelectedTargets))]
     public Task Registered_time_provider_controls_public_DI_cleanup_schedule(
         string targetName
-    ) => AssertPublicDiCleanupScheduleAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName));
+    ) => AssertPublicDiCleanupScheduleAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), CancellationToken.None);
 
     /// <summary>Verifies bounded primary-key cleanup with and without overlapping upserts.</summary>
     [Theory]
@@ -52,7 +52,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         useAsync,
         expiredCount,
-        overlappingCleanup);
+        overlappingCleanup,
+        CancellationToken.None);
 
     /// <summary>Verifies that cleanup deletes expired binary keys only.</summary>
     [Theory]
@@ -60,7 +61,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
     public Task Cleanup_deletes_expired_binary_keys_without_touching_live_entries(
         string targetName,
         bool useAsync
-    ) => AssertBinaryKeysAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), useAsync);
+    ) => AssertBinaryKeysAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), useAsync, CancellationToken.None);
 
     private static TheoryData<string> CreateSelectedTargets()
     {
@@ -105,18 +106,23 @@ public sealed class MySqlCacheCleanupIntegrationTests
         return cases;
     }
 
+    /// <summary>Verifies cache keys retain ordinal binary equality during cleanup.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="useAsync">Whether to exercise the asynchronous implementation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertBinaryKeysAsync(
         IntegrationDatabaseTarget target,
-        bool useAsync
+        bool useAsync,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var store = await CacheIntegrationStore
-            .CreateAsync(target)
+            .CreateAsync(target, cancellationToken)
             .ConfigureAwait(false);
 
         await store
-            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName))
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName), cancellationToken)
             .ConfigureAwait(false);
 
         string[] keys =
@@ -129,7 +135,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
             "key\0",
             "\uE000",
             "\U00010000",
-            new string('k', MySqlCacheDatabaseOperations.MaximumKeyByteLength),
+            new('k', MySqlCacheDatabaseOperations.MaximumKeyByteLength),
         ];
 
         for (var index = 0; index < keys.Length; index++)
@@ -140,7 +146,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                     keys[index],
                     [1],
                     new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) },
-                    CancellationToken.None)
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             if (index % 2 == 0)
@@ -149,7 +155,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
                     .ExecuteForKeyAsync(
                         $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)) "
                         + "WHERE `Id` = CAST(@key AS BINARY);",
-                        keys[index])
+                        keys[index],
+                        cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -163,27 +170,30 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         // Assert
         Assert.Null(
-            await RunCleanupAsync(cache, useAsync, CancellationToken.None)
+            await RunCleanupAsync(cache, useAsync, cancellationToken)
                 .ConfigureAwait(false));
 
         for (var index = 0; index < keys.Length; index++)
         {
             Assert.Equal(
-                index % 2 == 0 ? 0L : 1L,
+                index % 2 == 0
+                    ? 0L
+                    : 1L,
                 await store
-                    .CountKeyAsync(keys[index])
+                    .CountKeyAsync(keys[index], cancellationToken)
                     .ConfigureAwait(false));
         }
 
         await store
             .ExecuteAsync(
-                $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6));")
+                $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6));",
+                cancellationToken)
             .ConfigureAwait(false);
 
         time.Advance(TimeSpan.FromMinutes(5));
 
         Assert.Null(
-            await RunCleanupAsync(cache, useAsync, CancellationToken.None)
+            await RunCleanupAsync(cache, useAsync, cancellationToken)
                 .ConfigureAwait(false));
 
         foreach (var key in keys)
@@ -191,28 +201,32 @@ public sealed class MySqlCacheCleanupIntegrationTests
             Assert.Equal(
                 0L,
                 await store
-                    .CountKeyAsync(key)
+                    .CountKeyAsync(key, cancellationToken)
                     .ConfigureAwait(false));
         }
 
         Assert.Empty(logger.Entries);
     }
 
+    /// <summary>Verifies cleanup scheduling through the public cache registration.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertPublicDiCleanupScheduleAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var store = await CacheIntegrationStore
-            .CreateAsync(target)
+            .CreateAsync(target, cancellationToken)
             .ConfigureAwait(false);
 
         await store
-            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName))
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName), cancellationToken)
             .ConfigureAwait(false);
 
         await store
-            .InsertExpiredEntriesAsync(1006)
+            .InsertExpiredEntriesAsync(1006, cancellationToken)
             .ConfigureAwait(false);
 
         var time = new CacheManualTimeProvider();
@@ -241,7 +255,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 "live",
                 [1],
                 new DistributedCacheEntryOptions(),
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
 
         await cache
@@ -249,14 +263,14 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 "expired-0",
                 [2],
                 new DistributedCacheEntryOptions(),
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(
             1005L,
             await store
-                .CountExpiredAsync()
+                .CountExpiredAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         time.Advance(TimeSpan.FromMinutes(5));
@@ -268,51 +282,58 @@ public sealed class MySqlCacheCleanupIntegrationTests
         Assert.Equal(
             5L,
             await store
-                .CountExpiredAsync()
+                .CountExpiredAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Null(
             await cache
-                .GetAsync("cleanup-miss", CancellationToken.None)
+                .GetAsync("cleanup-miss", cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Equal(
             0L,
             await store
-                .CountExpiredAsync()
+                .CountExpiredAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Equal(
             new byte[] { 1 },
             await cache
-                .GetAsync("live", CancellationToken.None)
+                .GetAsync("live", cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Equal(
             new byte[] { 2 },
             await cache
-                .GetAsync("expired-0", CancellationToken.None)
+                .GetAsync("expired-0", cancellationToken)
                 .ConfigureAwait(false));
     }
 
+    /// <summary>Verifies bounded cleanup does not remove a concurrently refreshed cache entry.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="useAsync">Whether to exercise the asynchronous implementation.</param>
+    /// <param name="expiredCount">The expired count used by this operation.</param>
+    /// <param name="overlappingCleanup">The overlapping cleanup used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertConcurrentUpsertAsync(
         IntegrationDatabaseTarget target,
         bool useAsync,
         int expiredCount,
-        bool overlappingCleanup
+        bool overlappingCleanup,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var store = await CacheIntegrationStore
-            .CreateAsync(target)
+            .CreateAsync(target, cancellationToken)
             .ConfigureAwait(false);
 
         await store
-            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName))
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName), cancellationToken)
             .ConfigureAwait(false);
 
         await store
-            .InsertExpiredEntriesAsync(expiredCount)
+            .InsertExpiredEntriesAsync(expiredCount, cancellationToken)
             .ConfigureAwait(false);
 
         const string key = "expired-0";
@@ -321,7 +342,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
             .ExecuteForKeyAsync(
                 $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -2, UTC_TIMESTAMP(6)) "
                 + "WHERE `Id` = CAST(@key AS BINARY);",
-                key)
+                key,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var time = new CacheManualTimeProvider();
@@ -333,32 +355,35 @@ public sealed class MySqlCacheCleanupIntegrationTests
         }.ConnectionString;
 
         await using var cache = store.CreateCache(time, logger, connectionString);
-        await using var otherCache = overlappingCleanup ? store.CreateCache(time, otherLogger, connectionString) : null;
+        await using var otherCache = overlappingCleanup
+            ? store.CreateCache(time, otherLogger, connectionString)
+            : null;
+
         await using var writer = new MySqlConnection(connectionString);
         await using var observer = new MySqlConnection(connectionString);
 
         await writer
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await observer
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var transaction = await writer
-            .BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken.None)
+            .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Id` FROM {store.QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         writer,
-                         transaction))
+            $"SELECT `Id` FROM {store.QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            writer,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
             Assert.NotNull(
                 await locked
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false));
         }
 
@@ -379,10 +404,13 @@ public sealed class MySqlCacheCleanupIntegrationTests
                     target,
                     store.TableName,
                     pending,
-                    otherCache is null ? 1 : 2)
+                    otherCache is null
+                        ? 1
+                        : 2,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertPrimaryRangePlanAsync(observer, store)
+            await AssertPrimaryRangePlanAsync(observer, store, cancellationToken)
                 .ConfigureAwait(false);
 
             // Use the real upsert while holding its primary record; cleanup must not own the expiry entry first.
@@ -392,18 +420,27 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 transaction);
 
             upsert.Parameters.AddWithValue("@key", key);
-            upsert.Parameters.Add("@value", MySqlDbType.LongBlob).Value = new byte[] { 2 };
-            upsert.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime).Value = DBNull.Value;
-            upsert.Parameters.Add("@absoluteExpirationRelativeMicroseconds", MySqlDbType.Int64).Value = 60_000_000L;
-            upsert.Parameters.Add("@slidingExpirationMicroseconds", MySqlDbType.Int64).Value = DBNull.Value;
-            upsert.Parameters.Add("@revision", MySqlDbType.Int64).Value = 42L;
+            upsert.Parameters.Add("@value", MySqlDbType.LongBlob)
+                .Value = new byte[] { 2 };
+
+            upsert.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime)
+                .Value = DBNull.Value;
+
+            upsert.Parameters.Add("@absoluteExpirationRelativeMicroseconds", MySqlDbType.Int64)
+                .Value = 60_000_000L;
+
+            upsert.Parameters.Add("@slidingExpirationMicroseconds", MySqlDbType.Int64)
+                .Value = DBNull.Value;
+
+            upsert.Parameters.Add("@revision", MySqlDbType.Int64)
+                .Value = 42L;
 
             await upsert
-                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             await transaction
-                .CommitAsync(CancellationToken.None)
+                .CommitAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             await pending
@@ -441,22 +478,22 @@ public sealed class MySqlCacheCleanupIntegrationTests
         Assert.Equal(
             Math.Max(0, expiredCount - MySqlCacheDatabaseOperations.CleanupBatchSize),
             await store
-                .CountExpiredAsync()
+                .CountExpiredAsync(cancellationToken)
                 .ConfigureAwait(false));
 
-        await RunCleanupAsync(otherCache ?? cache, useAsync, CancellationToken.None)
+        await RunCleanupAsync(otherCache ?? cache, useAsync, cancellationToken)
             .ConfigureAwait(false);
 
         Assert.Equal(
             0L,
             await store
-                .CountExpiredAsync()
+                .CountExpiredAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Equal(
             new byte[] { 2 },
             await cache
-                .GetAsync(key, CancellationToken.None)
+                .GetAsync(key, cancellationToken)
                 .ConfigureAwait(false));
     }
 
@@ -468,17 +505,26 @@ public sealed class MySqlCacheCleanupIntegrationTests
     {
         return useAsync
             ? cache.GetAsync("cleanup-miss", cancellationToken)
+
             // WHY: The synchronous cleanup needs its own thread while the test coordinates a database lock.
             // ReSharper disable once MethodHasAsyncOverload
             : Task.Run(() => cache.Get("cleanup-miss"), CancellationToken.None);
     }
 
+    /// <summary>Waits for cleanup to block on the expected primary-key record.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="pending">The pending used by this operation.</param>
+    /// <param name="expectedWaiters">The expected waiters used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertCleanupWaitsForRowAsync(
         MySqlConnection observer,
         IntegrationDatabaseTarget target,
         string tableName,
         Task pending,
-        int expectedWaiters
+        int expectedWaiters,
+        CancellationToken cancellationToken
     )
     {
         // WHY: MySQL exposes live lock relationships in Performance Schema;
@@ -521,7 +567,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
             var waiting = Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
@@ -532,7 +578,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
             // InnoDB's transaction snapshot needs more than 100 ms without a read before it can refresh.
             await Task
-                .Delay(200, CancellationToken.None)
+                .Delay(200, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -548,16 +594,22 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         // Act
         var diagnostics = await command
-            .ExecuteScalarAsync(CancellationToken.None)
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
-        Assert.Fail($"Cleanup did not enter a row-lock wait within the test deadline. Active statements: {diagnostics}");
+        Assert.Fail(
+            $"Cleanup did not enter a row-lock wait within the test deadline. Active statements: {diagnostics}");
     }
 
+    /// <summary>Verifies cleanup deletes use the primary-key range plan.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="store">The store used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertPrimaryRangePlanAsync(
         MySqlConnection observer,
-        CacheIntegrationStore store
+        CacheIntegrationStore store,
+        CancellationToken cancellationToken
     )
     {
         var sql = new MySqlCacheSql(store.QualifiedTableName);
@@ -568,15 +620,16 @@ public sealed class MySqlCacheCleanupIntegrationTests
         // cleanup batches. Build the exact command through production SQL instead.
         await using (var select = new MySqlCommand(sql.SelectExpired, observer))
         {
-            select.Parameters.Add("@batchSize", MySqlDbType.Int32).Value = MySqlCacheDatabaseOperations.CleanupBatchSize;
+            select.Parameters.Add("@batchSize", MySqlDbType.Int32)
+                .Value = MySqlCacheDatabaseOperations.CleanupBatchSize;
 
             await using var candidateReader = await select
-                .ExecuteReaderAsync(CommandBehavior.SequentialAccess, CancellationToken.None)
+                .ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken)
                 .ConfigureAwait(false);
 
             while (await candidateReader
-                       .ReadAsync(CancellationToken.None)
-                       .ConfigureAwait(false))
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false))
             {
                 candidates.Add(candidateReader.GetFieldValue<byte[]>(0));
             }
@@ -589,12 +642,12 @@ public sealed class MySqlCacheCleanupIntegrationTests
         command.CommandText = "EXPLAIN FORMAT=TRADITIONAL " + command.CommandText;
 
         await using var reader = await command
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
         Assert.True(
             await reader
-                .ReadAsync(CancellationToken.None)
+                .ReadAsync(cancellationToken)
                 .ConfigureAwait(false));
 
         Assert.Equal("PRIMARY", reader.GetString("key"));
@@ -602,8 +655,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         Assert.False(
             await reader
-                .ReadAsync(CancellationToken.None)
+                .ReadAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
-
 }

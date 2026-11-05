@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 /// <summary>
-/// Northwind-query fixture parameterized on the standard EF Core <see cref="ITestModelCustomizer"/>
-/// surface. Routes the spec base class to <see cref="MySqlNorthwindTestStoreFactory"/>, turns on
+/// Northwind-query fixture parameterized on the standard EF Core <see cref="ITestModelCustomizer" />
+/// surface. Routes the spec base class to <see cref="MySqlNorthwindTestStoreFactory" />, turns on
 /// detailed-errors, and applies MySQL-specific column-type and max-length overrides to the
 /// upstream Northwind model so the provider's <c>MySqlModelValidator</c> accepts the schema.
 /// </summary>
@@ -44,30 +44,75 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         // fixture's shapes: 5-char customer + employee + territory ids, 30-40 char name fields.
         modelBuilder.Entity<Customer>(b =>
         {
-            b.Property(c => c.CustomerID).HasMaxLength(5);
-            b.Property(c => c.CompanyName).HasMaxLength(40);
-            b.Property(c => c.ContactName).HasMaxLength(30);
-            b.Property(c => c.ContactTitle).HasMaxLength(30);
-            b.Property(c => c.City).HasMaxLength(15);
-            b.Property(c => c.Country).HasMaxLength(15);
-            b.Property(c => c.Fax).HasMaxLength(24);
-            b.Property(c => c.Phone).HasMaxLength(24);
-            b.Property(c => c.PostalCode).HasMaxLength(10);
-            b.Property(c => c.Region).HasMaxLength(15);
-            b.Property(c => c.Address).HasMaxLength(60);
+            b
+                .Property(c => c.CustomerID)
+                .HasMaxLength(5);
+
+            b
+                .Property(c => c.CompanyName)
+                .HasMaxLength(40);
+
+            b
+                .Property(c => c.ContactName)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.ContactTitle)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Country)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Fax)
+                .HasMaxLength(24);
+
+            b
+                .Property(c => c.Phone)
+                .HasMaxLength(24);
+
+            b
+                .Property(c => c.PostalCode)
+                .HasMaxLength(10);
+
+            b
+                .Property(c => c.Region)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Address)
+                .HasMaxLength(60);
         });
 
         modelBuilder.Entity<Order>(b =>
         {
-            b.Property(o => o.CustomerID).HasMaxLength(5);
-            b.Property(o => o.OrderDate).HasColumnType("datetime");
+            b
+                .Property(o => o.CustomerID)
+                .HasMaxLength(5);
+
+            b
+                .Property(o => o.OrderDate)
+                .HasColumnType("datetime");
         });
 
         modelBuilder.Entity<Employee>(b =>
         {
-            b.Property(e => e.FirstName).HasMaxLength(10);
-            b.Property(e => e.City).HasMaxLength(15);
-            b.Property(e => e.Country).HasMaxLength(15);
+            b
+                .Property(e => e.FirstName)
+                .HasMaxLength(10);
+
+            b
+                .Property(e => e.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(e => e.Country)
+                .HasMaxLength(15);
         });
 
         modelBuilder.Entity<Product>(b =>
@@ -75,27 +120,42 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             // CategoryID is intentionally ignored by the official query model. A shadow
             // property keeps the physical Northwind column available to the ProductView
             // contract without making the CLR property queryable by the provider.
-            b.Property<int?>(StoreCategoryIdPropertyName)
+            b
+                .Property<int?>(StoreCategoryIdPropertyName)
                 .HasColumnName("CategoryID");
-            b.Property(p => p.ProductName).HasMaxLength(40);
-            b.Property(p => p.UnitPrice).HasColumnType("decimal(19,4)");
+
+            b
+                .Property(p => p.ProductName)
+                .HasMaxLength(40);
+
+            b
+                .Property(p => p.UnitPrice)
+                .HasColumnType("decimal(19,4)");
         });
 
-        modelBuilder.Entity<OrderDetail>()
+        modelBuilder
+            .Entity<OrderDetail>()
             .Property(od => od.UnitPrice)
             .HasColumnType("decimal(19,4)");
 
         modelBuilder.Entity<MostExpensiveProduct>(b =>
         {
             b.HasKey(product => product.TenMostExpensiveProducts);
-            b.Property(p => p.TenMostExpensiveProducts).HasMaxLength(40);
-            b.Property(p => p.UnitPrice).HasColumnType("decimal(19,4)");
+            b
+                .Property(p => p.TenMostExpensiveProducts)
+                .HasMaxLength(40);
+
+            b
+                .Property(p => p.UnitPrice)
+                .HasColumnType("decimal(19,4)");
         });
 
         modelBuilder.Entity<CustomerOrderHistory>(b =>
         {
             b.HasKey(history => history.ProductName);
-            b.Property(history => history.ProductName).HasMaxLength(40);
+            b
+                .Property(history => history.ProductName)
+                .HasMaxLength(40);
         });
 
         // CustomerQuery + OrderQuery are query-types whose schema mirrors the underlying
@@ -107,23 +167,42 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             b.ToSqlQuery(
                 "SELECT `c`.`Address`, `c`.`City`, `c`.`CompanyName`, "
                 + "`c`.`ContactName`, `c`.`ContactTitle` FROM `Customers` AS `c`");
-            b.Property(c => c.CompanyName).HasMaxLength(40);
-            b.Property(c => c.ContactName).HasMaxLength(30);
-            b.Property(c => c.ContactTitle).HasMaxLength(30);
-            b.Property(c => c.City).HasMaxLength(15);
-            b.Property(c => c.Address).HasMaxLength(60);
+
+            b
+                .Property(c => c.CompanyName)
+                .HasMaxLength(40);
+
+            b
+                .Property(c => c.ContactName)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.ContactTitle)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Address)
+                .HasMaxLength(60);
         });
 
         modelBuilder.Entity<OrderQuery>(b =>
         {
             b.ToSqlQuery("SELECT * FROM `Orders`");
-            b.Property(o => o.CustomerID).HasMaxLength(5);
+            b
+                .Property(o => o.CustomerID)
+                .HasMaxLength(5);
         });
 
-        modelBuilder.Entity<ProductView>()
+        modelBuilder
+            .Entity<ProductView>()
             .ToView("Alphabetical list of products");
 
-        modelBuilder.Entity<CustomerQueryWithQueryFilter>()
+        modelBuilder
+            .Entity<CustomerQueryWithQueryFilter>()
             .ToSqlQuery(
                 """
                 SELECT `c`.`CompanyName`, COUNT(`o`.`OrderID`) AS `OrderCount`, 'A' AS `SearchTerm`
@@ -141,13 +220,14 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         foreach (var productEntry in context.ChangeTracker.Entries<Product>())
         {
-            productEntry.Property(StoreCategoryIdPropertyName).CurrentValue =
+            productEntry.Property(StoreCategoryIdPropertyName)
+                    .CurrentValue =
                 productEntry.Entity.CategoryID;
         }
 
         await context.SaveChangesAsync();
 
-        await CreateRawSqlCompatibilitySurfaceAsync(context);
+        await CreateRawSqlCompatibilitySurfaceAsync(context, cancellationToken: CancellationToken.None);
 
         // EnsureCreated deliberately does not create objects mapped with ToView. Build the
         // Northwind projection after seeding so the database-view contract exercises an actual
@@ -174,6 +254,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         await context.Database.ExecuteSqlRawAsync(
             "DROP PROCEDURE IF EXISTS `Ten Most Expensive Products`");
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE PROCEDURE `Ten Most Expensive Products`()
@@ -187,6 +268,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         await context.Database.ExecuteSqlRawAsync(
             "DROP PROCEDURE IF EXISTS `CustOrderHist`");
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE PROCEDURE `CustOrderHist`(IN `requestedCustomerId` varchar(5))
@@ -213,17 +295,23 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
     /// Keeping the compatibility columns physical-only preserves the official raw-SQL surface
     /// without changing the provider model or every generated query projection.
     /// </remarks>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
     private static async Task CreateRawSqlCompatibilitySurfaceAsync(
-        NorthwindContext context
+        NorthwindContext context,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await context.Database.ExecuteSqlRawAsync(
             """
             ALTER TABLE `Products`
                 ADD COLUMN `QuantityPerUnit` varchar(20) NULL,
                 ADD COLUMN `UnitsOnOrder` smallint unsigned NULL,
                 ADD COLUMN `ReorderLevel` smallint unsigned NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -238,7 +326,8 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
                 ADD COLUMN `ShipRegion` varchar(15) NULL,
                 ADD COLUMN `ShipPostalCode` varchar(10) NULL,
                 ADD COLUMN `ShipCountry` varchar(15) NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -255,42 +344,68 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
                 ADD COLUMN `Photo` longblob NULL,
                 ADD COLUMN `Notes` longtext NULL,
                 ADD COLUMN `PhotoPath` varchar(255) NULL
-            """);
+            """,
+            cancellationToken: cancellationToken);
 
-        await context.Database.OpenConnectionAsync();
+        await context.Database.OpenConnectionAsync(cancellationToken: cancellationToken);
 
         try
         {
             var connection = (MySqlConnection)context.Database.GetDbConnection();
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken: cancellationToken);
 
             await UpdateProductCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Product>().Select(entry => entry.Entity));
+                context
+                    .ChangeTracker
+                    .Entries<Product>()
+                    .Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
+
             await UpdateOrderCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Order>().Select(entry => entry.Entity));
+                context
+                    .ChangeTracker
+                    .Entries<Order>()
+                    .Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
+
             await UpdateEmployeeCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Employee>().Select(entry => entry.Entity));
+                context
+                    .ChangeTracker
+                    .Entries<Employee>()
+                    .Select(entry => entry.Entity),
+                cancellationToken: cancellationToken);
 
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(cancellationToken: cancellationToken);
         }
         finally
         {
+            // WHY: Closing the connection must complete even when compatibility setup is canceled.
             await context.Database.CloseConnectionAsync();
         }
     }
 
+    /// <summary>
+    /// Writes product compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="products">The seeded products whose physical compatibility columns are updated.</param>
     private static async Task UpdateProductCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Product> products
+        IEnumerable<Product> products,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -311,7 +426,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         var reorderLevel = command.Parameters.Add("@reorderLevel", MySqlDbType.UInt16);
         var productId = command.Parameters.Add("@productId", MySqlDbType.Int32);
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var product in products)
         {
@@ -320,16 +435,26 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             reorderLevel.Value = (object?)product.ReorderLevel ?? DBNull.Value;
             productId.Value = product.ProductID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Writes order compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="orders">The seeded orders whose physical compatibility columns are updated.</param>
     private static async Task UpdateOrderCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Order> orders
+        IEnumerable<Order> orders,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -363,7 +488,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         freight.Precision = 18;
         freight.Scale = 3;
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var order in orders)
         {
@@ -379,16 +504,26 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             shipCountry.Value = (object?)order.ShipCountry ?? DBNull.Value;
             orderId.Value = order.OrderID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
+    /// <summary>
+    /// Writes employee compatibility columns through the supplied transaction.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="transaction">The transaction that owns these commands.</param>
+    /// <param name="employees">The seeded employees whose physical compatibility columns are updated.</param>
     private static async Task UpdateEmployeeCompatibilityColumnsAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
-        IEnumerable<Employee> employees
+        IEnumerable<Employee> employees,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -427,7 +562,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         var photoPath = command.Parameters.Add("@photoPath", MySqlDbType.VarChar, 255);
         var employeeId = command.Parameters.Add("@employeeId", MySqlDbType.UInt32);
 
-        await command.PrepareAsync();
+        await command.PrepareAsync(cancellationToken: cancellationToken);
 
         foreach (var employee in employees)
         {
@@ -445,7 +580,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             photoPath.Value = (object?)employee.PhotoPath ?? DBNull.Value;
             employeeId.Value = employee.EmployeeID;
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 }

@@ -15,7 +15,7 @@ internal static class MySqlMaterializedSourceQuoting
                 typeof(string),
                 typeof(int),
                 typeof(MySqlMaterializedSourceDefinition),
-                typeof(IReadOnlyDictionary<string, IAnnotation>)
+                typeof(IReadOnlyDictionary<string, IAnnotation>),
             ],
             modifiers: null)!;
 
@@ -140,7 +140,7 @@ internal static class MySqlMaterializedSourceQuoting
             newAlias,
             GetAnnotations()
                 .ToDictionary(annotation => annotation.Name, StringComparer.Ordinal),
-            _quote.Update([Expression.Constant(newAlias), .. _quote.Arguments.Skip(1)]));
+            _quote.Update([Constant(newAlias), .. _quote.Arguments.Skip(1)]));
 
         /// <inheritdoc />
         protected override TableExpressionBase WithAnnotations(
@@ -148,7 +148,8 @@ internal static class MySqlMaterializedSourceQuoting
         ) => new QuotedReference(
             Alias,
             annotations,
-            _quote.Update([.. _quote.Arguments.Take(3), MySqlRelationalExpressionQuoting.QuoteAnnotations(annotations)]));
+            _quote.Update(
+                [.. _quote.Arguments.Take(3), MySqlRelationalExpressionQuoting.QuoteAnnotations(annotations)]));
 
         /// <inheritdoc />
         protected override void Print(

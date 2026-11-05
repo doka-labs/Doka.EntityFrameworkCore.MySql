@@ -157,7 +157,9 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         {
             Table = "Entries",
             Name = "ComputedValue",
-            ClrType = columnType == "json" ? typeof(string) : typeof(byte[]),
+            ClrType = columnType == "json"
+                ? typeof(string)
+                : typeof(byte[]),
             ColumnType = columnType,
             IsNullable = true,
             ComputedColumnSql = computedColumnSql,
@@ -251,8 +253,12 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
             ColumnType = "varchar(64)",
             IsNullable = true,
             Comment = "path\\segment",
-            ComputedColumnSql = useComputedSql ? @"REPLACE(`Source`, '\\', '/')" : null,
-            DefaultValueSql = useComputedSql ? null : @"'path\\segment'",
+            ComputedColumnSql = useComputedSql
+                ? @"REPLACE(`Source`, '\\', '/')"
+                : null,
+            DefaultValueSql = useComputedSql
+                ? null
+                : @"'path\\segment'",
         };
 
         // Act
@@ -281,7 +287,9 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
         var operation = new CreateTableOperation
         {
             Name = "Entries",
-            Comment = source == "table_comment" ? "path\\segment" : null,
+            Comment = source == "table_comment"
+                ? "path\\segment"
+                : null,
         };
 
         operation.Columns.Add(
@@ -292,8 +300,11 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
                 ClrType = typeof(string),
                 ColumnType = "varchar(64)",
                 IsNullable = true,
-                Comment = source == "sibling_column_comment" ? "path\\segment" : null,
+                Comment = source == "sibling_column_comment"
+                    ? "path\\segment"
+                    : null,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -302,7 +313,9 @@ public sealed class MySqlColumnDefaultSqlGenerationTests
                 ClrType = typeof(string),
                 ColumnType = "varchar(64)",
                 IsNullable = true,
-                DefaultValueSql = source == "check_constraint" ? null : "'path\\\\segment'",
+                DefaultValueSql = source == "check_constraint"
+                    ? null
+                    : "'path\\\\segment'",
             });
 
         if (source == "check_constraint")

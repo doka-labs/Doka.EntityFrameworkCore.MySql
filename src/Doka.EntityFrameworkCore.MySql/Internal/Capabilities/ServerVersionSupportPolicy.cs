@@ -92,6 +92,8 @@ internal static class ServerVersionSupportPolicy
     )
     {
         var majorComparison = version.Major.CompareTo(major);
-        return majorComparison != 0 ? majorComparison : version.Minor.CompareTo(minor);
+        return majorComparison != 0
+            ? majorComparison
+            : version.Minor.CompareTo(minor);
     }
 }

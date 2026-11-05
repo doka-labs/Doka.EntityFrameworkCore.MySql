@@ -21,17 +21,18 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            context.Items.Add(new QueryItem
-            {
-                Name = "m",
-                Value = -16.7,
-                Category = "X",
-                CreatedAt = new DateTime(2025, 1, 1),
-            });
+            context.Items.Add(
+                new QueryItem
+                {
+                    Name = "m",
+                    Value = -16.7,
+                    Category = "X",
+                    CreatedAt = new DateTime(2025, 1, 1),
+                });
 
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();

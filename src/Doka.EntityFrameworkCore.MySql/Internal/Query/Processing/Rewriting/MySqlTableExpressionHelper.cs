@@ -35,7 +35,7 @@ internal static class MySqlTableExpressionHelper
 
     /// <summary>
     /// Returns the derived select wrapped by a CROSS or OUTER APPLY expression,
-    /// or <see langword="null"/> for any other table shape.
+    /// or <see langword="null" /> for any other table shape.
     /// </summary>
     public static SelectExpression? GetApplySelect(
         TableExpressionBase table

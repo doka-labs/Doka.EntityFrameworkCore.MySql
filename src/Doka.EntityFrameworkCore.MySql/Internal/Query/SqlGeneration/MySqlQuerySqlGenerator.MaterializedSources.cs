@@ -38,7 +38,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             var suffix = 0;
 
             while (inventory.PhysicalNames.Contains(name)
-                   || inventory.RawSql.Any(sql => sql.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                || inventory.RawSql.Any(sql => sql.Contains(name, StringComparison.OrdinalIgnoreCase)))
             {
                 // WHY: Raw SQL may contain arbitrarily long underscore runs. Appending underscores
                 // then exceeds the server's identifier limit; an integer suffix keeps names bounded.
@@ -67,6 +67,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             Sql
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name))
                 .Append(" (");
+
             Sql.Append(string.Join(", ", columns.Select(Dependencies.SqlGenerationHelper.DelimitIdentifier)));
             Sql.AppendLine(") AS (");
 
@@ -84,12 +85,16 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Sql
                     .Append("FROM ")
                     .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(name));
+
                 Sql.AppendLine();
                 Sql.AppendLine("WHERE 1 = 0");
             }
 
             Sql
-                .Append(index + 1 == inventory.Definitions.Count ? ")" : "),")
+                .Append(
+                    index + 1 == inventory.Definitions.Count
+                        ? ")"
+                        : "),")
                 .AppendLine();
         }
 

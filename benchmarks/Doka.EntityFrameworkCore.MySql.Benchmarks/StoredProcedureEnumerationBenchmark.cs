@@ -14,18 +14,18 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 [MemoryDiagnoser]
 public class StoredProcedureEnumerationBenchmark : IDisposable
 {
+    private MySqlModificationCommand _command = null!;
     private ProcedureContext _context = null!;
     private ProcedureContext _generatedContext = null!;
+    private DbDataReader _generatedReader = null!;
+    private DataTable _generatedTable = null!;
     private MySqlUpdateSqlGenerator _generator = null!;
-    private MySqlModificationCommand _command = null!;
+    private Func<object> _inspectGeneratedReadback = null!;
     private IColumnModification _mappedOutput = null!;
     private Func<IReadOnlyModificationCommand, RelationalDataReader, int?> _readRowsAffected = null!;
     private RelationalDataReader _reader = null!;
-    private DataTable _table = null!;
-    private DataTable _generatedTable = null!;
-    private DbDataReader _generatedReader = null!;
-    private Func<object> _inspectGeneratedReadback = null!;
     private StringBuilder _sql = null!;
+    private DataTable _table = null!;
 
     /// <summary>Gets or sets the complete entity column count.</summary>
     [Params(4, 50)]
@@ -38,6 +38,19 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
     /// <summary>Gets or sets whether the affected-row output requires a full parameter scan.</summary>
     [Params(false, true)]
     public bool RowsAffectedLast { get; set; }
+
+    /// <summary>Releases the positioned reader, BCL output table, and context.</summary>
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _reader?.Dispose();
+        _table?.Dispose();
+        _generatedReader?.Dispose();
+        _generatedTable?.Dispose();
+        _generatedContext?.Dispose();
+        _context?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>
     /// Creates real procedure metadata and tracked modifications, then positions
@@ -59,21 +72,39 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
             values[ValueName(index)] = index + 1;
         }
 
-        var tracked = _context.Set<Dictionary<string, object>>(name).Attach(values);
+        var tracked = _context
+            .Set<Dictionary<string, object>>(name)
+            .Attach(values);
+
         tracked.State = EntityState.Modified;
         var metadata = _context.Model.FindEntityType(name)!;
-        var table = metadata.GetTableMappings().Single().Table;
-        var procedure = metadata.GetUpdateStoredProcedureMappings().Single().StoreStoredProcedure;
-        var entry = _context.GetService<IUpdateAdapterFactory>().Create().Entries.Single();
-        _command = (MySqlModificationCommand)_context.GetService<IModificationCommandFactory>()
-            .CreateModificationCommand(new ModificationCommandParameters(
-                table,
-                procedure,
-                sensitiveLoggingEnabled: false,
-                detailedErrorsEnabled: false,
-                comparer: null,
-                generateParameterName: _context.NextParameterName,
-                logger: null));
+        var table = metadata
+            .GetTableMappings()
+            .Single()
+            .Table;
+
+        var procedure = metadata
+            .GetUpdateStoredProcedureMappings()
+            .Single()
+            .StoreStoredProcedure;
+
+        var entry = _context
+            .GetService<IUpdateAdapterFactory>()
+            .Create()
+            .Entries
+            .Single();
+
+        _command = (MySqlModificationCommand)_context
+            .GetService<IModificationCommandFactory>()
+            .CreateModificationCommand(
+                new ModificationCommandParameters(
+                    table,
+                    procedure,
+                    sensitiveLoggingEnabled: false,
+                    detailedErrorsEnabled: false,
+                    comparer: null,
+                    generateParameterName: _context.NextParameterName,
+                    logger: null));
 
         _command.AddEntry(entry, mainEntry: true);
         _generator = (MySqlUpdateSqlGenerator)_context.GetService<IUpdateSqlGenerator>();
@@ -94,6 +125,7 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
             dataReader,
             Guid.Empty,
             logger: null);
+
         _mappedOutput = _command.ColumnModifications
             .First(modification => modification is { IsRead: true, Property: not null });
 
@@ -112,6 +144,7 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
             $"Procedure collections ({MariaDb}, {ColumnCount}, affected-last={RowsAffectedLast}): "
             + $"columns={_command.ColumnModifications.GetType().FullName}; "
             + $"parameters={procedure.Parameters.GetType().FullName}");
+
         Console.WriteLine(
             $"Procedure fingerprint ({MariaDb}, {ColumnCount}, {RowsAffectedLast}): {CaptureFingerprint()}");
     }
@@ -124,7 +157,11 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
         _sql.Clear();
         var mapping = _generator.AppendStoredProcedureCall(_sql, _command, 0, out var transaction);
 
-        return _sql.Length + ((long)mapping << 32) + (transaction ? 1L << 48 : 0);
+        return _sql.Length
+            + ((long)mapping << 32)
+            + (transaction
+                ? 1L << 48
+                : 0);
     }
 
     /// <summary>Propagates all mapped OUT/INOUT values through the real provider command.</summary>
@@ -158,39 +195,48 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
         var mapping = _generator.AppendStoredProcedureCall(_sql, _command, 0, out var transaction);
         var output = PropagateOutputs();
         var evidence = new StringBuilder();
-        evidence.Append(MariaDb).Append('|').Append(ColumnCount).Append('|').Append(RowsAffectedLast)
-            .Append('|').Append((int)mapping)
-            .Append('|').Append(transaction).Append('|').Append(output).Append('|').Append(ReadRowsAffected())
-            .Append('|').Append(_sql);
+        evidence
+            .Append(MariaDb)
+            .Append('|')
+            .Append(ColumnCount)
+            .Append('|')
+            .Append(RowsAffectedLast)
+            .Append('|')
+            .Append((int)mapping)
+            .Append('|')
+            .Append(transaction)
+            .Append('|')
+            .Append(output)
+            .Append('|')
+            .Append(ReadRowsAffected())
+            .Append('|')
+            .Append(_sql);
 
         foreach (var modification in _command.ColumnModifications)
         {
-            evidence.Append('|').Append(modification.ColumnName).Append(':')
-                .Append(modification.IsRead).Append(':').Append(modification.Value);
+            evidence
+                .Append('|')
+                .Append(modification.ColumnName)
+                .Append(':')
+                .Append(modification.IsRead)
+                .Append(':')
+                .Append(modification.Value);
         }
 
         var generated = InspectGeneratedReadback();
-        foreach (var field in generated.GetType()
-                     .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                     .OrderBy(field => field.Name, StringComparer.Ordinal))
+        foreach (var field in generated
+            .GetType()
+            .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .OrderBy(field => field.Name, StringComparer.Ordinal))
         {
-            evidence.Append('|').Append(field.Name).Append(':').Append(field.GetValue(generated));
+            evidence
+                .Append('|')
+                .Append(field.Name)
+                .Append(':')
+                .Append(field.GetValue(generated));
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence.ToString())));
-    }
-
-    /// <summary>Releases the positioned reader, BCL output table, and context.</summary>
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _reader?.Dispose();
-        _table?.Dispose();
-        _generatedReader?.Dispose();
-        _generatedTable?.Dispose();
-        _generatedContext?.Dispose();
-        _context?.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private static DataTable CreateOutputTable(
@@ -215,7 +261,10 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
 
             var ordinal = values.Count;
             table.Columns.Add("Output" + ordinal, typeof(int));
-            values.Add(ReferenceEquals(modification.Column, command.RowsAffectedColumn) ? 1 : 2000 + ordinal);
+            values.Add(
+                ReferenceEquals(modification.Column, command.RowsAffectedColumn)
+                    ? 1
+                    : 2000 + ordinal);
         }
 
         table.Rows.Add(values.ToArray());
@@ -230,12 +279,20 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
         _generatedContext = CreateContext(mariaDb: false);
         var name = "ReadbackRows" + ColumnCount;
         var metadata = _generatedContext.Model.FindEntityType(name)!;
-        var table = metadata.GetTableMappings().Single().Table;
+        var table = metadata
+            .GetTableMappings()
+            .Single()
+            .Table;
+
         var key = metadata.FindPrimaryKey()!;
-        var adapter = _generatedContext.GetService<IUpdateAdapterFactory>().Create();
+        var adapter = _generatedContext
+            .GetService<IUpdateAdapterFactory>()
+            .Create();
+
         var factory = _generatedContext.GetService<IModificationCommandFactory>();
         var batch = (MySqlModificationCommandBatch)_generatedContext
-            .GetService<IModificationCommandBatchFactory>().Create();
+            .GetService<IModificationCommandBatchFactory>()
+            .Create();
 
         // WHY: Two distinct tracked keys are required to exercise complete generated-result correlation.
         // ReSharper disable once ForCanBeConvertedToForeach
@@ -256,15 +313,19 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
                 values[ValueName(index)] = row + index + 1;
             }
 
-            _generatedContext.Set<Dictionary<string, object>>(name).Add(values);
+            _generatedContext
+                .Set<Dictionary<string, object>>(name)
+                .Add(values);
+
             var entry = adapter.TryGetEntry(key, [row + 1])!;
-            var command = factory.CreateModificationCommand(new ModificationCommandParameters(
-                table,
-                sensitiveLoggingEnabled: false,
-                detailedErrorsEnabled: false,
-                comparer: null,
-                generateParameterName: _generatedContext.NextParameterName,
-                logger: null));
+            var command = factory.CreateModificationCommand(
+                new ModificationCommandParameters(
+                    table,
+                    sensitiveLoggingEnabled: false,
+                    detailedErrorsEnabled: false,
+                    comparer: null,
+                    generateParameterName: _generatedContext.NextParameterName,
+                    logger: null));
 
             command.AddEntry(entry, mainEntry: true);
             if (!batch.TryAddCommand(command))
@@ -280,6 +341,7 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
         _generatedReader = _generatedTable.CreateDataReader();
         var method = typeof(MySqlModificationCommandBatch)
             .GetMethod("CreateGeneratedValueReadback", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
         var call = Expression.Call(
             Expression.Constant(batch),
             method,
@@ -289,7 +351,9 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
         // WHY: The result type is a private provider struct. The one-time
         // delegate adds identical result-boxing overhead, not copied logic or
         // timed reflection. Evidence reports this overhead separately.
-        _inspectGeneratedReadback = Expression.Lambda<Func<object>>(Expression.Convert(call, typeof(object))).Compile();
+        _inspectGeneratedReadback = Expression
+            .Lambda<Func<object>>(Expression.Convert(call, typeof(object)))
+            .Compile();
     }
 
     private static ProcedureContext CreateContext(
@@ -310,7 +374,11 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
     private static string EntityName(
         int columnCount,
         bool rowsAffectedLast
-    ) => "ProcedureRows" + columnCount + (rowsAffectedLast ? "Last" : "First");
+    ) => "ProcedureRows"
+        + columnCount
+        + (rowsAffectedLast
+            ? "Last"
+            : "First");
 
     private static string ValueName(
         int index
@@ -337,9 +405,14 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
             {
                 var readback = modelBuilder.SharedTypeEntity<Dictionary<string, object>>("ReadbackRows" + columnCount);
                 readback.ToTable("ReadbackRows" + columnCount);
-                readback.IndexerProperty<int>("Id").ValueGeneratedNever();
+                readback
+                    .IndexerProperty<int>("Id")
+                    .ValueGeneratedNever();
+
                 readback.HasKey("Id");
-                readback.IndexerProperty<int>("Generated").HasComputedColumnSql("42", stored: true);
+                readback
+                    .IndexerProperty<int>("Generated")
+                    .HasComputedColumnSql("42", stored: true);
 
                 // WHY: Add exactly the non-key, non-generated columns required by the selected width.
                 // ReSharper disable once ForCanBeConvertedToForeach
@@ -365,7 +438,10 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
             var name = EntityName(columnCount, rowsAffectedLast);
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>(name);
             entity.ToTable(name);
-            entity.IndexerProperty<int>("Id").ValueGeneratedNever();
+            entity
+                .IndexerProperty<int>("Id")
+                .ValueGeneratedNever();
+
             entity.HasKey("Id");
 
             // WHY: Ordinals select the repeating generation pattern used by the procedure descriptor fixture.
@@ -389,44 +465,46 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
 
             // WHY: EF only allows a rows-affected output on UPDATE/DELETE,
             // so this real update mapping exercises that unread output slot.
-            entity.UpdateUsingStoredProcedure(name + "_Update", procedure =>
-            {
-                // WHY: First exercises the short scan and skipped reader slot;
-                // last exercises a full scan of the actual procedure parameters.
-                if (!rowsAffectedLast)
+            entity.UpdateUsingStoredProcedure(
+                name + "_Update",
+                procedure =>
                 {
-                    procedure.HasRowsAffectedParameter(parameter => parameter.HasName("RowsAffected"));
-                }
-
-                procedure.HasOriginalValueParameter("Id");
-
-                // WHY: Reuse each property ordinal to configure matching IN, OUT and INOUT parameter positions.
-                // ReSharper disable once ForCanBeConvertedToForeach
-                // ReSharper disable once LoopCanBeConvertedToQuery
-                for (var index = 0; index < columnCount - 1; index++)
-                {
-                    var property = ValueName(index);
-                    switch (index % 3)
+                    // WHY: First exercises the short scan and skipped reader slot;
+                    // last exercises a full scan of the actual procedure parameters.
+                    if (!rowsAffectedLast)
                     {
-                        case 0:
-                            procedure.HasParameter(property);
-                            break;
-
-                        case 1:
-                            procedure.HasParameter(property, parameter => parameter.IsInputOutput());
-                            break;
-
-                        default:
-                            procedure.HasParameter(property, parameter => parameter.IsOutput());
-                            break;
+                        procedure.HasRowsAffectedParameter(parameter => parameter.HasName("RowsAffected"));
                     }
-                }
 
-                if (rowsAffectedLast)
-                {
-                    procedure.HasRowsAffectedParameter(parameter => parameter.HasName("RowsAffected"));
-                }
-            });
+                    procedure.HasOriginalValueParameter("Id");
+
+                    // WHY: Reuse each property ordinal to configure matching IN, OUT and INOUT parameter positions.
+                    // ReSharper disable once ForCanBeConvertedToForeach
+                    // ReSharper disable once LoopCanBeConvertedToQuery
+                    for (var index = 0; index < columnCount - 1; index++)
+                    {
+                        var property = ValueName(index);
+                        switch (index % 3)
+                        {
+                            case 0:
+                                procedure.HasParameter(property);
+                                break;
+
+                            case 1:
+                                procedure.HasParameter(property, parameter => parameter.IsInputOutput());
+                                break;
+
+                            default:
+                                procedure.HasParameter(property, parameter => parameter.IsOutput());
+                                break;
+                        }
+                    }
+
+                    if (rowsAffectedLast)
+                    {
+                        procedure.HasRowsAffectedParameter(parameter => parameter.HasName("RowsAffected"));
+                    }
+                });
         }
     }
 }

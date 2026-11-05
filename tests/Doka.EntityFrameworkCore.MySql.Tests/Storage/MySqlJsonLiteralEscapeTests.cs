@@ -49,7 +49,7 @@ public sealed class MySqlJsonLiteralEscapeTests
         // Arrange
         using var document = JsonDocument.Parse(serialized);
         var expectedLength = serialized.Contains('\\', StringComparison.Ordinal)
-            ? 12 + (Encoding.UTF8.GetByteCount(serialized) * 2)
+            ? 12 + Encoding.UTF8.GetByteCount(serialized) * 2
             : serialized.Length + serialized.Count(character => character == '\'') + 2;
 
         // Act

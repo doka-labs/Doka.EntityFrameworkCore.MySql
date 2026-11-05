@@ -40,6 +40,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
     {
         var directed = (_straightJoinOwner ?? this)._straightJoinInputs?.Remove((SelectExpression)inner.QueryExpression)
             == true;
+
         var select = (SelectExpression)outer.QueryExpression;
         var translated = base.TranslateJoin(outer, inner, outerKeySelector, innerKeySelector, resultSelector);
 

@@ -45,6 +45,7 @@ public sealed class TwoDatabasesMySqlTest : TwoDatabasesTestBase, IClassFixture<
         Server = "localhost",
         UserID = "root",
         Database = "DokaDummy",
+
         // Declaring the provider invariants here keeps the shared EF test
         // focused on interceptor-driven database switching.
         ApplicationName = MySqlDiagnostics.DefaultDriverPoolName,
@@ -56,6 +57,8 @@ public sealed class TwoDatabasesMySqlTest : TwoDatabasesTestBase, IClassFixture<
     ) : base(fixture) { }
 
     private MySqlFixture TypedFixture => (MySqlFixture)Fixture;
+
+    protected override string DummyConnectionString => s_dummyConnectionString;
 
     protected override DbContextOptionsBuilder CreateTestOptions(
         DbContextOptionsBuilder optionsBuilder,
@@ -71,15 +74,15 @@ public sealed class TwoDatabasesMySqlTest : TwoDatabasesTestBase, IClassFixture<
         }
 
         return optionsBuilder.UseMySql(
-            withNullConnectionString ? null! : DummyConnectionString,
+            withNullConnectionString
+                ? null!
+                : DummyConnectionString,
             MySqlTestStore.ServerVersion);
     }
 
     protected override TwoDatabasesWithDataContext CreateBackingContext(
         string databaseName
     ) => new(TypedFixture.CreateOptions(MySqlTestStore.Create(databaseName)));
-
-    protected override string DummyConnectionString => s_dummyConnectionString;
 
     public sealed class MySqlFixture : ServiceProviderFixtureBase
     {

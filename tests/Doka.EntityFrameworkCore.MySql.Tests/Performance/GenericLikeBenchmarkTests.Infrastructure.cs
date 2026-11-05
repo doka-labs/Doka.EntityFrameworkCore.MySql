@@ -1,8 +1,10 @@
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class GenericLikeBenchmarkTests
 {
-    private static DbContextOptions<Benchmarks.BenchmarkContext> CreateOptions(
+    private static DbContextOptions<BenchmarkContext> CreateOptions(
         bool isMariaDb,
         List<EventData> events
     )
@@ -11,7 +13,7 @@ public sealed partial class GenericLikeBenchmarkTests
             ? MySqlServerVersion.MariaDb(new Version(11, 4, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        return new DbContextOptionsBuilder<Benchmarks.BenchmarkContext>()
+        return new DbContextOptionsBuilder<BenchmarkContext>()
             .UseMySql(
                 "Server=127.0.0.1;Database=benchmark_measurement_tests;",
                 serverVersion,
@@ -33,7 +35,7 @@ public sealed partial class GenericLikeBenchmarkTests
     {
         var contexts = events
             .OfType<ContextInitializedEventData>()
-            .Select(eventData => Assert.IsType<Benchmarks.BenchmarkContext>(eventData.Context))
+            .Select(eventData => Assert.IsType<BenchmarkContext>(eventData.Context))
             .Select(context => new ContextSnapshot(
                 context,
                 context.GetInfrastructure(),
@@ -56,28 +58,33 @@ public sealed partial class GenericLikeBenchmarkTests
         string methodName
     )
     {
-        var control = Assert.Single(controls, entry => entry.GetProperty("id").GetString() == controlId);
+        var control = Assert.Single(
+            controls,
+            entry => entry
+                    .GetProperty("id")
+                    .GetString()
+                == controlId);
 
-        Assert.Equal(methodName, control.GetProperty("method").GetString());
-        Assert.Equal("allocatedBytes", control.GetProperty("metric").GetString());
+        Assert.Equal(
+            methodName,
+            control
+                .GetProperty("method")
+                .GetString());
+
+        Assert.Equal(
+            "allocatedBytes",
+            control
+                .GetProperty("metric")
+                .GetString());
     }
-
-    /// <summary>
-    /// Holds the context-owned references needed to detect hidden service reconstruction during measured calls.
-    /// </summary>
-    private sealed record ContextSnapshot(
-        Benchmarks.BenchmarkContext Context,
-        IServiceProvider ServiceProvider,
-        IModel Model,
-        IAsyncQueryProvider QueryProvider
-    );
 
     /// <summary>
     /// Captures references immediately after one call so later iterations cannot hide a temporary replacement.
     /// </summary>
     private static ContextSnapshot[] CaptureCurrentContexts(
         ContextSnapshot[] contexts
-    ) => contexts.Select(snapshot => new ContextSnapshot(
+    ) => contexts
+        .Select(snapshot => new ContextSnapshot(
             snapshot.Context,
             snapshot.Context.GetInfrastructure(),
             snapshot.Context.Model,
@@ -101,4 +108,14 @@ public sealed partial class GenericLikeBenchmarkTests
             Assert.Same(expected[index].QueryProvider, actual[index].QueryProvider);
         }
     }
+
+    /// <summary>
+    /// Holds the context-owned references needed to detect hidden service reconstruction during measured calls.
+    /// </summary>
+    private sealed record ContextSnapshot(
+        BenchmarkContext Context,
+        IServiceProvider ServiceProvider,
+        IModel Model,
+        IAsyncQueryProvider QueryProvider
+    );
 }

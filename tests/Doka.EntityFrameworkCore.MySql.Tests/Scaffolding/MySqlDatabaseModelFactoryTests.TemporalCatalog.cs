@@ -61,6 +61,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "audit_entries",
                 "BEFORE",
                 insertBody);
+
             table.Rows.Add(
                 MySqlTemporalMetadata.CreateTriggerName(null, "audit_entries", "update"),
                 "UPDATE",
@@ -141,6 +142,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 tableName,
                 "Name",
@@ -152,6 +154,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 "utf8mb4_0900_ai_ci");
+
             table.Rows.Add(
                 tableName,
                 "ValidFrom",
@@ -163,6 +166,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 tableName,
                 "ValidTo",
@@ -182,7 +186,15 @@ public sealed partial class MySqlDatabaseModelFactoryTests
             string tableName
         )
         {
-            table.Rows.Add(databaseName, tableName, "Id", "int", "NO", DBNull.Value, DBNull.Value);
+            table.Rows.Add(
+                databaseName,
+                tableName,
+                "Id",
+                "int",
+                "NO",
+                DBNull.Value,
+                DBNull.Value);
+
             table.Rows.Add(
                 databaseName,
                 tableName,
@@ -191,6 +203,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "NO",
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 databaseName,
                 tableName,
@@ -199,6 +212,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "NO",
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 databaseName,
                 tableName,

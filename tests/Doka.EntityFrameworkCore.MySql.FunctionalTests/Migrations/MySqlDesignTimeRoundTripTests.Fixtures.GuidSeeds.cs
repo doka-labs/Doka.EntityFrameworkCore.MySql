@@ -24,22 +24,28 @@ public sealed class GuidSeedDesignContext : DbContext
             entity
                 .Property(record => record.ExplicitChar36)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
             entity
                 .Property(record => record.Binary16)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
             entity
                 .Property(record => record.DefaultChar36)
                 .HasDefaultValue(new Guid("27caab1e-a588-4dcc-bace-fef7cf47e1fd"));
+
             entity
                 .Property(record => record.DefaultBinary16)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16)
                 .HasDefaultValue(new Guid("5c855603-622d-4bee-b232-f74f63026caf"));
+
             entity
                 .Property(record => record.OptionalDefaultChar36)
                 .HasDefaultValue(new Guid("19bbd2b4-6a65-4469-bfaa-6ed3d4c19d81"));
+
             entity
                 .Property(record => record.EmptyDefaultChar36)
                 .HasDefaultValue(Guid.Empty);
+
             entity.HasData(
                 new GuidSeedDesignRecord
                 {
@@ -76,11 +82,13 @@ public sealed class GuidSeedDesignContext : DbContext
                 .WithMany(record => record.RequiredDependents)
                 .HasForeignKey(record => record.PrincipalId)
                 .OnDelete(DeleteBehavior.Cascade);
+
             entity
                 .HasOne(record => record.OptionalPrincipal)
                 .WithMany(record => record.OptionalDependents)
                 .HasForeignKey(record => record.OptionalPrincipalId)
                 .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasData(
                 new GuidSeedDependentRecord
                 {
@@ -235,6 +243,7 @@ public sealed class Char36ComplexOnlyDesignContext : DbContext
                     complex
                         .Property(details => details.ExternalId)
                         .HasDefaultValue(new Guid("0517e651-62e5-4a93-845d-fd87b14e4363"));
+
                     complex
                         .Property(details => details.ApplicationId)
                         .HasConversion<string>()
@@ -337,6 +346,7 @@ public sealed class ApplicationGuidSeedDesignContext : DbContext
                 .Property(record => record.Id)
                 .HasConversion<string>()
                 .HasDefaultValue(new Guid("89a78261-ea26-494e-a520-b518f51ed3d1"));
+
             entity.HasData(
                 new ApplicationGuidSeedDesignRecord
                 {

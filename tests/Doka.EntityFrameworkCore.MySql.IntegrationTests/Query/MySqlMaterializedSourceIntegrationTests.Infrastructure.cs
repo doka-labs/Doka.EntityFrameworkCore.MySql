@@ -11,7 +11,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         IInterceptor interceptor
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<BindingContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<BindingContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -21,8 +22,11 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         return new BindingContext(options);
     }
 
+    /// <summary>Creates the fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<BindingFixture> CreateFixtureAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var probe = new BindingCommandProbe();
@@ -30,42 +34,52 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropTablesAsync(context);
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            await DropTablesAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
 
             for (var id = 1; id <= 32; id++)
             {
                 var item = new BoundItem
                 {
                     Id = id,
-                    Name = id == 1 ? "ALPHA" : id == 2 ? "alpha" : $"item-{id}",
-                    Token = id == 1 ? s_binaryToken : Guid.Empty,
-                    OptionalScore = id == 1 ? null : id,
+                    Name = id == 1
+                        ? "ALPHA"
+                        : id == 2
+                            ? "alpha"
+                            : $"item-{id}",
+                    Token = id == 1
+                        ? s_binaryToken
+                        : Guid.Empty,
+                    OptionalScore = id == 1
+                        ? null
+                        : id,
                     Code = new BoundCode($"code-{id}"),
                 };
 
                 if (id <= 2)
                 {
-                    item.Children.Add(new BoundChild
-                    {
-                        Id = id,
-                        Name = $"child-{id}",
-                    });
+                    item.Children.Add(
+                        new BoundChild
+                        {
+                            Id = id,
+                            Name = $"child-{id}",
+                        });
                 }
 
                 if (id == 1)
                 {
-                    item.Children.Add(new BoundChild
-                    {
-                        Id = 3,
-                        Name = "child-1b",
-                    });
+                    item.Children.Add(
+                        new BoundChild
+                        {
+                            Id = 3,
+                            Name = "child-1b",
+                        });
                 }
 
                 context.Add(item);
             }
 
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
 
@@ -79,11 +93,14 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Drops the tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropTablesAsync(
-        BindingContext context
+        BindingContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{ChildTable}`; DROP TABLE IF EXISTS `{ItemTable}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class BindingFixture(
         BindingContext context,
@@ -98,7 +115,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropTablesAsync(Context);
+                await DropTablesAsync(Context, CancellationToken.None);
             }
             finally
             {
@@ -136,7 +153,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             Count++;
             Token = cancellationToken;
             CommandText = command.CommandText;
-            ParameterValues = command.Parameters.Cast<DbParameter>()
+            ParameterValues = command
+                .Parameters
+                .Cast<DbParameter>()
                 .Select(parameter => parameter.Value)
                 .ToArray();
 
@@ -159,24 +178,41 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             {
                 entity.ToTable(ItemTable);
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).ValueGeneratedNever();
-                entity.Property(item => item.Name)
+                entity
+                    .Property(item => item.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(item => item.Name)
                     .HasMaxLength(64)
                     .UseCollation("utf8mb4_general_ci");
-                entity.Property(item => item.Token).HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                entity.Property(item => item.Code)
+
+                entity
+                    .Property(item => item.Token)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
+                entity
+                    .Property(item => item.Code)
                     .HasConversion(value => value.Value, value => new BoundCode(value))
                     .HasMaxLength(64);
-                entity.HasMany(item => item.Children)
+
+                entity
+                    .HasMany(item => item.Children)
                     .WithOne()
                     .HasForeignKey(child => child.ItemId);
             });
+
             modelBuilder.Entity<BoundChild>(entity =>
             {
                 entity.ToTable(ChildTable);
                 entity.HasKey(child => child.Id);
-                entity.Property(child => child.Id).ValueGeneratedNever();
-                entity.Property(child => child.Name).HasMaxLength(64);
+                entity
+                    .Property(child => child.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(child => child.Name)
+                    .HasMaxLength(64);
             });
         }
     }

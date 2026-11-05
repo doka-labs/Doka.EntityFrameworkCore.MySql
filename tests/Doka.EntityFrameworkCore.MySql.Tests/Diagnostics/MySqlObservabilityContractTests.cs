@@ -13,7 +13,7 @@ public sealed partial class MySqlObservabilityContractTests
     private static readonly string[] s_alertSeverities =
     [
         "critical",
-        "warning"
+        "warning",
     ];
 
     /// <summary>
@@ -65,10 +65,13 @@ public sealed partial class MySqlObservabilityContractTests
         Assert.Equal(
             operations.Count,
             actual);
+
         Assert.Equal(operations.Count, contractSpans.Count);
         Assert.Equal(
-            operations.Sum(operation => MetricNames(operation).Count),
+            operations.Sum(operation => MetricNames(operation)
+                .Count),
             contractMetrics.Count);
+
         Assert.True(publicSpans.SetEquals(contractSpans));
         Assert.True(publicMetrics.SetEquals(contractMetrics));
         Assert.Equal(
@@ -77,35 +80,41 @@ public sealed partial class MySqlObservabilityContractTests
                 .GetProperty("sources")
                 .GetProperty("provider")
                 .GetString());
+
         Assert.Equal(
             MySqlDiagnostics.MySqlConnectorSourceName,
             root
                 .GetProperty("sources")
                 .GetProperty("driver")
                 .GetString());
+
         Assert.Equal(
             MySqlDiagnostics.EfCoreDiagnosticSourceName,
             root
                 .GetProperty("sources")
                 .GetProperty("efCoreDiagnosticListener")
                 .GetString());
+
         Assert.Equal(
             MySqlDiagnostics.DefaultDriverPoolName,
             root
                 .GetProperty("privacy")
                 .GetProperty("defaultDriverPoolName")
                 .GetString());
+
         var privacy = root.GetProperty("privacy");
         AssertDomain(
             privacy.GetProperty("boundedLogFieldDomains"),
             "configurationFailureReason",
             Enum.GetNames<MySqlConfigurationFailureReason>());
+
         Assert.Equal(
             "SHA-256",
             privacy
                 .GetProperty("objectScopeId")
                 .GetProperty("algorithm")
                 .GetString());
+
         Assert.Equal(
             16,
             privacy
@@ -123,7 +132,8 @@ public sealed partial class MySqlObservabilityContractTests
         // Arrange
         using var contract = LoadContract();
         var operations = contract
-            .RootElement.GetProperty("operations")
+            .RootElement
+            .GetProperty("operations")
             .EnumerateArray()
             .ToList();
 
@@ -131,7 +141,7 @@ public sealed partial class MySqlObservabilityContractTests
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(field => field.FieldType == typeof(EventId))
             .Select(field => ((EventId)field.GetValue(null)!).Id)
-            .Where(eventId => eventId is 1000 or 1005 or (>= 1100 and <= 1199) or (>= 1500 and <= 1599))
+            .Where(eventId => eventId is 1000 or 1005 or >= 1100 and <= 1199 or >= 1500 and <= 1599)
             .Order()
             .ToList();
 
@@ -151,11 +161,13 @@ public sealed partial class MySqlObservabilityContractTests
         Assert.Equal(
             contractEventIds.Count,
             actual);
+
         Assert.Equal(
             expectedOperationalEventIds,
             contractEventIds
                 .Order()
                 .ToList());
+
         // WHY: ownership is a global invariant; checking every row here detects
         // duplicate or missing owners across the entire diagnostic catalog.
         foreach (var operation in operations)
@@ -165,11 +177,13 @@ public sealed partial class MySqlObservabilityContractTests
                     operation
                         .GetProperty("span")
                         .GetString()));
+
             Assert.NotEmpty(
                 operation
                     .GetProperty("eventIds")
                     .EnumerateArray()
                     .ToList());
+
             Assert.NotEmpty(MetricNames(operation));
         }
     }
@@ -229,6 +243,7 @@ public sealed partial class MySqlObservabilityContractTests
                     alert
                         .GetProperty("condition")
                         .GetString()));
+
             Assert.Contains(
                 alert
                     .GetProperty("severity")
@@ -277,7 +292,8 @@ public sealed partial class MySqlObservabilityContractTests
         // Arrange
         using var contract = LoadContract();
         var domains = contract
-            .RootElement.GetProperty("operations")
+            .RootElement
+            .GetProperty("operations")
             .EnumerateArray()
             .Single(operation => OperationId(operation) == operationId)
             .GetProperty("metricTagDomains");
@@ -306,7 +322,8 @@ public sealed partial class MySqlObservabilityContractTests
     {
         // Arrange
         using var contract = LoadContract();
-        var handlerBounds = contract.RootElement
+        var handlerBounds = contract
+            .RootElement
             .GetProperty("operations")
             .EnumerateArray()
             .Single(operation => OperationId(operation) == "migration-operation-handler")
@@ -367,20 +384,28 @@ public sealed partial class MySqlObservabilityContractTests
 
         // Act
         using (var activity = operation switch
-        {
-            "migration_lock" => MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql),
-            "lock_release_failure" => MySqlActivitySource.StartMigrationLockReleaseFailed(EngineFamily.MySql, exception),
-            "retry_attempt" => MySqlActivitySource.StartRetryAttempt(2, EngineFamily.MySql),
-            "retry_exhausted" => MySqlActivitySource.StartRetryLimitExceeded(EngineFamily.MySql, exception),
-            "cancellation" => MySqlActivitySource.StartCancellation(
-                MySqlDiagnosticTags.Hard, "Broken", EngineFamily.MySql, exception),
-            "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
-            "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Closed", EngineFamily.MySql, exception),
-            "server_version" => MySqlActivitySource.StartServerVersionResolve(EngineFamily.MariaDb),
-            "migration_handler" => MySqlActivitySource.StartMigrationOperationHandler(
-                "tests.handler", "Tests.CustomOperation", "default", EngineFamily.MySql),
-            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-        })
+            {
+                "migration_lock" => MySqlActivitySource.StartMigrationLockAcquire(EngineFamily.MySql),
+                "lock_release_failure" => MySqlActivitySource.StartMigrationLockReleaseFailed(
+                    EngineFamily.MySql,
+                    exception),
+                "retry_attempt" => MySqlActivitySource.StartRetryAttempt(2, EngineFamily.MySql),
+                "retry_exhausted" => MySqlActivitySource.StartRetryLimitExceeded(EngineFamily.MySql, exception),
+                "cancellation" => MySqlActivitySource.StartCancellation(
+                    MySqlDiagnosticTags.Hard,
+                    "Broken",
+                    EngineFamily.MySql,
+                    exception),
+                "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
+                "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Closed", EngineFamily.MySql, exception),
+                "server_version" => MySqlActivitySource.StartServerVersionResolve(EngineFamily.MariaDb),
+                "migration_handler" => MySqlActivitySource.StartMigrationOperationHandler(
+                    "tests.handler",
+                    "Tests.CustomOperation",
+                    "default",
+                    EngineFamily.MySql),
+                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            })
         {
             if (operation == "migration_handler")
             {
@@ -389,7 +414,8 @@ public sealed partial class MySqlObservabilityContractTests
         }
 
         var activities = sink
-            .Activities.Where(activity => activity.TraceId == rootActivity.TraceId)
+            .Activities
+            .Where(activity => activity.TraceId == rootActivity.TraceId)
             .ToList();
 
         // Assert
@@ -401,14 +427,25 @@ public sealed partial class MySqlObservabilityContractTests
         Assert.All(
             required,
             tag => Assert.True(tags.ContainsKey(tag), $"Span '{captured.OperationName}' misses '{tag}'."));
+
         Assert.DoesNotContain(
             tags.Values,
-            value => value?.ToString()?.Contains(secret, StringComparison.Ordinal) == true);
+            value => value
+                    ?.ToString()
+                    ?.Contains(secret, StringComparison.Ordinal)
+                == true);
+
         Assert.DoesNotContain(
             tags.Values,
-            value => value?.ToString()?.Contains(privateData, StringComparison.Ordinal) == true);
+            value => value
+                    ?.ToString()
+                    ?.Contains(privateData, StringComparison.Ordinal)
+                == true);
+
         Assert.Equal(
-            operation == "server_version" ? MySqlDiagnosticTags.MariaDb : MySqlDiagnosticTags.MySql,
+            operation == "server_version"
+                ? MySqlDiagnosticTags.MariaDb
+                : MySqlDiagnosticTags.MySql,
             captured.GetTagItem(MySqlDiagnosticTags.DatabaseSystem));
     }
 
@@ -492,8 +529,8 @@ public sealed partial class MySqlObservabilityContractTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {
@@ -513,9 +550,10 @@ public sealed partial class MySqlObservabilityContractTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = Activities.Enqueue,
             };
+
             ActivitySource.AddActivityListener(_listener);
         }
 

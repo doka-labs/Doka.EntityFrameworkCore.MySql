@@ -118,7 +118,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 typeof(IEntityType),
                 typeof(IReadOnlyList<SelectExpression>),
                 typeof(ColumnExpression),
-                typeof(List<string>)
+                typeof(List<string>),
             ])
             ?? throw new InvalidOperationException(
                 $"EF Core changed the constructor contract for '{TpcTablesExpressionTypeName}'.");

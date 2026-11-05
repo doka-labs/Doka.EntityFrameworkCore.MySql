@@ -213,7 +213,7 @@ public sealed partial class
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Executes the equivalent query-syntax contract without assigning a deterministic
@@ -223,7 +223,7 @@ public sealed partial class
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
@@ -247,10 +247,16 @@ public sealed partial class
     /// <see href="https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/order-by">
     /// MariaDB ORDER BY</see>.
     /// </remarks>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
     private async Task AssertTakeThenOrderByRank(
-        bool async
+        bool async,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         await AssertQuery(
             async,
             TakeThenOrderByRankQuery.Create,
@@ -287,7 +293,7 @@ public sealed partial class
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Executes the equivalent query-syntax contract without imposing a relative
@@ -297,7 +303,7 @@ public sealed partial class
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
@@ -315,10 +321,16 @@ public sealed partial class
     /// sort is stable. The engine references and rationale are documented on the
     /// equivalent TPC contract above.
     /// </remarks>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
     private async Task AssertTakeThenOrderByRank(
-        bool async
+        bool async,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         await AssertQuery(async, TakeThenOrderByRankQuery.Create, elementSorter: fullName => fullName);
 
         Assert.Contains("ORDER BY `s`.`Rank`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
@@ -341,6 +353,7 @@ internal static class TakeThenOrderByRankQuery
         .Where(gear => !gear.HasSoulPatch)
         .Take(999)
         .OrderBy(gear => gear.FullName)
+
         // The second OrderBy intentionally replaces the preceding ordering. ThenBy
         // would retain FullName as the primary key and change this conformance contract.
         .OrderBy(gear => gear.Rank)

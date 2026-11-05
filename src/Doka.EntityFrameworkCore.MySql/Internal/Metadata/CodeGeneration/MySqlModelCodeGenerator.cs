@@ -3,9 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
 {
     private static readonly Regex s_dbSetPropertyRegex = DbSetPropertyRegex();
+    private readonly ICSharpHelper _csharpHelper;
 
     private readonly IModelCodeGenerator _innerGenerator;
-    private readonly ICSharpHelper _csharpHelper;
 
     public MySqlModelCodeGenerator(
         IModelCodeGenerator innerGenerator,
@@ -30,6 +30,7 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
 
         scaffoldedModel.ContextFile.Code = EnsureProviderNamespaceUsing(
             scaffoldedModel.ContextFile.Code);
+
         scaffoldedModel.ContextFile.Code = RewriteDbSetProperties(scaffoldedModel.ContextFile.Code);
         scaffoldedModel.ContextFile.Code = AddMissingRelationalConfiguration(
             scaffoldedModel.ContextFile.Code,
@@ -149,10 +150,10 @@ internal sealed partial class MySqlModelCodeGenerator : IModelCodeGenerator
             foreach (var columnOrder in configuration.ColumnOrders)
             {
                 if (HasColumnOrderConfiguration(
-                        code,
-                        configuration.EntityType.Name,
-                        columnOrder.Property.Name,
-                        columnOrder.Order!.Value))
+                    code,
+                    configuration.EntityType.Name,
+                    columnOrder.Property.Name,
+                    columnOrder.Order!.Value))
                 {
                     continue;
                 }

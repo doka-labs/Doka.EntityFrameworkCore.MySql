@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Verifies repository contracts fail precisely at their public engineering boundaries.</summary>
@@ -47,7 +49,11 @@ public sealed class RepositoryContractTests
 
         // Assert
         Assert.Equal(1, report.LinkCount);
-        Assert.Contains(expectedError, Assert.Single(report.Errors).Message, StringComparison.Ordinal);
+        Assert.Contains(
+            expectedError,
+            Assert.Single(report.Errors)
+                .Message,
+            StringComparison.Ordinal);
     }
 
     /// <summary>Verifies illustrative links inside fenced code do not become documentation dependencies.</summary>
@@ -83,23 +89,30 @@ public sealed class RepositoryContractTests
         var repositoryRoot = FindRepositoryRoot();
         using var directory = new TemporaryDirectory();
         foreach (var relativePath in new[]
-                 {
-                     "docker/compose.yml", ".github/workflows/ci.yml", ".github/workflows/quality-gates.yml",
-                     "benchmarks/performance-contract.json",
-                     "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs",
-                 })
+            {
+                "docker/compose.yml",
+                ".github/workflows/ci.yml",
+                ".github/workflows/quality-gates.yml",
+                "benchmarks/performance-contract.json",
+                "tests/Doka.EntityFrameworkCore.MySql.TestUtilities/TestDatabaseImages.cs",
+            })
         {
             var destination = Path.Combine(directory.Path, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             File.Copy(Path.Combine(repositoryRoot, relativePath), destination);
         }
+
         var workflowPath = Path.Combine(directory.Path, relativeWorkflow);
         var workflow = File.ReadAllText(workflowPath);
         var compose = File.ReadAllText(Path.Combine(directory.Path, "docker/compose.yml"));
         var pin = Regex.Match(compose, "mysql:8\\.4[^\\s]+@sha256:[0-9a-f]{64}", RegexOptions.CultureInvariant)
             .Value;
 
-        var replacement = pin[..^1] + (pin[^1] == '0' ? '1' : '0');
+        var replacement = pin[..^1]
+            + (pin[^1] == '0'
+                ? '1'
+                : '0');
+
         File.WriteAllText(workflowPath, workflow + $"\n# Declared image: {replacement}\n");
 
         // Act
@@ -125,16 +138,22 @@ public sealed class RepositoryContractTests
         var messagePath = Path.Combine(directory.Path, "COMMIT_EDITMSG");
         File.WriteAllText(
             messagePath,
-            valid ? "fix(provider): preserve exact tree trust\n\n"
-            + "- Main qualification must reuse only identical PR content.\n\n"
-            + "- Bind the merged commit to its qualified PR tree.\n"
-            + "- Reject missing, ambiguous, or changed tree evidence.\n" : "invalid subject\n");
+            valid
+                ? "fix(provider): preserve exact tree trust\n\n"
+                + "- Main qualification must reuse only identical PR content.\n\n"
+                + "- Bind the merged commit to its qualified PR tree.\n"
+                + "- Reject missing, ambiguous, or changed tree evidence.\n"
+                : "invalid subject\n");
 
         // Act
         var result = RunCommitMessageGate(repositoryRoot, messagePath);
 
         // Assert
-        Assert.Equal(valid ? 0 : 1, result.ExitCode);
+        Assert.Equal(
+            valid
+                ? 0
+                : 1,
+            result.ExitCode);
 
         if (!valid)
         {
@@ -159,8 +178,12 @@ public sealed class RepositoryContractTests
         Directory.CreateDirectory(Path.Combine(directory.Path, "eng/performance"));
         Directory.CreateDirectory(Path.Combine(directory.Path, "eng/quality"));
         Directory.CreateDirectory(Path.Combine(directory.Path, "eng/testing"));
+
         // WHY: Every isolated violation still needs the test entrypoint that this contract always inspects.
-        File.WriteAllText(Path.Combine(directory.Path, "eng/testing/test.sh"), "#!/usr/bin/env bash\nset -euo pipefail\n");
+        File.WriteAllText(
+            Path.Combine(directory.Path, "eng/testing/test.sh"),
+            "#!/usr/bin/env bash\nset -euo pipefail\n");
+
         File.WriteAllText(Path.Combine(directory.Path, relativePath), content);
 
         // Act
@@ -191,7 +214,7 @@ public sealed class RepositoryContractTests
         string messagePath
     )
     {
-        var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+        var startInfo = new ProcessStartInfo("bash")
         {
             RedirectStandardError = true,
             RedirectStandardOutput = true,
@@ -201,7 +224,7 @@ public sealed class RepositoryContractTests
         startInfo.ArgumentList.Add(Path.Combine(repositoryRoot, "eng/quality/commit-message.sh"));
         startInfo.ArgumentList.Add(messagePath);
 
-        using var process = System.Diagnostics.Process.Start(startInfo)
+        using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Commit message gate did not start.");
 
         process.WaitForExit();

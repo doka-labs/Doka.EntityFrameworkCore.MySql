@@ -155,7 +155,7 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
     )
     {
         if (annotations.TryGetValue(MySqlAnnotationNames.IsTemporal, out var annotation)
-            && (annotation.Value as bool?) == true)
+            && annotation.Value as bool? == true)
         {
             var periodStartPropertyName = RequireName(
                 entityType.GetMySqlTemporalPeriodStartPropertyName(),
@@ -185,6 +185,7 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
 
             temporalCalls.Add(
                 CreatePeriodPropertyCall(entityType, periodStartPropertyName, s_temporalHasPeriodStartMethod));
+
             temporalCalls.Add(
                 CreatePeriodPropertyCall(entityType, periodEndPropertyName, s_temporalHasPeriodEndMethod));
 
@@ -274,7 +275,9 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
 
         var call = new MethodCallCodeFragment(method, propertyName);
 
-        return columnName is null ? call : call.Chain(s_propertyHasColumnNameMethod, columnName);
+        return columnName is null
+            ? call
+            : call.Chain(s_propertyHasColumnNameMethod, columnName);
     }
 
     private static string RequireName(
@@ -376,6 +379,7 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
             annotations[RelationalAnnotationNames.DefaultValue] = new Annotation(
                 RelationalAnnotationNames.DefaultValue,
                 providerOwnedMapping.ConvertToModelValue(annotation.Value));
+
             return;
         }
 
@@ -422,7 +426,9 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
             fragments.Add(
                 new MethodCallCodeFragment(
                     nameof(MySqlIndexBuilderExtensions.HasPrefixLength),
-                    prefixLengths.Cast<object>().ToArray()));
+                    prefixLengths
+                        .Cast<object>()
+                        .ToArray()));
         }
 
         if (annotations.Remove(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps, out var annotation)

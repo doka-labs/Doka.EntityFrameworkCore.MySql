@@ -4,9 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Marks a class that needs the shared integration server session during execution.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-internal sealed class IntegrationDatabaseTestAttribute : Attribute
-{
-}
+internal sealed class IntegrationDatabaseTestAttribute : Attribute { }
 
 /// <summary>
 /// Owns the one server session shared by independently isolated test classes.
@@ -25,7 +23,7 @@ internal sealed class IntegrationDatabaseFixture : IAsyncLifetime
             .ToArray();
 
         var session = await TestDatabaseSession
-            .StartAsync(requests)
+            .StartAsync(requests, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -38,6 +36,7 @@ internal sealed class IntegrationDatabaseFixture : IAsyncLifetime
             await session
                 .DisposeAsync()
                 .ConfigureAwait(false);
+
             throw;
         }
     }

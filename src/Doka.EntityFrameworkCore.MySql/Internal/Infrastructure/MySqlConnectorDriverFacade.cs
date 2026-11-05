@@ -10,6 +10,6 @@ internal sealed class MySqlConnectorDriverFacade : IMySqlDriverFacade
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        return new MySqlConnector.MySqlConnection(connectionString);
+        return new MySqlConnection(connectionString);
     }
 }

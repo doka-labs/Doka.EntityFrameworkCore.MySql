@@ -11,36 +11,70 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName)).ConfigureAwait(false);
-        var userName = "cache_" + Guid.NewGuid().ToString("N")[..20];
-        var password = Guid.NewGuid().ToString("N");
-        await store.ExecuteAsync($"CREATE USER '{userName}'@'%' IDENTIFIED BY '{password}';").ConfigureAwait(false);
+        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var userName = "cache_"
+            + Guid
+                .NewGuid()
+                .ToString("N")[..20];
+
+        var password = Guid
+            .NewGuid()
+            .ToString("N");
+
+        await store
+            .ExecuteAsync($"CREATE USER '{userName}'@'%' IDENTIFIED BY '{password}';", CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
-            var connectionString = await GrantDmlOnlyAccessAsync(store, userName, password).ConfigureAwait(false);
+            var connectionString = await GrantDmlOnlyAccessAsync(store, userName, password, CancellationToken.None)
+                .ConfigureAwait(false);
+
             await using var cache = store.CreateCache(
                 new CacheManualTimeProvider(),
                 connectionString: connectionString);
+
             byte[] value = [1, 2];
             var destination = new ExactBufferWriter(value.Length);
 
             // Act
             // WHY: One restricted-user lifecycle proves that ordinary cache use
             // succeeds without accidentally relying on deployment privileges.
-            await cache.SetAsync("dml-only", value, new DistributedCacheEntryOptions(), CancellationToken.None)
+            await cache
+                .SetAsync("dml-only", value, new DistributedCacheEntryOptions(), CancellationToken.None)
                 .ConfigureAwait(false);
-            var written = await cache.GetAsync("dml-only", CancellationToken.None).ConfigureAwait(false);
-            await cache.RefreshAsync("dml-only", CancellationToken.None).ConfigureAwait(false);
-            var found = await cache.TryGetAsync("dml-only", destination, CancellationToken.None).ConfigureAwait(false);
-            await cache.RemoveAsync("dml-only", CancellationToken.None).ConfigureAwait(false);
-            var removed = await cache.GetAsync("dml-only", CancellationToken.None).ConfigureAwait(false);
+
+            var written = await cache
+                .GetAsync("dml-only", CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await cache
+                .RefreshAsync("dml-only", CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var found = await cache
+                .TryGetAsync("dml-only", destination, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await cache
+                .RemoveAsync("dml-only", CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var removed = await cache
+                .GetAsync("dml-only", CancellationToken.None)
+                .ConfigureAwait(false);
 
             await using var restrictedConnection = new MySqlConnection(connectionString);
-            await restrictedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+            await restrictedConnection
+                .OpenAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             await using var ddl = restrictedConnection.CreateCommand();
             ddl.CommandText = $"ALTER TABLE {store.QualifiedTableName} COMMENT='not-authorized';";
-            var ddlFailure = await Record.ExceptionAsync(() => ddl.ExecuteNonQueryAsync(CancellationToken.None))
+            var ddlFailure = await Record
+                .ExceptionAsync(() => ddl.ExecuteNonQueryAsync(CancellationToken.None))
                 .ConfigureAwait(false);
 
             // Assert
@@ -52,7 +86,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         }
         finally
         {
-            await store.ExecuteAsync($"DROP USER IF EXISTS '{userName}'@'%';").ConfigureAwait(false);
+            await store
+                .ExecuteAsync($"DROP USER IF EXISTS '{userName}'@'%';", CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -66,46 +102,89 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName)).ConfigureAwait(false);
-        var userName = "cache_" + Guid.NewGuid().ToString("N")[..20];
-        var password = Guid.NewGuid().ToString("N");
-        await store.ExecuteAsync($"CREATE USER '{userName}'@'%' IDENTIFIED BY '{password}';").ConfigureAwait(false);
+        await using var store = await CreateDeployedStoreAsync(ParseTarget(targetName), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var userName = "cache_"
+            + Guid
+                .NewGuid()
+                .ToString("N")[..20];
+
+        var password = Guid
+            .NewGuid()
+            .ToString("N");
+
+        await store
+            .ExecuteAsync($"CREATE USER '{userName}'@'%' IDENTIFIED BY '{password}';", CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
-            var connectionString = await GrantDmlOnlyAccessAsync(store, userName, password).ConfigureAwait(false);
+            var connectionString = await GrantDmlOnlyAccessAsync(store, userName, password, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var time = new CacheManualTimeProvider();
             var logger = new CacheRecordingLogger();
             await using var cache = store.CreateCache(time, logger, connectionString);
             const string privateKey = "private-cache-key";
             var privateValue = Encoding.UTF8.GetBytes("private-cache-value");
-            await cache.SetAsync(privateKey, privateValue, new DistributedCacheEntryOptions(), CancellationToken.None)
+            await cache
+                .SetAsync(privateKey, privateValue, new DistributedCacheEntryOptions(), CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Act
             // WHY: Revocation and restoration share the cache clock so the test
             // observes failure backoff and recovery rather than a fresh cache.
-            await store.ExecuteAsync($"REVOKE DELETE ON {store.QualifiedTableName} FROM '{userName}'@'%';")
+            await store
+                .ExecuteAsync(
+                    $"REVOKE DELETE ON {store.QualifiedTableName} FROM '{userName}'@'%';",
+                    CancellationToken.None)
                 .ConfigureAwait(false);
+
             time.Advance(TimeSpan.FromMinutes(5));
-            var emptyCandidateValue = await cache.GetAsync(privateKey, CancellationToken.None).ConfigureAwait(false);
+            var emptyCandidateValue = await cache
+                .GetAsync(privateKey, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var emptyCandidateEntries = logger.Entries.ToArray();
-            await store.InsertExpiredEntriesAsync(1).ConfigureAwait(false);
-            time.Advance(TimeSpan.FromMinutes(5));
-            var failureValue = await cache.GetAsync(privateKey, CancellationToken.None).ConfigureAwait(false);
-            var failureEntries = logger.Entries.ToArray();
-            var failedExpiredCount = await store.CountExpiredAsync().ConfigureAwait(false);
-            var backoffValue = await cache.GetAsync(privateKey, CancellationToken.None).ConfigureAwait(false);
-            var backoffEntries = logger.Entries.ToArray();
-            await store.ExecuteAsync($"GRANT DELETE ON {store.QualifiedTableName} TO '{userName}'@'%';")
+            await store
+                .InsertExpiredEntriesAsync(1, CancellationToken.None)
                 .ConfigureAwait(false);
+
             time.Advance(TimeSpan.FromMinutes(5));
-            var recoveredValue = await cache.GetAsync(privateKey, CancellationToken.None).ConfigureAwait(false);
+            var failureValue = await cache
+                .GetAsync(privateKey, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var failureEntries = logger.Entries.ToArray();
+            var failedExpiredCount = await store
+                .CountExpiredAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var backoffValue = await cache
+                .GetAsync(privateKey, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var backoffEntries = logger.Entries.ToArray();
+            await store
+                .ExecuteAsync(
+                    $"GRANT DELETE ON {store.QualifiedTableName} TO '{userName}'@'%';",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+
+            time.Advance(TimeSpan.FromMinutes(5));
+            var recoveredValue = await cache
+                .GetAsync(privateKey, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var recoveredEntries = logger.Entries.ToArray();
-            var recoveredExpiredCount = await store.CountExpiredAsync().ConfigureAwait(false);
+            var recoveredExpiredCount = await store
+                .CountExpiredAsync(CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(privateValue, emptyCandidateValue);
+
             // WHY: An empty candidate read issues no DELETE even when that privilege is absent.
             Assert.Empty(emptyCandidateEntries);
             Assert.Equal(privateValue, failureValue);
@@ -127,19 +206,28 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         }
         finally
         {
-            await store.ExecuteAsync($"DROP USER IF EXISTS '{userName}'@'%';").ConfigureAwait(false);
+            await store
+                .ExecuteAsync($"DROP USER IF EXISTS '{userName}'@'%';", CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
     /// <summary>Grants only cache DML privileges and returns the restricted nonpooled connection.</summary>
+    /// <param name="store">The store used by this operation.</param>
+    /// <param name="userName">The user name used by this operation.</param>
+    /// <param name="password">The password used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<string> GrantDmlOnlyAccessAsync(
         CacheIntegrationStore store,
         string userName,
-        string password
+        string password,
+        CancellationToken cancellationToken
     )
     {
-        await store.ExecuteAsync(
-                $"GRANT SELECT, INSERT, UPDATE, DELETE ON {store.QualifiedTableName} TO '{userName}'@'%';")
+        await store
+            .ExecuteAsync(
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON {store.QualifiedTableName} TO '{userName}'@'%';",
+                cancellationToken)
             .ConfigureAwait(false);
 
         return new MySqlConnectionStringBuilder(store.ConnectionString)

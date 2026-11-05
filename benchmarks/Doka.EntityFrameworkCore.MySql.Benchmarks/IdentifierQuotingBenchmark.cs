@@ -15,9 +15,9 @@ public class IdentifierQuotingBenchmark
     private const string PlainIdentifier = "CustomerOrderLineItem";
     private const string BacktickIdentifier = "Customer`Order`LineItem";
     private const string Schema = "warehouse_schema";
+    private readonly StringBuilder _builder = new(256);
 
     private readonly ISqlGenerationHelper _helper;
-    private readonly StringBuilder _builder = new(256);
 
     public IdentifierQuotingBenchmark()
     {
@@ -34,7 +34,7 @@ public class IdentifierQuotingBenchmark
 
     /// <summary>
     /// Naive reference for the plain-identifier path: per-char StringBuilder loop with manual
-    /// backtick-escape. The fast-path under test (<see cref="DelimitStringPlain"/>) is the
+    /// backtick-escape. The fast-path under test (<see cref="DelimitStringPlain" />) is the
     /// optimized Span-based implementation; BDN reports Ratio = Mean[fast]/Mean[naive], so a
     /// fast-path >= 2x faster than naive shows up as Ratio &lt;= 0.5 (the DoD gate).
     /// </summary>
@@ -94,7 +94,9 @@ public class IdentifierQuotingBenchmark
                 sb.Append(c);
             }
 
-            sb.Append('`').Append('.');
+            sb
+                .Append('`')
+                .Append('.');
         }
 
         sb.Append('`');

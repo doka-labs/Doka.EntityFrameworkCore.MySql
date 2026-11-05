@@ -65,8 +65,8 @@ internal sealed class MySqlCacheDatabaseOperations
             .ConfigureAwait(false);
 
         if (!await reader
-                .ReadAsync(cancellationToken)
-                .ConfigureAwait(false))
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             return null;
         }
@@ -143,8 +143,8 @@ internal sealed class MySqlCacheDatabaseOperations
             .ConfigureAwait(false);
 
         if (!await reader
-                .ReadAsync(cancellationToken)
-                .ConfigureAwait(false))
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             return false;
         }
@@ -259,7 +259,9 @@ internal sealed class MySqlCacheDatabaseOperations
     {
         using var connection = _dataSource.OpenConnection();
         using var command = new MySqlCommand(_sql.SelectExpired, connection);
-        command.Parameters.Add("@batchSize", MySqlDbType.Int32).Value = CleanupBatchSize;
+        command.Parameters.Add("@batchSize", MySqlDbType.Int32)
+            .Value = CleanupBatchSize;
+
         List<byte[]> candidates = [];
 
         using (var reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
@@ -290,16 +292,18 @@ internal sealed class MySqlCacheDatabaseOperations
             .ConfigureAwait(false);
 
         await using var command = new MySqlCommand(_sql.SelectExpired, connection);
-        command.Parameters.Add("@batchSize", MySqlDbType.Int32).Value = CleanupBatchSize;
+        command.Parameters.Add("@batchSize", MySqlDbType.Int32)
+            .Value = CleanupBatchSize;
+
         List<byte[]> candidates = [];
 
         await using (var reader = await command
-                         .ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken)
-                         .ConfigureAwait(false))
+            .ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken)
+            .ConfigureAwait(false))
         {
             while (await reader
-                       .ReadAsync(cancellationToken)
-                       .ConfigureAwait(false))
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false))
             {
                 candidates.Add(
                     await reader
@@ -354,6 +358,7 @@ internal sealed class MySqlCacheDatabaseOperations
             var length = (int)Math.Min(remaining, StreamBufferSize);
             var buffer = destination
                 .GetSpan(length)[..length];
+
             var bytesRead = source.Read(buffer);
             if (bytesRead == 0)
             {
@@ -375,10 +380,13 @@ internal sealed class MySqlCacheDatabaseOperations
         while (remaining > 0)
         {
             var length = (int)Math.Min(remaining, StreamBufferSize);
-            var buffer = destination.GetMemory(length)[..length];
+            var buffer = destination
+                .GetMemory(length)[..length];
+
             var bytesRead = await source
                 .ReadAsync(buffer, cancellationToken)
                 .ConfigureAwait(false);
+
             if (bytesRead == 0)
             {
                 throw new EndOfStreamException("The cache value ended before its declared length.");
@@ -400,12 +408,16 @@ internal sealed class MySqlCacheDatabaseOperations
         AddKeyParameter(command, key);
         command.Parameters.Add("@value", MySqlDbType.LongBlob)
             .Value = value;
+
         command.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime)
             .Value = (object?)expiration.AbsoluteExpirationUtc ?? DBNull.Value;
+
         command.Parameters.Add("@absoluteExpirationRelativeMicroseconds", MySqlDbType.Int64)
             .Value = (object?)expiration.AbsoluteExpirationRelativeMicroseconds ?? DBNull.Value;
+
         command.Parameters.Add("@slidingExpirationMicroseconds", MySqlDbType.Int64)
             .Value = (object?)expiration.SlidingExpirationMicroseconds ?? DBNull.Value;
+
         command.Parameters.Add("@revision", MySqlDbType.Int64)
             .Value = CreateRevision();
 
@@ -440,7 +452,10 @@ internal sealed class MySqlCacheDatabaseOperations
         using var command = CreateRefreshCommand(connection, transaction, key, revision);
         if (command.ExecuteScalar() is not null)
         {
-            command.CommandText = revision.HasValue ? _sql.RefreshAfterRead : _sql.Refresh;
+            command.CommandText = revision.HasValue
+                ? _sql.RefreshAfterRead
+                : _sql.Refresh;
+
             command.ExecuteNonQuery();
         }
 
@@ -460,10 +475,13 @@ internal sealed class MySqlCacheDatabaseOperations
 
         await using var command = CreateRefreshCommand(connection, transaction, key, revision);
         if (await command
-                .ExecuteScalarAsync(cancellationToken)
-                .ConfigureAwait(false) is not null)
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false) is not null)
         {
-            command.CommandText = revision.HasValue ? _sql.RefreshAfterRead : _sql.Refresh;
+            command.CommandText = revision.HasValue
+                ? _sql.RefreshAfterRead
+                : _sql.Refresh;
+
             await command
                 .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);

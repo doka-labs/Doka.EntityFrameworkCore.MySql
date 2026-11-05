@@ -8,7 +8,8 @@ internal static class Program
     {
         try
         {
-            if (args.Length >= 2 && args[0] == "--actionlint-snapshot")
+            if (args.Length >= 2
+                && args[0] == "--actionlint-snapshot")
             {
                 var snapshotRoot = ParseRepositoryRoot(args[2..]);
                 var errors = EngineeringSurfaceContract.PrepareActionlintSnapshot(snapshotRoot, args[1]);
@@ -19,11 +20,17 @@ internal static class Program
 
                 Console.WriteLine($"Actionlint compatibility snapshot completed with {errors.Count} error(s).");
 
-                return errors.Count == 0 ? 0 : 1;
+                return errors.Count == 0
+                    ? 0
+                    : 1;
             }
 
             var concurrencyOnly = args.Length > 0 && args[0] == "--workflow-concurrency";
-            var root = ParseRepositoryRoot(concurrencyOnly ? args[1..] : args);
+            var root = ParseRepositoryRoot(
+                concurrencyOnly
+                    ? args[1..]
+                    : args);
+
             if (concurrencyOnly)
             {
                 var errors = EngineeringSurfaceContract.ValidateWorkflowConcurrencyFiles(root);
@@ -34,7 +41,9 @@ internal static class Program
 
                 Console.WriteLine($"Workflow concurrency contract completed with {errors.Count} error(s).");
 
-                return errors.Count == 0 ? 0 : 1;
+                return errors.Count == 0
+                    ? 0
+                    : 1;
             }
 
             var report = RepositoryContractValidator.Validate(root);
@@ -53,6 +62,7 @@ internal static class Program
                 $"Validated {report.LocalLinkCount} local links across "
                 + $"{report.MarkdownDocumentCount} Markdown documents, "
                 + $"{report.ExampleCount} examples, and all database image pins.");
+
             return 0;
         }
         catch (ArgumentException exception)

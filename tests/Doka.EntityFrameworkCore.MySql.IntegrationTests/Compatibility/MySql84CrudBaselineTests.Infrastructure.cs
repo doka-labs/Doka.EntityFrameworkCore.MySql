@@ -24,16 +24,17 @@ public sealed partial class MySql84CrudBaselineTests
     }
 
     private static async Task ResetDatabaseObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -47,18 +48,19 @@ public sealed partial class MySql84CrudBaselineTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task<bool> TableExistsAsync(
         string connectionString,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -73,10 +75,11 @@ public sealed partial class MySql84CrudBaselineTests
                                   ELSE 0
                               END;
                               """;
+
         command.Parameters.AddWithValue("@tableName", tableName);
 
         var result = await command
-            .ExecuteScalarAsync()
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return result switch
@@ -90,6 +93,17 @@ public sealed partial class MySql84CrudBaselineTests
             decimal decimalValue => decimalValue != 0,
             _ => false,
         };
+    }
+
+    private static DbContextOptions<GuidRoundtripContext> CreateGuidRoundtripOptions(
+        string connectionString
+    )
+    {
+        var builder = IntegrationTestDbContextOptions.Create<GuidRoundtripContext>();
+
+        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
     }
 
     private sealed class MySql84CrudContext : DbContext
@@ -111,6 +125,7 @@ public sealed partial class MySql84CrudBaselineTests
                 entity
                     .Property(item => item.Id)
                     .ValueGeneratedOnAdd();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();
@@ -123,17 +138,6 @@ public sealed partial class MySql84CrudBaselineTests
         public int Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
-    }
-
-    private static DbContextOptions<GuidRoundtripContext> CreateGuidRoundtripOptions(
-        string connectionString
-    )
-    {
-        var builder = IntegrationTestDbContextOptions.Create<GuidRoundtripContext>();
-
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        return builder.Options;
     }
 
     private sealed class GuidRoundtripContext : DbContext
@@ -157,6 +161,7 @@ public sealed partial class MySql84CrudBaselineTests
                 entity
                     .Property(item => item.Id)
                     .UseMySqlClientGuidValueGeneration();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();
@@ -170,6 +175,7 @@ public sealed partial class MySql84CrudBaselineTests
                     .Property(item => item.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
                     .UseMySqlClientGuidValueGeneration();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();

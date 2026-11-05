@@ -88,7 +88,8 @@ internal sealed class MySqlMigrationCommandListBuilder : MigrationCommandListBui
         if (_commandBuilder.CommandTextLength == 0)
         {
             return _setupCommands is not null
-                ? throw new InvalidOperationException("A provider migration command scope ended without a body command.")
+                ? throw new InvalidOperationException(
+                    "A provider migration command scope ended without a body command.")
                 : this;
         }
 

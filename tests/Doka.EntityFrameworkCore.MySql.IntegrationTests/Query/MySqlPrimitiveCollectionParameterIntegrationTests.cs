@@ -15,14 +15,6 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests :
 
     private readonly SeededDatabaseFixture _fixture;
 
-    /// <summary>Returns one independently reported case per selected supported engine.</summary>
-    // WHY: MySql80 is a legacy opt-in target, not part of this six-engine contract.
-    // The companion theory attribute skips a run that selects only that target.
-    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
-        .GetSelectedTargets()
-        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
-        .Select(target => new object[] { target.ToString() });
-
     /// <summary>Creates a test case with the shared per-engine seed fixture.</summary>
     /// <param name="fixture">The class-owned, lazily seeded database fixture.</param>
     public MySqlPrimitiveCollectionParameterIntegrationTests(
@@ -31,4 +23,15 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests :
     {
         _fixture = fixture;
     }
+
+    /// <summary>Returns one independently reported case per selected supported engine.</summary>
+
+    // WHY: MySql80 is a legacy opt-in target, not part of this six-engine contract.
+    // The companion theory attribute skips a run that selects only that target.
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Contains(target))
+        .Select(target => new object[] { target.ToString() });
 }

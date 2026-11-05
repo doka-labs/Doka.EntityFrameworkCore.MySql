@@ -15,6 +15,12 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         Assert.All(tagSets, tags => Assert.Equal(expectedEngine, tags[tagName]));
     }
 
+    private static Dictionary<string, object?> ToDictionary(
+        ReadOnlySpan<KeyValuePair<string, object?>> tags
+    ) => tags
+        .ToArray()
+        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+
     private sealed class OutcomeContext : DbContext
     {
         public OutcomeContext(
@@ -90,9 +96,10 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                Sample = (ref _) => ActivitySamplingResult.AllData,
                 ActivityStopped = Activities.Enqueue,
             };
+
             ActivitySource.AddActivityListener(_listener);
         }
 
@@ -126,11 +133,13 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
                     }
                 },
             };
+
             _listener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
             {
                 Interlocked.Add(ref _total, measurement);
                 _tagSets.Enqueue(ToDictionary(tags));
             });
+
             _listener.Start();
         }
 
@@ -145,9 +154,9 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         where T : struct
     {
         private readonly MeterListener _listener;
+        private readonly Lock _lock = new();
         private readonly List<double> _measurements = new();
         private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
-        private readonly Lock _lock = new();
 
         public HistogramSink(
             string instrumentName
@@ -164,6 +173,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
                     }
                 },
             };
+
             _listener.SetMeasurementEventCallback<double>((_, measurement, tags, _) =>
             {
                 lock (_lock)
@@ -173,6 +183,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
 
                 _tagSets.Enqueue(ToDictionary(tags));
             });
+
             _listener.Start();
         }
 
@@ -191,8 +202,4 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
 
         public void Dispose() => _listener.Dispose();
     }
-
-    private static Dictionary<string, object?> ToDictionary(
-        ReadOnlySpan<KeyValuePair<string, object?>> tags
-    ) => tags.ToArray().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 }

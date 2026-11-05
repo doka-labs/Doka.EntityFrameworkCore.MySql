@@ -91,7 +91,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     }
 
     /// <summary>
-    /// Converts a database character to its numeric CLR <see cref="char"/> value
+    /// Converts a database character to its numeric CLR <see cref="char" /> value
     /// before applying the requested numeric target type.
     /// </summary>
     /// <remarks>
@@ -143,7 +143,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// than the base generator's <c>left + right</c>. MySQL's <c>+</c> operator is arithmetic
     /// addition only; the implicit string-to-number coercion silently produces wrong results
     /// (<c>'10' + 'ALFKI' + '10'</c> evaluates to <c>20</c> not <c>'10ALFKI10'</c>). The check
-    /// fires on Add binaries whose CLR Type is <see cref="string"/>; nested chains of string-Adds
+    /// fires on Add binaries whose CLR Type is <see cref="string" />; nested chains of string-Adds
     /// produce nested CONCATs which MySQL evaluates left-to-right with the documented string
     /// concatenation semantics.
     /// </summary>
@@ -215,7 +215,10 @@ internal sealed partial class MySqlQuerySqlGenerator
             EmitJsonDocument(expression.Left);
         }
 
-        Sql.Append(expression.OperatorType == ExpressionType.Equal ? " = " : " <> ");
+        Sql.Append(
+            expression.OperatorType == ExpressionType.Equal
+                ? " = "
+                : " <> ");
 
         if (usesJsonTextSemantics)
         {
@@ -265,13 +268,15 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         Sql.Append("CAST((");
         Visit(expression.Left);
-        Sql.Append(expression.OperatorType switch
-        {
-            ExpressionType.And => " & ",
-            ExpressionType.Or => " | ",
-            ExpressionType.ExclusiveOr => " ^ ",
-            _ => throw new UnreachableException(),
-        });
+        Sql.Append(
+            expression.OperatorType switch
+            {
+                ExpressionType.And => " & ",
+                ExpressionType.Or => " | ",
+                ExpressionType.ExclusiveOr => " ^ ",
+                _ => throw new UnreachableException(),
+            });
+
         Visit(expression.Right);
         Sql.Append(") AS SIGNED)");
     }
@@ -285,7 +290,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
     /// <summary>
     /// Maps a column-level MySQL store-type string to the cast-context-valid keyword. Returns
-    /// <see langword="null"/> when the input is not a recognized integer / text / binary store
+    /// <see langword="null" /> when the input is not a recognized integer / text / binary store
     /// type, leaving the base generator's StoreType-verbatim path untouched (which is correct
     /// for the cast-grammar keywords that MySQL already accepts as both column and cast type,
     /// e.g. <c>DECIMAL</c>, <c>DATE</c>, <c>DATETIME</c>, <c>TIME</c>, <c>JSON</c>).
@@ -302,8 +307,13 @@ internal sealed partial class MySqlQuerySqlGenerator
         // Strip any "(N)" / "(p,s)" suffix for the lookup; CAST keeps the precision for
         // DECIMAL / CHAR-with-length / BINARY-with-length.
         var parenthesisIndex = storeType.IndexOf('(', StringComparison.Ordinal);
-        var baseToken = parenthesisIndex < 0 ? storeType : storeType[..parenthesisIndex];
-        var trailing = parenthesisIndex < 0 ? string.Empty : storeType[parenthesisIndex..];
+        var baseToken = parenthesisIndex < 0
+            ? storeType
+            : storeType[..parenthesisIndex];
+
+        var trailing = parenthesisIndex < 0
+            ? string.Empty
+            : storeType[parenthesisIndex..];
 
         return baseToken.ToLowerInvariant() switch
         {

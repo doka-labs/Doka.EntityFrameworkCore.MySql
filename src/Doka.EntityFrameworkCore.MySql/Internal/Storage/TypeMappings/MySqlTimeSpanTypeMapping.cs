@@ -1,25 +1,21 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Maps CLR <see cref="TimeSpan"/> values to MySQL-family <c>TIME</c> columns.
+/// Maps CLR <see cref="TimeSpan" /> values to MySQL-family <c>TIME</c> columns.
 /// </summary>
 public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
 {
-    private const long MaximumTimeTicks = (838L * TimeSpan.TicksPerHour)
-        + (59L * TimeSpan.TicksPerMinute)
-        + (59L * TimeSpan.TicksPerSecond);
+    private const long MaximumTimeTicks = 838L * TimeSpan.TicksPerHour
+        + 59L * TimeSpan.TicksPerMinute
+        + 59L * TimeSpan.TicksPerSecond;
+
+    private readonly int _fractionDivisor;
 
     private readonly int _precision;
     private readonly int _tickResolution;
-    private readonly int _fractionDivisor;
 
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlTimeSpanTypeMapping Default { get; } = new("time(6)", 6);
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MySqlTimeSpanTypeMapping"/> class.
+    /// Initializes a new instance of the <see cref="MySqlTimeSpanTypeMapping" /> class.
     /// </summary>
     /// <param name="storeType">The database type name.</param>
     /// <param name="precision">The supported fractional-second precision from zero through six.</param>
@@ -30,7 +26,9 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
     {
         _precision = precision;
         _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - precision);
-        _fractionDivisor = precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
+        _fractionDivisor = precision == 0
+            ? 0
+            : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
     }
 
     private MySqlTimeSpanTypeMapping(
@@ -42,8 +40,15 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
             ?? throw new InvalidOperationException("A MySQL-family TimeSpan mapping clone requires a precision."));
 
         _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - _precision);
-        _fractionDivisor = _precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
+        _fractionDivisor = _precision == 0
+            ? 0
+            : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
     }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlTimeSpanTypeMapping Default { get; } = new("time(6)", 6);
 
     /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
@@ -65,17 +70,26 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
 
         var seconds = remainder / TimeSpan.TicksPerSecond;
         var fraction = remainder % TimeSpan.TicksPerSecond;
-        var hourDigits = hours >= 100 ? 3 : 2;
-        var literalLength = 8 + hourDigits + (isNegative ? 1 : 0) + (_precision == 0 ? 0 : _precision + 1);
+        var hourDigits = hours >= 100
+            ? 3
+            : 2;
+
+        var literalLength = 8
+            + hourDigits
+            + (isNegative
+                ? 1
+                : 0)
+            + (_precision == 0
+                ? 0
+                : _precision + 1);
+
         var fractionalValue = fraction / _tickResolution;
 
         return string.Create(
             literalLength,
             (isNegative, hours, minutes, seconds, fractionalValue, _precision, _fractionDivisor),
-            static (
-                destination,
-                state
-            ) =>
+            static (destination,
+                state) =>
             {
                 var position = 0;
                 destination[position++] = '\'';
@@ -161,11 +175,10 @@ public sealed class MySqlTimeSpanTypeMapping : TimeSpanTypeMapping
     {
         if (hours >= 100)
         {
-            destination[position++] = (char)('0' + (hours / 100));
+            destination[position++] = (char)('0' + hours / 100);
         }
 
-        destination[position++] = (char)('0' + ((hours / 10) % 10));
-        destination[position++] = (char)('0' + (hours % 10));
+        destination[position++] = (char)('0' + hours / 10 % 10);
+        destination[position++] = (char)('0' + hours % 10);
     }
-
 }

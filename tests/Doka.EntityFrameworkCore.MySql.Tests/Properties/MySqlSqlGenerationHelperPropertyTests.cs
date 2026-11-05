@@ -3,7 +3,7 @@ using FsCheck.Xunit;
 namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 
 /// <summary>
-/// Property-style coverage for <see cref="MySqlSqlGenerationHelper.DelimitIdentifier"/>.
+/// Property-style coverage for <see cref="MySqlSqlGenerationHelper.DelimitIdentifier" />.
 /// The MySQL identifier-quoting contract is "wrap in backticks, double any backticks
 /// inside the name". The round-trip property is: stripping the outer backticks and
 /// undoing doubled backticks recovers the input.

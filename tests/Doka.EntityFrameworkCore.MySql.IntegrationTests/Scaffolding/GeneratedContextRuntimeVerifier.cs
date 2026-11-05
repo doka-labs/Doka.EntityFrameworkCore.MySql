@@ -13,31 +13,44 @@ internal static class GeneratedContextRuntimeVerifier
     private const string ServerVersionVariable = "DOKA_GENERATED_CONTEXT_SERVER_VERSION";
     private const string SuccessMarker = "DOKA_GENERATED_CONTEXT_OK";
 
+    /// <summary>
+    /// Compiles and runs the scaffolded model against the configured database.
+    /// </summary>
+    /// <param name="scaffoldedModel">The generated model source to compile.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersionText">The provider server-version identity.</param>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     public static async Task VerifyAsync(
         ScaffoldedModel scaffoldedModel,
         string connectionString,
-        string serverVersionText
+        string serverVersionText,
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(scaffoldedModel);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(serverVersionText);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
-            "doka-generated-context-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+            "doka-generated-context-"
+            + Guid
+                .NewGuid()
+                .ToString("N", CultureInfo.InvariantCulture));
 
         Directory.CreateDirectory(temporaryDirectory);
 
         try
         {
-            await WriteProjectAsync(temporaryDirectory, scaffoldedModel)
+            await WriteProjectAsync(temporaryDirectory, scaffoldedModel, cancellationToken)
                 .ConfigureAwait(false);
 
             var result = await RunProjectAsync(
                     temporaryDirectory,
                     connectionString,
-                    serverVersionText)
+                    serverVersionText,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             if (result.ExitCode != 0
@@ -57,11 +70,20 @@ internal static class GeneratedContextRuntimeVerifier
         }
     }
 
+    /// <summary>
+    /// Writes the isolated project and its generated model source.
+    /// </summary>
+    /// <param name="temporaryDirectory">The isolated project directory.</param>
+    /// <param name="scaffoldedModel">The generated model source to write.</param>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     private static async Task WriteProjectAsync(
         string temporaryDirectory,
-        ScaffoldedModel scaffoldedModel
+        ScaffoldedModel scaffoldedModel,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var repositoryRoot = FindRepositoryRoot();
 
         // The child process starts below /tmp, so SDK discovery cannot see the
@@ -89,45 +111,58 @@ internal static class GeneratedContextRuntimeVerifier
         var efCoreVersion = GetEfCoreVersion();
         var projectCode =
             $"""
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net10.0</TargetFramework>
-                <Nullable>enable</Nullable>
-                <ImplicitUsings>disable</ImplicitUsings>
-                <WarningsAsErrors>true</WarningsAsErrors>
-                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
-                <NuGetAudit>false</NuGetAudit>
-                <DokaEfCoreVersion>{efCoreVersion}</DokaEfCoreVersion>
-              </PropertyGroup>
-              <ItemGroup>
-                <ProjectReference Include="{providerProject}" />
-                <ProjectReference Include="{spatialProject}" />
-              </ItemGroup>
-            </Project>
-            """;
+             <Project Sdk="Microsoft.NET.Sdk">
+               <PropertyGroup>
+                 <OutputType>Exe</OutputType>
+                 <TargetFramework>net10.0</TargetFramework>
+                 <Nullable>enable</Nullable>
+                 <ImplicitUsings>disable</ImplicitUsings>
+                 <WarningsAsErrors>true</WarningsAsErrors>
+                 <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                 <NuGetAudit>false</NuGetAudit>
+                 <DokaEfCoreVersion>{efCoreVersion}</DokaEfCoreVersion>
+               </PropertyGroup>
+               <ItemGroup>
+                 <ProjectReference Include="{providerProject}" />
+                 <ProjectReference Include="{spatialProject}" />
+               </ItemGroup>
+             </Project>
+             """;
 
-        await File.WriteAllTextAsync(
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, "GeneratedContext.csproj"),
-                projectCode)
+                projectCode,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        await File.WriteAllTextAsync(
+
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, "Program.cs"),
-                CreateProgramCode())
+                CreateProgramCode(),
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        await WriteScaffoldedFileAsync(temporaryDirectory, scaffoldedModel.ContextFile)
+
+        await WriteScaffoldedFileAsync(temporaryDirectory, scaffoldedModel.ContextFile, cancellationToken)
             .ConfigureAwait(false);
 
         foreach (var additionalFile in scaffoldedModel.AdditionalFiles)
         {
-            await WriteScaffoldedFileAsync(temporaryDirectory, additionalFile)
+            await WriteScaffoldedFileAsync(temporaryDirectory, additionalFile, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Writes one generated source file into the isolated project directory.
+    /// </summary>
+    /// <param name="temporaryDirectory">The isolated project directory.</param>
+    /// <param name="scaffoldedFile">The generated source file to write.</param>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     private static async Task WriteScaffoldedFileAsync(
         string temporaryDirectory,
-        ScaffoldedFile scaffoldedFile
+        ScaffoldedFile scaffoldedFile,
+        CancellationToken cancellationToken
     )
     {
         var fileName = Path.GetFileName(scaffoldedFile.Path);
@@ -137,18 +172,30 @@ internal static class GeneratedContextRuntimeVerifier
             throw new InvalidOperationException("A scaffolded source file did not have a valid file name.");
         }
 
-        await File.WriteAllTextAsync(
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, fileName),
-                scaffoldedFile.Code)
+                scaffoldedFile.Code,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs the isolated project within the caller's lifetime and the build deadline.
+    /// </summary>
+    /// <param name="temporaryDirectory">The isolated project directory.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersionText">The provider server-version identity.</param>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     private static async Task<ProcessResult> RunProjectAsync(
         string temporaryDirectory,
         string connectionString,
-        string serverVersionText
+        string serverVersionText,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var startInfo = new ProcessStartInfo
         {
             FileName = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
@@ -178,42 +225,49 @@ internal static class GeneratedContextRuntimeVerifier
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("The generated context process could not be started.");
 
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-
-        try
-        {
-            await process
-                .WaitForExitAsync(timeout.Token)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-        {
-            process.Kill(entireProcessTree: true);
-            await process
-                .WaitForExitAsync()
-                .ConfigureAwait(false);
-
-            throw new TimeoutException(
-                "Generated context compilation and execution exceeded two minutes.",
-                exception);
-        }
-
+        // WHY: Output must drain even after cancellation so redirected pipes cannot
+        // strand the child while its process tree is being terminated.
+        var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        var exited = process.WaitForExitAsync(CancellationToken.None);
         string[] output;
 
         try
         {
-            output = await Task
-                .WhenAll(standardOutput, standardError)
-                .WaitAsync(TimeSpan.FromSeconds(10))
+            // WHY: The observer distinguishes timeout from caller cancellation;
+            // finally still completes the owned exit task before either outcome escapes.
+            await exited
+                .WaitAsync(TimeSpan.FromMinutes(2), cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (TimeoutException exception)
         {
             throw new TimeoutException(
-                "Generated context build output streams did not close after the process exited.",
+                "Generated context compilation and execution exceeded two minutes.",
                 exception);
+        }
+        finally
+        {
+            // WHY: Once started, the child and its pipes must be reaped before the
+            // temporary project can be deleted, including on caller cancellation.
+            if (!process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException) when (process.HasExited)
+                {
+                    // The child can exit between the status check and Kill.
+                }
+            }
+
+            await exited
+                .ConfigureAwait(false);
+
+            output = await Task
+                .WhenAll(standardOutput, standardError)
+                .ConfigureAwait(false);
         }
 
         return new ProcessResult(process.ExitCode, output[0], output[1]);
@@ -221,7 +275,8 @@ internal static class GeneratedContextRuntimeVerifier
 
     private static string GetEfCoreVersion()
     {
-        var version = typeof(DbContext).Assembly.GetName().Version
+        var version = typeof(DbContext).Assembly.GetName()
+                .Version
             ?? throw new InvalidOperationException("The EF Core assembly has no version.");
 
         return FormattableString.Invariant($"{version.Major}.{version.Minor}.{version.Build}");
@@ -235,8 +290,8 @@ internal static class GeneratedContextRuntimeVerifier
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

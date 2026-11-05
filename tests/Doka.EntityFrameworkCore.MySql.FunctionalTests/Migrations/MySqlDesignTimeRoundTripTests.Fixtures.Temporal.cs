@@ -28,10 +28,12 @@ public sealed class SystemTimeDesignContext : DbContext
                     temporal
                         .HasPeriodStart("ValidFrom")
                         .HasColumnName("valid_from");
+
                     temporal
                         .HasPeriodEnd("ValidTo")
                         .HasColumnName("valid_to");
                 }));
+
             entity.OwnsOne(record => record.Details);
         });
     }
@@ -105,6 +107,7 @@ public sealed class ApplicationTimeDesignContext : DbContext
                     applicationTime
                         .HasPeriodStart(record => record.BusinessFrom)
                         .HasColumnName("business_from");
+
                     applicationTime
                         .HasPeriodEnd(record => record.BusinessTo)
                         .HasColumnName("business_to");
@@ -163,19 +166,23 @@ public sealed class BitemporalDesignContext : DbContext
                         temporal
                             .HasPeriodStart("RecordedFrom")
                             .HasColumnName("recorded_from");
+
                         temporal
                             .HasPeriodEnd("RecordedTo")
                             .HasColumnName("recorded_to");
                     });
+
                     table.HasApplicationTimePeriod(applicationTime =>
                     {
                         applicationTime.HasPeriodName("BusinessValidity");
                         applicationTime
                             .HasPeriodStart("BusinessFrom")
                             .HasColumnName("business_from");
+
                         applicationTime
                             .HasPeriodEnd("BusinessTo")
                             .HasColumnName("business_to");
+
                         applicationTime.UseWithoutOverlaps();
                     });
                 });

@@ -10,7 +10,14 @@ public sealed partial class MySqlDesignTimeRoundTripTests
     private const string GeneratedNamespace = "Doka.GeneratedTemporalMigrations";
 
     private static readonly DateTime s_providerRowVersion =
-        new(2026, 8, 31, 12, 34, 56, DateTimeKind.Utc);
+        new(
+            2026,
+            8,
+            31,
+            12,
+            34,
+            56,
+            DateTimeKind.Utc);
 
     /// <summary>
     /// Generates and compiles a snapshot and designer together so both reconstructed models share the production code-generation pipeline.
@@ -19,7 +26,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         DbContext context
     )
     {
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var suffix = Guid
             .NewGuid()
             .ToString("N", CultureInfo.InvariantCulture);
@@ -136,7 +145,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         IModel generatedModel
     )
     {
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var initializedGeneratedModel = context
             .GetService<IModelRuntimeInitializer>()
             .Initialize(
@@ -177,7 +188,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
                 designTime: true,
                 context.GetService<IDiagnosticsLogger<DbLoggerCategory.Model.Validation>>());
 
-        return context.GetService<IMigrationsModelDiffer>()
+        return context
+            .GetService<IMigrationsModelDiffer>()
             .GetDifferences(null, initializedModel.GetRelationalModel());
     }
 
@@ -198,9 +210,13 @@ public sealed partial class MySqlDesignTimeRoundTripTests
                 designTime: true,
                 context.GetService<IDiagnosticsLogger<DbLoggerCategory.Model.Validation>>());
 
-        return context.GetService<IMigrationsModelDiffer>()
+        return context
+            .GetService<IMigrationsModelDiffer>()
             .GetDifferences(
-                source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
+                source
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
                 initializedModel.GetRelationalModel());
     }
 
@@ -224,7 +240,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         MySqlServerVersion serverVersion,
         MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16
     )
-        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<TContext>()
+        .UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
             options => options.DefaultGuidFormat(defaultGuidFormat))

@@ -12,7 +12,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// xUnit does not inherit data attributes from the base declaration, so this attribute makes
 /// that inheritance explicit to both the analyzer and the custom theory discoverer.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method)]
 public sealed class InheritedTheoryDataAttribute : DataAttribute
 {
     /// <summary>

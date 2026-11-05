@@ -121,7 +121,8 @@ public sealed partial class MySqlModelValidatorAndDdlTests
     [Fact]
     public void MariaDB_never_supports_native_json()
     {
-        var profile = MySqlServerVersion.MariaDb(new Version(11, 8, 0)).Profile;
+        var profile = MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+            .Profile;
 
         Assert.False(profile.Engine.Has(EngineCapability.NativeJsonType));
         Assert.Equal(ProviderSupportStatus.Emulated, profile.GetSupport(ProviderCapability.JsonColumns));

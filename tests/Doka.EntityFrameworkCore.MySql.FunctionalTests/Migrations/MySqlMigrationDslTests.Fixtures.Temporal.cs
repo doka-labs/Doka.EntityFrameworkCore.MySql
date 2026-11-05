@@ -9,12 +9,16 @@ public sealed partial class MySqlMigrationDslTests
     {
         /// <summary>Adds a regular column.</summary>
         AddColumn,
+
         /// <summary>Renames a regular column.</summary>
         RenameColumn,
+
         /// <summary>Changes a regular column definition.</summary>
         AlterColumn,
+
         /// <summary>Drops a regular column.</summary>
         DropColumn,
+
         /// <summary>Renames the temporal table.</summary>
         RenameTable,
     }
@@ -46,6 +50,62 @@ public sealed partial class MySqlMigrationDslTests
                 CreateOptions<RenamedTemporalSchemaContext>(serverVersion))),
         _ => throw new ArgumentOutOfRangeException(nameof(schemaChange), schemaChange, null),
     };
+
+    private static void ConfigureTemporalSchema(
+        ModelBuilder modelBuilder,
+        string tableName,
+        string historyTableName,
+        bool temporal = false,
+        bool includeDescription = false,
+        string nameColumn = "Name",
+        int? nameMaxLength = null,
+        bool includeGeneratedNameLength = false
+    )
+    {
+        modelBuilder.Entity<TemporalSchemaEntity>(entity =>
+        {
+            if (temporal)
+            {
+                entity.ToTable(
+                    tableName,
+                    table => table.IsTemporal(temporalTable =>
+                    {
+                        temporalTable.UseHistoryTable(historyTableName);
+                        temporalTable.HasPeriodStart("ValidFrom");
+                        temporalTable.HasPeriodEnd("ValidTo");
+                    }));
+            }
+            else
+            {
+                entity.ToTable(tableName);
+            }
+
+            var nameProperty = entity
+                .Property(item => item.Name)
+                .HasColumnName(nameColumn);
+
+            if (nameMaxLength is not null)
+            {
+                nameProperty.HasMaxLength(nameMaxLength.Value);
+            }
+
+            if (!includeDescription)
+            {
+                entity.Ignore(item => item.Description);
+            }
+
+            if (includeGeneratedNameLength)
+            {
+                entity
+                    .Property(item => item.NameLength)
+                    .HasComputedColumnSql("CHAR_LENGTH(`Name`)", stored: true);
+            }
+            else
+            {
+                entity.Ignore(item => item.NameLength);
+            }
+        });
+    }
 
     private sealed class TemporalMigrationDslContext : DbContext
     {
@@ -275,62 +335,6 @@ public sealed partial class MySqlMigrationDslTests
             "TemporalEntries",
             "TemporalEntriesHistory",
             temporal: true);
-    }
-
-    private static void ConfigureTemporalSchema(
-        ModelBuilder modelBuilder,
-        string tableName,
-        string historyTableName,
-        bool temporal = false,
-        bool includeDescription = false,
-        string nameColumn = "Name",
-        int? nameMaxLength = null,
-        bool includeGeneratedNameLength = false
-    )
-    {
-        modelBuilder.Entity<TemporalSchemaEntity>(entity =>
-        {
-            if (temporal)
-            {
-                entity.ToTable(
-                    tableName,
-                    table => table.IsTemporal(temporalTable =>
-                    {
-                        temporalTable.UseHistoryTable(historyTableName);
-                        temporalTable.HasPeriodStart("ValidFrom");
-                        temporalTable.HasPeriodEnd("ValidTo");
-                    }));
-            }
-            else
-            {
-                entity.ToTable(tableName);
-            }
-
-            var nameProperty = entity
-                .Property(item => item.Name)
-                .HasColumnName(nameColumn);
-
-            if (nameMaxLength is not null)
-            {
-                nameProperty.HasMaxLength(nameMaxLength.Value);
-            }
-
-            if (!includeDescription)
-            {
-                entity.Ignore(item => item.Description);
-            }
-
-            if (includeGeneratedNameLength)
-            {
-                entity
-                    .Property(item => item.NameLength)
-                    .HasComputedColumnSql("CHAR_LENGTH(`Name`)", stored: true);
-            }
-            else
-            {
-                entity.Ignore(item => item.NameLength);
-            }
-        });
     }
 
     private sealed class TemporalSchemaEntity

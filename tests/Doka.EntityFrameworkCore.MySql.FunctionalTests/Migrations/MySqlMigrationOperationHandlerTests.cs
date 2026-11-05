@@ -44,6 +44,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
                 Assert.Equal("SELECT 2;", command.CommandText);
                 Assert.False(command.TransactionSuppressed);
             });
+
         Assert.NotNull(handler.LastContext);
         Assert.Same(operation, handler.LastContext.Operation);
         Assert.Same(context.Model, handler.LastContext.Model);
@@ -165,7 +166,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         var commands = generator.Generate(
             [
                 new FirstCustomOperation("first"),
-                new SecondCustomOperation()
+                new SecondCustomOperation(),
             ],
             context.Model);
 

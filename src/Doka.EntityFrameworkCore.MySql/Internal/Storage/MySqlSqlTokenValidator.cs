@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class MySqlSqlTokenValidator
 {
     /// <summary>
-    /// Returns <paramref name="value"/> when it consists only of ASCII letters,
+    /// Returns <paramref name="value" /> when it consists only of ASCII letters,
     /// digits, or underscores; otherwise fails before SQL text is emitted.
     /// </summary>
     /// <param name="value">The grammar token to validate.</param>

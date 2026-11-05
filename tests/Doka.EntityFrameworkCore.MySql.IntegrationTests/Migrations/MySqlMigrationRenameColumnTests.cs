@@ -5,8 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// share the entry point but emit different DDL:
 /// - MariaDB 11.8 (>= 10.5.2): native <c>ALTER TABLE ... RENAME COLUMN old TO new</c>.
 /// - Capability-driven fallback: <c>ALTER TABLE ... CHANGE COLUMN old new &lt;definition&gt;</c>
-///   exercised by forcing an older MariaDB version string so the engine profile drops
-///   <see cref="EngineCapability.RenameColumnSyntax"/>.
+/// exercised by forcing an older MariaDB version string so the engine profile drops
+/// <see cref="EngineCapability.RenameColumnSyntax" />.
 /// Every active MySQL and MariaDB LTS target shares the modern path; the snapshot
 /// DDL test pins both paths against live servers to keep the fallback honest.
 /// </summary>
@@ -24,7 +24,8 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MariaDb118,
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -36,7 +37,8 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MariaDb114,
             MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -48,7 +50,8 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MariaDb1011,
             IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -60,7 +63,8 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MariaDb123,
             IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -77,7 +81,8 @@ public sealed class MySqlMigrationRenameColumnTests
             MySqlServerVersion.MariaDb(
                 new Version(10, 5, 0),
                 MySqlServerVersionCompatibilityMode.AllowUnsupported),
-            expectFallback: true);
+            expectFallback: true,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -89,7 +94,8 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MySql84,
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
     /// <summary>
@@ -101,13 +107,22 @@ public sealed class MySqlMigrationRenameColumnTests
         await RunRenameRoundTrip(
             IntegrationDatabaseTarget.MySql97,
             IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
-            expectFallback: false);
+            expectFallback: false,
+            CancellationToken.None);
     }
 
+    /// <summary>
+    /// Runs rename round trip for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
+    /// <param name="expectFallback">The expect fallback.</param>
     private static async Task RunRenameRoundTrip(
         IntegrationDatabaseTarget target,
         MySqlServerVersion serverVersion,
-        bool expectFallback
+        bool expectFallback,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -116,16 +131,18 @@ public sealed class MySqlMigrationRenameColumnTests
 
         await context.Database.ExecuteSqlRawAsync(
             "DROP TABLE IF EXISTS `RenameItems`;",
-            CancellationToken.None);
+            cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `RenameItems` ("
             + "`Id` int NOT NULL AUTO_INCREMENT, "
             + "`Old` varchar(64) NOT NULL COMMENT 'rename\\\\comment ''quoted''', "
             + "PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
-            CancellationToken.None);
+            cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "INSERT INTO `RenameItems` (`Old`) VALUES ('alpha'), ('beta'), ('gamma');",
-            CancellationToken.None);
+            cancellationToken);
 
         try
         {
@@ -137,7 +154,8 @@ public sealed class MySqlMigrationRenameColumnTests
                 NewName = "Renamed",
             };
 
-            var designTimeModel = context.GetService<IDesignTimeModel>().Model;
+            var designTimeModel = context.GetService<IDesignTimeModel>()
+                .Model;
 
             // Act
             var commands = generator.Generate([operation], designTimeModel);
@@ -146,19 +164,19 @@ public sealed class MySqlMigrationRenameColumnTests
             await commands[0]
                 .ExecuteNonQueryAsync(
                     context.GetService<IRelationalConnection>(),
-                    cancellationToken: CancellationToken.None)
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             await using var inspectionConnection = new MySqlConnection(connectionString);
-            await inspectionConnection.OpenAsync(CancellationToken.None);
+            await inspectionConnection.OpenAsync(cancellationToken);
             await using var verifyCommand = inspectionConnection.CreateCommand();
             verifyCommand.CommandText =
                 "SELECT `Renamed` FROM `RenameItems` ORDER BY `Id`;";
 
             var roundtripped = new List<string>();
-            await using (var reader = await verifyCommand.ExecuteReaderAsync(CancellationToken.None))
+            await using (var reader = await verifyCommand.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(CancellationToken.None))
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     roundtripped.Add(reader.GetString(0));
                 }
@@ -169,7 +187,9 @@ public sealed class MySqlMigrationRenameColumnTests
                 + "AND TABLE_NAME = 'RenameItems' "
                 + "AND COLUMN_NAME = 'Renamed';";
 
-            var comment = await verifyCommand.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            var comment = await verifyCommand
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Single(commands);

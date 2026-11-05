@@ -77,7 +77,9 @@ public sealed partial class MySqlMigrationDdlCoverageTests
         // Assert
         Assert.Equal(
             4,
-            sql.Split("ALTER TABLE `tenant_database`.`Entries`", StringSplitOptions.None).Length - 1);
+            sql.Split("ALTER TABLE `tenant_database`.`Entries`")
+                .Length
+            - 1);
     }
 
     /// <summary>
@@ -141,15 +143,13 @@ public sealed partial class MySqlMigrationDdlCoverageTests
                 IsNullable = false,
                 Comment = columnComment,
             });
+
         var insertData = new InsertDataOperation
         {
             Table = createTable.Name,
             Columns = ["Value"],
             ColumnTypes = ["longtext"],
-            Values = new object[,]
-            {
-                { insertedValue },
-            },
+            Values = new object[,] { { insertedValue } },
         };
 
         var updateData = new UpdateDataOperation
@@ -157,16 +157,10 @@ public sealed partial class MySqlMigrationDdlCoverageTests
             Table = createTable.Name,
             Columns = ["Value"],
             ColumnTypes = ["longtext"],
-            Values = new object[,]
-            {
-                { updatedValue },
-            },
+            Values = new object[,] { { updatedValue } },
             KeyColumns = ["Value"],
             KeyColumnTypes = ["longtext"],
-            KeyValues = new object[,]
-            {
-                { updateKey },
-            },
+            KeyValues = new object[,] { { updateKey } },
         };
 
         var deleteData = new DeleteDataOperation
@@ -174,10 +168,7 @@ public sealed partial class MySqlMigrationDdlCoverageTests
             Table = createTable.Name,
             KeyColumns = ["Value"],
             KeyColumnTypes = ["longtext"],
-            KeyValues = new object[,]
-            {
-                { deleteKey },
-            },
+            KeyValues = new object[,] { { deleteKey } },
         };
 
         // Act
@@ -188,11 +179,13 @@ public sealed partial class MySqlMigrationDdlCoverageTests
             "/*! SET @__doka_previous_sql_mode = @@SESSION.sql_mode */;",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("'NO_BACKSLASH_ESCAPES'", sql, StringComparison.Ordinal);
         Assert.Contains(
             "/*! SET SESSION sql_mode = @__doka_previous_sql_mode */;",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains($"COMMENT = {GenerateExpectedDdlComment(tableComment)}", sql, StringComparison.Ordinal);
         Assert.Contains($"COMMENT {GenerateExpectedDdlComment(columnComment)}", sql, StringComparison.Ordinal);
         Assert.Contains(GenerateExpectedHexLiteral(insertedValue), sql, StringComparison.Ordinal);

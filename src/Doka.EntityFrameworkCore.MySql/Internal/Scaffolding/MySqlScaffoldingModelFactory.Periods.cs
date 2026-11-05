@@ -11,7 +11,8 @@ internal sealed partial class MySqlScaffoldingModelFactory
         Dictionary<(DatabaseTable Table, DatabaseColumn Column), PropertyBuilder> propertyBuilders
     )
     {
-        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value is not true)
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+            ?.Value is not true)
         {
             return;
         }
@@ -48,12 +49,14 @@ internal sealed partial class MySqlScaffoldingModelFactory
         periodStartProperty.ValueGeneratedOnAddOrUpdate();
         periodEndProperty.ValueGeneratedOnAddOrUpdate();
 
-        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)?.Value is string historyTableName)
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)
+                ?.Value is string historyTableName)
         {
             entityBuilder.Metadata.SetMySqlTemporalHistoryTableName(historyTableName);
         }
 
-        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistorySchema)?.Value is string historyTableSchema)
+        if (table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistorySchema)
+                ?.Value is string historyTableSchema)
         {
             entityBuilder.Metadata.SetMySqlTemporalHistoryTableSchema(historyTableSchema);
         }
@@ -65,7 +68,8 @@ internal sealed partial class MySqlScaffoldingModelFactory
         Dictionary<(DatabaseTable Table, DatabaseColumn Column), PropertyBuilder> propertyBuilders
     )
     {
-        if (table.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)?.Value is not true)
+        if (table.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
+            ?.Value is not true)
         {
             return;
         }
@@ -104,7 +108,8 @@ internal sealed partial class MySqlScaffoldingModelFactory
     private static string RequireApplicationTimeAnnotation(
         DatabaseTable table,
         string annotationName
-    ) => table.FindAnnotation(annotationName)?.Value as string is { } value
+    ) => table.FindAnnotation(annotationName)
+            ?.Value as string is { } value
         && !string.IsNullOrWhiteSpace(value)
             ? value
             : throw new InvalidOperationException(

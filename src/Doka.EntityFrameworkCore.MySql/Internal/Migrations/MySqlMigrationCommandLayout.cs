@@ -128,7 +128,11 @@ internal sealed class MySqlMigrationCommandLayout
             static (destination, state) =>
             {
                 var offset = CopyCommands(state.Setup, destination, offset: 0);
-                state.Body.AsSpan().CopyTo(destination[offset..]);
+                state
+                    .Body
+                    .AsSpan()
+                    .CopyTo(destination[offset..]);
+
                 offset += state.Body.Length;
                 offset = CopyCommands(state.Cleanup, destination, offset);
 
@@ -150,7 +154,10 @@ internal sealed class MySqlMigrationCommandLayout
         {
             var command = commands[index];
 
-            command.AsSpan().CopyTo(destination[offset..]);
+            command
+                .AsSpan()
+                .CopyTo(destination[offset..]);
+
             offset += command.Length;
         }
 
@@ -193,6 +200,7 @@ internal sealed class MySqlMigrationCommandLayout
             fragments[fragmentIndex++] = new MySqlMigrationCommandFragment(
                 MySqlMigrationCommandFragmentKind.Setup,
                 commandSlice);
+
             offset += setupCommand.Length;
         }
 
@@ -213,6 +221,7 @@ internal sealed class MySqlMigrationCommandLayout
             fragments[fragmentIndex++] = new MySqlMigrationCommandFragment(
                 MySqlMigrationCommandFragmentKind.Cleanup,
                 commandSlice);
+
             offset += cleanupCommand.Length;
         }
 

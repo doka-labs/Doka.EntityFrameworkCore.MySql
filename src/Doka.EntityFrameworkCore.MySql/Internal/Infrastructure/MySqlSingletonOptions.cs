@@ -107,6 +107,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             LogConfigurationMismatch(
                 options,
                 MySqlConfigurationFailureReason.ServerVersionChanged);
+
             throw new InvalidOperationException(
                 "The configured MySQL server version changed for the shared service provider.");
         }
@@ -116,6 +117,7 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             LogConfigurationMismatch(
                 options,
                 MySqlConfigurationFailureReason.RetrySettingsChanged);
+
             throw new InvalidOperationException(
                 "The configured MySQL retry settings changed for the shared service provider.");
         }
@@ -125,15 +127,17 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             LogConfigurationMismatch(
                 options,
                 MySqlConfigurationFailureReason.GuidFormatChanged);
+
             throw new InvalidOperationException(
                 "The configured MySQL GUID format changed for the shared service provider.");
         }
 
-        if (UsesDataSource != (extension.DataSource is not null))
+        if (UsesDataSource != extension.DataSource is not null)
         {
             LogConfigurationMismatch(
                 options,
                 MySqlConfigurationFailureReason.ConnectionPathChanged);
+
             throw new InvalidOperationException(
                 "The configured MySQL connection path changed for the shared service provider.");
         }
@@ -155,6 +159,8 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
         MySqlLoggerMessages.InvalidConfiguration(
             loggerFactory.CreateLogger(MySqlLoggerCategory.Configuration),
             reason,
-            UsesDataSource ? nameof(MySqlDataSource) : "ConnectionStringOrDbConnection");
+            UsesDataSource
+                ? nameof(MySqlDataSource)
+                : "ConnectionStringOrDbConnection");
     }
 }

@@ -19,12 +19,13 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
             [nameof(DateTime.Second)] = "SECOND",
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _dateTimeOffsetTypeMapping;
     private readonly RelationalTypeMapping _dateTimeTypeMapping;
     private readonly RelationalTypeMapping _doubleTypeMapping;
     private readonly RelationalTypeMapping _intTypeMapping;
     private readonly RelationalTypeMapping _longTypeMapping;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _timeSpanTypeMapping;
 
     public MySqlTemporalMemberTranslator(

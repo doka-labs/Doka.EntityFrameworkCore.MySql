@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Processes one exact custom <see cref="MigrationOperation"/> type and either
+/// Processes one exact custom <see cref="MigrationOperation" /> type and either
 /// generates MySQL commands or explicitly consumes the operation without SQL.
 /// </summary>
 /// <remarks>
@@ -31,5 +31,7 @@ public interface IMySqlMigrationOperationHandler
     /// </summary>
     /// <param name="context">The immutable provider generation context.</param>
     /// <returns>A generated command result or an explicit commandless result.</returns>
-    MySqlMigrationOperationResult Generate(MySqlMigrationOperationContext context);
+    MySqlMigrationOperationResult Generate(
+        MySqlMigrationOperationContext context
+    );
 }

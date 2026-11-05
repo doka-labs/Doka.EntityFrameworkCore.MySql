@@ -18,7 +18,7 @@ public sealed class MySqlReverseEngineeringOptionsBuilder
     /// Treats explicit textual GUID columns such as <c>char(36)</c> and <c>varchar(36)</c>
     /// as canonical GUID properties during reverse engineering.
     /// </summary>
-    /// <returns>The same <see cref="MySqlReverseEngineeringOptionsBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="MySqlReverseEngineeringOptionsBuilder" /> instance.</returns>
     public MySqlReverseEngineeringOptionsBuilder ScaffoldTextGuidsAsGuids()
     {
         _options.ScaffoldTextGuidsAsGuids = true;

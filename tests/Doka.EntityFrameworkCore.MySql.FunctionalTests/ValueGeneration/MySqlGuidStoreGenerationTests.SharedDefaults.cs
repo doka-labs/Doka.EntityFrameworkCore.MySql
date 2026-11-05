@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.ValueGeneration;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlGuidStoreGenerationTests
@@ -17,7 +19,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var property = context.Model.FindEntityType(typeof(SharedGuidDefaultDependent))!
             .FindProperty(nameof(SharedGuidDefaultDependent.Id))!;
 
-        var selector = context.GetService<Microsoft.EntityFrameworkCore.ValueGeneration.IValueGeneratorSelector>();
+        var selector = context.GetService<IValueGeneratorSelector>();
 
         // Act
         var selected = selector.TrySelect(property, property.DeclaringType, out var generator);
@@ -92,6 +94,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
             principalKey.Metadata.GetMySqlValueGenerationStrategy());
+
         Assert.Null(dependentKey.Metadata.GetMySqlValueGenerationStrategy());
         Assert.Equal("UUID()", principalKey.Metadata.GetDefaultValueSql());
         Assert.False(principalKey.IsTemporary);
@@ -106,7 +109,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         MySqlGuidFormat format,
         bool explicitClient = false
     ) => new(
-        MySqlFunctionalTestOptions.CreateTransientBuilder<SharedGuidDefaultContext>()
+        MySqlFunctionalTestOptions
+            .CreateTransientBuilder<SharedGuidDefaultContext>()
             .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=unused;",
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
@@ -118,8 +122,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
     /// <summary>Maps a Guid primary key to one physical column shared by principal and dependent.</summary>
     private sealed class SharedGuidDefaultContext : DbContext
     {
-        private readonly MySqlGuidFormat _format;
         private readonly bool _explicitClient;
+        private readonly MySqlGuidFormat _format;
 
         /// <summary>Creates a context for the requested shared-key generation contract.</summary>
         public SharedGuidDefaultContext(
@@ -142,22 +146,34 @@ public sealed partial class MySqlGuidStoreGenerationTests
                 entity.ToTable("SharedGuidSqlDefaults");
                 entity.HasKey(row => row.Id);
 
-                var key = entity.Property(row => row.Id).HasDefaultValueSql(DefaultSql(_format));
+                var key = entity
+                    .Property(row => row.Id)
+                    .HasDefaultValueSql(DefaultSql(_format));
 
                 if (_explicitClient)
                 {
                     key.UseMySqlClientGuidValueGeneration();
                 }
             });
+
             modelBuilder.Entity<SharedGuidDefaultDependent>(entity =>
             {
                 entity.ToTable("SharedGuidSqlDefaults");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedOnAdd();
-                entity.HasOne(row => row.Principal).WithOne(row => row.Dependent)
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedOnAdd();
+
+                entity
+                    .HasOne(row => row.Principal)
+                    .WithOne(row => row.Dependent)
                     .HasForeignKey<SharedGuidDefaultDependent>(row => row.Id);
             });
-            modelBuilder.Entity<SharedGuidDefaultPrincipal>().Navigation(row => row.Dependent).IsRequired();
+
+            modelBuilder
+                .Entity<SharedGuidDefaultPrincipal>()
+                .Navigation(row => row.Dependent)
+                .IsRequired();
         }
     }
 

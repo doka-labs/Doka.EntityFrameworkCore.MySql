@@ -25,9 +25,13 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     {
         // Arrange
         var boundary = new NoIoBoundary();
-        await using var connection = input == "Connection" ? new MySqlConnection(ConnectionString) : null;
+        await using var connection = input == "Connection"
+            ? new MySqlConnection(ConnectionString)
+            : null;
+
         await using var dataSource = input == "DataSource"
-            ? new MySqlDataSourceBuilder(ConnectionString).Build() : null;
+            ? new MySqlDataSourceBuilder(ConnectionString).Build()
+            : null;
 
         var options = new DbContextOptionsBuilder<FamilyContext>();
         var version = TargetVersion(mariaDb);
@@ -48,7 +52,9 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
 
         options.AddInterceptors(boundary, boundary.Commands);
         await using var services = CreateServices(options.Options);
-        await using var context = new FamilyContext(options.UseInternalServiceProvider(services).Options);
+        await using var context = new FamilyContext(
+            options.UseInternalServiceProvider(services)
+                .Options);
 
         // Act
         var actual = context.Database.IsMariaDb();
@@ -57,7 +63,11 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         Assert.Equal(mariaDb, actual);
         Assert.Equal(0, boundary.ConnectionStarts);
         Assert.Equal(0, boundary.Commands.Created);
-        Assert.Equal(ConnectionState.Closed, context.Database.GetDbConnection().State);
+        Assert.Equal(
+            ConnectionState.Closed,
+            context.Database.GetDbConnection()
+                .State);
+
         if (connection is not null)
         {
             Assert.Equal(ConnectionState.Closed, connection.State);
@@ -80,10 +90,15 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     {
         // Arrange
         var boundary = new NoIoBoundary();
-        var marker = mariaDb ? "MySQL 8.4.0" : "MariaDB 11.8.0";
+        var marker = mariaDb
+            ? "MySQL 8.4.0"
+            : "MariaDB 11.8.0";
+
         var sourceOptions = Options(mariaDb, boundary);
         await using var services = CreateServices(sourceOptions.Options);
-        await using var source = new FamilyContext(sourceOptions.UseInternalServiceProvider(services).Options)
+        await using var source = new FamilyContext(
+            sourceOptions.UseInternalServiceProvider(services)
+                .Options)
         {
             ModelFamilyMarker = marker,
         };
@@ -102,7 +117,10 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
             supplied = model.FinalizeModel();
         }
 
-        var options = Options(mariaDb, boundary).UseModel(supplied).UseInternalServiceProvider(services);
+        var options = Options(mariaDb, boundary)
+            .UseModel(supplied)
+            .UseInternalServiceProvider(services);
+
         await using var context = new FamilyContext(options.Options);
 
         // Act
@@ -111,7 +129,11 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         // Assert
         Assert.Equal(mariaDb, actual);
         Assert.Same(supplied, options.Options.FindExtension<CoreOptionsExtension>()!.Model);
-        Assert.Equal(marker, supplied.FindAnnotation(FamilyAnnotation)?.Value);
+        Assert.Equal(
+            marker,
+            supplied.FindAnnotation(FamilyAnnotation)
+                ?.Value);
+
         Assert.Equal(0, context.ModelBuilds);
         Assert.Equal(0, boundary.ConnectionStarts);
         Assert.Equal(0, boundary.Commands.Created);
@@ -135,10 +157,13 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         var options = Options(mariaDb, boundary);
         await using var internalServices = CreateServices(options.Options);
         var registrations = new ServiceCollection();
-        registrations.AddDbContextPool<FamilyContext>(builder => builder
-            .UseMySql(ConnectionString, TargetVersion(mariaDb))
-            .AddInterceptors(boundary, boundary.Commands)
-            .UseInternalServiceProvider(internalServices), poolSize: 1);
+        registrations.AddDbContextPool<FamilyContext>(
+            builder => builder
+                .UseMySql(ConnectionString, TargetVersion(mariaDb))
+                .AddInterceptors(boundary, boundary.Commands)
+                .UseInternalServiceProvider(internalServices),
+            poolSize: 1);
+
         await using var application = registrations.BuildServiceProvider();
         FamilyContext first;
         FamilyContext second;
@@ -178,9 +203,14 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         var boundary = new NoIoBoundary();
         var firstOptions = Options(firstMariaDb, boundary);
         await using var services = CreateServices(firstOptions.Options);
-        await using var first = new FamilyContext(firstOptions.UseInternalServiceProvider(services).Options);
+        await using var first = new FamilyContext(
+            firstOptions.UseInternalServiceProvider(services)
+                .Options);
+
         _ = first.Database.IsMariaDb();
-        var conflictingOptions = Options(!firstMariaDb, boundary).UseInternalServiceProvider(services);
+        var conflictingOptions = Options(!firstMariaDb, boundary)
+            .UseInternalServiceProvider(services);
+
         await using var conflicting = new FamilyContext(conflictingOptions.Options);
 
         // Act
@@ -228,8 +258,11 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
         var registrations = new ServiceCollection().AddEntityFrameworkDokaMySql();
         registrations.AddSingleton<IDbContextOptions>(options.Options);
         await using var services = registrations.BuildServiceProvider();
-        await using var context = new DbContext(new DbContextOptionsBuilder()
-            .UseInternalServiceProvider(services).Options);
+        await using var context = new DbContext(
+            new DbContextOptionsBuilder()
+                .UseInternalServiceProvider(services)
+                .Options);
+
         // WHY: This public infrastructure seam isolates the option guard from EF's earlier provider validation;
         // no additional foreign database-provider dependency is needed to represent options without Doka.
         var database = new OptionsOnlyFacade(context, services);
@@ -240,9 +273,11 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
 
         // Assert
         var error = Assert.IsType<InvalidOperationException>(recordedException);
-        Assert.Equal(dokaOptions
-            ? "A MySQL server version must be configured."
-            : "Database.IsMariaDb requires the Doka MySQL provider configured with UseMySql.", error.Message);
+        Assert.Equal(
+            dokaOptions
+                ? "A MySQL server version must be configured."
+                : "Database.IsMariaDb requires the Doka MySQL provider configured with UseMySql.",
+            error.Message);
     }
 
     /// <summary>A genuinely unconfigured context preserves EF's clear configuration failure.</summary>

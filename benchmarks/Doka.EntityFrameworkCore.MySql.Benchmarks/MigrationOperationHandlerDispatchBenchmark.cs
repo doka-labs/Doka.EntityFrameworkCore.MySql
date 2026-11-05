@@ -36,7 +36,7 @@ public class MigrationOperationHandlerDispatchBenchmark
         [
             CreateRegistry(0),
             CreateRegistry(1),
-            CreateRegistry(8)
+            CreateRegistry(8),
         ];
     }
 
@@ -69,10 +69,8 @@ public class MigrationOperationHandlerDispatchBenchmark
     {
         var handlers = s_operationTypes
             .Take(handlerCount)
-            .Select((
-                operationType,
-                index
-            ) => new Handler($"bench.handler_{index}", operationType));
+            .Select((operationType,
+                index) => new Handler($"bench.handler_{index}", operationType));
 
         return new MySqlMigrationOperationHandlerRegistry(handlers);
     }

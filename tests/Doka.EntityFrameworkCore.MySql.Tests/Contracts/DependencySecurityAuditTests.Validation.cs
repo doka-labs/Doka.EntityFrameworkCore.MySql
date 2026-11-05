@@ -16,10 +16,43 @@ public sealed partial class DependencySecurityAuditTests
         [
             "duplicate projects", "projects", new[] { new { path = ProjectPath }, new { path = ProjectPath } },
         ];
-        yield return ["warning result", "problems", new[] { new { level = "warning", text = "Missing database" } }];
-        yield return ["error result", "problems", new[] { new { level = "error", text = "Source unavailable" } }];
+
+        yield return
+        [
+            "warning result", "problems", new[]
+            {
+                new
+                {
+                    level = "warning",
+                    text = "Missing database",
+                },
+            },
+        ];
+
+        yield return
+        [
+            "error result", "problems", new[]
+            {
+                new
+                {
+                    level = "error",
+                    text = "Source unavailable",
+                },
+            },
+        ];
+
         yield return ["malformed problems", "problems", "unavailable"];
-        yield return ["malformed framework", "projects", new[] { new { path = ProjectPath, frameworks = "invalid" } }];
+        yield return
+        [
+            "malformed framework", "projects", new[]
+            {
+                new
+                {
+                    path = ProjectPath,
+                    frameworks = "invalid",
+                },
+            },
+        ];
     }
 
     /// <summary>Rejects invalid evidence independently of the CLI's successful process exit.</summary>
@@ -107,7 +140,14 @@ public sealed partial class DependencySecurityAuditTests
                             {
                                 id = "Example.Package",
                                 resolvedVersion = "1.0.0",
-                                vulnerabilities = new[] { new { severity, advisoryurl = "https://example.invalid/a" } },
+                                vulnerabilities = new[]
+                                {
+                                    new
+                                    {
+                                        severity,
+                                        advisoryurl = "https://example.invalid/a",
+                                    },
+                                },
                             },
                         },
                     },
@@ -146,7 +186,12 @@ public sealed partial class DependencySecurityAuditTests
                         framework = "net10.0",
                         transitivePackages = new[]
                         {
-                            new { id = "Example", resolvedVersion = "1.0.0", vulnerabilities },
+                            new
+                            {
+                                id = "Example",
+                                resolvedVersion = "1.0.0",
+                                vulnerabilities,
+                            },
                         },
                     },
                 },

@@ -14,9 +14,9 @@ public sealed class BasicTypesQueryMySqlFixture
 {
     private ISetSource? _expectedData;
 
-    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
+    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
 
     /// <summary>
     /// Returns the official expected data with store-mapped temporal values at the
@@ -70,7 +70,7 @@ public sealed class BasicTypesQueryMySqlFixture
 
     private static TimeOnly TruncateToMicroseconds(
         TimeOnly value
-    ) => new(value.Ticks - (value.Ticks % TimeSpan.TicksPerMicrosecond));
+    ) => new(value.Ticks - value.Ticks % TimeSpan.TicksPerMicrosecond);
 
     private static TimeOnly? TruncateToMicroseconds(
         TimeOnly? value
@@ -80,7 +80,7 @@ public sealed class BasicTypesQueryMySqlFixture
 
     private static TimeSpan TruncateToMicroseconds(
         TimeSpan value
-    ) => TimeSpan.FromTicks(value.Ticks - (value.Ticks % TimeSpan.TicksPerMicrosecond));
+    ) => TimeSpan.FromTicks(value.Ticks - value.Ticks % TimeSpan.TicksPerMicrosecond);
 
     private static TimeSpan? TruncateToMicroseconds(
         TimeSpan? value

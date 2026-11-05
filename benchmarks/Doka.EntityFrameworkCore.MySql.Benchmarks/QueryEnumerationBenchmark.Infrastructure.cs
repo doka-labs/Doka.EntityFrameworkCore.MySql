@@ -10,7 +10,12 @@ public partial class QueryEnumerationBenchmark
     /// <summary>Preserves an entity through a selected member of a member-initialized projection.</summary>
     private Func<object> CreateMemberInitLineageOperation()
     {
-        var wrapped = _context.PlainRows.Select(row => new EntityProjection { Ignored = row.Id, Entity = row });
+        var wrapped = _context.PlainRows.Select(row => new EntityProjection
+        {
+            Ignored = row.Id,
+            Entity = row,
+        });
+
         var source = wrapped.Select(wrapper => wrapper.Entity);
         var projection = (LambdaExpression)((UnaryExpression)
             ((MethodCallExpression)wrapped.Expression).Arguments[1]).Operand;
@@ -28,8 +33,10 @@ public partial class QueryEnumerationBenchmark
                 "The lineage fixture must select the final member-initialized entity binding.");
         }
 
-        Console.WriteLine($"member-init-bindings={initialization.Bindings.GetType().FullName}; "
+        Console.WriteLine(
+            $"member-init-bindings={initialization.Bindings.GetType().FullName}; "
             + $"selected-member={nameof(EntityProjection.Entity)}");
+
         var operation = Compile(source.WithMaterializedSource(shared => shared.Select(row => row.Children.Count)));
         RequireCompiledSql("WITH RECURSIVE", "ParentId");
 
@@ -39,9 +46,14 @@ public partial class QueryEnumerationBenchmark
     /// <summary>Compiles a collection Include on a rehydrated entity joined to a flat bound source.</summary>
     private Func<object> CreateMaterializedIncludeOperation()
     {
-        var query = _context.PlainRows.Select(row => row.Id)
+        var query = _context
+            .PlainRows
+            .Select(row => row.Id)
             .WithMaterializedSource(shared => shared.Join(
-                _context.PlainRows, id => id, row => row.Id, (_, row) => row))
+                _context.PlainRows,
+                id => id,
+                row => row.Id,
+                (_, row) => row))
             .Include(row => row.Children)
             .AsSingleQuery();
 
@@ -63,18 +75,25 @@ public partial class QueryEnumerationBenchmark
             ? firstTable
             : metadata.Tables.Single(table => table.Name == "EnumerationRows");
 
-        var nested = Select([new ProjectionExpression(Column("Id", "first"), "Id")],
-            new List<TableExpressionBase> { new TableExpression("first", firstTable) }, alias: "nested");
+        var nested = Select(
+            [new ProjectionExpression(Column("Id", "first"), "Id")],
+            new List<TableExpressionBase> { new TableExpression("first", firstTable) },
+            alias: "nested");
 
-        var first = Select([new ProjectionExpression(Column("Id", "nested"), "Id")],
-            new List<TableExpressionBase> { nested }, alias: "first_branch");
+        var first = Select(
+            [new ProjectionExpression(Column("Id", "nested"), "Id")],
+            new List<TableExpressionBase> { nested },
+            alias: "first_branch");
 
-        var second = Select([new ProjectionExpression(Column("Id", "second"), "Id")],
-            new List<TableExpressionBase> { new TableExpression("second", secondTable) }, alias: "second_branch");
+        var second = Select(
+            [new ProjectionExpression(Column("Id", "second"), "Id")],
+            new List<TableExpressionBase> { new TableExpression("second", secondTable) },
+            alias: "second_branch");
 
         var union = new UnionExpression("union_rows", first, second, distinct: false);
         var validator = typeof(MySqlQueryTranslationPostprocessor).GetNestedType(
-            "MySqlCollectionIdentityValidatingExpressionVisitor", BindingFlags.NonPublic)!;
+            "MySqlCollectionIdentityValidatingExpressionVisitor",
+            BindingFlags.NonPublic)!;
 
         var inspect = validator.GetMethod("BranchesSharePhysicalTable", BindingFlags.NonPublic | BindingFlags.Static)!
             .CreateDelegate<Func<UnionExpression, bool>>();
@@ -82,13 +101,15 @@ public partial class QueryEnumerationBenchmark
         // WHY: A successful UNION query need not reach this guarded APPLY branch.
         // Bind its complete production guard once, rather than inventing an invalid
         // LINQ shape or including reflection in each measured invocation.
-        if (union.IsDistinct || inspect(union) != overlap)
+        if (union.IsDistinct
+            || inspect(union) != overlap)
         {
             throw new InvalidOperationException("The UNION ALL guard fixture does not match its overlap contract.");
         }
 
         _input = union;
-        Console.WriteLine($"union-all-guard=BranchesSharePhysicalTable; overlap={overlap}; "
+        Console.WriteLine(
+            $"union-all-guard=BranchesSharePhysicalTable; overlap={overlap}; "
             + $"first-tables={first.Tables.GetType().FullName}; "
             + $"nested-tables={nested.Tables.GetType().FullName}; "
             + $"second-tables={second.Tables.GetType().FullName}");
@@ -98,11 +119,15 @@ public partial class QueryEnumerationBenchmark
         object matches = true;
         object differs = false;
 
-        return () => inspect(union) ? matches : differs;
+        return () => inspect(union)
+            ? matches
+            : differs;
     }
 
     /// <summary>Rejects setup that silently bypasses the intended binding or Include shape.</summary>
-    private void RequireCompiledSql(params string[] fragments)
+    private void RequireCompiledSql(
+        params string[] fragments
+    )
     {
         foreach (var fragment in fragments)
         {
@@ -120,16 +145,23 @@ public partial class QueryEnumerationBenchmark
             ? [new PathSegment("name")]
             : new List<PathSegment>
             {
-                new("outer"), new("nested"), new("quoted.name"), new("items"),
-                new(Scenario == "json-dynamic-nested"
-                    ? new SqlParameterExpression("index", typeof(int), IntTypeMapping.Default)
-                    : _sql.Constant(2)),
+                new("outer"),
+                new("nested"),
+                new("quoted.name"),
+                new("items"),
+                new(
+                    Scenario == "json-dynamic-nested"
+                        ? new SqlParameterExpression("index", typeof(int), IntTypeMapping.Default)
+                        : _sql.Constant(2)),
                 new("name"),
             };
 
         var scalar = new JsonScalarExpression(
-            _sql.Constant("{}", MySqlStringTypeMapping.Default), path, typeof(string),
-            MySqlStringTypeMapping.Default, nullable: true);
+            _sql.Constant("{}", MySqlStringTypeMapping.Default),
+            path,
+            typeof(string),
+            MySqlStringTypeMapping.Default,
+            nullable: true);
 
         Console.WriteLine($"json-path={path.GetType().FullName}; count={path.Count}");
 
@@ -147,17 +179,37 @@ public partial class QueryEnumerationBenchmark
         for (var index = 0; index < 50; index++)
         {
             var name = "Value" + index;
-            var path = new List<PathSegment> { new("nested"), new(name) };
-            columns.Add(new MySqlJsonTableExpression.ColumnInfo(name, MySqlStringTypeMapping.Default, path,
-                ResultTypeMapping: MySqlGuidBinaryTypeMapping.Default));
-            projections.Add(new ProjectionExpression(
-                new ColumnExpression(name, "j", typeof(Guid), MySqlGuidBinaryTypeMapping.Default, nullable: false),
-                name));
+            var path = new List<PathSegment>
+            {
+                new("nested"),
+                new(name),
+            };
+
+            columns.Add(
+                new MySqlJsonTableExpression.ColumnInfo(
+                    name,
+                    MySqlStringTypeMapping.Default,
+                    path,
+                    ResultTypeMapping: MySqlGuidBinaryTypeMapping.Default));
+
+            projections.Add(
+                new ProjectionExpression(
+                    new ColumnExpression(name, "j", typeof(Guid), MySqlGuidBinaryTypeMapping.Default, nullable: false),
+                    name));
         }
 
-        var rowPath = new List<PathSegment> { new("root"), new("items") };
+        var rowPath = new List<PathSegment>
+        {
+            new("root"),
+            new("items"),
+        };
+
         var table = new MySqlJsonTableExpression(
-            "j", _sql.Constant("[]", MySqlStringTypeMapping.Default), rowPath, columns);
+            "j",
+            _sql.Constant("[]", MySqlStringTypeMapping.Default),
+            rowPath,
+            columns);
+
         Console.WriteLine($"json-columns={columns.GetType().FullName}; path={rowPath.GetType().FullName}");
 
         return Select(projections, [table]);
@@ -165,7 +217,12 @@ public partial class QueryEnumerationBenchmark
 
     private Expression CreateApply()
     {
-        var tableMetadata = _context.Model.GetRelationalModel().Tables.Single(table => table.Name == "EnumerationRows");
+        var tableMetadata = _context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(table => table.Name == "EnumerationRows");
+
         var outerTable = new TableExpression("o", tableMetadata);
         var innerTable = new TableExpression("i", tableMetadata);
         var innerProjections = new List<ProjectionExpression>();
@@ -181,21 +238,33 @@ public partial class QueryEnumerationBenchmark
             outerProjections.Add(new ProjectionExpression(Column(name, "a"), name));
         }
 
-        var inner = Select(innerProjections, [innerTable],
-            predicate: _sql.Equal(Column("GroupId", "i"), Column("GroupId", "o")), alias: "a");
+        var inner = Select(
+            innerProjections,
+            [innerTable],
+            predicate: _sql.Equal(Column("GroupId", "i"), Column("GroupId", "o")),
+            alias: "a");
 
         // WHY: The finalized SQL-tree fixture reaches APPLY handling itself; a
         // simple LINQ correlation can be flattened earlier by EF's translator.
         if (Scenario == "apply-delete-50")
         {
-            var groupedInner = Select(innerProjections, [innerTable],
-                predicate: inner.Predicate, alias: "a", groupBy: [Column("Id", "i")]);
+            var groupedInner = Select(
+                innerProjections,
+                [innerTable],
+                predicate: inner.Predicate,
+                alias: "a",
+                groupBy: [Column("Id", "i")]);
 
-            var localProjections = Enumerable.Range(0, 50)
-                .Select(index => new ProjectionExpression(Column("Id", "o"), "Value" + index)).ToList();
+            var localProjections = Enumerable
+                .Range(0, 50)
+                .Select(index => new ProjectionExpression(Column("Id", "o"), "Value" + index))
+                .ToList();
 
-            var outer = Select(localProjections, [outerTable, new CrossApplyExpression(groupedInner)],
-                groupBy: [Column("Id", "o")], orderings: [new OrderingExpression(Column("Id", "o"), ascending: true)]);
+            var outer = Select(
+                localProjections,
+                [outerTable, new CrossApplyExpression(groupedInner)],
+                groupBy: [Column("Id", "o")],
+                orderings: [new OrderingExpression(Column("Id", "o"), ascending: true)]);
 
             return new DeleteExpression(outerTable, outer);
         }
@@ -205,19 +274,32 @@ public partial class QueryEnumerationBenchmark
 
     private SelectExpression CreateDynamicOffset()
     {
-        var tableMetadata = _context.Model.GetRelationalModel().Tables.Single(table => table.Name == "EnumerationRows");
+        var tableMetadata = _context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(table => table.Name == "EnumerationRows");
+
         var table = new TableExpression("i", tableMetadata);
         var predicate = _sql.AndAlso(
             _sql.Equal(Column("GroupId", "i"), Column("GroupId", "o")),
-            _sql.AndAlso(_sql.GreaterThan(Column("Id", "i"), _sql.Constant(0)),
+            _sql.AndAlso(
+                _sql.GreaterThan(Column("Id", "i"), _sql.Constant(0)),
                 _sql.LessThan(Column("Id", "i"), _sql.Constant(1000))));
 
-        return Select([new ProjectionExpression(Column("Id", "i"), "Id")], [table], predicate,
+        return Select(
+            [new ProjectionExpression(Column("Id", "i"), "Id")],
+            [table],
+            predicate,
             orderings: [new OrderingExpression(Column("Id", "i"), ascending: true)],
-            offset: Column("Id", "o"), limit: _sql.Constant(1));
+            offset: Column("Id", "o"),
+            limit: _sql.Constant(1));
     }
 
-    private static ColumnExpression Column(string name, string alias)
+    private static ColumnExpression Column(
+        string name,
+        string alias
+    )
         => new(name, alias, typeof(int), IntTypeMapping.Default, nullable: false);
 
     private static SelectExpression Select(
@@ -228,13 +310,24 @@ public partial class QueryEnumerationBenchmark
         IReadOnlyList<SqlExpression>? groupBy = null,
         IReadOnlyList<OrderingExpression>? orderings = null,
         SqlExpression? offset = null,
-        SqlExpression? limit = null)
+        SqlExpression? limit = null
+    )
     {
         // WHY: Only EF's finalized tree constructor can prepare these immutable
         // pipeline inputs without timing model creation or mutating shared trees.
 #pragma warning disable EF1001
-        return new SelectExpression(alias, tables ?? [], predicate, groupBy ?? [], having: null,
-            projections, distinct: false, orderings ?? [], offset, limit, new SqlAliasManager());
+        return new SelectExpression(
+            alias,
+            tables ?? [],
+            predicate,
+            groupBy ?? [],
+            having: null,
+            projections,
+            distinct: false,
+            orderings ?? [],
+            offset,
+            limit,
+            new SqlAliasManager());
 #pragma warning restore EF1001
     }
 
@@ -243,18 +336,25 @@ public partial class QueryEnumerationBenchmark
         public DbSet<Row> Rows => Set<Row>();
         public DbSet<PlainRow> PlainRows => Set<PlainRow>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             modelBuilder.Entity<Row>(entity =>
             {
                 entity.ToTable("EnumerationRows");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Name).HasMaxLength(100);
-                entity.OwnsOne(row => row.Document, owned =>
-                {
-                    owned.ToJson();
-                    owned.OwnsMany(document => document.Items);
-                });
+                entity
+                    .Property(row => row.Name)
+                    .HasMaxLength(100);
+
+                entity.OwnsOne(
+                    row => row.Document,
+                    owned =>
+                    {
+                        owned.ToJson();
+                        owned.OwnsMany(document => document.Items);
+                    });
             });
 
             // WHY: The Include/UNION control isolates relational identity scans;
@@ -263,7 +363,10 @@ public partial class QueryEnumerationBenchmark
             {
                 entity.ToTable("EnumerationPlainRows");
                 entity.HasKey(row => row.Id);
-                entity.HasMany(row => row.Children).WithOne().HasForeignKey(child => child.ParentId);
+                entity
+                    .HasMany(row => row.Children)
+                    .WithOne()
+                    .HasForeignKey(child => child.ParentId);
             });
         }
     }
@@ -290,7 +393,7 @@ public partial class QueryEnumerationBenchmark
 
     private sealed class Document
     {
-        public List<DocumentItem> Items { get; set; } = [];
+        public List<DocumentItem> Items { get; } = [];
     }
 
     private sealed class DocumentItem

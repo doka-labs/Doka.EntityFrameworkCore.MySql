@@ -8,30 +8,53 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     public Task Failed_runtime_migration_preserves_history(
         string targetName,
         bool useDatabaseFacade
-    ) => AssertRuntimeFailureForTargetAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), useDatabaseFacade);
+    ) =>
+        AssertRuntimeFailureForTargetAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(targetName),
+            useDatabaseFacade,
+            CancellationToken.None);
 
+    /// <summary>
+    /// Verifies runtime failure for target for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="useDatabaseFacade">The use database facade.</param>
     private static async Task AssertRuntimeFailureForTargetAsync(
         IntegrationDatabaseTarget target,
-        bool useDatabaseFacade
+        bool useDatabaseFacade,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = CreateConnection(target);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         await AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(
                 connection,
                 IntegrationTestEnvironment.GetServerVersion(target),
-                useDatabaseFacade)
+                useDatabaseFacade,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Verifies failed runtime migration does not advance history for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
+    /// <param name="useDatabaseFacade">The use database facade.</param>
     private static async Task AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(
         MySqlConnection connection,
         MySqlServerVersion serverVersion,
-        bool useDatabaseFacade
+        bool useDatabaseFacade,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await DropTimestampRepairMigrationObjectsAsync(connection)
+        await DropTimestampRepairMigrationObjectsAsync(connection, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -50,30 +73,30 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             // Act
             var exception = useDatabaseFacade
                 ? await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                    context.Database.MigrateAsync(CancellationToken.None))
+                    context.Database.MigrateAsync(cancellationToken))
                 : await Assert.ThrowsAsync<InvalidOperationException>(() => context
                     .GetService<IMigrator>()
-                    .MigrateAsync(cancellationToken: CancellationToken.None));
+                    .MigrateAsync(cancellationToken: cancellationToken));
 
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT GROUP_CONCAT(`MigrationId` ORDER BY `MigrationId`) "
                 + $"FROM `{TimestampRepairMigrationContract.HistoryTable}`;";
 
             var appliedMigration = Convert.ToString(
-                    await command
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture);
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             command.CommandText = "SELECT COUNT(*) "
                 + $"FROM `{TimestampRepairMigrationContract.Table}` "
                 + "WHERE `OccurredAt` IS NULL;";
 
             var remainingNulls = Convert.ToInt64(
-                    await command
-                        .ExecuteScalarAsync(CancellationToken.None)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture);
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             // Assert
             Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
@@ -83,18 +106,31 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         }
         finally
         {
-            await DropTimestampRepairMigrationObjectsAsync(connection)
+            await DropTimestampRepairMigrationObjectsAsync(connection, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Drops timestamp repair migration objects for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task DropTimestampRepairMigrationObjectsAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
-        await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.Table}`;")
+        await ExecuteRawAsync(
+                connection,
+                $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.Table}`;",
+                cancellationToken)
             .ConfigureAwait(false);
-        await ExecuteRawAsync(connection, $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.HistoryTable}`;")
+
+        await ExecuteRawAsync(
+                connection,
+                $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.HistoryTable}`;",
+                cancellationToken)
             .ConfigureAwait(false);
     }
 }

@@ -13,10 +13,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         // Arrange
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.RepeatableRead, CancellationToken.None);
-        _ = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
+            IsolationLevel.RepeatableRead,
+            CancellationToken.None);
+
+        _ = await context
+            .Rows
+            .AsNoTracking()
+            .CountAsync(CancellationToken.None);
+
         await using var other = new MySqlConnection(context.Database.GetConnectionString());
         await other.OpenAsync(CancellationToken.None);
         await using var seed = other.CreateCommand();
@@ -28,7 +34,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         // Act
         await context.SaveChangesAsync(CancellationToken.None);
-        var visibleCount = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
+        var visibleCount = await context
+            .Rows
+            .AsNoTracking()
+            .CountAsync(CancellationToken.None);
 
         // Assert
         Assert.All(rows, AssertGenerated);
@@ -42,7 +51,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
 
         var rows = CreateIntegerRows(8);
@@ -50,7 +59,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         capture.Enabled = true;
 
         // Act
-        await SaveInAmbientTransactionAsync(context);
+        await SaveInAmbientTransactionAsync(context, CancellationToken.None);
 
         // Assert
         Assert.All(rows, AssertGenerated);
@@ -64,7 +73,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, CancellationToken.None);
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
         using var transaction = new CommittableTransaction();
         await context.Database.OpenConnectionAsync(CancellationToken.None);
@@ -85,14 +94,20 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     /// <summary>A concurrent update cannot replace an inserted row before readback completes.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task ConcurrentUpdateWaitsForGeneratedReadbackTransaction() =>
-        AssertConcurrentWriterWaitsAsync(delete: false);
+        AssertConcurrentWriterWaitsAsync(delete: false, cancellationToken: CancellationToken.None);
 
     /// <summary>A concurrent delete cannot remove an inserted row before readback completes.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task ConcurrentDeleteWaitsForGeneratedReadbackTransaction() =>
-        AssertConcurrentWriterWaitsAsync(delete: true);
+        AssertConcurrentWriterWaitsAsync(delete: true, cancellationToken: CancellationToken.None);
 
-    private static async Task AssertConcurrentWriterWaitsAsync(bool delete)
+    /// <summary>Verifies a competing write waits until generated-value readback completes.</summary>
+    /// <param name="delete">The delete used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task AssertConcurrentWriterWaitsAsync(
+        bool delete,
+        CancellationToken cancellationToken
+    )
     {
         // Arrange
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -112,30 +127,34 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         };
 
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84, capture);
-        await RecreateTableAsync(context);
+        await RecreateTableAsync(context, cancellationToken);
         var rows = CreateIntegerRows(8);
         AddRows(context, rows);
         await using var contender = new MySqlConnection(context.Database.GetConnectionString());
-        await contender.OpenAsync(CancellationToken.None);
+        await contender.OpenAsync(cancellationToken);
         await using var competing = contender.CreateCommand();
         competing.CommandTimeout = 20;
         competing.CommandText = delete
             ? $"DELETE FROM `{TableName}` WHERE `Id` = 1;"
             : $"UPDATE `{TableName}` SET `Input` = 100 WHERE `Id` = 1;";
+
         capture.Enabled = true;
         var observedWait = false;
         var completedBeforeRelease = false;
         Task<int>? competingWrite = null;
 
         // Act
-        var save = context.SaveChangesAsync(CancellationToken.None);
+        var save = context.SaveChangesAsync(cancellationToken);
 
         try
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            competingWrite = competing.ExecuteNonQueryAsync(CancellationToken.None);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken: cancellationToken);
+            competingWrite = competing.ExecuteNonQueryAsync(cancellationToken);
             observedWait = await WaitForNativeLockAsync(
-                context.Database.GetConnectionString()!, contender.ServerThread);
+                context.Database.GetConnectionString()!,
+                contender.ServerThread,
+                cancellationToken);
+
             completedBeforeRelease = competingWrite.IsCompleted;
         }
         finally
@@ -153,25 +172,39 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         Assert.All(rows, AssertGenerated);
     }
 
-    private static async Task<bool> WaitForNativeLockAsync(string connectionString, long threadId)
+    /// <summary>Polls native lock metadata until the competing write blocks or its deadline expires.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="threadId">The thread id used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task<bool> WaitForNativeLockAsync(
+        string connectionString,
+        long threadId,
+        CancellationToken cancellationToken
+    )
     {
         await using var observer = new MySqlConnection(connectionString);
-        await observer.OpenAsync(CancellationToken.None);
+        await observer.OpenAsync(cancellationToken);
         await using var command = observer.CreateCommand();
+
         // WHY: data_lock_waits is live; INNODB_TRX can show an older snapshot
         // while this observer polls a short-lived blocked statement.
         command.CommandText = "SELECT COUNT(*) FROM performance_schema.data_lock_waits AS waits "
             + "JOIN performance_schema.threads AS threads ON threads.THREAD_ID = waits.REQUESTING_THREAD_ID "
             + "WHERE threads.PROCESSLIST_ID = @thread;";
+
         command.Parameters.AddWithValue("@thread", threadId);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        // WHY: The observer deadline bounds polling without swallowing cancellation requested by its caller.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
 
         try
         {
             while (!deadline.IsCancellationRequested)
             {
                 var waiting = Convert.ToInt32(
-                    await command.ExecuteScalarAsync(deadline.Token), CultureInfo.InvariantCulture);
+                    await command.ExecuteScalarAsync(deadline.Token),
+                    CultureInfo.InvariantCulture);
 
                 if (waiting != 0)
                 {
@@ -181,18 +214,27 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 await Task.Delay(TimeSpan.FromMilliseconds(50), deadline.Token);
             }
         }
-        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             // WHY: The bounded observer reports a missing lock wait to the assertion.
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         return false;
     }
 
-    private static async Task SaveInAmbientTransactionAsync(DbContext context)
+    /// <summary>Saves the context inside a completed ambient transaction.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task SaveInAmbientTransactionAsync(
+        DbContext context,
+        CancellationToken cancellationToken
+    )
     {
         using var transaction = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
-        await context.SaveChangesAsync(CancellationToken.None);
+        await context.SaveChangesAsync(cancellationToken);
         transaction.Complete();
     }
 }

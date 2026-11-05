@@ -39,7 +39,7 @@ public static class MySqlNetTopologySuitePropertyBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(propertyBuilder);
 
-        HasSrid((PropertyBuilder)propertyBuilder, srid);
+        ((PropertyBuilder)propertyBuilder).HasSrid(srid);
 
         return propertyBuilder;
     }

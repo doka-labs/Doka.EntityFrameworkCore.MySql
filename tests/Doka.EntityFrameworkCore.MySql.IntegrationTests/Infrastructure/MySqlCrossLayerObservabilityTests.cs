@@ -16,7 +16,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -26,7 +27,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -36,7 +38,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -46,7 +49,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -56,7 +60,8 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -66,13 +71,15 @@ public sealed class MySqlCrossLayerObservabilityTests
     {
         await AssertCrossLayerContractAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertCrossLayerContractAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -97,7 +104,8 @@ public sealed class MySqlCrossLayerObservabilityTests
         // Disable EF's provider cache so this test observes that boundary itself.
 
         await using var context = new ObservabilityContext(
-            IntegrationTestDbContextOptions.Create<ObservabilityContext>()
+            IntegrationTestDbContextOptions
+                .Create<ObservabilityContext>()
                 .EnableServiceProviderCaching(false)
                 .UseLoggerFactory(loggerFactory)
                 .UseMySql(connectionStringBuilder.ConnectionString, serverVersion)
@@ -107,38 +115,48 @@ public sealed class MySqlCrossLayerObservabilityTests
         // WHY: The query, migration lock and connection release deliberately share
         // one trace so correlation is verified across all three telemetry layers.
         var scalar = await context
-            .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-            .SingleAsync()
+            .Database
+            .SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using (var migrationLock = await context
-                         .GetService<IHistoryRepository>()
-                         .AcquireDatabaseLockAsync()
-                         .ConfigureAwait(false)) { }
+            .GetService<IHistoryRepository>()
+            .AcquireDatabaseLockAsync(cancellationToken)
+            .ConfigureAwait(false)) { }
 
         await context
-            .Database.CloseConnectionAsync()
+            .Database
+            .CloseConnectionAsync()
             .ConfigureAwait(false);
+
         meterSink.RecordObservableInstruments();
 
         var traceId = rootActivity.TraceId;
-        var expectedEngine = serverVersion.IsMariaDb ? MySqlDiagnosticTags.MariaDb : MySqlDiagnosticTags.MySql;
+        var expectedEngine = serverVersion.IsMariaDb
+            ? MySqlDiagnosticTags.MariaDb
+            : MySqlDiagnosticTags.MySql;
+
         var providerActivities = activitySink
-            .Activities.Where(activity =>
+            .Activities
+            .Where(activity =>
                 activity.Source.Name == MySqlDiagnostics.SourceName && activity.TraceId == traceId)
             .ToList();
 
         var driverActivities = activitySink
-            .Activities.Where(activity =>
+            .Activities
+            .Where(activity =>
                 activity.Source.Name == MySqlDiagnostics.MySqlConnectorSourceName && activity.TraceId == traceId)
             .ToList();
 
         var efEvents = diagnosticSink
-            .Events.Where(entry => entry.TraceId == traceId)
+            .Events
+            .Where(entry => entry.TraceId == traceId)
             .ToList();
 
         var resolutionLogs = logSink
-            .Entries.Where(entry => entry.EventId == MySqlEventId.ServerVersionResolved)
+            .Entries
+            .Where(entry => entry.EventId == MySqlEventId.ServerVersionResolved)
             .ToList();
 
         // Assert
@@ -155,24 +173,30 @@ public sealed class MySqlCrossLayerObservabilityTests
         Assert.Contains(
             providerActivities,
             activity => activity.OperationName == MySqlDiagnostics.ServerVersionResolveSpanName);
+
         Assert.Contains(
             providerActivities,
             activity => activity.OperationName == MySqlDiagnostics.MigrationLockSpanName);
+
         Assert.All(
             providerActivities,
             activity => Assert.Equal(expectedEngine, activity.GetTagItem(MySqlDiagnosticTags.DatabaseSystem)));
+
         Assert.Contains(
             driverActivities,
             activity => activity.OperationName.Contains("Open", StringComparison.Ordinal));
+
         Assert.Contains(
             driverActivities,
             activity => activity.OperationName.Contains("Execute", StringComparison.Ordinal));
+
         Assert.Contains(efEvents, entry => entry.Name.Contains("Command", StringComparison.Ordinal));
         Assert.NotEmpty(resolutionLogs);
         Assert.All(resolutionLogs, log => Assert.Equal(traceId.ToString(), log.TraceId));
         Assert.All(
             resolutionLogs,
             log => Assert.Contains(providerActivities, activity => activity.SpanId.ToString() == log.SpanId));
+
         Assert.Contains(
             meterSink.Measurements,
             measurement => measurement is
@@ -180,6 +204,7 @@ public sealed class MySqlCrossLayerObservabilityTests
                 MeterName: MySqlDiagnostics.SourceName,
                 InstrumentName: MySqlDiagnostics.ServerVersionResolutionTotalMetricName,
             });
+
         Assert.Contains(
             meterSink.Measurements,
             measurement => measurement is
@@ -187,12 +212,15 @@ public sealed class MySqlCrossLayerObservabilityTests
                 MeterName: MySqlDiagnostics.SourceName,
                 InstrumentName: MySqlDiagnostics.MigrationLockAcquireDurationMetricName,
             });
+
         Assert.Contains(
             meterSink.Measurements,
             measurement => measurement.MeterName == MySqlDiagnostics.MySqlConnectorSourceName);
+
         Assert.All(
             meterSink.Measurements.Where(measurement => measurement.MeterName == MySqlDiagnostics.SourceName),
             measurement => Assert.Equal(expectedEngine, measurement.Tags[MySqlDiagnosticTags.Engine]));
+
         Assert.Equal(MySqlDiagnostics.DefaultDriverPoolName, normalizedConnectionString.ApplicationName);
         Assert.True(migrationLockLog.State.ContainsKey("LockScopeId"));
         Assert.DoesNotContain(normalizedConnectionString.Database, migrationLockLog.Message, StringComparison.Ordinal);
@@ -220,6 +248,7 @@ public sealed class MySqlCrossLayerObservabilityTests
                     ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = Activities.Enqueue,
             };
+
             ActivitySource.AddActivityListener(_listener);
         }
 
@@ -234,16 +263,15 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public CrossLayerMeterSink()
         {
-            _listener.InstrumentPublished = (
-                instrument,
-                listener
-            ) =>
+            _listener.InstrumentPublished = (instrument,
+                listener) =>
             {
                 if (instrument.Meter.Name is MySqlDiagnostics.SourceName or MySqlDiagnostics.MySqlConnectorSourceName)
                 {
                     listener.EnableMeasurementEvents(instrument);
                 }
             };
+
             _listener.SetMeasurementEventCallback<int>(RecordMeasurement);
             _listener.SetMeasurementEventCallback<long>(RecordMeasurement);
             _listener.SetMeasurementEventCallback<double>(RecordMeasurement);
@@ -252,9 +280,9 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public ConcurrentQueue<MetricMeasurement> Measurements { get; } = new();
 
-        public void RecordObservableInstruments() => _listener.RecordObservableInstruments();
-
         public void Dispose() => _listener.Dispose();
+
+        public void RecordObservableInstruments() => _listener.RecordObservableInstruments();
 
         private void RecordMeasurement<T>(
             Instrument instrument,
@@ -289,6 +317,16 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public ConcurrentQueue<DiagnosticEvent> Events { get; } = new();
 
+        public void Dispose()
+        {
+            _allListenersSubscription.Dispose();
+
+            foreach (var subscription in _listenerSubscriptions)
+            {
+                subscription.Dispose();
+            }
+        }
+
         public void OnNext(
             DiagnosticListener listener
         )
@@ -303,18 +341,7 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public void OnError(
             Exception error
-        )
-        { }
-
-        public void Dispose()
-        {
-            _allListenersSubscription.Dispose();
-
-            foreach (var subscription in _listenerSubscriptions)
-            {
-                subscription.Dispose();
-            }
-        }
+        ) { }
     }
 
     private sealed class DiagnosticEventObserver : IObserver<KeyValuePair<string, object?>>
@@ -336,8 +363,7 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public void OnError(
             Exception error
-        )
-        { }
+        ) { }
     }
 
     private sealed record DiagnosticEvent(

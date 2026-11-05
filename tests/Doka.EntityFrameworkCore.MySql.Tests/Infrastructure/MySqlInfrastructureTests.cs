@@ -17,7 +17,7 @@ public sealed class MySqlInfrastructureTests
         // Act
         var generator = context.GetService<IUpdateSqlGenerator>();
         var actual = generator.GetType()
-                .Name;
+            .Name;
 
         // Assert
         Assert.Equal(
@@ -30,7 +30,7 @@ public sealed class MySqlInfrastructureTests
     public void IsSpatialClrType_returns_true_for_nts_point()
     {
         // Arrange
-        var type = typeof(NetTopologySuite.Geometries.Point);
+        var type = typeof(Point);
 
         // Act
         var actual = MySqlSpatialTypeSupport.IsSpatialClrType(type);
@@ -44,7 +44,7 @@ public sealed class MySqlInfrastructureTests
     public void IsSpatialClrType_returns_true_for_nts_geometry()
     {
         // Arrange
-        var type = typeof(NetTopologySuite.Geometries.Geometry);
+        var type = typeof(Geometry);
 
         // Act
         var actual = MySqlSpatialTypeSupport.IsSpatialClrType(type);
@@ -146,9 +146,6 @@ public sealed class MySqlInfrastructureTests
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<InfraEntity>(e => { e.HasKey(x => x.Id); });
-        }
+        ) => modelBuilder.Entity<InfraEntity>(e => { e.HasKey(x => x.Id); });
     }
 }

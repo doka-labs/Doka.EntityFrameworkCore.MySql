@@ -3,19 +3,22 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies source metadata and navigation shaping with a supplied runtime model.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertSuppliedRuntimeModelPreservesSourceMetadataAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var probe = new BindingCommandProbe();
         var connectionString = fixture.Context.Database.GetConnectionString()
             ?? throw new InvalidOperationException("The populated fixture must provide a connection string.");
 
         // WHY: Calling the target connection helper from this new file would select
         // another isolated schema instead of the fixture's populated database.
-        var options = IntegrationTestDbContextOptions.Create<BindingContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<BindingContext>()
             .UseMySql(
                 connectionString,
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -27,20 +30,26 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var maximum = 2;
 
         // Act
-        var query = context.Items.Where(item => item.Id <= maximum)
+        var query = context
+            .Items
+            .Where(item => item.Id <= maximum)
             .WithMaterializedSource(source => source.Select(item => new RuntimeModelRow
             {
                 Id = item.Id,
                 Token = item.Token,
                 OptionalScore = item.OptionalScore,
                 Code = item.Code,
-                Children = item.Children.OrderBy(child => child.Id).Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .OrderBy(child => child.Id)
+                    .Select(child => child.Name)
+                    .ToArray(),
             }))
             .OrderBy(row => row.Id);
 
         var commandsDuringConstruction = probe.Count;
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Same(fixture.Context.Model, context.Model);

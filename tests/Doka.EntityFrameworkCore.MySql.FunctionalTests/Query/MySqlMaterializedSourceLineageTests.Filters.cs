@@ -26,7 +26,8 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         var second = context.Second.WithMaterializedSource(shared => shared);
 
         // Act
-        var query = first.Join(second, row => row.Id, row => row.Id, (left, _) => left.Id)
+        var query = first
+            .Join(second, row => row.Id, row => row.Id, (left, _) => left.Id)
             .Join(context.Outer, id => id, row => row.Id, (id, _) => id);
 
         var sql = query.ToQueryString();
@@ -36,13 +37,20 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             .OrderBy(value => value)
             .ToArray();
 
-        var actualValues = declarations.Select(match => int.Parse(match.Groups["value"].Value, CultureInfo.InvariantCulture))
+        var actualValues = declarations
+            .Select(match => int.Parse(match.Groups["value"].Value, CultureInfo.InvariantCulture))
             .OrderBy(value => value)
             .ToArray();
 
         // Assert
         Assert.True(expectedValues.SequenceEqual(actualValues), sql);
-        Assert.Equal(3, declarations.Select(match => match.Groups["name"].Value).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            3,
+            declarations
+                .Select(match => match.Groups["name"].Value)
+                .Distinct(StringComparer.Ordinal)
+                .Count());
+
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageFilterFirst`"));
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageFilterSecond`"));
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageFilterOuter`"));
@@ -60,7 +68,11 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateFilterContext(mariaDb);
 
         // Act
-        var query = context.Volatile.OrderBy(_ => EF.Functions.Random()).Skip(1).Take(3)
+        var query = context
+            .Volatile
+            .OrderBy(_ => EF.Functions.Random())
+            .Skip(1)
+            .Take(3)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -95,6 +107,7 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         Assert.Contains("WITH RECURSIVE", sql, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(sql, "FROM `LineageNavigationSources`"));
         Assert.Equal(1, CountOccurrences(sql, "`LineageNavigationTargets`"));
+
         // WHY: Name alone is projected; IsVisible can occur only when the target filter survives.
         Assert.Equal(1, CountOccurrences(sql, "`IsVisible`"));
     }
@@ -111,7 +124,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateFilterContext(mariaDb);
 
         // Act
-        var query = context.NavigationSources.WithMaterializedSource(shared =>
+        var query = context
+            .NavigationSources
+            .WithMaterializedSource(shared =>
                 shared.Select(row => row.Target.Name))
             .IgnoreQueryFilters();
 
@@ -132,7 +147,8 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<FilterContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<FilterContext>()
             .UseMySql("Server=localhost;Database=lineage;User ID=unused;", version)
             .Options;
 
@@ -143,7 +159,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     private sealed class FilterContext : DbContext
     {
         /// <summary>Initializes the filter model.</summary>
-        public FilterContext(DbContextOptions<FilterContext> options) : base(options) { }
+        public FilterContext(
+            DbContextOptions<FilterContext> options
+        ) : base(options) { }
 
         /// <summary>Gets or sets the first source filter value.</summary>
         public int FirstTenantId { get; set; } = 11;
@@ -183,23 +201,40 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<FirstFiltered>().ToTable("LineageFilterFirst")
+            modelBuilder
+                .Entity<FirstFiltered>()
+                .ToTable("LineageFilterFirst")
                 .HasQueryFilter(row => row.TenantId == FirstTenant());
-            modelBuilder.Entity<SecondFiltered>().ToTable("LineageFilterSecond")
+
+            modelBuilder
+                .Entity<SecondFiltered>()
+                .ToTable("LineageFilterSecond")
                 .HasQueryFilter(row => row.TenantId == SecondTenant());
-            modelBuilder.Entity<OuterFiltered>().ToTable("LineageFilterOuter")
+
+            modelBuilder
+                .Entity<OuterFiltered>()
+                .ToTable("LineageFilterOuter")
                 .HasQueryFilter(row => row.TenantId == OuterTenant());
-            modelBuilder.Entity<VolatileFiltered>().ToTable("LineageVolatile")
+
+            modelBuilder
+                .Entity<VolatileFiltered>()
+                .ToTable("LineageVolatile")
                 .HasQueryFilter(_ => EF.Functions.Random() > 0.5);
 
-            modelBuilder.Entity<NavigationFilteredSource>().ToTable("LineageNavigationSources")
+            modelBuilder
+                .Entity<NavigationFilteredSource>()
+                .ToTable("LineageNavigationSources")
                 .HasQueryFilter(row => row.TenantId == FirstTenant());
-            modelBuilder.Entity<NavigationFilteredSource>()
+
+            modelBuilder
+                .Entity<NavigationFilteredSource>()
                 .HasOne(row => row.Target)
                 .WithMany()
                 .HasForeignKey(row => row.TargetId);
 
-            modelBuilder.Entity<NavigationFilteredTarget>().ToTable("LineageNavigationTargets")
+            modelBuilder
+                .Entity<NavigationFilteredTarget>()
+                .ToTable("LineageNavigationTargets")
                 .HasQueryFilter(row => row.IsVisible);
         }
     }

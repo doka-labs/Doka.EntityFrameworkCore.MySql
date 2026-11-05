@@ -16,7 +16,7 @@ public sealed class MySqlQueryCompilationContextTests
 
         // Act
         var factory = context.GetService<
-            Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
+            IQueryCompilationContextFactory>();
 
         // Assert
         Assert.IsType<MySqlQueryCompilationContextFactory>(factory);
@@ -68,7 +68,7 @@ public sealed class MySqlQueryCompilationContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
+    [Experimental("EF9100")]
     public void Precompiled_split_query_forces_buffering(
         bool async
     )
@@ -76,7 +76,7 @@ public sealed class MySqlQueryCompilationContextTests
         // Arrange
         using var context = CreateContext(QuerySplittingBehavior.SplitQuery);
         var factory = context.GetService<
-            Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
+            IQueryCompilationContextFactory>();
 
         // Act
         var actual = factory.CreatePrecompiled(async);
@@ -95,7 +95,7 @@ public sealed class MySqlQueryCompilationContextTests
     )
     {
         var factory = context.GetService<
-            Microsoft.EntityFrameworkCore.Query.IQueryCompilationContextFactory>();
+            IQueryCompilationContextFactory>();
 
         return Assert.IsType<MySqlQueryCompilationContext>(factory.Create(async));
     }

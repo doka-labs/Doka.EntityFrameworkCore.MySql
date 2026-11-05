@@ -26,9 +26,9 @@ internal sealed class MySqlLikeMethodTranslator : IMethodCallTranslator
 
     private static readonly MethodInfo s_likeMethod = ResolveMethod(parameterCount: 3);
     private static readonly MethodInfo s_likeWithEscapeMethod = ResolveMethod(parameterCount: 4);
+    private readonly MySqlGuidTextExpressionFactory _guidTextExpressionFactory;
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
-    private readonly MySqlGuidTextExpressionFactory _guidTextExpressionFactory;
     private readonly RelationalTypeMapping _stringTypeMapping;
 
     public MySqlLikeMethodTranslator(
@@ -63,7 +63,9 @@ internal sealed class MySqlLikeMethodTranslator : IMethodCallTranslator
             return null;
         }
 
-        var genericType = method.GetGenericArguments()[0];
+        var genericType = method
+            .GetGenericArguments()[0];
+
         var scalarType = Nullable.GetUnderlyingType(genericType) ?? genericType;
 
         if (!s_supportedScalarTypes.Contains(scalarType))
@@ -92,5 +94,7 @@ internal sealed class MySqlLikeMethodTranslator : IMethodCallTranslator
     ) => typeof(MySqlDbFunctionsExtensions)
         .GetRuntimeMethods()
         .Single(method => method is { Name: nameof(MySqlDbFunctionsExtensions.Like), IsGenericMethodDefinition: true }
-            && method.GetParameters().Length == parameterCount);
+            && method.GetParameters()
+                .Length
+            == parameterCount);
 }

@@ -25,7 +25,9 @@ public sealed class DatabaseCollationDesignContext : DbContext
         {
             entity.ToTable("DatabaseCollationDesignRecords");
             entity.HasKey(record => record.Id);
-            entity.Property(record => record.Name).HasMaxLength(64);
+            entity
+                .Property(record => record.Name)
+                .HasMaxLength(64);
         });
     }
 }

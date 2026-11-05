@@ -13,7 +13,7 @@ public sealed class MySqlScopedMigrationCommandTests
     {
         // Arrange
         var primary = new InvalidOperationException("primary");
-        Action act = () =>
+        var act = () =>
             MySqlScopedMigrationCommand.ThrowFailures(primary, cleanupException: null);
 
         // Act
@@ -32,7 +32,7 @@ public sealed class MySqlScopedMigrationCommandTests
     {
         // Arrange
         var cleanup = new InvalidOperationException("cleanup");
-        Action act = () =>
+        var act = () =>
             MySqlScopedMigrationCommand.ThrowFailures(primaryException: null, cleanupException: cleanup);
 
         // Act
@@ -53,7 +53,7 @@ public sealed class MySqlScopedMigrationCommandTests
         // Arrange
         var primary = new InvalidOperationException("primary");
         var cleanup = new InvalidOperationException("cleanup");
-        Action act = () =>
+        var act = () =>
             MySqlScopedMigrationCommand.ThrowFailures(primary, cleanup);
 
         // Act

@@ -134,6 +134,7 @@ internal static class PerformanceGate
         var reports = Directory.Exists(reportsDirectory)
             ? Directory.GetFiles(reportsDirectory, "*-report-full.json", SearchOption.AllDirectories)
             : [];
+
         if (reports.Length == 0)
         {
             invalid.Add($"No BenchmarkDotNet full JSON report exists below '{reportsDirectory}'.");
@@ -158,8 +159,8 @@ internal static class PerformanceGate
             }
 
             foreach (var benchmark in root
-                         .GetProperty("Benchmarks")
-                         .EnumerateArray())
+                .GetProperty("Benchmarks")
+                .EnumerateArray())
             {
                 observations.Add(ReadObservation(benchmark, report));
             }
@@ -174,6 +175,7 @@ internal static class PerformanceGate
             regressions,
             diagnostics,
             mode);
+
         var controlCount = ValidateControls(
             contract.GetProperty("benchmarkDotNetControls"),
             targets,
@@ -223,7 +225,7 @@ internal static class PerformanceGate
         var workloadObservations = observations
             .Where(static observation => observation is
             {
-                Type: nameof(ProviderWorkloadBenchmarks), Method: nameof(ProviderWorkloadBenchmarks.Execute)
+                Type: nameof(ProviderWorkloadBenchmarks), Method: nameof(ProviderWorkloadBenchmarks.Execute),
             })
             .ToArray();
 
@@ -295,24 +297,28 @@ internal static class PerformanceGate
                 median,
                 RequiredDouble(budget, "medianNanoseconds"),
                 SelectViolations(mode, "medianNanoseconds", regressions, diagnostics));
+
             AddMaximumRegression(
                 definition.Id,
                 "p95Nanoseconds",
                 p95,
                 RequiredDouble(budget, "p95Nanoseconds"),
                 SelectViolations(mode, "p95Nanoseconds", regressions, diagnostics));
+
             AddMaximumRegression(
                 definition.Id,
                 "p99Nanoseconds",
                 p99,
                 RequiredDouble(budget, "p99Nanoseconds"),
                 SelectViolations(mode, "p99Nanoseconds", regressions, diagnostics));
+
             AddMaximumRegression(
                 definition.Id,
                 "allocatedBytes",
                 allocated,
                 RequiredDouble(budget, "allocatedBytes"),
                 SelectViolations(mode, "allocatedBytes", regressions, diagnostics));
+
             AddMaximumRegression(
                 definition.Id,
                 "gen2CollectionsPer1000",
@@ -349,7 +355,8 @@ internal static class PerformanceGate
             var type = RequiredString(control, "type");
             var method = RequiredString(control, "method");
             var measured = SelectSingleObservation(observations, type, method, id, invalid);
-            if (measured is null || maximum is null)
+            if (measured is null
+                || maximum is null)
             {
                 continue;
             }
@@ -370,8 +377,14 @@ internal static class PerformanceGate
                         continue;
                     }
 
-                    var numerator = metric == "meanRatio" ? measured.Mean : measured.AllocatedBytes;
-                    var denominator = metric == "meanRatio" ? baseline.Mean : baseline.AllocatedBytes;
+                    var numerator = metric == "meanRatio"
+                        ? measured.Mean
+                        : measured.AllocatedBytes;
+
+                    var denominator = metric == "meanRatio"
+                        ? baseline.Mean
+                        : baseline.AllocatedBytes;
+
                     if (denominator == 0)
                     {
                         if (numerator != 0)
@@ -393,7 +406,12 @@ internal static class PerformanceGate
                     continue;
             }
 
-            AddMaximumRegression(id, metric, actual, maximum.Value, SelectViolations(mode, metric, regressions, diagnostics));
+            AddMaximumRegression(
+                id,
+                metric,
+                actual,
+                maximum.Value,
+                SelectViolations(mode, metric, regressions, diagnostics));
         }
 
         return count;
@@ -465,7 +483,9 @@ internal static class PerformanceGate
             }
         }
 
-        return invalid.Count == initialErrorCount ? selectedMaximum : null;
+        return invalid.Count == initialErrorCount
+            ? selectedMaximum
+            : null;
     }
 
     private static double? ReadMaximum(
@@ -595,13 +615,17 @@ internal static class PerformanceGate
                     continue;
                 }
 
-                var failed = requirement.Minimum ? actual < requirement.Limit : actual > requirement.Limit;
+                var failed = requirement.Minimum
+                    ? actual < requirement.Limit
+                    : actual > requirement.Limit;
+
                 if (failed)
                 {
                     scenarioRegressed = true;
-                    SelectViolations(mode, requirement.Metric, regressions, diagnostics).Add(
-                        $"{id} {requirement.Metric} is {actual:G17}; required "
-                        + $"{(requirement.Minimum ? "minimum" : "maximum")} {requirement.Limit:G17}.");
+                    SelectViolations(mode, requirement.Metric, regressions, diagnostics)
+                        .Add(
+                            $"{id} {requirement.Metric} is {actual:G17}; required "
+                            + $"{(requirement.Minimum ? "minimum" : "maximum")} {requirement.Limit:G17}.");
                 }
             }
 
@@ -625,7 +649,9 @@ internal static class PerformanceGate
         string metric,
         List<string> regressions,
         List<string> diagnostics
-    ) => PerformanceEvaluationPolicy.IsDiagnostic(mode, metric) ? diagnostics : regressions;
+    ) => PerformanceEvaluationPolicy.IsDiagnostic(mode, metric)
+        ? diagnostics
+        : regressions;
 
     private static BenchmarkObservation ReadObservation(
         JsonElement benchmark,
@@ -638,6 +664,7 @@ internal static class PerformanceGate
             .EnumerateArray()
             .Select(static value => value.GetDouble())
             .ToArray();
+
         if (values.Length == 0
             || values.Any(value => !double.IsFinite(value) || value <= 0))
         {
@@ -648,6 +675,7 @@ internal static class PerformanceGate
         var sampleCount = statistics
             .GetProperty("N")
             .GetInt32();
+
         var reportedMean = RequiredDouble(statistics, "Mean");
         var recomputedMean = values.Average();
         var meanTolerance = 1e-9 * Math.Max(1, Math.Abs(recomputedMean));
@@ -669,6 +697,7 @@ internal static class PerformanceGate
             values,
             RequiredDouble(memory, "BytesAllocatedPerOperation"),
             RequiredDouble(memory, "Gen2Collections"));
+
         if (observation.SampleCount <= 0
             || !double.IsFinite(observation.AllocatedBytes)
             || observation.AllocatedBytes < 0
@@ -715,6 +744,7 @@ internal static class PerformanceGate
         var matches = observations
             .Where(observation => observation.Type == type && observation.Method == method)
             .ToArray();
+
         if (matches.Length != 1)
         {
             invalid.Add($"Control '{controlId}' expected one {type}.{method} result, found {matches.Length}.");
@@ -738,7 +768,9 @@ internal static class PerformanceGate
 
         start += prefix.Length;
         var end = fullName.IndexOf('"', start);
-        return end < 0 ? null : fullName[start..end];
+        return end < 0
+            ? null
+            : fullName[start..end];
     }
 
     private static WorkloadDefinition ReadWorkloadDefinition(
@@ -747,7 +779,9 @@ internal static class PerformanceGate
         RequiredString(definition, "id"),
         RequiredString(definition, "family"),
         definition.TryGetProperty("smoke", out var smoke) && smoke.GetBoolean(),
-        definition.TryGetProperty("operationsPerSample", out var operations) ? operations.GetInt32() : 1);
+        definition.TryGetProperty("operationsPerSample", out var operations)
+            ? operations.GetInt32()
+            : 1);
 
     private static void AddMaximumRegression(
         string id,
@@ -783,7 +817,7 @@ internal static class PerformanceGate
             return sortedValues[lower];
         }
 
-        return sortedValues[lower] + ((sortedValues[upper] - sortedValues[lower]) * (position - lower));
+        return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (position - lower);
     }
 
     private static int RequiredInt(

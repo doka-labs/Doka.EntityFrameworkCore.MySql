@@ -5,18 +5,17 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// INSERTs that target the same table + write column set + read column set are buffered
 /// and flushed as a single multi-row INSERT statement (or a multi-row INSERT ... RETURNING
 /// statement on MariaDB 10.5+). Non-INSERT commands and INSERT-shape-changes trigger an
-/// immediate flush of the buffered set; <see cref="Complete"/> flushes any remaining
+/// immediate flush of the buffered set; <see cref="Complete" /> flushes any remaining
 /// buffered commands before completing the batch.
-///
-/// Two server-side safety caps run on every <see cref="TryAddCommand"/> call so the
+/// Two server-side safety caps run on every <see cref="TryAddCommand" /> call so the
 /// emitted statement stays within MySQL/MariaDB hard limits even when the user
 /// configures <c>MaxBatchSize</c> above the conservative default: the prepared-statement
 /// placeholder count cap (65535 placeholders per statement) and a conservative
 /// <c>max_allowed_packet</c> wire-size estimate (4 MB). When either cap would be
 /// crossed, the batch closes early and the consumer opens a fresh batch for the next
 /// command. The cap event is logged once per batch under
-/// <see cref="MySqlEventId.BulkInsertParameterCountCapped"/> /
-/// <see cref="MySqlEventId.BulkInsertPacketSizeCapped"/>.
+/// <see cref="MySqlEventId.BulkInsertParameterCountCapped" /> /
+/// <see cref="MySqlEventId.BulkInsertPacketSizeCapped" />.
 /// </summary>
 internal sealed partial class MySqlModificationCommandBatch : AffectedCountModificationCommandBatch
 {
@@ -48,14 +47,15 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     /// </summary>
     private const int EstimatedBytesPerParameter = 256;
 
-    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
-    private readonly ILogger _logger;
     private readonly IRelationalConnection _connection;
-    private int _currentParameterCount;
+    private readonly ILogger _logger;
+
+    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
     private long _additionalReadbackPacketBytes;
-    private int _pendingProviderParameters;
-    private bool _parameterCountWarningEmitted;
+    private int _currentParameterCount;
     private bool _packetSizeWarningEmitted;
+    private bool _parameterCountWarningEmitted;
+    private int _pendingProviderParameters;
 
     /// <summary>
     /// Creates a bounded command batch using the current context's transaction boundary.
@@ -99,9 +99,10 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
                 : 0;
 
         var projectedReadbackPacketBytes = _additionalReadbackPacketBytes + additionalReadbackBytes;
+
         // WHY: Readback repeats key values in a separate SELECT; its placeholder count is bounded by the written keys,
         // but its serialized values and SQL still consume the same command packet.
-        var projectedPacketSize = ((long)projectedParameterCount * EstimatedBytesPerParameter)
+        var projectedPacketSize = (long)projectedParameterCount * EstimatedBytesPerParameter
             + projectedReadbackPacketBytes;
 
         // First command is always accepted even when it alone exceeds a cap: the
@@ -119,6 +120,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
                         ModificationCommands.Count,
                         projectedParameterCount,
                         MaxParameterCount);
+
                     _parameterCountWarningEmitted = true;
                 }
 
@@ -134,6 +136,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
                         ModificationCommands.Count,
                         (int)Math.Min(int.MaxValue, projectedPacketSize),
                         MaxPacketSizeBytes);
+
                     _packetSizeWarningEmitted = true;
                 }
 
@@ -239,7 +242,9 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             ? columnModification.OriginalParameterName!
             : columnModification.ParameterName!;
 
-        var value = useOriginalValue ? columnModification.OriginalValue : columnModification.Value;
+        var value = useOriginalValue
+            ? columnModification.OriginalValue
+            : columnModification.Value;
 
         if (value is null)
         {
@@ -253,8 +258,8 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             parameterName,
             Dependencies.SqlGenerationHelper.GenerateParameterName(parameterName),
             columnModification.TypeMapping!,
-            columnModification.IsNullable,
-            ParameterDirection.Input);
+            columnModification.IsNullable);
+
         ParameterValues.Add(parameterName, value);
         _pendingProviderParameters++;
     }
@@ -347,6 +352,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
                             onResultSet,
                             cancellationToken)
                         .ConfigureAwait(false);
+
                     commandIndex++;
                     continue;
                 }
@@ -373,7 +379,8 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
 
                     commandIndex = lastHandledCommandIndex + 1;
                     onResultSet = await reader
-                        .DbDataReader.NextResultAsync(cancellationToken)
+                        .DbDataReader
+                        .NextResultAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
                 else
@@ -432,13 +439,13 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
         while (true)
         {
             while (firstIndex < firstModifications.Count
-                   && !IsComparedOperation(firstModifications[firstIndex], compareWriteColumns))
+                && !IsComparedOperation(firstModifications[firstIndex], compareWriteColumns))
             {
                 firstIndex++;
             }
 
             while (secondIndex < secondModifications.Count
-                   && !IsComparedOperation(secondModifications[secondIndex], compareWriteColumns))
+                && !IsComparedOperation(secondModifications[secondIndex], compareWriteColumns))
             {
                 secondIndex++;
             }
@@ -451,9 +458,9 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             }
 
             if (!string.Equals(
-                    firstModifications[firstIndex].ColumnName,
-                    secondModifications[secondIndex].ColumnName,
-                    StringComparison.Ordinal))
+                firstModifications[firstIndex].ColumnName,
+                secondModifications[secondIndex].ColumnName,
+                StringComparison.Ordinal))
             {
                 return false;
             }
@@ -466,7 +473,9 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     private static bool IsComparedOperation(
         IColumnModification modification,
         bool compareWriteColumns
-    ) => compareWriteColumns ? modification.IsWrite : modification.IsRead;
+    ) => compareWriteColumns
+        ? modification.IsWrite
+        : modification.IsRead;
 
     private static int CountCommandParameters(
         IReadOnlyModificationCommand modificationCommand,
@@ -569,7 +578,8 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             }
 
             onResultSet = await reader
-                .DbDataReader.NextResultAsync(cancellationToken)
+                .DbDataReader
+                .NextResultAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -578,7 +588,9 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             return onResultSet;
         }
 
-        onResultSet = await MoveToReadableResultSetAsync(reader, onResultSet, cancellationToken).ConfigureAwait(false);
+        onResultSet = await MoveToReadableResultSetAsync(reader, onResultSet, cancellationToken)
+            .ConfigureAwait(false);
+
         if (onResultSet == false
             || !await reader
                 .ReadAsync(cancellationToken)
@@ -591,7 +603,8 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
             .ConfigureAwait(false);
 
         return await reader
-            .DbDataReader.NextResultAsync(cancellationToken)
+            .DbDataReader
+            .NextResultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -701,7 +714,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     )
     {
         while (onResultSet != false
-               && reader.DbDataReader.FieldCount == 0)
+            && reader.DbDataReader.FieldCount == 0)
         {
             onResultSet = reader.DbDataReader.NextResult();
         }
@@ -714,10 +727,11 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     )
     {
         while (onResultSet != false
-               && reader.DbDataReader.FieldCount == 0)
+            && reader.DbDataReader.FieldCount == 0)
         {
             onResultSet = await reader
-                .DbDataReader.NextResultAsync(cancellationToken)
+                .DbDataReader
+                .NextResultAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
 

@@ -36,11 +36,18 @@ public sealed partial class MySqlGuidMigrationTests
         var tableName = $"SqlDefault{format}";
 
         // Act
-        var operations = addColumn ? GetDifferences(source, target) : GetDifferences(target);
+        var operations = addColumn
+            ? GetDifferences(source, target)
+            : GetDifferences(target);
+
         var code = GenerateMigrationCode(operations);
         var compilation = CompileMigrationCode(code);
-        var commands = target.GetService<IMigrationsSqlGenerator>()
-            .Generate(operations, target.GetService<IDesignTimeModel>().Model);
+        var commands = target
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(
+                operations,
+                target.GetService<IDesignTimeModel>()
+                    .Model);
 
         var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
 
@@ -57,7 +64,13 @@ public sealed partial class MySqlGuidMigrationTests
 
         // EF may retain a synthetic CLR fallback; generated source must consume the SQL expression instead.
         Assert.DoesNotContain("defaultValue:", code, StringComparison.Ordinal);
-        Assert.Contains(addColumn ? "AddColumn<Guid>" : "table.Column<Guid>", code, StringComparison.Ordinal);
+        Assert.Contains(
+            addColumn
+                ? "AddColumn<Guid>"
+                : "table.Column<Guid>",
+            code,
+            StringComparison.Ordinal);
+
         Assert.Contains($"defaultValueSql: \"{defaultSql}\"", code, StringComparison.Ordinal);
         Assert.Contains($"`ExternalId` {storeType} NOT NULL DEFAULT ({defaultSql})", sql, StringComparison.Ordinal);
         AssertCompilationSucceeded(compilation);
@@ -81,7 +94,8 @@ public sealed partial class MySqlGuidMigrationTests
 
         if (addColumn)
         {
-            builder.AddColumn<Guid>(
+            builder
+                .AddColumn<Guid>(
                     name: "ExternalId",
                     table: "LiteralGuidSqlDefaults",
                     type: storeType,
@@ -95,7 +109,8 @@ public sealed partial class MySqlGuidMigrationTests
                 name: "LiteralGuidSqlDefaults",
                 columns: table => new
                 {
-                    ExternalId = table.Column<Guid>(type: storeType, nullable: false, defaultValueSql: defaultSql)
+                    ExternalId = table
+                        .Column<Guid>(type: storeType, nullable: false, defaultValueSql: defaultSql)
                         .Annotation(MySqlAnnotationNames.GuidFormat, format),
                 });
         }
@@ -103,8 +118,12 @@ public sealed partial class MySqlGuidMigrationTests
         // Act
         var code = GenerateMigrationCode(builder.Operations);
         var compilation = CompileMigrationCode(code);
-        var commands = context.GetService<IMigrationsSqlGenerator>()
-            .Generate(builder.Operations, context.GetService<IDesignTimeModel>().Model);
+        var commands = context
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(
+                builder.Operations,
+                context.GetService<IDesignTimeModel>()
+                    .Model);
 
         var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
 
@@ -112,12 +131,20 @@ public sealed partial class MySqlGuidMigrationTests
         var operation = Assert.Single(builder.Operations);
         var column = addColumn
             ? Assert.IsType<AddColumnOperation>(operation)
-            : Assert.Single(Assert.IsType<CreateTableOperation>(operation).Columns);
+            : Assert.Single(
+                Assert.IsType<CreateTableOperation>(operation)
+                    .Columns);
 
         AssertGuidColumn(column, storeType, isNullable: false, guidFormat: format);
         Assert.Equal(defaultSql, column.DefaultValueSql);
         Assert.Null(column.DefaultValue);
-        Assert.Contains(addColumn ? "AddColumn<Guid>" : "table.Column<Guid>", code, StringComparison.Ordinal);
+        Assert.Contains(
+            addColumn
+                ? "AddColumn<Guid>"
+                : "table.Column<Guid>",
+            code,
+            StringComparison.Ordinal);
+
         Assert.Contains($"defaultValueSql: \"{defaultSql}\"", code, StringComparison.Ordinal);
         Assert.Contains($"`ExternalId` {storeType} NOT NULL DEFAULT ({defaultSql})", sql, StringComparison.Ordinal);
         AssertCompilationSucceeded(compilation);
@@ -143,24 +170,27 @@ public sealed partial class MySqlGuidMigrationTests
             {
                 var tableName = $"SqlDefault{format}";
 
-                modelBuilder.SharedTypeEntity<Dictionary<string, object>>(tableName, entity =>
-                {
-                    entity.ToTable(tableName);
-                    entity.IndexerProperty<int>("Id");
-                    entity.HasKey("Id");
-
-                    if (IncludesDefaultColumn)
+                modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                    tableName,
+                    entity =>
                     {
-                        // Binary16 needs a binary expression; the textual UUID() result cannot fit the column.
-                        var defaultSql = format == MySqlGuidFormat.Binary16
-                            ? "UNHEX(REPLACE(UUID(), '-', ''))"
-                            : "UUID()";
+                        entity.ToTable(tableName);
+                        entity.IndexerProperty<int>("Id");
+                        entity.HasKey("Id");
 
-                        entity.IndexerProperty<Guid>("ExternalId")
-                            .HasMySqlGuidFormat(format)
-                            .HasDefaultValueSql(defaultSql);
-                    }
-                });
+                        if (IncludesDefaultColumn)
+                        {
+                            // Binary16 needs a binary expression; the textual UUID() result cannot fit the column.
+                            var defaultSql = format == MySqlGuidFormat.Binary16
+                                ? "UNHEX(REPLACE(UUID(), '-', ''))"
+                                : "UUID()";
+
+                            entity
+                                .IndexerProperty<Guid>("ExternalId")
+                                .HasMySqlGuidFormat(format)
+                                .HasDefaultValueSql(defaultSql);
+                        }
+                    });
             }
         }
     }

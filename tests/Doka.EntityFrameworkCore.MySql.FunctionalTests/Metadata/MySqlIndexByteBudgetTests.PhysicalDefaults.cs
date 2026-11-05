@@ -25,22 +25,33 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
 
         var captured = MySqlIndexByteBudget.GetPhysicalTableDefaults(model);
-        var tables = model.GetRelationalModel().Tables.ToArray();
+        var tables = model
+            .GetRelationalModel()
+            .Tables
+            .ToArray();
 
         // Assert
         Assert.NotEmpty(tables);
-        Assert.All(tables, table =>
-        {
-            var defaults = captured[StoreObjectIdentifier.Table(table.Name, table.Schema)];
+        Assert.All(
+            tables,
+            table =>
+            {
+                var defaults = captured[StoreObjectIdentifier.Table(table.Name, table.Schema)];
 
-            Assert.Equal(table.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string, defaults.CharSet);
-            Assert.Equal(
-                table.FindAnnotation(RelationalAnnotationNames.Collation)?.Value as string,
-                defaults.Collation);
-        });
+                Assert.Equal(
+                    table.FindAnnotation(MySqlAnnotationNames.CharSet)
+                        ?.Value as string,
+                    defaults.CharSet);
+
+                Assert.Equal(
+                    table.FindAnnotation(RelationalAnnotationNames.Collation)
+                        ?.Value as string,
+                    defaults.Collation);
+            });
     }
 
     /// <summary>
@@ -58,7 +69,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var detail = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var ddl = context.Database.GenerateCreateScript();
 

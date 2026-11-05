@@ -13,9 +13,7 @@ public sealed class MigrationsSqlGeneratorMySqlTest
     : MigrationsSqlGeneratorTestBase
 {
     public MigrationsSqlGeneratorMySqlTest()
-        : base(MySqlTestHelpers.Instance)
-    {
-    }
+        : base(MySqlTestHelpers.Instance) { }
 
     public override void AddColumnOperation_without_column_type() =>
         VerifyGeneratedSql(base.AddColumnOperation_without_column_type);

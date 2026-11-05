@@ -22,29 +22,32 @@ public sealed class ApplicationTimeTableIntegrationTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task Bitemporal_contract_executes_on_mariadb1011() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011);
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Bitemporal_contract_executes_on_mariadb114() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb114);
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Bitemporal_contract_executes_on_mariadb118() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb118);
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task Bitemporal_contract_executes_on_mariadb123() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb123);
+        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Runs the bitemporal contract integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunBitemporalContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(cancellationToken: cancellationToken);
+        await CleanupAsync(connection, cancellationToken);
 
         try
         {
@@ -54,30 +57,39 @@ public sealed class ApplicationTimeTableIntegrationTests
             await ExecuteOperationsAsync(
                 bitemporalContext,
                 connection,
-                GetDifferences(emptyContext, bitemporalContext));
-            await AssertPhysicalContractAsync(connection, target);
+                GetDifferences(emptyContext, bitemporalContext),
+                cancellationToken);
+
+            await AssertPhysicalContractAsync(connection, target, cancellationToken);
             AssertScaffoldingContract(connectionString);
-            await AssertPortionMutationContractAsync(target);
+            await AssertPortionMutationContractAsync(target, cancellationToken);
 
-            await ExecuteOperationsAsync(emptyContext, connection, GetDifferences(bitemporalContext, emptyContext));
+            await ExecuteOperationsAsync(
+                emptyContext,
+                connection,
+                GetDifferences(bitemporalContext, emptyContext),
+                cancellationToken);
 
-            Assert.Equal(0, await CountTablesAsync(connection));
+            Assert.Equal(0, await CountTablesAsync(connection, cancellationToken));
         }
         finally
         {
             // The model-driven drop above is part of the contract. Raw SQL is
             // reserved for failure recovery so a failed assertion cannot leak
             // state into another live integration test.
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
+    /// <summary>Verifies the physical contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertPhysicalContractAsync(
         MySqlConnection connection,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
-        Assert.Equal(1, await CountTablesAsync(connection));
+        Assert.Equal(1, await CountTablesAsync(connection, cancellationToken));
         Assert.Equal(
             "SYSTEM VERSIONED",
             await ExecuteScalarAsync(
@@ -88,18 +100,23 @@ public sealed class ApplicationTimeTableIntegrationTests
                 WHERE TABLE_SCHEMA = DATABASE()
                   AND TABLE_NAME = @tableName;
                 """,
+                cancellationToken,
                 ("@tableName", TableName)));
+
         if (!IntegrationTestEnvironment
-                .GetServerVersion(target)
-                .Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog))
+            .GetServerVersion(target)
+            .Profile
+            .Engine
+            .Has(EngineCapability.TemporalPeriodCatalog))
         {
-            var createTableSql = await ReadCreateTableAsync(connection);
+            var createTableSql = await ReadCreateTableAsync(connection, cancellationToken);
 
             Assert.Contains(
                 $"PERIOD FOR `{ApplicationPeriodName}` "
                 + $"(`{ApplicationPeriodStartColumnName}`, `{ApplicationPeriodEndColumnName}`)",
                 createTableSql,
                 StringComparison.Ordinal);
+
             Assert.Contains(
                 $"`{ApplicationPeriodName}` WITHOUT OVERLAPS",
                 createTableSql,
@@ -121,10 +138,12 @@ public sealed class ApplicationTimeTableIntegrationTests
                   AND START_COLUMN_NAME = @periodStart
                   AND END_COLUMN_NAME = @periodEnd;
                 """,
+                cancellationToken,
                 ("@tableName", TableName),
                 ("@periodName", ApplicationPeriodName),
                 ("@periodStart", ApplicationPeriodStartColumnName),
                 ("@periodEnd", ApplicationPeriodEndColumnName)));
+
         Assert.Equal(
             1,
             await CountAsync(
@@ -137,6 +156,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                   AND CONSTRAINT_NAME = 'PRIMARY'
                   AND PERIOD_NAME = @periodName;
                 """,
+                cancellationToken,
                 ("@tableName", TableName),
                 ("@periodName", ApplicationPeriodName)));
     }
@@ -161,21 +181,26 @@ public sealed class ApplicationTimeTableIntegrationTests
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value as bool?);
+
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
                 ?.Value as bool?);
+
         Assert.Equal(
             ApplicationPeriodName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
                 ?.Value);
+
         Assert.Equal(
             ApplicationPeriodStartColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn)
                 ?.Value);
+
         Assert.Equal(
             ApplicationPeriodEndColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn)
                 ?.Value);
+
         Assert.True(
             sourceTable.PrimaryKey?.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
                 ?.Value as bool?);
@@ -198,14 +223,18 @@ public sealed class ApplicationTimeTableIntegrationTests
         Assert.Contains(
             $".HasPeriodStart(\"{ApplicationPeriodStartColumnName}\")",
             contextCode);
+
         Assert.Contains($".HasPeriodEnd(\"{ApplicationPeriodEndColumnName}\")", contextCode);
         Assert.Contains($".HasColumnName(\"{ApplicationPeriodStartColumnName}\")", contextCode);
         Assert.Contains($".HasColumnName(\"{ApplicationPeriodEndColumnName}\")", contextCode);
         Assert.Contains(".UseWithoutOverlaps()", contextCode);
     }
 
+    /// <summary>Verifies the portion mutation contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertPortionMutationContractAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         await using (var seedContext = CreateBitemporalContext(target))
@@ -218,18 +247,23 @@ public sealed class ApplicationTimeTableIntegrationTests
                     BusinessValidFrom = s_initialFrom,
                     BusinessValidTo = s_initialTo,
                 });
-            await seedContext.SaveChangesAsync();
+
+            await seedContext.SaveChangesAsync(cancellationToken: cancellationToken);
         }
 
         await using (var updateContext = CreateBitemporalContext(target))
         {
             _ = await updateContext
-                .Items.ForPortionOf(s_updateFrom, s_updateTo)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Name, "updated"));
+                .Items
+                .ForPortionOf(s_updateFrom, s_updateTo)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(item => item.Name, "updated"),
+                    cancellationToken: cancellationToken);
         }
 
         await AssertRowsAsync(
             target,
+            cancellationToken,
             new ExpectedRow("original", s_initialFrom, s_updateFrom),
             new ExpectedRow("updated", s_updateFrom, s_updateTo),
             new ExpectedRow("original", s_updateTo, s_initialTo));
@@ -237,8 +271,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         await using (var deleteContext = CreateBitemporalContext(target))
         {
             _ = await deleteContext
-                .Items.ForPortionOf(s_deleteFrom, s_deleteTo)
-                .ExecuteDeleteAsync();
+                .Items
+                .ForPortionOf(s_deleteFrom, s_deleteTo)
+                .ExecuteDeleteAsync(cancellationToken: cancellationToken);
         }
 
         // MariaDB splits the affected row at both delete boundaries. Checking
@@ -246,14 +281,18 @@ public sealed class ApplicationTimeTableIntegrationTests
         // FOR PORTION OF semantics instead of approximating them with a filter.
         await AssertRowsAsync(
             target,
+            cancellationToken,
             new ExpectedRow("original", s_initialFrom, s_updateFrom),
             new ExpectedRow("updated", s_updateFrom, s_deleteFrom),
             new ExpectedRow("updated", s_deleteTo, s_updateTo),
             new ExpectedRow("original", s_updateTo, s_initialTo));
     }
 
+    /// <summary>Verifies the rows contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRowsAsync(
         IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken,
         params ExpectedRow[] expectedRows
     )
     {
@@ -262,19 +301,23 @@ public sealed class ApplicationTimeTableIntegrationTests
 
         // Act
         var actualRows = await context
-            .Items.AsNoTracking()
+            .Items
+            .AsNoTracking()
             .OrderBy(item => item.BusinessValidFrom)
             .Select(item => new ExpectedRow(item.Name, item.BusinessValidFrom, item.BusinessValidTo))
-            .ToListAsync();
+            .ToListAsync(cancellationToken: cancellationToken);
 
         // Assert
         Assert.Equal(expectedRows, actualRows);
     }
 
+    /// <summary>Executes the operations with the caller's cancellation token.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task ExecuteOperationsAsync(
         DbContext context,
         MySqlConnection connection,
-        IReadOnlyList<MigrationOperation> operations
+        IReadOnlyList<MigrationOperation> operations,
+        CancellationToken cancellationToken
     )
     {
         var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -285,7 +328,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         {
             await using var command = connection.CreateCommand();
             command.CommandText = migrationCommand.CommandText;
-            _ = await command.ExecuteNonQueryAsync();
+            _ = await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
         }
     }
 
@@ -296,11 +339,13 @@ public sealed class ApplicationTimeTableIntegrationTests
     {
         var sourceModel = source
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         var targetModel = target
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         return target
             .GetService<IMigrationsModelDiffer>()
@@ -311,7 +356,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<BitemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<BitemporalContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -323,7 +370,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<EmptyApplicationTimeContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<EmptyApplicationTimeContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -331,8 +380,11 @@ public sealed class ApplicationTimeTableIntegrationTests
         return new EmptyApplicationTimeContext(options);
     }
 
+    /// <summary>Counts the tables in the current database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> CountTablesAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     ) => CountAsync(
         connection,
         """
@@ -341,10 +393,14 @@ public sealed class ApplicationTimeTableIntegrationTests
         WHERE TABLE_SCHEMA = DATABASE()
           AND TABLE_NAME = @tableName;
         """,
+        cancellationToken,
         ("@tableName", TableName));
 
+    /// <summary>Reads the create table from the current database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<string> ReadCreateTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -352,22 +408,31 @@ public sealed class ApplicationTimeTableIntegrationTests
             "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 "
             + $"FOR SHOW CREATE TABLE `{TableName}`;";
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken: cancellationToken);
 
-        Assert.True(await reader.ReadAsync());
+        Assert.True(await reader.ReadAsync(cancellationToken));
 
         return reader.GetString(1);
     }
 
+    /// <summary>Reads a count using a parameterized SQL command.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int> CountAsync(
         MySqlConnection connection,
         string commandText,
+        CancellationToken cancellationToken,
         params (string Name, object Value)[] parameters
-    ) => Convert.ToInt32(await ExecuteScalarAsync(connection, commandText, parameters), CultureInfo.InvariantCulture);
+    ) =>
+        Convert.ToInt32(
+            await ExecuteScalarAsync(connection, commandText, cancellationToken, parameters),
+            CultureInfo.InvariantCulture);
 
+    /// <summary>Executes the scalar with the caller's cancellation token.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<object?> ExecuteScalarAsync(
         MySqlConnection connection,
         string commandText,
+        CancellationToken cancellationToken,
         params (string Name, object Value)[] parameters
     )
     {
@@ -379,16 +444,19 @@ public sealed class ApplicationTimeTableIntegrationTests
             command.Parameters.AddWithValue(parameter.Name, parameter.Value);
         }
 
-        return await command.ExecuteScalarAsync();
+        return await command.ExecuteScalarAsync(cancellationToken: cancellationToken);
     }
 
+    /// <summary>Removes integration tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
-        _ = await command.ExecuteNonQueryAsync();
+        _ = await command.ExecuteNonQueryAsync(cancellationToken: cancellationToken);
     }
 
     private sealed record ExpectedRow(
@@ -434,13 +502,16 @@ public sealed class ApplicationTimeTableIntegrationTests
                         applicationTime
                             .HasPeriodStart(item => item.BusinessValidFrom)
                             .HasColumnName(ApplicationPeriodStartColumnName);
+
                         applicationTime
                             .HasPeriodEnd(item => item.BusinessValidTo)
                             .HasColumnName(ApplicationPeriodEndColumnName);
                     }));
+
             entity
                 .HasKey(item => item.Id)
                 .UseWithoutOverlaps();
+
             entity
                 .Property(item => item.Name)
                 .HasMaxLength(64);

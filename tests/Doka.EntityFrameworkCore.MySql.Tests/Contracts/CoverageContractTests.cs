@@ -38,16 +38,26 @@ public sealed class CoverageContractTests
     {
         // Arrange
         using var fixture = CoverageFixture.Create(
-            assemblyName: scenario == "missing" ? "Other.Assembly" : "Provider",
-            className: scenario == "missing" ? "Other.Critical" : "Provider.Critical",
-            lineHits: scenario == "line_floor" ? (1, 0) : (1, 1),
-            branchFraction: scenario == "branch_floor" ? "0% (0/2)" : "50% (1/2)");
+            assemblyName: scenario == "missing"
+                ? "Other.Assembly"
+                : "Provider",
+            className: scenario == "missing"
+                ? "Other.Critical"
+                : "Provider.Critical",
+            lineHits: scenario == "line_floor"
+                ? (1, 0)
+                : (1, 1),
+            branchFraction: scenario == "branch_floor"
+                ? "0% (0/2)"
+                : "50% (1/2)");
 
         // Act
         var invalid = CoverageContract.Evaluate(
             fixture.ReportPath,
             fixture.PolicyPath,
-            nowTimestamp: scenario == "stale" ? 2000 : 1001);
+            nowTimestamp: scenario == "stale"
+                ? 2000
+                : 1001);
 
         // Assert
         Assert.Contains(invalid.Errors, error => error.Contains(expectedError, StringComparison.Ordinal));
@@ -180,6 +190,8 @@ public sealed class CoverageContractTests
 
         public string PolicyPath => System.IO.Path.Combine(Path, "coverage-policy.json");
 
+        public void Dispose() => Directory.Delete(Path, recursive: true);
+
         public static CoverageFixture Create(
             string assemblyName = "Provider",
             string className = "Provider.Critical",
@@ -201,11 +213,13 @@ public sealed class CoverageContractTests
                 + $"condition-coverage=\"{branchFraction}\" />"
                 + $"<line number=\"2\" hits=\"{hits.Second}\" />"
                 + "</lines></class>";
+
             File.WriteAllText(
                 fixture.ReportPath,
                 "<coverage timestamp=\"1000\"><packages>"
                 + $"<package name=\"{assemblyName}\"><classes>{classElements}</classes></package>"
                 + "</packages></coverage>");
+
             File.WriteAllText(
                 fixture.PolicyPath,
                 JsonSerializer.Serialize(
@@ -236,7 +250,5 @@ public sealed class CoverageContractTests
 
             return fixture;
         }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
     }
 }

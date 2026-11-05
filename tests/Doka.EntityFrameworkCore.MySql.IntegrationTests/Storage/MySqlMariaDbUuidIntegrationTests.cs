@@ -31,15 +31,43 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     // static field initialization order across separate partial files is unspecified.
     private static readonly Guid[] s_seedMembership = [s_seededId, Guid.Empty];
     private static readonly Guid[] s_v7Membership = [s_v7Last, Guid.Empty];
+
     private static readonly VersionedOrderCase[] s_versionedOrderCases =
     [
-        new("NativeV1", "NativeId", 1, 2, [2, 1], s_v1TextLast, 1),
-        new("BinaryV1", "BinaryId", 1, 2, [1, 2], s_v1TextLast, null),
-        new("CharV1", "CharId", 1, 2, [1, 2], s_v1TextLast, null),
-        new("NativeV7", "NativeId", 3, 4, [3, 4], s_v7First, 4),
+        new(
+            "NativeV1",
+            "NativeId",
+            1,
+            2,
+            [2, 1],
+            s_v1TextLast,
+            1),
+        new(
+            "BinaryV1",
+            "BinaryId",
+            1,
+            2,
+            [1, 2],
+            s_v1TextLast,
+            null),
+        new(
+            "CharV1",
+            "CharId",
+            1,
+            2,
+            [1, 2],
+            s_v1TextLast,
+            null),
+        new(
+            "NativeV7",
+            "NativeId",
+            3,
+            4,
+            [3, 4],
+            s_v7First,
+            4),
     ];
 
-    private readonly NativeUuidFixture _fixture;
     private static readonly IntegrationDatabaseTarget[] s_mariaDbTargets =
     [
         IntegrationDatabaseTarget.MariaDb1011,
@@ -48,14 +76,20 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         IntegrationDatabaseTarget.MariaDb123,
     ];
 
+    private readonly NativeUuidFixture _fixture;
+
     /// <summary>Uses the class-owned native and versioned UUID datasets.</summary>
     public MySqlMariaDbUuidIntegrationTests(
         NativeUuidFixture fixture
-    ) => _fixture = fixture;
+    )
+    {
+        _fixture = fixture;
+    }
 
     /// <summary>Identifies selected MariaDB engines that support native UUID storage.</summary>
     public static IEnumerable<object[]> NativeTargetCases =>
-        s_mariaDbTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+        s_mariaDbTargets
+            .Where(IntegrationTestEnvironment.IsTargetSelected)
             .Select(target => new object[] { target.ToString() });
 
     /// <summary>
@@ -73,39 +107,52 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }.ConnectionString;
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await DropProbeTableAsync(connection).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await DropProbeTableAsync(connection, CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
             await using (var create = connection.CreateCommand())
             {
                 create.CommandText = $"CREATE TABLE `{ProbeTable}` (`Id` uuid NOT NULL PRIMARY KEY);";
-                _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await create
+                    .ExecuteNonQueryAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await using (var insert = connection.CreateCommand())
             {
                 insert.CommandText = $"INSERT INTO `{ProbeTable}` (`Id`) VALUES (@id);";
                 insert.Parameters.AddWithValue("@id", s_probeGuid.ToString("D", CultureInfo.InvariantCulture));
-                _ = await insert.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await insert
+                    .ExecuteNonQueryAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await using var select = connection.CreateCommand();
             select.CommandText = $"SELECT `Id` FROM `{ProbeTable}`;";
 
             // Act
-            var value = await select.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            var value = await select
+                .ExecuteScalarAsync(CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.True(value is string or Guid, $"Unexpected connector UUID value: {value?.GetType().FullName}");
             Assert.Equal(
                 s_probeGuid,
-                value is Guid guid ? guid : Guid.Parse((string)value!));
+                value is Guid guid
+                    ? guid
+                    : Guid.Parse((string)value!));
         }
         finally
         {
-            await DropProbeTableAsync(connection).ConfigureAwait(false);
+            await DropProbeTableAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -118,25 +165,35 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         // Arrange
         var connectionString = GetConnectionString(IntegrationDatabaseTarget.MariaDb118, "Probes");
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await DropProbeTableAsync(connection).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await DropProbeTableAsync(connection, CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
             await using (var create = connection.CreateCommand())
             {
                 create.CommandText = $"CREATE TABLE `{ProbeTable}` (`Id` uuid NOT NULL PRIMARY KEY);";
-                _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await create
+                    .ExecuteNonQueryAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await using var provider = ScaffoldingTestServices.CreateDesignTimeServiceProvider();
             using var scope = provider.CreateScope();
             var services = scope.ServiceProvider;
             var options = new DatabaseModelFactoryOptions([ProbeTable], Array.Empty<string>());
+
             // Act
-            var databaseModel = services.GetRequiredService<IDatabaseModelFactory>()
+            var databaseModel = services
+                .GetRequiredService<IDatabaseModelFactory>()
                 .Create(connectionString, options);
-            var scaffolded = services.GetRequiredService<IReverseEngineerScaffolder>()
+
+            var scaffolded = services
+                .GetRequiredService<IReverseEngineerScaffolder>()
                 .ScaffoldModel(
                     connectionString,
                     options,
@@ -144,17 +201,26 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
                     ScaffoldingTestServices.CreateCodeGenerationOptions(connectionString));
 
             // Assert
-            var column = Assert.Single(Assert.Single(databaseModel.Tables).Columns);
+            var column = Assert.Single(
+                Assert.Single(databaseModel.Tables)
+                    .Columns);
 
             Assert.Equal("uuid", column.StoreType);
-            Assert.Contains("public Guid Id { get; set; }", scaffolded.AdditionalFiles.Single().Code,
+            Assert.Contains(
+                "public Guid Id { get; set; }",
+                scaffolded.AdditionalFiles.Single()
+                    .Code,
                 StringComparison.Ordinal);
-            Assert.Contains("HasMySqlGuidFormat(MySqlGuidFormat.Uuid)", scaffolded.ContextFile.Code,
+
+            Assert.Contains(
+                "HasMySqlGuidFormat(MySqlGuidFormat.Uuid)",
+                scaffolded.ContextFile.Code,
                 StringComparison.Ordinal);
         }
         finally
         {
-            await DropProbeTableAsync(connection).ConfigureAwait(false);
+            await DropProbeTableAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -171,6 +237,7 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
             Pooling = false,
         }.ConnectionString;
+
         var builder = IntegrationTestDbContextOptions.Create<NativeUuidOptInContext>();
         builder.UseMySql(
             connectionString,
@@ -178,9 +245,12 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             options => options.DefaultGuidFormat(MySqlGuidFormat.Binary16));
 
         await using var context = new NativeUuidOptInContext(builder.Options);
-        await context.Database.ExecuteSqlRawAsync(
-            $"DROP TABLE IF EXISTS `{OptInTable}`;",
-            CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{OptInTable}`;",
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
@@ -192,20 +262,30 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             };
 
             // Act
-            await context.Database.ExecuteSqlRawAsync(
-                context.Database.GenerateCreateScript(),
-                CancellationToken.None).ConfigureAwait(false);
+            await context
+                .Database
+                .ExecuteSqlRawAsync(
+                    context.Database.GenerateCreateScript(),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+
             // WHY: Explicit seed keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
             context.Add(item);
-            await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            await context
+                .SaveChangesAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             context.ChangeTracker.Clear();
 
-            var actual = await context.Set<NativeUuidOptInEntity>()
+            var actual = await context
+                .Set<NativeUuidOptInEntity>()
                 .AsNoTracking()
                 .SingleAsync(value => value.NativeId == s_seededId, CancellationToken.None)
                 .ConfigureAwait(false);
-            var columnTypes = await ReadOptInColumnTypesAsync(context).ConfigureAwait(false);
+
+            var columnTypes = await ReadOptInColumnTypesAsync(context, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(s_seededId, actual.NativeId);
@@ -215,9 +295,12 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync(
-                $"DROP TABLE IF EXISTS `{OptInTable}`;",
-                CancellationToken.None).ConfigureAwait(false);
+            await context
+                .Database
+                .ExecuteSqlRawAsync(
+                    $"DROP TABLE IF EXISTS `{OptInTable}`;",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -242,24 +325,40 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             options => options.DefaultGuidFormat(MySqlGuidFormat.Char36));
 
         await using var context = new Char36BytesContext(builder.Options);
-        await context.Database.ExecuteSqlRawAsync(
-            $"DROP TABLE IF EXISTS `{Char36BytesTable}`;",
-            CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{Char36BytesTable}`;",
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         try
         {
             // Act
-            await context.Database.ExecuteSqlRawAsync(
-                context.Database.GenerateCreateScript(),
-                CancellationToken.None).ConfigureAwait(false);
+            await context
+                .Database
+                .ExecuteSqlRawAsync(
+                    context.Database.GenerateCreateScript(),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
 
             // WHY: Explicit seed keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
-            context.Add(new Char36BytesEntity { Id = 1, ConvertedId = s_convertedId });
-            await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            context.Add(
+                new Char36BytesEntity
+                {
+                    Id = 1,
+                    ConvertedId = s_convertedId,
+                });
+
+            await context
+                .SaveChangesAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             context.ChangeTracker.Clear();
 
-            var actual = await context.Set<Char36BytesEntity>()
+            var actual = await context
+                .Set<Char36BytesEntity>()
                 .AsNoTracking()
                 .SingleAsync(entity => entity.Id == 1, CancellationToken.None)
                 .ConfigureAwait(false);
@@ -269,8 +368,14 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             column.CommandText = "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
                 + "WHERE TABLE_SCHEMA = DATABASE() "
                 + $"AND TABLE_NAME = '{Char36BytesTable}' AND COLUMN_NAME = 'ConvertedId';";
-            await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-            var columnType = await column.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await connection
+                .OpenAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
+            var columnType = await column
+                .ExecuteScalarAsync(CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(s_convertedId, actual.ConvertedId);
@@ -278,9 +383,12 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync(
-                $"DROP TABLE IF EXISTS `{Char36BytesTable}`;",
-                CancellationToken.None).ConfigureAwait(false);
+            await context
+                .Database
+                .ExecuteSqlRawAsync(
+                    $"DROP TABLE IF EXISTS `{Char36BytesTable}`;",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 }

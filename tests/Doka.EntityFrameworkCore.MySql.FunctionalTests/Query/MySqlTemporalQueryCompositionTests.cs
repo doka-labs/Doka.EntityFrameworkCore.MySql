@@ -6,10 +6,24 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Query;
 public sealed class MySqlTemporalQueryCompositionTests
 {
     private static readonly DateTime s_firstPoint =
-        new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        new(
+            2026,
+            1,
+            2,
+            3,
+            4,
+            5,
+            DateTimeKind.Utc);
 
     private static readonly DateTime s_secondPoint =
-        new(2026, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+        new(
+            2026,
+            2,
+            3,
+            4,
+            5,
+            6,
+            DateTimeKind.Utc);
 
     /// <summary>
     /// TemporalAsOf carries one database instant across every separately stored
@@ -23,7 +37,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
         // Act
         var sql = context
-            .Parents.TemporalAsOf(s_firstPoint)
+            .Parents
+            .TemporalAsOf(s_firstPoint)
             .Include(parent => parent.Children)
             .ToQueryString();
 
@@ -43,7 +58,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Parents.TemporalAsOf(s_firstPoint)
+            .Parents
+            .TemporalAsOf(s_firstPoint)
             .Include(parent => parent.Children)
             .ToQueryString());
 
@@ -135,7 +151,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Parents.TemporalAll()
+            .Parents
+            .TemporalAll()
             .Include(parent => parent.Children)
             .ToQueryString());
 
@@ -154,11 +171,13 @@ public sealed class MySqlTemporalQueryCompositionTests
         using var context = CreateContext<AllTemporalConfiguration>();
 
         var first = context
-            .Parents.TemporalAsOf(s_firstPoint)
+            .Parents
+            .TemporalAsOf(s_firstPoint)
             .Where(parent => parent.Id < 10);
 
         var second = context
-            .Parents.TemporalAsOf(s_firstPoint)
+            .Parents
+            .TemporalAsOf(s_firstPoint)
             .Where(parent => parent.Id >= 10);
 
         // Act
@@ -205,7 +224,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Parents.TemporalAll()
+            .Parents
+            .TemporalAll()
             .Union(context.Parents)
             .ToQueryString());
 
@@ -224,7 +244,8 @@ public sealed class MySqlTemporalQueryCompositionTests
 
         // Act
         var sql = context
-            .Parents.TemporalAll()
+            .Parents
+            .TemporalAll()
             .GroupBy(_ => 1)
             .Select(group => new
             {
@@ -244,7 +265,9 @@ public sealed class MySqlTemporalQueryCompositionTests
     private static TemporalCompositionContext<TConfiguration> CreateContext<TConfiguration>()
         where TConfiguration : ICompositionConfiguration, new()
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalCompositionContext<TConfiguration>>().UseMySql(
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<TemporalCompositionContext<TConfiguration>>()
+            .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
             .Options;
@@ -326,7 +349,10 @@ public sealed class MySqlTemporalQueryCompositionTests
                         owned =>
                         {
                             owned.ToTable("TemporalParentNotes");
-                            owned.WithOwner().HasForeignKey("ParentId");
+                            owned
+                                .WithOwner()
+                                .HasForeignKey("ParentId");
+
                             owned.Property<int>("Id");
                             owned.HasKey("ParentId", "Id");
                         });
@@ -368,6 +394,7 @@ public sealed class MySqlTemporalQueryCompositionTests
 
     private sealed class TemporalProfile
     {
+        // WHY: Query translation must see the scalar in EF's convention-built owned model.
         public string DisplayName { get; set; } = null!;
     }
 

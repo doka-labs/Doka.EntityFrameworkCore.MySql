@@ -6,12 +6,16 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string FilterSourceBTable = "IntBoundFilterB";
     private const string FilterSourceCTable = "IntBoundFilterC";
 
+    /// <summary>Creates the filter fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<FilterFixture> CreateFilterFixtureAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<FilterContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<FilterContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -22,8 +26,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropFilterTablesAsync(context);
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            await DropFilterTablesAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
 
             for (var id = 1; id <= 6; id++)
             {
@@ -32,7 +36,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 context.Add(new FilterSourceC { Id = id });
             }
 
-            await context.SaveChangesAsync(CancellationToken.None);
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
 
@@ -46,11 +50,14 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Drops the filter tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropFilterTablesAsync(
-        FilterContext context
+        FilterContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{FilterSourceATable}`, `{FilterSourceBTable}`, `{FilterSourceCTable}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class FilterFixture(
         FilterContext context,
@@ -65,7 +72,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropFilterTablesAsync(Context);
+                await DropFilterTablesAsync(Context, CancellationToken.None);
             }
             finally
             {
@@ -82,7 +89,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         public int MinimumBValue { get; set; } = 4;
 
-        public int MinimumCValue { get; set; } = 6;
+        public int MinimumCValue { get; } = 6;
 
         public DbSet<FilterSourceA> SourceA => Set<FilterSourceA>();
 
@@ -105,19 +112,30 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             modelBuilder.Entity<FilterSourceA>(entity =>
             {
                 entity.ToTable(FilterSourceATable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumA());
             });
+
             modelBuilder.Entity<FilterSourceB>(entity =>
             {
                 entity.ToTable(FilterSourceBTable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumB());
             });
+
             modelBuilder.Entity<FilterSourceC>(entity =>
             {
                 entity.ToTable(FilterSourceCTable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumC());
             });
         }

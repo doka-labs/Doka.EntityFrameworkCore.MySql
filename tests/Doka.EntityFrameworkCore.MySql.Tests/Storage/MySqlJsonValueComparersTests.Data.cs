@@ -5,7 +5,16 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed partial class MySqlJsonValueComparersTests
 {
     private static readonly Guid s_jsonGuid = Guid.Parse("ebde3793-3e08-4a89-aa39-76b92c1c4c72");
-    private static readonly DateTime s_jsonTimestamp = new(2026, 8, 22, 12, 34, 56, DateTimeKind.Utc);
+
+    private static readonly DateTime s_jsonTimestamp = new(
+        2026,
+        8,
+        22,
+        12,
+        34,
+        56,
+        DateTimeKind.Utc);
+
     private static readonly string[] s_primitiveRepresentations =
     [
         "parsed-integer", "parsed-decimal", "byte", "sbyte", "int16", "uint16", "int32", "uint32",
@@ -60,20 +69,6 @@ public sealed partial class MySqlJsonValueComparersTests
     };
 
     /// <summary>
-    /// Supplies the complete Cartesian product of the supported primitive representations.
-    /// </summary>
-    public static IEnumerable<object[]> PrimitiveNodeCases()
-    {
-        foreach (var left in s_primitiveRepresentations)
-        {
-            foreach (var right in s_primitiveRepresentations)
-            {
-                yield return [left, right];
-            }
-        }
-    }
-
-    /// <summary>
     /// Supplies the null-element, container-shape, and length boundaries independently.
     /// </summary>
     public static TheoryData<string> ContainerEdgeNodeCases => new()
@@ -97,6 +92,20 @@ public sealed partial class MySqlJsonValueComparersTests
     };
 
     /// <summary>
+    /// Supplies the complete Cartesian product of the supported primitive representations.
+    /// </summary>
+    public static IEnumerable<object[]> PrimitiveNodeCases()
+    {
+        foreach (var left in s_primitiveRepresentations)
+        {
+            foreach (var right in s_primitiveRepresentations)
+            {
+                yield return [left, right];
+            }
+        }
+    }
+
+    /// <summary>
     /// Constructs fresh operands so discovery and parallel case execution cannot share mutable JSON nodes.
     /// </summary>
     private static (JsonNode? Left, JsonNode? Right) CreateNodePair(
@@ -113,7 +122,11 @@ public sealed partial class MySqlJsonValueComparersTests
             "equivalent-number-spellings" => (JsonNode.Parse("10e-3"), JsonNode.Parse("0.01")),
             "parsed-and-custom-object" => (
                 JsonNode.Parse("""{"number":1,"text":"value"}"""),
-                new JsonObject { ["number"] = 1L, ["text"] = "value" }),
+                new JsonObject
+                {
+                    ["number"] = 1L,
+                    ["text"] = "value",
+                }),
             "int32-and-int64" => (JsonValue.Create(1), JsonValue.Create(1L)),
             "escaped-and-created-text" => (JsonNode.Parse("\"\\u0076alue\""), JsonValue.Create("value")),
             "guid-and-text" => (JsonValue.Create(s_jsonGuid), JsonValue.Create(s_jsonGuid.ToString())),
@@ -137,13 +150,32 @@ public sealed partial class MySqlJsonValueComparersTests
                 new JsonArray(new JsonObject { ["Name"] = 1 }),
                 new JsonArray(new JsonObject(insensitive) { ["name"] = 1L })),
             "duplicate-sensitive-names" => (
-                new JsonObject { ["A"] = 1, ["a"] = 2 },
-                new JsonObject(insensitive) { ["A"] = 1, ["B"] = 2 }),
+                new JsonObject
+                {
+                    ["A"] = 1,
+                    ["a"] = 2,
+                },
+                new JsonObject(insensitive)
+                {
+                    ["A"] = 1,
+                    ["B"] = 2,
+                }),
             "array-element-order" => (JsonNode.Parse("[1,2,3]"), JsonNode.Parse("[1,3,2]")),
             "customized-object" => (
-                JsonValue.Create(new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 }),
+                JsonValue.Create(
+                    new Dictionary<string, int>
+                    {
+                        ["a"] = 1,
+                        ["b"] = 2,
+                    }),
                 JsonNode.Parse("""{"b":2,"a":1}""")),
-            "customized-array" => (JsonValue.Create(new List<int> { 1, 2, 3 }), JsonNode.Parse("[1,2,3]")),
+            "customized-array" => (JsonValue.Create(
+                new List<int>
+                {
+                    1,
+                    2,
+                    3,
+                }), JsonNode.Parse("[1,2,3]")),
             "true-and-null" => (JsonNode.Parse("true"), null),
             "both-null" => (null, null),
             "array-null-elements" => (new JsonArray { null }, new JsonArray { null }),

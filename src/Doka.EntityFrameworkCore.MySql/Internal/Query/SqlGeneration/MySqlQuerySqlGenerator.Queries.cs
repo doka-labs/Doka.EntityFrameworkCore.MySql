@@ -20,7 +20,8 @@ internal sealed partial class MySqlQuerySqlGenerator
         TableExpression tableExpression
     )
     {
-        if (TryGenerateTemporalTable(tableExpression) || TryGenerateApplicationTimeTable(tableExpression))
+        if (TryGenerateTemporalTable(tableExpression)
+            || TryGenerateApplicationTimeTable(tableExpression))
         {
             return tableExpression;
         }
@@ -76,7 +77,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         {
             var table = selectExpression.Tables[index];
 
-            if (table is not SelectExpression { Limit: not null, Orderings.Count: 0, Projection.Count: > 0, } parent)
+            if (table is not SelectExpression { Limit: not null, Orderings.Count: 0, Projection.Count: > 0 } parent)
             {
                 continue;
             }
@@ -146,7 +147,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// left-hand rows whose lateral subquery produces no match. Ordinary tables and
     /// inherently lateral table functions use <c>LEFT JOIN</c> without the modifier;
     /// MariaDB receives the same explicit capability exception as
-    /// <see cref="VisitCrossApply"/> for a correlated derived table.
+    /// <see cref="VisitCrossApply" /> for a correlated derived table.
     /// </summary>
     protected override Expression VisitOuterApply(
         OuterApplyExpression outerApplyExpression
@@ -253,7 +254,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// Keeps a multi-row inline operand grouped inside its enclosing set operation.
     /// </summary>
     /// <remarks>
-    /// <see cref="GenerateValues"/> expands one <see cref="ValuesExpression"/> to
+    /// <see cref="GenerateValues" /> expands one <see cref="ValuesExpression" /> to
     /// multiple <c>UNION ALL SELECT</c> branches. Without parentheses, a parent
     /// <c>UNION</c> applies its distinctness only to the first branch and changes
     /// the result cardinality.
@@ -288,5 +289,4 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         base.GenerateSetOperationOperand(setOperation, operand);
     }
-
 }

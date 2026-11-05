@@ -2,9 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Loads primary keys from INFORMATION_SCHEMA.KEY_COLUMN_USAGE for every table the
-/// <see cref="TableLoader"/> registered. One row per (table, column) pair in
+/// <see cref="TableLoader" /> registered. One row per (table, column) pair in
 /// composite-key order; the loader groups by table and assembles the
-/// <see cref="DatabasePrimaryKey"/> with its ordered column list.
+/// <see cref="DatabasePrimaryKey" /> with its ordered column list.
 /// </summary>
 internal static class PrimaryKeyLoader
 {

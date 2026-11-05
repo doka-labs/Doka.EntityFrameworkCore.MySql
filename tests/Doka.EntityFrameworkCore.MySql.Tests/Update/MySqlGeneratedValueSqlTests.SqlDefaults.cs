@@ -22,7 +22,13 @@ public sealed partial class MySqlGeneratedValueSqlTests
     {
         // Arrange
         using var context = CreateSqlKeyContext(mariaDb: false);
-        var commands = CreateSqlKeyCommands(context, tableName, bulk ? 2 : 1);
+        var commands = CreateSqlKeyCommands(
+            context,
+            tableName,
+            bulk
+                ? 2
+                : 1);
+
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder("unchanged");
 
@@ -71,13 +77,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
     private static SqlKeyContext CreateSqlKeyContext(
         bool mariaDb
-    ) => new(new DbContextOptionsBuilder<SqlKeyContext>()
-        .UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=unused;",
-            mariaDb
-                ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-                : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-        .Options);
+    ) => new(
+        new DbContextOptionsBuilder<SqlKeyContext>()
+            .UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .Options);
 
     /// <summary>Builds physical key descriptors independently from the convention being repaired.</summary>
     private static IReadOnlyModificationCommand[] CreateSqlKeyCommands(
@@ -86,21 +93,29 @@ public sealed partial class MySqlGeneratedValueSqlTests
         int count
     )
     {
-        var table = context.Model.GetRelationalModel().Tables.Single(value => value.Name == tableName);
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(value => value.Name == tableName);
 
-        return Enumerable.Range(0, count).Select(row =>
-        {
-            var modifications = new List<IColumnModification>();
-
-            foreach (var column in table.PrimaryKey!.Columns)
+        return Enumerable
+            .Range(0, count)
+            .Select(row =>
             {
-                modifications.Add(column.Name == "Id"
-                    ? CreateModification(column, null, $"generated{row}", read: true, write: false)
-                    : CreateModification(column, row + 1, $"tenant{row}", read: false, write: true));
-            }
+                var modifications = new List<IColumnModification>();
 
-            return (IReadOnlyModificationCommand)new TestCommand(table, modifications);
-        }).ToArray();
+                foreach (var column in table.PrimaryKey!.Columns)
+                {
+                    modifications.Add(
+                        column.Name == "Id"
+                            ? CreateModification(column, null, $"generated{row}", read: true, write: false)
+                            : CreateModification(column, row + 1, $"tenant{row}", read: false, write: true));
+                }
+
+                return (IReadOnlyModificationCommand)new TestCommand(table, modifications);
+            })
+            .ToArray();
     }
 
     private sealed class SqlKeyContext(DbContextOptions<SqlKeyContext> options) : DbContext(options)
@@ -113,19 +128,38 @@ public sealed partial class MySqlGeneratedValueSqlTests
             modelBuilder.Entity<SqlGuidKey>(entity =>
             {
                 entity.ToTable("SqlGuidKeys");
-                entity.Property(value => value.Id).HasColumnType("char(36)").HasDefaultValueSql("UUID()");
+                entity
+                    .Property(value => value.Id)
+                    .HasColumnType("char(36)")
+                    .HasDefaultValueSql("UUID()");
             });
+
             modelBuilder.Entity<SqlStringKey>(entity =>
             {
                 entity.ToTable("SqlStringKeys");
-                entity.Property(value => value.Id).HasColumnType("char(36)").HasDefaultValueSql("UUID()");
+                entity
+                    .Property(value => value.Id)
+                    .HasColumnType("char(36)")
+                    .HasDefaultValueSql("UUID()");
             });
+
             modelBuilder.Entity<SqlCompositeKey>(entity =>
             {
                 entity.ToTable("SqlCompositeKeys");
-                entity.HasKey(value => new { value.Tenant, value.Id });
-                entity.Property(value => value.Tenant).ValueGeneratedNever();
-                entity.Property(value => value.Id).HasColumnType("char(36)").HasDefaultValueSql("UUID()");
+                entity.HasKey(value => new
+                {
+                    value.Tenant,
+                    value.Id,
+                });
+
+                entity
+                    .Property(value => value.Tenant)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(value => value.Id)
+                    .HasColumnType("char(36)")
+                    .HasDefaultValueSql("UUID()");
             });
         }
     }

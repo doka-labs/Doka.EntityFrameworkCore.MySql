@@ -80,7 +80,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
 
         if (format == MySqlGuidFormat.Uuid)
         {
-            MySqlMariaDbUuidSupport.EnsureSupported(_singletonOptions.Profile
+            MySqlMariaDbUuidSupport.EnsureSupported(
+                _singletonOptions.Profile
                 ?? throw new InvalidOperationException("The server profile is not initialized."));
         }
 
@@ -162,8 +163,10 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 return true;
 
             case "uuid":
-                MySqlMariaDbUuidSupport.EnsureSupported(_singletonOptions.Profile
+                MySqlMariaDbUuidSupport.EnsureSupported(
+                    _singletonOptions.Profile
                     ?? throw new InvalidOperationException("The server profile is not initialized."));
+
                 property.SetMySqlGuidFormat(MySqlGuidFormat.Uuid);
                 property.SetMaxLength(null);
                 property.SetIsFixedLength(null);
@@ -270,9 +273,11 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
                 generatedOnAdd
                     ? MySqlValueGenerationStrategy.ClientGuid
                     : MySqlValueGenerationStrategy.None);
+
             mutableProperty.ValueGenerated = generatedOnAdd
                 ? ValueGenerated.OnAdd
                 : ValueGenerated.Never;
+
             return;
         }
 
@@ -302,7 +307,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         MySqlValueGenerationStrategy.AutoIncrement
             or MySqlValueGenerationStrategy.ClientGuid
             or MySqlValueGenerationStrategy.HiLo => ValueGenerated.OnAdd,
-        _ => throw new ArgumentOutOfRangeException(nameof(strategy))
+        _ => throw new ArgumentOutOfRangeException(nameof(strategy)),
     };
 
     private static bool IsAutoIncrementIntegerKey(
@@ -316,8 +321,7 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
             ownership is not null
             && !ownership.Properties.Contains(property)
             && primaryKey is not null
-            && primaryKey.Properties.Count(
-                keyProperty => !ownership.Properties.Contains(keyProperty)) == 1
+            && primaryKey.Properties.Count(keyProperty => !ownership.Properties.Contains(keyProperty)) == 1
             && property.GetValueGeneratedConfigurationSource()
                 is null
                 or ConfigurationSource.Convention;
@@ -335,7 +339,8 @@ internal sealed class MySqlValueGenerationConvention : IModelFinalizingConventio
         // AUTO_INCREMENT applies to the store representation, not necessarily
         // the model CLR type. An integer key converted to string or byte[] must
         // not inherit the integer convention and produce invalid MySQL DDL.
-        var providerClrType = property.GetValueConverter()?.ProviderClrType
+        var providerClrType = property.GetValueConverter()
+                ?.ProviderClrType
             ?? property.GetProviderClrType()
             ?? property.ClrType;
 

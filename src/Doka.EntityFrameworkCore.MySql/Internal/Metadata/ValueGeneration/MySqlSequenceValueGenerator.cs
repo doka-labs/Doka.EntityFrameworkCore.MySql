@@ -2,11 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Provides MySQL-specific sequence value generation at runtime.
-///
 /// On MySQL (no native sequences): Uses table-based emulation via
 /// a singleton table whose first call returns the configured start value and whose
 /// subsequent calls atomically advance by the configured increment.
-///
 /// On MariaDB 10.3+ (native sequences): Uses
 /// <c>SELECT NEXT VALUE FOR {name};</c>
 /// </summary>
@@ -41,14 +39,20 @@ internal static class MySqlSequenceValueGenerator
     }
 
     /// <summary>
-    /// Asynchronous version of <see cref="GetNextValue"/>.
+    /// Asynchronous version of <see cref="GetNextValue" />.
     /// </summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="sequenceName">The logical sequence name.</param>
+    /// <param name="increment">The increment value.</param>
+    /// <param name="supportsNativeSequences">Whether the server supports native sequences.</param>
+    /// <param name="cancellationToken">The token to observe while reading the sequence value.</param>
+    /// <returns>The next sequence value.</returns>
     public static async Task<long> GetNextValueAsync(
         DbConnection connection,
         string sequenceName,
         int increment,
         bool supportsNativeSequences,
-        CancellationToken cancellationToken = default
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(connection);

@@ -12,45 +12,46 @@ public sealed class ConnectionStringOverrideTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Database_creator_honors_connection_override_on_mysql84() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql84);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task Database_creator_honors_connection_override_on_mysql97() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql97);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task Database_creator_honors_connection_override_on_mariadb1011() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb1011);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Database_creator_honors_connection_override_on_mariadb114() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb114);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Database_creator_honors_connection_override_on_mariadb118() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb118);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task Database_creator_honors_connection_override_on_mariadb123() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb123);
+        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     private static async Task VerifyConnectionOverrideAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -67,7 +68,9 @@ public sealed class ConnectionStringOverrideTests
         try
         {
             await using var context = new ConnectionOverrideContext(
-                IntegrationTestDbContextOptions.Create<ConnectionOverrideContext>().UseMySql(baseConnectionString, serverVersion)
+                IntegrationTestDbContextOptions
+                    .Create<ConnectionOverrideContext>()
+                    .UseMySql(baseConnectionString, serverVersion)
                     .Options);
 
             context.Database.SetConnectionString(overriddenConnectionString);
@@ -77,16 +80,21 @@ public sealed class ConnectionStringOverrideTests
             // Act
             // WHY: Existence, creation and the selected server database must all
             // observe the same EF tooling override throughout this lifecycle.
-            var existedBefore = await databaseCreator.ExistsAsync().ConfigureAwait(false);
-
-            await databaseCreator
-                .CreateAsync()
+            var existedBefore = await databaseCreator
+                .ExistsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var existsAfter = await databaseCreator.ExistsAsync().ConfigureAwait(false);
+            await databaseCreator
+                .CreateAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var existsAfter = await databaseCreator
+                .ExistsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             await context
-                .Database.OpenConnectionAsync()
+                .Database
+                .OpenConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             string? selectedDatabase;
@@ -94,19 +102,23 @@ public sealed class ConnectionStringOverrideTests
             try
             {
                 await using var command = context
-                    .Database.GetDbConnection()
+                    .Database
+                    .GetDbConnection()
                     .CreateCommand();
 
                 command.CommandText = "SELECT DATABASE();";
 
                 selectedDatabase = Convert.ToString(
-                    await command.ExecuteScalarAsync().ConfigureAwait(false),
+                    await command
+                        .ExecuteScalarAsync(cancellationToken)
+                        .ConfigureAwait(false),
                     CultureInfo.InvariantCulture);
             }
             finally
             {
                 await context
-                    .Database.CloseConnectionAsync()
+                    .Database
+                    .CloseConnectionAsync()
                     .ConfigureAwait(false);
             }
 

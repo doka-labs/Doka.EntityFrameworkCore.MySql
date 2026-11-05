@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Doka.EntityFrameworkCore.MySql;
 
 namespace ConsumerMigrationTests;
@@ -21,23 +22,25 @@ public sealed class MySqlLikeOverloadBindingTests
     )
     {
         // Arrange
-        System.Linq.Expressions.LambdaExpression expression = operand switch
+        LambdaExpression expression = operand switch
         {
-            "String" => (System.Linq.Expressions.Expression<Func<string, string, bool>>)
+            "String" => (Expression<Func<string, string, bool>>)
                 ((value, pattern) => EF.Functions.Like(value, pattern)),
-            "NullableString" => (System.Linq.Expressions.Expression<Func<string?, string, bool>>)
+            "NullableString" => (Expression<Func<string?, string, bool>>)
                 ((value, pattern) => EF.Functions.Like(value!, pattern, "!")),
-            "Int32" => (System.Linq.Expressions.Expression<Func<int, string, bool>>)
+            "Int32" => (Expression<Func<int, string, bool>>)
                 ((value, pattern) => EF.Functions.Like(value, pattern)),
-            "NullableGuid" => (System.Linq.Expressions.Expression<Func<Guid?, string, bool>>)
+            "NullableGuid" => (Expression<Func<Guid?, string, bool>>)
                 ((value, pattern) => EF.Functions.Like(value, pattern, "!")),
             _ => throw new ArgumentOutOfRangeException(nameof(operand)),
         };
 
-        var expectedArguments = genericArgument is null ? Type.EmptyTypes : [genericArgument];
+        var expectedArguments = genericArgument is null
+            ? Type.EmptyTypes
+            : [genericArgument];
 
         // Act
-        var call = (System.Linq.Expressions.MethodCallExpression)expression.Body;
+        var call = (MethodCallExpression)expression.Body;
         var method = call.Method;
 
         // Assert

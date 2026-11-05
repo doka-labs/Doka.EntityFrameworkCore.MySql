@@ -19,8 +19,10 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var request = CreateRequest();
+
+        // WHY: xUnit 2 fixes this lifecycle signature and does not supply a cancellation token.
         var session = await TestDatabaseSession
-            .StartAsync([request])
+            .StartAsync([request], CancellationToken.None)
             .ConfigureAwait(false);
 
         var endpoint = session.GetEndpoint(request.TargetId);
@@ -36,6 +38,7 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
             await session
                 .DisposeAsync()
                 .ConfigureAwait(false);
+
             throw;
         }
     }
@@ -172,13 +175,13 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
         var engine = serverVersionToken[..separatorIndex]
                 .Trim()
                 .ToLowerInvariant() switch
-        {
-            "mysql" => TestDatabaseEngine.MySql,
-            "mariadb" => TestDatabaseEngine.MariaDb,
-            var unknownEngine => throw new InvalidOperationException(
-                $"{ServerVersionEnvironmentVariable} engine must be 'mysql' or 'mariadb'; "
-                + $"got '{unknownEngine}'."),
-        };
+            {
+                "mysql" => TestDatabaseEngine.MySql,
+                "mariadb" => TestDatabaseEngine.MariaDb,
+                var unknownEngine => throw new InvalidOperationException(
+                    $"{ServerVersionEnvironmentVariable} engine must be 'mysql' or 'mariadb'; "
+                    + $"got '{unknownEngine}'."),
+            };
 
         if (!Version.TryParse(
                 serverVersionToken[(separatorIndex + 1)..]

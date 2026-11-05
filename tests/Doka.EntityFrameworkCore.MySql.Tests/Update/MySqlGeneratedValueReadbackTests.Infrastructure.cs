@@ -17,8 +17,18 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         )
         {
             Rows = rows;
-            OrdinalType = ordinalType ?? (fieldCount == 1 || rows.FirstOrDefault()?.Length == 1 ? null : typeof(int));
-            FieldCount = fieldCount ?? (OrdinalType is null ? 1 : 2);
+            OrdinalType = ordinalType
+                ?? (fieldCount == 1
+                    || rows.FirstOrDefault()
+                        ?.Length
+                    == 1
+                        ? null
+                        : typeof(int));
+
+            FieldCount = fieldCount
+                ?? (OrdinalType is null
+                    ? 1
+                    : 2);
         }
 
         public object?[][] Rows { get; }
@@ -34,10 +44,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     private sealed class Scenario : IDisposable
     {
         private static readonly BindingFlags s_instanceMembers = BindingFlags.Instance | BindingFlags.NonPublic;
-        private readonly DbContext _context;
         private readonly MySqlModificationCommandBatch _batch;
-        private readonly RelationalDataReader _relationalReader;
         private readonly MySqlCommand _command;
+        private readonly DbContext _context;
+        private readonly RelationalDataReader _relationalReader;
 
         private Scenario(
             DbContext context,
@@ -64,6 +74,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         public TestCommand[] Commands { get; }
 
+        public void Dispose()
+        {
+            _relationalReader.Dispose();
+            _command.Dispose();
+            _context.Dispose();
+        }
+
         public static Scenario Create(
             int[] groupSizes,
             ResultRows[] resultSets,
@@ -88,12 +105,26 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             IUpdateEntry[] entries = [];
             if (trackEntries)
             {
-                var entryCount = shareEntry ? 1 : prefixCommands + groupSizes.Sum();
-                context.AddRange(Enumerable.Range(1, entryCount).Select(id => new EntryOwner { Id = id }));
-                entries = context.GetService<IUpdateAdapterFactory>().Create().Entries.ToArray();
+                var entryCount = shareEntry
+                    ? 1
+                    : prefixCommands + groupSizes.Sum();
+
+                context.AddRange(
+                    Enumerable
+                        .Range(1, entryCount)
+                        .Select(id => new EntryOwner { Id = id }));
+
+                entries = context
+                    .GetService<IUpdateAdapterFactory>()
+                    .Create()
+                    .Entries
+                    .ToArray();
             }
 
-            var batch = (MySqlModificationCommandBatch)context.GetService<IModificationCommandBatchFactory>().Create();
+            var batch = (MySqlModificationCommandBatch)context
+                .GetService<IModificationCommandBatchFactory>()
+                .Create();
+
             var commands = new List<TestCommand>();
             var mappings = (IList<ResultSetMapping>)typeof(ReaderModificationCommandBatch)
                 .GetProperty("ResultSetMappings", s_instanceMembers)!
@@ -129,7 +160,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 ResultSetMapping mapping
             )
             {
-                var command = new TestCommand(trackEntries ? [entries[shareEntry ? 0 : commands.Count]] : []);
+                var command = new TestCommand(
+                    trackEntries
+                        ?
+                        [
+                            entries[shareEntry
+                                ? 0
+                                : commands.Count],
+                        ]
+                        : []);
+
                 commands.Add(command);
                 batchCommands.Add(command);
                 mappings.Add(mapping);
@@ -158,13 +198,6 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
             return Task.CompletedTask;
         }
-
-        public void Dispose()
-        {
-            _relationalReader.Dispose();
-            _command.Dispose();
-            _context.Dispose();
-        }
     }
 
     /// <summary>
@@ -178,7 +211,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        ) => modelBuilder.Entity<EntryOwner>().Property(owner => owner.Id).ValueGeneratedNever();
+        ) => modelBuilder
+            .Entity<EntryOwner>()
+            .Property(owner => owner.Id)
+            .ValueGeneratedNever();
     }
 
     private sealed class EntryOwner
@@ -228,10 +264,20 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             Entries = entries;
             ColumnModifications =
             [
-                new ColumnModification(new ColumnModificationParameters(
-                    "Generated", null, null, null, "int", IntTypeMapping.Default,
-                    read: hasReadResults, write: !hasReadResults, key: false, condition: false,
-                    sensitiveLoggingEnabled: false, isNullable: true)),
+                new ColumnModification(
+                    new ColumnModificationParameters(
+                        "Generated",
+                        null,
+                        null,
+                        null,
+                        "int",
+                        IntTypeMapping.Default,
+                        read: hasReadResults,
+                        write: !hasReadResults,
+                        key: false,
+                        condition: false,
+                        sensitiveLoggingEnabled: false,
+                        isNullable: true)),
             ];
         }
 
@@ -288,9 +334,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     private sealed class ResultReader : DbDataReader
     {
         private readonly ResultRows[] _resultSets;
+        private bool _closed;
         private int _resultIndex;
         private int _rowIndex = -1;
-        private bool _closed;
 
         public ResultReader(
             ResultRows[] resultSets
@@ -317,9 +363,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         public override int RecordsAffected => -1;
 
-        public override object this[int ordinal] => GetValue(ordinal);
+        public override object this[
+            int ordinal
+        ] => GetValue(ordinal);
 
-        public override object this[string name] => GetValue(GetOrdinal(name));
+        public override object this[
+            string name
+        ] => GetValue(GetOrdinal(name));
 
         public override bool Read()
         {
@@ -359,7 +409,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         public override object GetValue(
             int ordinal
-        ) => Current.Rows[_rowIndex][ordinal] ?? DBNull.Value;
+        ) => Current
+                .Rows[_rowIndex][ordinal]
+            ?? DBNull.Value;
 
         public override int GetValues(
             object[] values
@@ -374,46 +426,97 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             return count;
         }
 
-        public override bool IsDBNull(int ordinal) => GetValue(ordinal) is DBNull;
+        public override bool IsDBNull(
+            int ordinal
+        ) => GetValue(ordinal) is DBNull;
 
-        public override Type GetFieldType(int ordinal) => ordinal == FieldCount - 1 && Current.OrdinalType is not null
+        public override Type GetFieldType(
+            int ordinal
+        ) => ordinal == FieldCount - 1 && Current.OrdinalType is not null
             ? Current.OrdinalType
             : typeof(int);
 
-        public override int GetInt32(int ordinal) => (int)GetValue(ordinal);
+        public override int GetInt32(
+            int ordinal
+        ) => (int)GetValue(ordinal);
 
-        public override long GetInt64(int ordinal) => (long)GetValue(ordinal);
+        public override long GetInt64(
+            int ordinal
+        ) => (long)GetValue(ordinal);
 
-        public override string GetName(int ordinal) => ordinal == 0 ? "Generated" : "Slot";
+        public override string GetName(
+            int ordinal
+        ) => ordinal == 0
+            ? "Generated"
+            : "Slot";
 
-        public override int GetOrdinal(string name) => name == "Generated" ? 0 : 1;
+        public override int GetOrdinal(
+            string name
+        ) => name == "Generated"
+            ? 0
+            : 1;
 
-        public override string GetDataTypeName(int ordinal) => GetFieldType(ordinal).Name;
+        public override string GetDataTypeName(
+            int ordinal
+        ) => GetFieldType(ordinal)
+            .Name;
 
-        public override bool GetBoolean(int ordinal) => (bool)GetValue(ordinal);
+        public override bool GetBoolean(
+            int ordinal
+        ) => (bool)GetValue(ordinal);
 
-        public override byte GetByte(int ordinal) => (byte)GetValue(ordinal);
+        public override byte GetByte(
+            int ordinal
+        ) => (byte)GetValue(ordinal);
 
-        public override char GetChar(int ordinal) => (char)GetValue(ordinal);
+        public override char GetChar(
+            int ordinal
+        ) => (char)GetValue(ordinal);
 
-        public override DateTime GetDateTime(int ordinal) => (DateTime)GetValue(ordinal);
+        public override DateTime GetDateTime(
+            int ordinal
+        ) => (DateTime)GetValue(ordinal);
 
-        public override decimal GetDecimal(int ordinal) => (decimal)GetValue(ordinal);
+        public override decimal GetDecimal(
+            int ordinal
+        ) => (decimal)GetValue(ordinal);
 
-        public override double GetDouble(int ordinal) => (double)GetValue(ordinal);
+        public override double GetDouble(
+            int ordinal
+        ) => (double)GetValue(ordinal);
 
-        public override float GetFloat(int ordinal) => (float)GetValue(ordinal);
+        public override float GetFloat(
+            int ordinal
+        ) => (float)GetValue(ordinal);
 
-        public override Guid GetGuid(int ordinal) => (Guid)GetValue(ordinal);
+        public override Guid GetGuid(
+            int ordinal
+        ) => (Guid)GetValue(ordinal);
 
-        public override short GetInt16(int ordinal) => (short)GetValue(ordinal);
+        public override short GetInt16(
+            int ordinal
+        ) => (short)GetValue(ordinal);
 
-        public override string GetString(int ordinal) => (string)GetValue(ordinal);
+        public override string GetString(
+            int ordinal
+        ) => (string)GetValue(ordinal);
 
-        public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length)
+        public override long GetBytes(
+            int ordinal,
+            long dataOffset,
+            byte[]? buffer,
+            int bufferOffset,
+            int length
+        )
             => throw new NotSupportedException();
 
-        public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length)
+        public override long GetChars(
+            int ordinal,
+            long dataOffset,
+            char[]? buffer,
+            int bufferOffset,
+            int length
+        )
             => throw new NotSupportedException();
 
         public override IEnumerator GetEnumerator() => Current.Rows.GetEnumerator();

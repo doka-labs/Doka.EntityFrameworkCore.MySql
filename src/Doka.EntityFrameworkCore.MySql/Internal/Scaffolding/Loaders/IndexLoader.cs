@@ -4,9 +4,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Loads non-primary indexes from INFORMATION_SCHEMA.STATISTICS. Captures the index
 /// columns in composite order, the per-column descending flag (COLLATION = 'D'), the
 /// FULLTEXT and SPATIAL index-type annotations, and the per-column SUB_PART prefix length emitted
-/// as an int[] annotation <see cref="MySqlAnnotationNames.IndexPrefixLength"/> when
+/// as an int[] annotation <see cref="MySqlAnnotationNames.IndexPrefixLength" /> when
 /// any column carries a non-null SUB_PART. MySQL functional key parts are retained as
-/// <see cref="MySqlScaffoldedIndexPart"/> records because EF Core indexes require a
+/// <see cref="MySqlScaffoldedIndexPart" /> records because EF Core indexes require a
 /// property for every key part and must not be populated with invented shadow properties.
 /// </summary>
 internal static class IndexLoader
@@ -58,11 +58,23 @@ internal static class IndexLoader
                 indexes[key] = index;
             }
 
-            var columnName = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var expression = reader.IsDBNull(8) ? null : reader.GetString(8);
-            var collation = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var columnName = reader.IsDBNull(2)
+                ? null
+                : reader.GetString(2);
+
+            var expression = reader.IsDBNull(8)
+                ? null
+                : reader.GetString(8);
+
+            var collation = reader.IsDBNull(4)
+                ? null
+                : reader.GetString(4);
+
             var isDescending = string.Equals(collation, "D", StringComparison.OrdinalIgnoreCase);
-            var indexType = reader.IsDBNull(6) ? null : reader.GetString(6);
+            var indexType = reader.IsDBNull(6)
+                ? null
+                : reader.GetString(6);
+
             var subPart = reader.IsDBNull(7)
                 ? (int?)null
                 : Convert.ToInt32(reader.GetValue(7), CultureInfo.InvariantCulture);
@@ -103,8 +115,12 @@ internal static class IndexLoader
                 continue;
             }
 
-            if ((index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true
-                || (index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?) == true)
+            if (index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                    ?.Value as bool?
+                == true
+                || index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                    ?.Value as bool?
+                == true)
             {
                 continue;
             }
@@ -124,38 +140,36 @@ internal static class IndexLoader
         bool includesExpressionMetadata
     ) => new(
         includesExpressionMetadata
-            ?
-            """
-            SELECT
-                TABLE_NAME,
-                INDEX_NAME,
-                COLUMN_NAME,
-                NON_UNIQUE,
-                COLLATION,
-                SEQ_IN_INDEX,
-                INDEX_TYPE,
-                SUB_PART,
-                EXPRESSION
-            FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND INDEX_NAME <> 'PRIMARY'
-            """
-            :
-            """
-            SELECT
-                TABLE_NAME,
-                INDEX_NAME,
-                COLUMN_NAME,
-                NON_UNIQUE,
-                COLLATION,
-                SEQ_IN_INDEX,
-                INDEX_TYPE,
-                SUB_PART,
-                NULL AS EXPRESSION
-            FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND INDEX_NAME <> 'PRIMARY'
-            """);
+            ? """
+              SELECT
+                  TABLE_NAME,
+                  INDEX_NAME,
+                  COLUMN_NAME,
+                  NON_UNIQUE,
+                  COLLATION,
+                  SEQ_IN_INDEX,
+                  INDEX_TYPE,
+                  SUB_PART,
+                  EXPRESSION
+              FROM information_schema.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND INDEX_NAME <> 'PRIMARY'
+              """
+            : """
+              SELECT
+                  TABLE_NAME,
+                  INDEX_NAME,
+                  COLUMN_NAME,
+                  NON_UNIQUE,
+                  COLLATION,
+                  SEQ_IN_INDEX,
+                  INDEX_TYPE,
+                  SUB_PART,
+                  NULL AS EXPRESSION
+              FROM information_schema.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND INDEX_NAME <> 'PRIMARY'
+              """);
 }
 
 internal sealed record MySqlScaffoldedIndexPart(

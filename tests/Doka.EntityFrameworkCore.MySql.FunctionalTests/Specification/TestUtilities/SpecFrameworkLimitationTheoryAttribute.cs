@@ -16,7 +16,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
     "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities."
     + "DirectTheoryDiscoverer",
     "Doka.EntityFrameworkCore.MySql.FunctionalTests")]
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method)]
 public sealed class SpecFrameworkLimitationTheoryAttribute : TheoryAttribute
 {
     /// <summary>

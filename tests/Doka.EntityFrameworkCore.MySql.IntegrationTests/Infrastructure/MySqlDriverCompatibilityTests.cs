@@ -1,3 +1,7 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Transactions;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -5,6 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// must preserve independently of a specific engine family.
 /// </summary>
 [IntegrationDatabaseTest]
+
 // WHY: ClearAllPoolsAsync affects every connection string in this process;
 // concurrent pool-reuse assertions must not observe this class's reset.
 [Collection(ProcessWideIntegrationTestGroup.Name)]
@@ -25,7 +30,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -38,7 +44,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -50,7 +57,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -63,7 +71,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -76,7 +85,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -88,7 +98,8 @@ public sealed class MySqlDriverCompatibilityTests
     {
         await AssertConnectionAndPoolContractsAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -100,13 +111,13 @@ public sealed class MySqlDriverCompatibilityTests
     public void AutoDetect_connection_string_propagates_an_unreachable_server()
     {
         // Arrange
-        using var reservedPort = new System.Net.Sockets.Socket(
-            System.Net.Sockets.AddressFamily.InterNetwork,
-            System.Net.Sockets.SocketType.Stream,
-            System.Net.Sockets.ProtocolType.Tcp);
+        using var reservedPort = new Socket(
+            AddressFamily.InterNetwork,
+            SocketType.Stream,
+            ProtocolType.Tcp);
 
-        reservedPort.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
-        var endpoint = Assert.IsType<System.Net.IPEndPoint>(reservedPort.LocalEndPoint);
+        reservedPort.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var endpoint = Assert.IsType<IPEndPoint>(reservedPort.LocalEndPoint);
 
         var connectionString = new MySqlConnectionStringBuilder
         {
@@ -135,7 +146,8 @@ public sealed class MySqlDriverCompatibilityTests
     ) => AssertAutoDetectDoesNotJoinAmbientTransactionAsync(
         Enum.Parse<IntegrationDatabaseTarget>(targetName),
         autoEnlist,
-        useXaTransactions);
+        useXaTransactions,
+        CancellationToken.None);
 
     private static TheoryData<string, bool?, bool> CreateAutoDetectCases()
     {
@@ -158,7 +170,8 @@ public sealed class MySqlDriverCompatibilityTests
     private static async Task AssertAutoDetectDoesNotJoinAmbientTransactionAsync(
         IntegrationDatabaseTarget target,
         bool? autoEnlist,
-        bool useXaTransactions
+        bool useXaTransactions,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -170,16 +183,16 @@ public sealed class MySqlDriverCompatibilityTests
         };
 
         var callerConnectionString = builder.ConnectionString;
-        using var scope = new System.Transactions.TransactionScope(
-            System.Transactions.TransactionScopeOption.RequiresNew,
-            System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
+        using var scope = new TransactionScope(
+            TransactionScopeOption.RequiresNew,
+            TransactionScopeAsyncFlowOption.Enabled);
 
         await using var callerConnection = new MySqlConnection(callerConnectionString);
         await callerConnection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(true);
 
-        var transaction = System.Transactions.Transaction.Current;
+        var transaction = Transaction.Current;
 
         // WHY: A live non-XA ambient transaction is the fixture precondition
         // that makes the following isolated version probe meaningful.
@@ -192,7 +205,7 @@ public sealed class MySqlDriverCompatibilityTests
         // control makes a successful version probe evidence of isolation.
         await using var rejectedConnection = new MySqlConnection(callerConnectionString);
         await Assert
-            .ThrowsAsync<NotSupportedException>(() => rejectedConnection.OpenAsync(CancellationToken.None))
+            .ThrowsAsync<NotSupportedException>(() => rejectedConnection.OpenAsync(cancellationToken))
             .ConfigureAwait(true);
 
         builder.UseXaTransactions = useXaTransactions;
@@ -220,13 +233,13 @@ public sealed class MySqlDriverCompatibilityTests
             callerConnection,
             MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
-        var currentTransaction = System.Transactions.Transaction.Current;
+        var currentTransaction = Transaction.Current;
         var transactionStatus = transaction.TransactionInformation.Status;
         var connectionState = callerConnection.State;
         var currentServerThread = callerConnection.ServerThread;
         await using var stillRejectedConnection = new MySqlConnection(callerConnectionString);
         var stillRejected = await Record
-            .ExceptionAsync(() => stillRejectedConnection.OpenAsync(CancellationToken.None))
+            .ExceptionAsync(() => stillRejectedConnection.OpenAsync(cancellationToken))
             .ConfigureAwait(true);
 
         // Assert
@@ -234,7 +247,7 @@ public sealed class MySqlDriverCompatibilityTests
         Assert.Equal(expected.IsMariaDb, detected.IsMariaDb);
         Assert.Equal(MySqlServerVersionCompatibilityMode.SupportedOnly, detected.CompatibilityMode);
         Assert.Same(transaction, currentTransaction);
-        Assert.Equal(System.Transactions.TransactionStatus.Active, transactionStatus);
+        Assert.Equal(TransactionStatus.Active, transactionStatus);
         Assert.Equal(expected.Version, callerDetected.Version);
         Assert.Equal(expected.Version, callerOwned.Version);
         Assert.Equal(MySqlServerVersionCompatibilityMode.AllowUnsupported, callerOwned.CompatibilityMode);
@@ -247,7 +260,8 @@ public sealed class MySqlDriverCompatibilityTests
 
     private static async Task AssertConnectionAndPoolContractsAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion configuredServerVersion
+        MySqlServerVersion configuredServerVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -262,7 +276,7 @@ public sealed class MySqlDriverCompatibilityTests
             }.ConnectionString;
 
         await MySqlConnection
-            .ClearAllPoolsAsync(CancellationToken.None)
+            .ClearAllPoolsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Act
@@ -283,7 +297,10 @@ public sealed class MySqlDriverCompatibilityTests
 
         await using (var firstConnection = new MySqlConnection(connectionString))
         {
-            await firstConnection.OpenAsync().ConfigureAwait(false);
+            await firstConnection
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
+
             firstServerThread = firstConnection.ServerThread;
 
             // WHY: This overload reads the caller-owned synchronous connection.
@@ -295,13 +312,15 @@ public sealed class MySqlDriverCompatibilityTests
 
         await using (var pooledConnection = new MySqlConnection(connectionString))
         {
-            await pooledConnection.OpenAsync().ConfigureAwait(false);
+            await pooledConnection
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             reusedServerThread = pooledConnection.ServerThread;
         }
 
         await MySqlConnection
-            .ClearAllPoolsAsync(CancellationToken.None)
+            .ClearAllPoolsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         int replacementServerThread;
@@ -309,19 +328,22 @@ public sealed class MySqlDriverCompatibilityTests
         await using (var replacementConnection = new MySqlConnection(connectionString))
         {
             await replacementConnection
-                .OpenAsync()
+                .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             replacementServerThread = replacementConnection.ServerThread;
         }
 
         await using var context = new DriverContractContext(
-            IntegrationTestDbContextOptions.Create<DriverContractContext>().UseMySql(connectionString, configuredServerVersion)
+            IntegrationTestDbContextOptions
+                .Create<DriverContractContext>()
+                .UseMySql(connectionString, configuredServerVersion)
                 .Options);
 
         var scalar = await context
-            .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-            .SingleAsync()
+            .Database
+            .SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var failingConnectionString = new MySqlConnectionStringBuilder(connectionString)
@@ -347,11 +369,14 @@ public sealed class MySqlDriverCompatibilityTests
         Assert.Equal(configuredServerVersion.Version.Major, detectedFromConnectionString.Version.Major);
         Assert.Equal(configuredServerVersion.Version.Minor, detectedFromConnectionString.Version.Minor);
         Assert.Equal(MySqlServerVersionCompatibilityMode.SupportedOnly, detectedFromConnectionString.CompatibilityMode);
-        Assert.All(repeatedDetections, detection =>
-        {
-            Assert.Equal(detectedFromConnectionString.Version, detection.Version);
-            Assert.Equal(detectedFromConnectionString.IsMariaDb, detection.IsMariaDb);
-        });
+        Assert.All(
+            repeatedDetections,
+            detection =>
+            {
+                Assert.Equal(detectedFromConnectionString.Version, detection.Version);
+                Assert.Equal(detectedFromConnectionString.IsMariaDb, detection.IsMariaDb);
+            });
+
         Assert.Equal(configuredServerVersion.IsMariaDb, detectedFromConnection.IsMariaDb);
         Assert.Equal(configuredServerVersion.Version.Major, detectedFromConnection.Version.Major);
         Assert.Equal(configuredServerVersion.Version.Minor, detectedFromConnection.Version.Minor);
@@ -361,8 +386,14 @@ public sealed class MySqlDriverCompatibilityTests
         Assert.Equal(firstServerThread, reusedServerThread);
         Assert.NotEqual(firstServerThread, replacementServerThread);
         Assert.Equal(1, scalar);
-        Assert.All(failures, failure =>
-            Assert.Equal(MySqlErrorCode.UnknownDatabase, Assert.IsType<MySqlException>(failure).ErrorCode));
+        Assert.All(
+            failures,
+            failure =>
+                Assert.Equal(
+                    MySqlErrorCode.UnknownDatabase,
+                    Assert.IsType<MySqlException>(failure)
+                        .ErrorCode));
+
         Assert.Equal(detectedFromConnectionString.Version, recoveredDetection.Version);
     }
 

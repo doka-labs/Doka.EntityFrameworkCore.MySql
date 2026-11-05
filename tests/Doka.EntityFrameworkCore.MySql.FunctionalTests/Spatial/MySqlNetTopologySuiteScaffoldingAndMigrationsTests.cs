@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Design.Internal;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -31,6 +32,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "Location",
             scaffoldedModel.AdditionalFiles.Single()
@@ -67,6 +69,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "public int Id { get; set; }",
             scaffoldedModel.AdditionalFiles.Single()
@@ -114,6 +117,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             "MySqlServerVersion.MySql(new System.Version(8, 4, 6))",
             mySqlCode,
             StringComparison.Ordinal);
+
         Assert.Contains("UseNetTopologySuite()", mySqlCode, StringComparison.Ordinal);
         Assert.DoesNotContain("MariaDb(", mySqlCode, StringComparison.Ordinal);
 
@@ -121,6 +125,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             "MySqlServerVersion.MariaDb(new System.Version(11, 8, 2))",
             mariaDbCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("UseNetTopologySuite()", mariaDbCode, StringComparison.Ordinal);
         Assert.DoesNotContain("MySqlServerVersion.MySql(", mariaDbCode, StringComparison.Ordinal);
     }
@@ -143,8 +148,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         using var serviceProvider = CreateFailingDesignTimeServiceProvider(cancel);
 
         // Act
-        var exception = Record.Exception(
-            () => ScaffoldModel(serviceProvider, connectionString));
+        var exception = Record.Exception(() => ScaffoldModel(serviceProvider, connectionString));
 
         // Assert
         if (cancel)
@@ -177,10 +181,12 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         var sql = string.Join(
             Environment.NewLine,
@@ -213,10 +219,12 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         var sql = string.Join(
             Environment.NewLine,
@@ -229,6 +237,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             "`Location` point NOT NULL CHECK (ST_SRID(`Location`) = 4326)",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("SRID 4326", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE SPATIAL INDEX", sql, StringComparison.Ordinal);
     }
@@ -348,8 +357,8 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         var codeGenerator = serviceProvider.GetRequiredService<IProviderConfigurationCodeGenerator>();
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => codeGenerator.GenerateUseProvider(connectionString));
+        var exception =
+            Assert.Throws<InvalidOperationException>(() => codeGenerator.GenerateUseProvider(connectionString));
 
         // Assert
         Assert.Contains(
@@ -403,6 +412,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         services.AddEntityFrameworkDesignTimeServices(
             reporter,
             () => new ServiceCollection().BuildServiceProvider());
+
         services.AddEntityFrameworkDokaMySqlDesignTime();
         services.AddSingleton<IDatabaseModelFactory>(serviceProvider =>
             new FailingStubDatabaseModelFactory(
@@ -425,6 +435,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         services.AddEntityFrameworkDesignTimeServices(
             reporter,
             () => new ServiceCollection().BuildServiceProvider());
+
         services.AddEntityFrameworkDokaMySqlDesignTime();
         services.AddEntityFrameworkDokaMySqlNetTopologySuite();
         services.AddSingleton<IDatabaseModelFactory>(serviceProvider =>
@@ -574,6 +585,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                 entity
                     .Property(item => item.Location)
                     .HasSrid(4326);
+
                 entity
                     .HasIndex(item => item.Location)
                     .IsSpatial();
@@ -597,7 +609,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
                     .HasIndex(item => new
                     {
                         item.Location,
-                        item.AlternateLocation
+                        item.AlternateLocation,
                     })
                     .IsSpatial();
             });
@@ -635,6 +647,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             _databaseModel = databaseModel ?? throw new ArgumentNullException(nameof(databaseModel));
             _detectedServerVersionText = detectedServerVersionText
                 ?? throw new ArgumentNullException(nameof(detectedServerVersionText));
+
             _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         }
 
@@ -669,10 +682,10 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
 
     private sealed class ConcurrentStubDatabaseModelFactory : IDatabaseModelFactory
     {
-        private readonly DatabaseModel _spatialModel;
+        private readonly Barrier _databaseModelBoundary;
         private readonly DatabaseModel _nonSpatialModel;
         private readonly MySqlScaffoldingContext _scaffoldingContext;
-        private readonly Barrier _databaseModelBoundary;
+        private readonly DatabaseModel _spatialModel;
 
         public ConcurrentStubDatabaseModelFactory(
             DatabaseModel spatialModel,
@@ -685,6 +698,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             _nonSpatialModel = nonSpatialModel ?? throw new ArgumentNullException(nameof(nonSpatialModel));
             _scaffoldingContext = scaffoldingContext
                 ?? throw new ArgumentNullException(nameof(scaffoldingContext));
+
             _databaseModelBoundary = databaseModelBoundary
                 ?? throw new ArgumentNullException(nameof(databaseModelBoundary));
         }
@@ -726,8 +740,8 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
 
     private sealed class FailingStubDatabaseModelFactory : IDatabaseModelFactory
     {
-        private readonly MySqlScaffoldingContext _scaffoldingContext;
         private readonly bool _cancel;
+        private readonly MySqlScaffoldingContext _scaffoldingContext;
 
         public FailingStubDatabaseModelFactory(
             MySqlScaffoldingContext scaffoldingContext,
@@ -736,6 +750,7 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
         {
             _scaffoldingContext = scaffoldingContext
                 ?? throw new ArgumentNullException(nameof(scaffoldingContext));
+
             _cancel = cancel;
         }
 

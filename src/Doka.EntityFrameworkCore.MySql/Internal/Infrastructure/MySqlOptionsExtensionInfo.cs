@@ -46,7 +46,7 @@ public sealed partial class MySqlOptionsExtension
             && Equals(_extension.RetryOptions, otherInfo._extension.RetryOptions)
             && _extension.DefaultGuidFormat == otherInfo._extension.DefaultGuidFormat
             && _extension.ParameterizedCollectionMode == otherInfo._extension.ParameterizedCollectionMode
-            && (_extension.Connection is not null) == (otherInfo._extension.Connection is not null)
-            && (_extension.DataSource is not null) == (otherInfo._extension.DataSource is not null);
+            && _extension.Connection is not null == otherInfo._extension.Connection is not null
+            && _extension.DataSource is not null == otherInfo._extension.DataSource is not null;
     }
 }

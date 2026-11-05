@@ -25,32 +25,32 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MySql84);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <inheritdoc cref="MySql84_staged_guid_storage_transition_roundtrips_data" />
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MySql97);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <inheritdoc cref="MySql84_staged_guid_storage_transition_roundtrips_data" />
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <inheritdoc cref="MySql84_staged_guid_storage_transition_roundtrips_data" />
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <inheritdoc cref="MySql84_staged_guid_storage_transition_roundtrips_data" />
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <inheritdoc cref="MySql84_staged_guid_storage_transition_roundtrips_data" />
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_staged_guid_storage_transition_roundtrips_data() =>
-        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertStagedGuidStorageTransitionAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// A populated indexed relationship survives both migration directions while
@@ -58,12 +58,16 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_char36_transition_preserves_populated_relationship_in_both_directions() =>
-        await AssertChar36TransitionPreservesPopulatedRelationshipAsync(IntegrationDatabaseTarget.MariaDb118);
+        await AssertChar36TransitionPreservesPopulatedRelationshipAsync(
+            IntegrationDatabaseTarget.MariaDb118,
+            CancellationToken.None);
 
     /// <summary>
     /// The same populated relationship contract applies to the MySQL engine family.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_char36_transition_preserves_populated_relationship_in_both_directions() =>
-        await AssertChar36TransitionPreservesPopulatedRelationshipAsync(IntegrationDatabaseTarget.MySql84);
+        await AssertChar36TransitionPreservesPopulatedRelationshipAsync(
+            IntegrationDatabaseTarget.MySql84,
+            CancellationToken.None);
 }

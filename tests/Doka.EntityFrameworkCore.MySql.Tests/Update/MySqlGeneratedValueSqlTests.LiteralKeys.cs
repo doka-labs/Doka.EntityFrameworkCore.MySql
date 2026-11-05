@@ -36,24 +36,41 @@ public sealed partial class MySqlGeneratedValueSqlTests
     )
     {
         // Arrange
-        using var context = new LiteralReadKeyContext(new DbContextOptionsBuilder<LiteralReadKeyContext>()
-            .UseMySql(
-                "Server=localhost;Database=doka;User ID=root;Password=unused;",
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
-            .Options);
+        using var context = new LiteralReadKeyContext(
+            new DbContextOptionsBuilder<LiteralReadKeyContext>()
+                .UseMySql(
+                    "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                    MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                .Options);
 
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
-        var commands = Enumerable.Range(0, bulk ? 2 : 1).Select(row =>
-        {
-            // The read key has no current value; only its configured literal can complete the predicate.
-            return (IReadOnlyModificationCommand)new TestCommand(
-                table,
-                [
-                    CreateModification(table.FindColumn("Id")!, row + 101, $"known{row}", read: false, write: true),
-                    CreateModification(
-                        table.FindColumn("LiteralKey")!, null, $"literal{row}", read: true, write: false),
-                ]);
-        }).ToArray();
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
+        var commands = Enumerable
+            .Range(
+                0,
+                bulk
+                    ? 2
+                    : 1)
+            .Select(row =>
+            {
+                // The read key has no current value; only its configured literal can complete the predicate.
+                return (IReadOnlyModificationCommand)new TestCommand(
+                    table,
+                    [
+                        CreateModification(table.FindColumn("Id")!, row + 101, $"known{row}", read: false, write: true),
+                        CreateModification(
+                            table.FindColumn("LiteralKey")!,
+                            null,
+                            $"literal{row}",
+                            read: true,
+                            write: false),
+                    ]);
+            })
+            .ToArray();
 
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
@@ -91,14 +108,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
     )
     {
         // Arrange
-        using var context = new LiteralReadKeyContext(new DbContextOptionsBuilder<LiteralReadKeyContext>()
-            .UseMySql(
-                "Server=localhost;Database=doka;User ID=root;Password=unused;",
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
-            .Options);
+        using var context = new LiteralReadKeyContext(
+            new DbContextOptionsBuilder<LiteralReadKeyContext>()
+                .UseMySql(
+                    "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                    MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                .Options);
 
-        var table = context.Model.GetRelationalModel().Tables
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
             .Single(candidate => candidate.Name == "SharedLiteralReadKeys");
+
         var column = table.FindColumn("LiteralKey")!;
         var property = context.Model.FindEntityType(typeof(LiteralSharedDependent))!
             .FindProperty(nameof(LiteralSharedDependent.LiteralKey))!;
@@ -106,32 +128,40 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var storeObject = StoreObjectIdentifier.Table(table.Name, table.Schema);
         var hasPropertyDefault = property.TryGetDefaultValue(out _);
         var hasColumnDefault = property.TryGetDefaultValue(storeObject, out var physicalDefault);
-        var commands = Enumerable.Range(0, bulk ? 2 : 1).Select(row =>
-        {
-            // The descriptor must retain the dependent property and its actual shared column.
-            var literal = new ColumnModification(new ColumnModificationParameters(
-                column,
-                originalValue: null,
-                value: null,
-                property,
-                property.GetRelationalTypeMapping(),
-                read: true,
-                write: false,
-                key: true,
-                condition: false,
-                sensitiveLoggingEnabled: false,
-                isNullable: false)
+        var commands = Enumerable
+            .Range(
+                0,
+                bulk
+                    ? 2
+                    : 1)
+            .Select(row =>
             {
-                GenerateParameterName = () => $"sharedLiteral{row}",
-            });
+                // The descriptor must retain the dependent property and its actual shared column.
+                var literal = new ColumnModification(
+                    new ColumnModificationParameters(
+                        column,
+                        originalValue: null,
+                        value: null,
+                        property,
+                        property.GetRelationalTypeMapping(),
+                        read: true,
+                        write: false,
+                        key: true,
+                        condition: false,
+                        sensitiveLoggingEnabled: false,
+                        isNullable: false)
+                    {
+                        GenerateParameterName = () => $"sharedLiteral{row}",
+                    });
 
-            return (IReadOnlyModificationCommand)new TestCommand(
-                table,
-                [
-                    CreateModification(table.FindColumn("Id")!, row + 101, $"known{row}", read: false, write: true),
-                    literal,
-                ]);
-        }).ToArray();
+                return (IReadOnlyModificationCommand)new TestCommand(
+                    table,
+                    [
+                        CreateModification(table.FindColumn("Id")!, row + 101, $"known{row}", read: false, write: true),
+                        literal,
+                    ]);
+            })
+            .ToArray();
 
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
@@ -151,14 +181,17 @@ public sealed partial class MySqlGeneratedValueSqlTests
         Assert.False(hasPropertyDefault);
         Assert.True(hasColumnDefault);
         Assert.Equal(41, Assert.IsType<int>(physicalDefault));
-        Assert.All(commands, command =>
-        {
-            var literal = command.ColumnModifications[1];
+        Assert.All(
+            commands,
+            command =>
+            {
+                var literal = command.ColumnModifications[1];
 
-            Assert.Same(column, literal.Column);
-            Assert.Same(property, literal.Property);
-            Assert.False(MySqlUpdateSqlGenerator.IsIdentityColumn(literal));
-        });
+                Assert.Same(column, literal.Column);
+                Assert.Same(property, literal.Property);
+                Assert.False(MySqlUpdateSqlGenerator.IsIdentityColumn(literal));
+            });
+
         Assert.Null(failure);
         Assert.DoesNotContain("LAST_INSERT_ID()", text, StringComparison.Ordinal);
 
@@ -192,30 +225,63 @@ public sealed partial class MySqlGeneratedValueSqlTests
                     "LiteralGuidChar36Keys",
                     new Guid("00112233-4455-4677-8899-aabbccddeeff"))
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
             ConfigureLiteralReadKey(
                     modelBuilder,
                     "LiteralGuidBinary16Keys",
                     new Guid("00112233-4455-4677-8899-aabbccddeeff"))
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
             ConfigureLiteralReadKey(modelBuilder, "LiteralConvertedKeys", new ConvertedKey(73))
-                .HasConversion(new ValueConverter<ConvertedKey, int>(
-                    key => key.Value,
-                    value => new ConvertedKey(value)));
+                .HasConversion(
+                    new ValueConverter<ConvertedKey, int>(
+                        key => key.Value,
+                        value => new ConvertedKey(value)));
+
             modelBuilder.Entity<LiteralSharedPrincipal>(entity =>
             {
                 entity.ToTable("SharedLiteralReadKeys");
-                entity.HasKey(row => new { row.Id, row.LiteralKey });
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.LiteralKey).HasDefaultValue(41).ValueGeneratedOnAdd();
+                entity.HasKey(row => new
+                {
+                    row.Id,
+                    row.LiteralKey,
+                });
+
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.LiteralKey)
+                    .HasDefaultValue(41)
+                    .ValueGeneratedOnAdd();
             });
+
             modelBuilder.Entity<LiteralSharedDependent>(entity =>
             {
                 entity.ToTable("SharedLiteralReadKeys");
-                entity.HasKey(row => new { row.Id, row.LiteralKey });
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.LiteralKey).ValueGeneratedOnAdd();
-                entity.HasOne<LiteralSharedPrincipal>().WithOne()
-                    .HasForeignKey<LiteralSharedDependent>(row => new { row.Id, row.LiteralKey });
+                entity.HasKey(row => new
+                {
+                    row.Id,
+                    row.LiteralKey,
+                });
+
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.LiteralKey)
+                    .ValueGeneratedOnAdd();
+
+                entity
+                    .HasOne<LiteralSharedPrincipal>()
+                    .WithOne()
+                    .HasForeignKey<LiteralSharedDependent>(row => new
+                    {
+                        row.Id,
+                        row.LiteralKey,
+                    });
             });
         }
 
@@ -229,9 +295,12 @@ public sealed partial class MySqlGeneratedValueSqlTests
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>(tableName);
 
             entity.ToTable(tableName);
-            entity.IndexerProperty<int>("Id").ValueGeneratedNever();
+            entity
+                .IndexerProperty<int>("Id")
+                .ValueGeneratedNever();
 
-            var property = entity.IndexerProperty<TValue>("LiteralKey")
+            var property = entity
+                .IndexerProperty<TValue>("LiteralKey")
                 .HasDefaultValue(defaultValue)
                 .ValueGeneratedOnAdd();
 

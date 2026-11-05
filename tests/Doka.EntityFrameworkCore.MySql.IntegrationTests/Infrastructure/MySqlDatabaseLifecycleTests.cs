@@ -13,7 +13,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -23,7 +24,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -33,7 +35,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -43,7 +46,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -53,7 +57,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -63,7 +68,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertDatabaseExistsAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -73,7 +79,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -83,7 +90,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -93,7 +101,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -103,7 +112,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -113,7 +123,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -123,7 +134,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertAdvisoryLockContractAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -133,7 +145,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertGuidRoundTripAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -143,7 +156,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertGuidRoundTripAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -153,7 +167,8 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertGuidRoundTripAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -163,13 +178,15 @@ public sealed class MySqlDatabaseLifecycleTests
     {
         await AssertGuidRoundTripAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertDatabaseExistsAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -180,7 +197,9 @@ public sealed class MySqlDatabaseLifecycleTests
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         // Act
-        var exists = await creator.ExistsAsync().ConfigureAwait(false);
+        var exists = await creator
+            .ExistsAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.True(exists);
@@ -188,7 +207,8 @@ public sealed class MySqlDatabaseLifecycleTests
 
     private static async Task AssertAdvisoryLockContractAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -196,14 +216,14 @@ public sealed class MySqlDatabaseLifecycleTests
         await using var context = new LifecycleContext(CreateOptions(connectionString, serverVersion));
         var historyRepository = context.GetService<IHistoryRepository>();
         await using var databaseLock = await historyRepository
-            .AcquireDatabaseLockAsync()
+            .AcquireDatabaseLockAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
 
         await using var competingConnection = new MySqlConnection(connectionString);
         await competingConnection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using (var ownerCommand = competingConnection.CreateCommand())
@@ -213,7 +233,7 @@ public sealed class MySqlDatabaseLifecycleTests
 
             Assert.NotNull(
                 await ownerCommand
-                    .ExecuteScalarAsync()
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false));
         }
 
@@ -223,7 +243,7 @@ public sealed class MySqlDatabaseLifecycleTests
 
         // Act
         var result = await contentionCommand
-            .ExecuteScalarAsync()
+            .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
@@ -232,19 +252,23 @@ public sealed class MySqlDatabaseLifecycleTests
 
     private static async Task AssertGuidRoundTripAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
         await using var context = new GuidContext(CreateGuidOptions(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidBin`;");
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidChar`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidBin`;", cancellationToken);
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidChar`;", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbGuidBin` (`Id` binary(16) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbGuidBin` (`Id` binary(16) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbGuidChar` (`Id` char(36) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbGuidChar` (`Id` char(36) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
 
         try
         {
@@ -255,20 +279,21 @@ public sealed class MySqlDatabaseLifecycleTests
                 new GuidBinEntity
                 {
                     Id = binId,
-                    Name = "BinTest"
+                    Name = "BinTest",
                 });
+
             context.CharItems.Add(
                 new GuidCharEntity
                 {
                     Id = charId,
-                    Name = "CharTest"
+                    Name = "CharTest",
                 });
 
             // Act
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
-            var loadedBinary = await context.BinItems.FirstAsync();
-            var loadedChar = await context.CharItems.FirstAsync();
+            var loadedBinary = await context.BinItems.FirstAsync(cancellationToken);
+            var loadedChar = await context.CharItems.FirstAsync(cancellationToken);
 
             // Assert
             Assert.Equal(binId, loadedBinary.Id);
@@ -276,8 +301,8 @@ public sealed class MySqlDatabaseLifecycleTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidBin`;");
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidChar`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidBin`;", CancellationToken.None);
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbGuidChar`;", CancellationToken.None);
         }
     }
 
@@ -298,7 +323,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Sequence_table_emulation_async_fetch_returns_start_then_increment()
     {
-        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql84)
+        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -310,7 +335,7 @@ public sealed class MySqlDatabaseLifecycleTests
     public async Task MySql97_sequence_table_emulation_preserves_sync_and_async_contracts()
     {
         AssertTableSequenceSync(IntegrationDatabaseTarget.MySql97);
-        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql97)
+        await AssertTableSequenceAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -368,7 +393,8 @@ public sealed class MySqlDatabaseLifecycleTests
     }
 
     private static async Task AssertTableSequenceAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -377,7 +403,7 @@ public sealed class MySqlDatabaseLifecycleTests
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -386,7 +412,7 @@ public sealed class MySqlDatabaseLifecycleTests
             {
                 createCommand.CommandText = CreateTableSequenceSql(sequenceName);
                 await createCommand
-                    .ExecuteNonQueryAsync()
+                    .ExecuteNonQueryAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -396,7 +422,8 @@ public sealed class MySqlDatabaseLifecycleTests
                     connection,
                     sequenceName,
                     7,
-                    supportsNativeSequences: false)
+                    supportsNativeSequences: false,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var secondValue = await MySqlSequenceValueGenerator
@@ -404,7 +431,8 @@ public sealed class MySqlDatabaseLifecycleTests
                     connection,
                     sequenceName,
                     7,
-                    supportsNativeSequences: false)
+                    supportsNativeSequences: false,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
@@ -417,7 +445,7 @@ public sealed class MySqlDatabaseLifecycleTests
             await using var dropCommand = connection.CreateCommand();
             dropCommand.CommandText = $"DROP TABLE IF EXISTS `__efsequence_{sequenceName}`;";
             await dropCommand
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -459,7 +487,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Mariadb114_native_sequence_async_fetch_returns_start_then_increment()
     {
-        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb114)
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -467,7 +495,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Mariadb1011_native_sequence_async_fetch_returns_start_then_increment()
     {
-        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb1011)
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -475,7 +503,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Mariadb118_native_sequence_async_fetch_returns_start_then_increment()
     {
-        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb118)
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -483,7 +511,7 @@ public sealed class MySqlDatabaseLifecycleTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Mariadb123_native_sequence_async_fetch_returns_start_then_increment()
     {
-        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb123)
+        await AssertNativeSequenceAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -532,7 +560,8 @@ public sealed class MySqlDatabaseLifecycleTests
     }
 
     private static async Task AssertNativeSequenceAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -541,7 +570,7 @@ public sealed class MySqlDatabaseLifecycleTests
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -550,7 +579,7 @@ public sealed class MySqlDatabaseLifecycleTests
             {
                 createCmd.CommandText = $"CREATE SEQUENCE `{seqName}` START WITH 1 INCREMENT BY 1;";
                 await createCmd
-                    .ExecuteNonQueryAsync()
+                    .ExecuteNonQueryAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -560,7 +589,8 @@ public sealed class MySqlDatabaseLifecycleTests
                     connection,
                     seqName,
                     1,
-                    supportsNativeSequences: true)
+                    supportsNativeSequences: true,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var value2 = await MySqlSequenceValueGenerator
@@ -568,7 +598,8 @@ public sealed class MySqlDatabaseLifecycleTests
                     connection,
                     seqName,
                     1,
-                    supportsNativeSequences: true)
+                    supportsNativeSequences: true,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
@@ -580,7 +611,7 @@ public sealed class MySqlDatabaseLifecycleTests
             await using var dropCmd = connection.CreateCommand();
             dropCmd.CommandText = $"DROP SEQUENCE IF EXISTS `{seqName}`;";
             await dropCmd
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -672,10 +703,12 @@ public sealed class MySqlDatabaseLifecycleTests
                 e
                     .Property(x => x.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(100);
             });
+
             modelBuilder.Entity<GuidCharEntity>(e =>
             {
                 e.ToTable("MdbGuidChar");
@@ -683,6 +716,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 e
                     .Property(x => x.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(100);

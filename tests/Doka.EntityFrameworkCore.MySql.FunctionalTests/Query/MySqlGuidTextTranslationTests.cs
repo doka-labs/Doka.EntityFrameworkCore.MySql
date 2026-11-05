@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -12,6 +14,7 @@ public sealed class MySqlGuidTextTranslationTests
     private static readonly string[] s_translationOperations = ["ToString", "Like"];
     private static readonly string[] s_textStoreTypes = ["char(36)", "varchar(36)"];
     private static readonly Type[] s_clrTypes = [typeof(Guid), typeof(string)];
+
     private static readonly string[] s_properties =
     [
         "DefaultToken",
@@ -60,8 +63,11 @@ public sealed class MySqlGuidTextTranslationTests
     {
         // Arrange
         using var context = CreateContext(defaultFormat);
-        var query = context.Set<GuidItem>()
-            .Where(item => EF.Property<Guid>(item, propertyName).ToString()
+        var query = context
+            .Set<GuidItem>()
+            .Where(item => EF
+                    .Property<Guid>(item, propertyName)
+                    .ToString()
                 == "00112233-4455-6677-8899-aabbccddeeff");
 
         // Act
@@ -82,11 +88,16 @@ public sealed class MySqlGuidTextTranslationTests
     {
         // Arrange
         using var context = CreateContext(defaultFormat);
-        var operandName = optional ? $"Optional{propertyName}" : propertyName;
+        var operandName = optional
+            ? $"Optional{propertyName}"
+            : propertyName;
+
         var query = optional
-            ? context.Set<GuidItem>()
+            ? context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, operandName), "00112233-%", "!"))
-            : context.Set<GuidItem>()
+            : context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(EF.Property<Guid>(item, operandName), "00112233-%"));
 
         // Act
@@ -132,7 +143,9 @@ public sealed class MySqlGuidTextTranslationTests
     {
         // Arrange
         using var context = CreateContext(defaultFormat);
-        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid());
+        var query = context
+            .Set<GuidItem>()
+            .Select(item => Guid.NewGuid());
 
         // Act
         var sql = query.ToQueryString();
@@ -160,7 +173,11 @@ public sealed class MySqlGuidTextTranslationTests
     {
         // Arrange
         using var context = CreateContext(defaultFormat);
-        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid().ToString());
+        var query = context
+            .Set<GuidItem>()
+            .Select(item => Guid
+                .NewGuid()
+                .ToString());
 
         // Act
         var sql = query.ToQueryString();
@@ -183,10 +200,14 @@ public sealed class MySqlGuidTextTranslationTests
         using var context = CreateContext(defaultFormat);
         var query = operation switch
         {
-            "ToString" => context.Set<GuidItem>()
-                .Where(item => EF.Property<Guid>(item, propertyName).ToString()
+            "ToString" => context
+                .Set<GuidItem>()
+                .Where(item => EF
+                        .Property<Guid>(item, propertyName)
+                        .ToString()
                     == "00112233-4455-6677-8899-aabbccddeeff"),
-            "Like" => context.Set<GuidItem>()
+            "Like" => context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(EF.Property<Guid>(item, propertyName), "00112233-%")),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
@@ -209,7 +230,9 @@ public sealed class MySqlGuidTextTranslationTests
         // Arrange
         using var context = CreateContext(defaultFormat);
         Guid? token = new Guid("00112233-4455-6677-8899-aabbccddeeff");
-        var query = context.Set<GuidItem>().Where(item => EF.Functions.Like(token, item.Pattern));
+        var query = context
+            .Set<GuidItem>()
+            .Where(item => EF.Functions.Like(token, item.Pattern));
 
         // Act
         var sql = query.ToQueryString();
@@ -232,7 +255,8 @@ public sealed class MySqlGuidTextTranslationTests
     {
         // Arrange
         using var context = CreateContext(defaultFormat);
-        var query = context.Set<GuidItem>()
+        var query = context
+            .Set<GuidItem>()
             .Where(item => EF.Functions.Like(new Guid("00112233-4455-6677-8899-aabbccddeeff"), item.Pattern));
 
         // Act
@@ -261,8 +285,13 @@ public sealed class MySqlGuidTextTranslationTests
         using var context = CreateContext(defaultFormat);
         var source = context.GetService<IRelationalTypeMappingSource>();
         var guid = new Guid("00112233-4455-6677-8899-aabbccddeeff");
-        object value = clrType == typeof(Guid) ? guid : "plain text";
-        var expected = clrType == typeof(Guid) ? $"'{guid}'" : "'plain text'";
+        object value = clrType == typeof(Guid)
+            ? guid
+            : "plain text";
+
+        var expected = clrType == typeof(Guid)
+            ? $"'{guid}'"
+            : "'plain text'";
 
         // Act
         var mapping = source.FindMapping(clrType, storeType);
@@ -301,7 +330,9 @@ public sealed class MySqlGuidTextTranslationTests
         {
             Assert.DoesNotContain($"HEX({column})", sql, StringComparison.Ordinal);
             Assert.Contains(
-                canonicalizeText ? $"LOWER({column})" : $"{column} LIKE",
+                canonicalizeText
+                    ? $"LOWER({column})"
+                    : $"{column} LIKE",
                 sql,
                 StringComparison.Ordinal);
         }
@@ -309,13 +340,14 @@ public sealed class MySqlGuidTextTranslationTests
 
     private static GuidContext CreateContext(
         MySqlGuidFormat defaultFormat
-    ) => new(MySqlFunctionalTestOptions
-        .CreateTransientBuilder<GuidContext>()
-        .UseMySql(
-            "Server=localhost;Database=guid_translation;User ID=unused;Password=unused",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            options => options.DefaultGuidFormat(defaultFormat))
-        .Options);
+    ) => new(
+        MySqlFunctionalTestOptions
+            .CreateTransientBuilder<GuidContext>()
+            .UseMySql(
+                "Server=localhost;Database=guid_translation;User ID=unused;Password=unused",
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                options => options.DefaultGuidFormat(defaultFormat))
+            .Options);
 
     private sealed class GuidContext : DbContext
     {
@@ -332,7 +364,9 @@ public sealed class MySqlGuidTextTranslationTests
 
             foreach (var prefix in new[] { string.Empty, "Optional" })
             {
-                var type = prefix.Length == 0 ? typeof(Guid) : typeof(Guid?);
+                var type = prefix.Length == 0
+                    ? typeof(Guid)
+                    : typeof(Guid?);
 
                 entity.Property(type, $"{prefix}DefaultToken");
                 entity
@@ -357,7 +391,7 @@ public sealed class MySqlGuidTextTranslationTests
 
                 entity
                     .Property(type, $"{prefix}ConvertedTextToken")
-                    .HasConversion<Microsoft.EntityFrameworkCore.Storage.ValueConversion.GuidToStringConverter>();
+                    .HasConversion<GuidToStringConverter>();
             }
 
             entity

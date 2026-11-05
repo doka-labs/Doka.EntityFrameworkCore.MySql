@@ -19,6 +19,7 @@ public sealed partial class MySqlRuntimeBaselineTests
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options => options.DefaultGuidFormat(providerFormat));
+
         using var context = new RuntimeBaselineContext(optionsBuilder.Options);
         var relationalConnection = context.GetService<IRelationalConnection>();
 
@@ -39,6 +40,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         // Arrange
         const string replacement =
             "Server=replacement;Database=runtime;User ID=provider;Password=secret;";
+
         using var context = new RuntimeBaselineContext(
             CreateOptions(
                 "Server=initial;Database=doka;User ID=provider;Password=secret;",
@@ -47,7 +49,8 @@ public sealed partial class MySqlRuntimeBaselineTests
         // Act
         context.Database.SetConnectionString(replacement);
         var physical = new MySqlConnectionStringBuilder(
-            context.Database.GetDbConnection().ConnectionString);
+            context.Database.GetDbConnection()
+                .ConnectionString);
 
         var actual = context.Database.GetConnectionString();
 
@@ -79,7 +82,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnection = context.Database.GetDbConnection();
         var originalConnectionString = originalConnection.ConnectionString;
-        Action act = () =>
+        var act = () =>
             context.Database.SetConnectionString(
                 $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};");
 
@@ -130,7 +133,9 @@ public sealed partial class MySqlRuntimeBaselineTests
         // Assert
         Assert.Same(replacement, actual);
         Assert.Equal(
-            open ? ConnectionState.Open : ConnectionState.Closed,
+            open
+                ? ConnectionState.Open
+                : ConnectionState.Closed,
             replacement.State);
     }
 
@@ -147,7 +152,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         using var replacement = new RecordingDbConnection();
         context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
-        Action act = () =>
+        var act = () =>
             context.Database.SetConnectionString(
                 "Server=second;Database=runtime;GuidFormat=Binary16;");
 
@@ -160,6 +165,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         Assert.Equal(
             "Server=localhost;Database=doka;GuidFormat=Binary16;",
             replacement.ConnectionString);
+
         Assert.Equal(ConnectionState.Closed, replacement.State);
         Assert.False(replacement.IsDisposed);
     }
@@ -193,7 +199,7 @@ public sealed partial class MySqlRuntimeBaselineTests
                 $"Server=replacement;Database=doka;Password=secret-canary;{options}",
         };
 
-        Action act = () =>
+        var act = () =>
             context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
 
         // Act
@@ -237,7 +243,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnectionString = replacement.ConnectionString;
         var originalConnection = context.Database.GetDbConnection();
-        Action act = () =>
+        var act = () =>
             context.Database.SetDbConnection(replacement, contextOwnsConnection);
 
         // Act
@@ -248,8 +254,11 @@ public sealed partial class MySqlRuntimeBaselineTests
         Assert.Same(originalConnection, context.Database.GetDbConnection());
         Assert.Equal(originalConnectionString, replacement.ConnectionString);
         Assert.Equal(
-            open ? ConnectionState.Open : ConnectionState.Closed,
+            open
+                ? ConnectionState.Open
+                : ConnectionState.Closed,
             replacement.State);
+
         Assert.False(replacement.IsDisposed);
     }
 
@@ -264,7 +273,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         using var connection = new RecordingDbConnection();
         var originalConnectionString = connection.ConnectionString;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
-        Action act = () =>
+        var act = () =>
             context.Database.SetConnectionString(
                 "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 
@@ -276,6 +285,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         Assert.Equal(
             "Database.SetConnectionString cannot replace caller-owned MySQL connection configuration.",
             exception.Message);
+
         Assert.Same(connection, context.Database.GetDbConnection());
         Assert.Equal(originalConnectionString, connection.ConnectionString);
         Assert.Equal(ConnectionState.Closed, connection.State);
@@ -296,9 +306,10 @@ public sealed partial class MySqlRuntimeBaselineTests
         builder.UseMySql(
             dataSource,
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         using var context = new RuntimeBaselineContext(builder.Options);
         var originalConnection = context.Database.GetDbConnection();
-        Action act = () =>
+        var act = () =>
             context.Database.SetConnectionString(
                 "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 

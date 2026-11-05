@@ -2,9 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// A Hi/Lo value generator backed by a MySQL/MariaDB sequence. Claims a block of
-/// <c>blockSize</c> values per round-trip; <see cref="HiLoValueGeneratorState"/>
+/// <c>blockSize</c> values per round-trip; <see cref="HiLoValueGeneratorState" />
 /// hands them out client-side until the block is exhausted, then asks for the next
-/// LOW via <see cref="GetNewLowValue"/>. Both the MySQL emulation and native MariaDB
+/// LOW via <see cref="GetNewLowValue" />. Both the MySQL emulation and native MariaDB
 /// paths return the start of the newly leased block. Commands execute through EF's
 /// configured relational connection so data sources, interceptors, execution
 /// strategy integration, diagnostics, and connection ownership remain intact.
@@ -12,12 +12,12 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <typeparam name="TValue">The generated value type (int, long, etc.).</typeparam>
 internal sealed class MySqlSequenceHiLoValueGenerator<TValue> : HiLoValueGenerator<TValue>
 {
-    private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
-    private readonly IRelationalConnection _connection;
+    private readonly int _blockSize;
     private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
+    private readonly IRelationalConnection _connection;
+    private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
     private readonly string _sequenceName;
     private readonly bool _supportsNativeSequences;
-    private readonly int _blockSize;
 
     public MySqlSequenceHiLoValueGenerator(
         HiLoValueGeneratorState generatorState,

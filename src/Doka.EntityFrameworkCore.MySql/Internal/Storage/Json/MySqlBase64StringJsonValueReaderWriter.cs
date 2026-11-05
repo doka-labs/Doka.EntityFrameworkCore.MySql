@@ -14,12 +14,15 @@ internal sealed class MySqlBase64StringJsonValueReaderWriter : JsonValueReaderWr
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
 
+    private MySqlBase64StringJsonValueReaderWriter() { }
+
     /// <summary>
     /// Gets the reusable reader/writer for strings without a value converter.
     /// </summary>
     public static MySqlBase64StringJsonValueReaderWriter Instance { get; } = new();
 
-    private MySqlBase64StringJsonValueReaderWriter() { }
+    /// <inheritdoc />
+    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 
     /// <inheritdoc />
     public override string FromJsonTyped(
@@ -42,7 +45,7 @@ internal sealed class MySqlBase64StringJsonValueReaderWriter : JsonValueReaderWr
         byte[]? rentedBytes = null;
         var utf8Bytes = byteCount <= MaxStackAllocationByteCount
             ? stackalloc byte[byteCount]
-            : (rentedBytes = ArrayPool<byte>.Shared.Rent(byteCount));
+            : rentedBytes = ArrayPool<byte>.Shared.Rent(byteCount);
 
         try
         {
@@ -57,11 +60,9 @@ internal sealed class MySqlBase64StringJsonValueReaderWriter : JsonValueReaderWr
                 // the populated slice before returning shared memory.
                 utf8Bytes[..byteCount]
                     .Clear();
+
                 ArrayPool<byte>.Shared.Return(rentedBytes);
             }
         }
     }
-
-    /// <inheritdoc />
-    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 }

@@ -7,13 +7,14 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlGuidTextIntegrationTests.GuidFixture>
 {
-    private readonly GuidFixture _fixture;
     private static readonly string[] s_matchingOperations =
     [
         "TextEqual", "TextNotEqual", "LikeMatch", "LikeNoMatch",
         "OptionalLikeMatch", "OptionalWildcard", "OptionalNoMatch",
         "OptionalNullPattern", "OptionalEscaped",
     ];
+
+    private readonly GuidFixture _fixture;
 
     /// <summary>
     /// Uses the per-format immutable datasets shared by this class's independent cases.
@@ -66,11 +67,15 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
-        var query = context.Set<GuidItem>()
+        var query = context
+            .Set<GuidItem>()
             .OrderBy(item => item.Id)
-            .Select(item => EF.Property<Guid>(item, propertyName).ToString());
+            .Select(item => EF
+                .Property<Guid>(item, propertyName)
+                .ToString());
 
         // Act
         var actual = await query.ToArrayAsync(CancellationToken.None);
@@ -94,7 +99,8 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var query = CreateMatchingQuery(context, propertyName, operation);
         var expected = operation switch
@@ -105,7 +111,10 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         };
 
         // Act
-        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(CancellationToken.None);
+        var actual = await query
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None);
 
         // Assert
         Assert.Equal(expected, actual);
@@ -124,9 +133,12 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
-        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid());
+        var query = context
+            .Set<GuidItem>()
+            .Select(item => Guid.NewGuid());
 
         // Act
         var actual = await query.ToArrayAsync(CancellationToken.None);
@@ -150,21 +162,28 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
-        var query = context.Set<GuidItem>().Select(item => Guid.NewGuid().ToString());
+        var query = context
+            .Set<GuidItem>()
+            .Select(item => Guid
+                .NewGuid()
+                .ToString());
 
         // Act
         var actual = await query.ToArrayAsync(CancellationToken.None);
 
         // Assert
         Assert.Equal(2, actual.Length);
-        Assert.All(actual, value =>
-        {
-            Assert.True(Guid.TryParseExact(value, "D", out var guid));
-            Assert.NotEqual(Guid.Empty, guid);
-            Assert.Equal(guid.ToString(), value);
-        });
+        Assert.All(
+            actual,
+            value =>
+            {
+                Assert.True(Guid.TryParseExact(value, "D", out var guid));
+                Assert.NotEqual(Guid.Empty, guid);
+                Assert.Equal(guid.ToString(), value);
+            });
     }
 
     private static IQueryable<GuidItem> CreateMatchingQuery(
@@ -185,16 +204,27 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
 
         return operation switch
         {
-            "TextEqual" => context.Set<GuidItem>()
-                .Where(item => EF.Property<Guid>(item, propertyName).ToString() == MatchingText),
-            "TextNotEqual" => context.Set<GuidItem>()
-                .Where(item => EF.Property<Guid>(item, propertyName).ToString() != MatchingText),
-            "LikeMatch" or "LikeNoMatch" => context.Set<GuidItem>()
+            "TextEqual" => context
+                .Set<GuidItem>()
+                .Where(item => EF
+                        .Property<Guid>(item, propertyName)
+                        .ToString()
+                    == MatchingText),
+            "TextNotEqual" => context
+                .Set<GuidItem>()
+                .Where(item => EF
+                        .Property<Guid>(item, propertyName)
+                        .ToString()
+                    != MatchingText),
+            "LikeMatch" or "LikeNoMatch" => context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(EF.Property<Guid>(item, propertyName), pattern)),
             "OptionalLikeMatch" or "OptionalWildcard" or "OptionalNoMatch" or "OptionalNullPattern" =>
-                context.Set<GuidItem>()
+                context
+                    .Set<GuidItem>()
                     .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, optionalName), pattern)),
-            "OptionalEscaped" => context.Set<GuidItem>()
+            "OptionalEscaped" => context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(EF.Property<Guid?>(item, optionalName), "00112233-%", "!")),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };

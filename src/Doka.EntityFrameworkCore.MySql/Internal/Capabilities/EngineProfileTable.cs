@@ -2,8 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Static lookup table mapping an engine family and version to a frozen engine-fact
-/// snapshot. Provider support is derived separately by <see cref="ProviderProfile"/>.
-///
+/// snapshot. Provider support is derived separately by <see cref="ProviderProfile" />.
 /// Adding support for a new engine version means declaring the exact threshold
 /// that changes an engine fact. The table accumulates every fact whose threshold
 /// is satisfied by the requested version.
@@ -71,7 +70,7 @@ internal static class EngineProfileTable
     }
 
     /// <summary>
-    /// Resolves an <see cref="EngineProfile"/> for the supplied engine family and
+    /// Resolves an <see cref="EngineProfile" /> for the supplied engine family and
     /// version. Recent instances are cached per (family, version) so repeated
     /// resolution returns the same reference and downstream service-provider caches
     /// stay warm without permitting unbounded process retention.

@@ -40,6 +40,20 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
 
     public TestDatabaseTlsOptions? TlsOptions => _tlsMaterial?.Options;
 
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await _container
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _tlsMaterial?.Dispose();
+        }
+    }
+
     public static async Task<TestDatabaseContainer> StartAsync(
         TestDatabaseRequest request,
         CancellationToken cancellationToken
@@ -73,20 +87,6 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
-            await _container
-                .DisposeAsync()
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            _tlsMaterial?.Dispose();
-        }
-    }
-
     private static async Task<TestDatabaseContainer> StartMySqlAsync(
         string image,
         TestDatabaseTlsMaterial? tlsMaterial,
@@ -110,6 +110,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             await container
                 .StartAsync(cancellationToken)
                 .ConfigureAwait(false);
+
             await VerifyLoopbackBindingAsync(container, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -132,6 +133,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             await container
                 .DisposeAsync()
                 .ConfigureAwait(false);
+
             throw;
         }
     }
@@ -159,6 +161,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             await container
                 .StartAsync(cancellationToken)
                 .ConfigureAwait(false);
+
             await VerifyLoopbackBindingAsync(container, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -181,6 +184,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             await container
                 .DisposeAsync()
                 .ConfigureAwait(false);
+
             throw;
         }
     }
@@ -190,7 +194,7 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
         TestDatabaseTlsMaterial? tlsMaterial
     )
     {
-        var builder = new MySqlConnector.MySqlConnectionStringBuilder(connectionString)
+        var builder = new MySqlConnectionStringBuilder(connectionString)
         {
             PersistSecurityInfo = true,
         };
@@ -235,11 +239,14 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
     )
     {
         using var dockerClient = TestcontainersSettings
-            .OS.DockerEndpointAuthConfig.GetDockerClientBuilder()
+            .OS
+            .DockerEndpointAuthConfig
+            .GetDockerClientBuilder()
             .Build();
 
         var inspection = await dockerClient
-            .Containers.InspectContainerAsync(container.Id, cancellationToken)
+            .Containers
+            .InspectContainerAsync(container.Id, cancellationToken)
             .ConfigureAwait(false);
 
         var portBindings = inspection.NetworkSettings?.Ports

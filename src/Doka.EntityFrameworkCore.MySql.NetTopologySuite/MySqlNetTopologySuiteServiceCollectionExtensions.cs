@@ -19,17 +19,22 @@ public static class MySqlNetTopologySuiteServiceCollectionExtensions
         serviceCollection.TryAddSingleton<MySqlNetTopologySuiteSpatialTypeProvider>();
         serviceCollection.TryAddSingleton<IMySqlNetTopologySuiteMarker>(serviceProvider =>
             serviceProvider.GetRequiredService<MySqlNetTopologySuiteSpatialTypeProvider>());
+
         serviceCollection.TryAddSingleton<IMySqlSpatialTypeProvider>(serviceProvider =>
             serviceProvider.GetRequiredService<MySqlNetTopologySuiteSpatialTypeProvider>());
+
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor
                 .Singleton<IRelationalTypeMappingSourcePlugin, MySqlNetTopologySuiteTypeMappingSourcePlugin>());
+
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Scoped<IMethodCallTranslatorPlugin, MySqlNetTopologySuiteMethodCallTranslatorPlugin>());
+
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor
                 .Scoped<IAggregateMethodCallTranslatorPlugin,
                     MySqlNetTopologySuiteAggregateMethodCallTranslatorPlugin>());
+
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Scoped<IMemberTranslatorPlugin, MySqlNetTopologySuiteMemberTranslatorPlugin>());
 

@@ -9,7 +9,10 @@ public sealed partial class MySqlObservabilityContractTests
         {
             using var contract = LoadContract();
 
-            foreach (var operation in contract.RootElement.GetProperty("operations").EnumerateArray())
+            foreach (var operation in contract
+                .RootElement
+                .GetProperty("operations")
+                .EnumerateArray())
             {
                 yield return new object[]
                 {
@@ -23,19 +26,22 @@ public sealed partial class MySqlObservabilityContractTests
             {
                 "server-version-resolution", "support_status", Enum.GetNames<MySqlServerVersionSupportStatus>(),
             };
+
             yield return new object[]
             {
-                "server-version-resolution", "compatibility_mode", Enum.GetNames<MySqlServerVersionCompatibilityMode>(),
+                "server-version-resolution",
+                "compatibility_mode",
+                Enum.GetNames<MySqlServerVersionCompatibilityMode>(),
             };
+
             yield return new object[]
             {
-                "migration-lock-acquire", "outcome",
+                "migration-lock-acquire",
+                "outcome",
                 new[] { MySqlDiagnosticTags.Acquired, MySqlDiagnosticTags.Failed, MySqlDiagnosticTags.Timeout },
             };
-            yield return new object[]
-            {
-                "retry-attempt", "outcome", new[] { MySqlDiagnosticTags.Attempt },
-            };
+
+            yield return new object[] { "retry-attempt", "outcome", new[] { MySqlDiagnosticTags.Attempt } };
             yield return new object[]
             {
                 "command-cancellation", "path", new[] { MySqlDiagnosticTags.Hard, MySqlDiagnosticTags.Soft },

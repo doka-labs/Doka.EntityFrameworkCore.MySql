@@ -6,28 +6,28 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
     public static IEnumerable<object[]> NullableColumnTypeCases()
     {
         foreach (var mapping in new (string StoreType, string ClrName, bool TextGuidOptIn, string ServerVersion)[]
-        {
-            ("tinyint(1)", "bool", false, "8.4.6"),
-            ("tinyint unsigned", "byte", false, "8.4.6"),
-            ("tinyint", "sbyte", false, "8.4.6"),
-            ("smallint", "short", false, "8.4.6"),
-            ("smallint unsigned", "ushort", false, "8.4.6"),
-            ("int", "int", false, "8.4.6"),
-            ("int unsigned", "uint", false, "8.4.6"),
-            ("bigint", "long", false, "8.4.6"),
-            ("bigint unsigned", "ulong", false, "8.4.6"),
-            ("float", "float", false, "8.4.6"),
-            ("double", "double", false, "8.4.6"),
-            ("decimal(18,2)", "decimal", false, "8.4.6"),
-            ("binary(16)", "Guid", false, "8.4.6"),
-            ("datetime(6)", "DateTime", false, "8.4.6"),
-            ("date", "DateOnly", false, "8.4.6"),
-            ("time(6)", "TimeOnly", false, "8.4.6"),
-            ("char(36)", "Guid", true, "8.4.6"),
-            ("uuid", "Guid", false, "11.8.3-MariaDB"),
-            ("varchar(64)", "string", false, "8.4.6"),
-            ("varbinary(64)", "byte[]", false, "8.4.6"),
-        })
+            {
+                ("tinyint(1)", "bool", false, "8.4.6"),
+                ("tinyint unsigned", "byte", false, "8.4.6"),
+                ("tinyint", "sbyte", false, "8.4.6"),
+                ("smallint", "short", false, "8.4.6"),
+                ("smallint unsigned", "ushort", false, "8.4.6"),
+                ("int", "int", false, "8.4.6"),
+                ("int unsigned", "uint", false, "8.4.6"),
+                ("bigint", "long", false, "8.4.6"),
+                ("bigint unsigned", "ulong", false, "8.4.6"),
+                ("float", "float", false, "8.4.6"),
+                ("double", "double", false, "8.4.6"),
+                ("decimal(18,2)", "decimal", false, "8.4.6"),
+                ("binary(16)", "Guid", false, "8.4.6"),
+                ("datetime(6)", "DateTime", false, "8.4.6"),
+                ("date", "DateOnly", false, "8.4.6"),
+                ("time(6)", "TimeOnly", false, "8.4.6"),
+                ("char(36)", "Guid", true, "8.4.6"),
+                ("uuid", "Guid", false, "11.8.3-MariaDB"),
+                ("varchar(64)", "string", false, "8.4.6"),
+                ("varbinary(64)", "byte[]", false, "8.4.6"),
+            })
         {
             yield return [mapping.StoreType, mapping.ClrName, mapping.TextGuidOptIn, mapping.ServerVersion, false];
             yield return [mapping.StoreType, mapping.ClrName, mapping.TextGuidOptIn, mapping.ServerVersion, true];
@@ -52,7 +52,11 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
     {
         // Arrange
         var databaseModel = CreateSingleColumnDatabaseModel("nullable_type_record", "Value", storeType);
-        var column = databaseModel.Tables.Single().Columns.Single(candidate => candidate.Name == "Value");
+        var column = databaseModel
+            .Tables
+            .Single()
+            .Columns
+            .Single(candidate => candidate.Name == "Value");
 
         column.IsNullable = isNullable;
 
@@ -60,11 +64,17 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         var scaffolded = ScaffoldModel(
             databaseModel,
             serverVersion,
-            textGuidOptIn ? options => options.ScaffoldTextGuidsAsGuids() : null);
+            textGuidOptIn
+                ? options => options.ScaffoldTextGuidsAsGuids()
+                : null);
 
         // Assert
-        var entityCode = Assert.Single(scaffolded.AdditionalFiles).Code;
-        var expectedType = isNullable ? clrName + "?" : clrName;
+        var entityCode = Assert.Single(scaffolded.AdditionalFiles)
+            .Code;
+
+        var expectedType = isNullable
+            ? clrName + "?"
+            : clrName;
 
         Assert.Contains($"public {expectedType} Value", entityCode, StringComparison.Ordinal);
         Assert.DoesNotContain(

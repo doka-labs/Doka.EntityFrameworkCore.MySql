@@ -10,14 +10,16 @@ public sealed class TestDatabaseSession : IAsyncDisposable
 {
     private const string EvidenceFileEnvironmentVariable = "DOKA_TEST_DATABASE_EVIDENCE_FILE";
     private static readonly TimeSpan s_startupTimeout = TimeSpan.FromMinutes(3);
+
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
     };
 
-    private readonly IReadOnlyDictionary<string, TestDatabaseEndpoint> _endpoints;
     private readonly IReadOnlyList<TestDatabaseContainer> _containers;
+
+    private readonly IReadOnlyDictionary<string, TestDatabaseEndpoint> _endpoints;
     private readonly string? _evidenceFile;
     private bool _disposed;
 
@@ -30,144 +32,6 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         _endpoints = endpoints;
         _containers = containers;
         _evidenceFile = evidenceFile;
-    }
-
-    /// <summary>
-    /// Starts locally provisioned targets and validates externally supplied targets.
-    /// </summary>
-    /// <param name="requests">The target definitions owned by this session.</param>
-    /// <param name="evidenceScope">
-    /// An optional single directory name that isolates this session's evidence
-    /// from another fixture in the same test process.
-    /// </param>
-    /// <returns>A session that owns every locally provisioned target.</returns>
-    public static async Task<TestDatabaseSession> StartAsync(
-        IEnumerable<TestDatabaseRequest> requests,
-        string? evidenceScope = null
-    )
-    {
-        ArgumentNullException.ThrowIfNull(requests);
-
-        var requestArray = requests.ToArray();
-        ValidateRequests(requestArray);
-        var evidenceFile = ResolveEvidenceFile(evidenceScope);
-
-        var endpoints = new Dictionary<string, TestDatabaseEndpoint>(StringComparer.OrdinalIgnoreCase);
-        var containers = new List<TestDatabaseContainer>();
-
-        try
-        {
-            foreach (var request in requestArray)
-            {
-                // Each image receives the complete startup budget. Sharing one
-                // deadline across a matrix makes later targets depend on pull
-                // and initialization time consumed by unrelated predecessors.
-                using var startupCancellation = new CancellationTokenSource(s_startupTimeout);
-                var externalConnectionString =
-                    Environment.GetEnvironmentVariable(request.ConnectionStringEnvironmentVariable);
-
-                if (!string.IsNullOrWhiteSpace(externalConnectionString))
-                {
-                    if (request.SecurityProfile != TestDatabaseSecurityProfile.PlainText)
-                    {
-                        throw new InvalidOperationException(
-                            $"Test-owned TLS target '{request.TargetId}' cannot use external endpoint "
-                            + $"'{request.ConnectionStringEnvironmentVariable}'.");
-                    }
-
-                    await VerifyExternalEndpointAsync(externalConnectionString, startupCancellation.Token)
-                        .ConfigureAwait(false);
-
-                    endpoints.Add(
-                        request.TargetId,
-                        new TestDatabaseEndpoint(
-                            request.TargetId,
-                            request.Engine,
-                            request.ServerVersionToken,
-                            externalConnectionString,
-                            "environment",
-                            null,
-                            null,
-                            null));
-                    continue;
-                }
-
-                if (string.IsNullOrWhiteSpace(request.Image))
-                {
-                    throw new InvalidOperationException(
-                        $"Test database target '{request.TargetId}' requires environment variable "
-                        + $"'{request.ConnectionStringEnvironmentVariable}'.");
-                }
-
-                TestDatabaseContainer container;
-
-                try
-                {
-                    container = await TestDatabaseContainer
-                        .StartAsync(request, startupCancellation.Token)
-                        .ConfigureAwait(false);
-                }
-                catch (ResourceReaperException exception)
-                {
-                    throw new InvalidOperationException(
-                        $"Test database infrastructure failed before any test body ran for target "
-                        + $"'{request.TargetId}': the Testcontainers Resource Reaper did not initialize. "
-                        + "Let a cancelled IDE run finish cleanup before retrying. For repeated local runs, "
-                        + "use a persistent Compose "
-                        + $"endpoint through {request.ConnectionStringEnvironmentVariable} instead of "
-                        + "provisioning a new container for every run.",
-                        exception);
-                }
-                catch (OperationCanceledException exception) when (startupCancellation.IsCancellationRequested)
-                {
-                    throw new TimeoutException(
-                        $"Test database infrastructure did not initialize target '{request.TargetId}' "
-                        + $"within {s_startupTimeout}. No test body ran.",
-                        exception);
-                }
-
-                containers.Add(container);
-
-                endpoints.Add(
-                    request.TargetId,
-                    new TestDatabaseEndpoint(
-                        request.TargetId,
-                        request.Engine,
-                        request.ServerVersionToken,
-                        container.ConnectionString,
-                        "testcontainers",
-                        request.Image,
-                        container.ContainerId,
-                        container.TlsOptions));
-            }
-
-            var session = new TestDatabaseSession(endpoints, containers, evidenceFile);
-            await session
-                .WriteEvidenceAsync("ready")
-                .ConfigureAwait(false);
-            return session;
-        }
-        catch
-        {
-            await DisposeContainersAsync(containers)
-                .ConfigureAwait(false);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Gets one ready endpoint by target id.
-    /// </summary>
-    public TestDatabaseEndpoint GetEndpoint(
-        string targetId
-    )
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
-
-        return _endpoints.TryGetValue(targetId, out var endpoint)
-            ? endpoint
-            : throw new InvalidOperationException(
-                $"Test database target '{targetId}' was not selected for this test run.");
     }
 
     /// <inheritdoc />
@@ -187,13 +51,171 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         }
         catch
         {
-            await WriteEvidenceAsync("cleanup-failed")
+            await WriteEvidenceAsync("cleanup-failed", CancellationToken.None)
                 .ConfigureAwait(false);
+
             throw;
         }
 
-        await WriteEvidenceAsync("cleanup-completed")
+        // WHY: Cleanup evidence must survive the cancellation that triggered disposal.
+        await WriteEvidenceAsync("cleanup-completed", CancellationToken.None)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Starts locally provisioned targets and validates externally supplied targets.
+    /// </summary>
+    /// <param name="requests">The target definitions owned by this session.</param>
+    /// <param name="cancellationToken">
+    /// The caller token to observe while starting targets and writing ready evidence.
+    /// </param>
+    /// <param name="evidenceScope">
+    /// An optional single directory name that isolates this session's evidence
+    /// from another fixture in the same test process.
+    /// </param>
+    /// <returns>A session that owns every locally provisioned target.</returns>
+    public static async Task<TestDatabaseSession> StartAsync(
+        IEnumerable<TestDatabaseRequest> requests,
+        CancellationToken cancellationToken,
+        string? evidenceScope = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var requestArray = requests.ToArray();
+        ValidateRequests(requestArray);
+        var evidenceFile = ResolveEvidenceFile(evidenceScope);
+
+        var endpoints = new Dictionary<string, TestDatabaseEndpoint>(StringComparer.OrdinalIgnoreCase);
+        var containers = new List<TestDatabaseContainer>();
+
+        try
+        {
+            foreach (var request in requestArray)
+            {
+                // WHY: Each image receives the complete startup budget. Sharing one
+                // deadline across a matrix makes later targets depend on pull
+                // and initialization time consumed by unrelated predecessors.
+                using var startupCancellation = cancellationToken.CanBeCanceled
+                    ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+                    : new CancellationTokenSource();
+
+                startupCancellation.CancelAfter(s_startupTimeout);
+
+                var externalConnectionString =
+                    Environment.GetEnvironmentVariable(request.ConnectionStringEnvironmentVariable);
+
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(externalConnectionString))
+                    {
+                        if (request.SecurityProfile != TestDatabaseSecurityProfile.PlainText)
+                        {
+                            throw new InvalidOperationException(
+                                $"Test-owned TLS target '{request.TargetId}' cannot use external endpoint "
+                                + $"'{request.ConnectionStringEnvironmentVariable}'.");
+                        }
+
+                        await VerifyExternalEndpointAsync(externalConnectionString, startupCancellation.Token)
+                            .ConfigureAwait(false);
+
+                        endpoints.Add(
+                            request.TargetId,
+                            new TestDatabaseEndpoint(
+                                request.TargetId,
+                                request.Engine,
+                                request.ServerVersionToken,
+                                externalConnectionString,
+                                "environment",
+                                null,
+                                null));
+
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(request.Image))
+                    {
+                        throw new InvalidOperationException(
+                            $"Test database target '{request.TargetId}' requires environment variable "
+                            + $"'{request.ConnectionStringEnvironmentVariable}'.");
+                    }
+
+                    var container = await TestDatabaseContainer
+                        .StartAsync(request, startupCancellation.Token)
+                        .ConfigureAwait(false);
+
+                    containers.Add(container);
+
+                    endpoints.Add(
+                        request.TargetId,
+                        new TestDatabaseEndpoint(
+                            request.TargetId,
+                            request.Engine,
+                            request.ServerVersionToken,
+                            container.ConnectionString,
+                            "testcontainers",
+                            request.Image,
+                            container.ContainerId,
+                            container.TlsOptions));
+                }
+                catch (ResourceReaperException exception)
+                {
+                    throw new InvalidOperationException(
+                        $"Test database infrastructure failed before any test body ran for target "
+                        + $"'{request.TargetId}': the Testcontainers Resource Reaper did not initialize. "
+                        + "Let a cancelled IDE run finish cleanup before retrying. For repeated local runs, "
+                        + "use a persistent Compose "
+                        + $"endpoint through {request.ConnectionStringEnvironmentVariable} instead of "
+                        + "provisioning a new container for every run.",
+                        exception);
+                }
+                catch (OperationCanceledException exception)
+                    when (startupCancellation.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"Test database infrastructure did not initialize target '{request.TargetId}' "
+                        + $"within {s_startupTimeout}. No test body ran.",
+                        exception);
+                }
+            }
+
+            var session = new TestDatabaseSession(endpoints, containers, evidenceFile);
+            await session
+                .WriteEvidenceAsync("ready", cancellationToken)
+                .ConfigureAwait(false);
+
+            return session;
+        }
+        catch (Exception exception)
+        {
+            // WHY: Startup failure must release owned containers even when the caller has canceled.
+            await DisposeContainersAsync(containers)
+                .ConfigureAwait(false);
+
+            if (exception is OperationCanceledException
+                && cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(exception.Message, exception, cancellationToken);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets one ready endpoint by target id.
+    /// </summary>
+    public TestDatabaseEndpoint GetEndpoint(
+        string targetId
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+
+        return _endpoints.TryGetValue(targetId, out var endpoint)
+            ? endpoint
+            : throw new InvalidOperationException(
+                $"Test database target '{targetId}' was not selected for this test run.");
     }
 
     private static void ValidateRequests(
@@ -241,6 +263,7 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         IEnumerable<TestDatabaseContainer> containers
     )
     {
+        // WHY: Disposal must attempt every container independently of caller cancellation and earlier failures.
         List<Exception>? failures = null;
 
         foreach (var container in containers.Reverse())
@@ -264,10 +287,18 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Atomically publishes the current database lifecycle without leaving an incomplete temporary file.
+    /// </summary>
+    /// <param name="lifecycleState">The lifecycle state to record.</param>
+    /// <param name="cancellationToken">The token to observe while writing; disposal explicitly supplies None.</param>
     private async Task WriteEvidenceAsync(
-        string lifecycleState
+        string lifecycleState,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrWhiteSpace(_evidenceFile))
         {
             return;
@@ -279,7 +310,8 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             Directory.CreateDirectory(directory);
         }
 
-        var targets = _endpoints.Values
+        var targets = _endpoints
+            .Values
             .OrderBy(endpoint => endpoint.TargetId, StringComparer.OrdinalIgnoreCase)
             .Select(CreateEvidenceTarget)
             .ToArray();
@@ -292,20 +324,30 @@ public sealed class TestDatabaseSession : IAsyncDisposable
 
         var temporaryFile = $"{_evidenceFile}.{Guid.NewGuid():N}.tmp";
 
-        await using (var stream = File.Create(temporaryFile))
+        try
         {
-            await JsonSerializer
-                .SerializeAsync(
-                    stream,
-                    evidence,
-                    s_jsonOptions)
-                .ConfigureAwait(false);
-            await stream
-                .FlushAsync()
-                .ConfigureAwait(false);
-        }
+            await using (var stream = File.Create(temporaryFile))
+            {
+                await JsonSerializer
+                    .SerializeAsync(
+                        stream,
+                        evidence,
+                        s_jsonOptions,
+                        cancellationToken)
+                    .ConfigureAwait(false);
 
-        File.Move(temporaryFile, _evidenceFile, overwrite: true);
+                await stream
+                    .FlushAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            File.Move(temporaryFile, _evidenceFile, overwrite: true);
+        }
+        finally
+        {
+            // WHY: A canceled serialization or failed atomic rename must not leave stale partial evidence.
+            File.Delete(temporaryFile);
+        }
     }
 
     private static string? ResolveEvidenceFile(

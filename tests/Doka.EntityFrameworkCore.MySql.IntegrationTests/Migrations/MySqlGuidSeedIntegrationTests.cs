@@ -17,45 +17,51 @@ public sealed class MySqlGuidSeedIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MySql84);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 executes Guid seed relationships.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MySql97);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 executes Guid seed relationships.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb1011);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 executes Guid seed relationships.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb114);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 executes Guid seed relationships.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb118);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 executes Guid seed relationships.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_executes_guid_seed_relationships() =>
-        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb123);
+        AssertGuidSeedRelationshipsAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies guid seed relationships for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertGuidSeedRelationshipsAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -69,8 +75,12 @@ public sealed class MySqlGuidSeedIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await CleanupAsync(connection).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -84,7 +94,9 @@ public sealed class MySqlGuidSeedIntegrationTests
                     .Options);
 
             // Act
-            var model = context.GetService<IDesignTimeModel>().Model;
+            var model = context.GetService<IDesignTimeModel>()
+                .Model;
+
             var operations = context
                 .GetService<IMigrationsModelDiffer>()
                 .GetDifferences(null, model.GetRelationalModel());
@@ -95,7 +107,7 @@ public sealed class MySqlGuidSeedIntegrationTests
             foreach (var command in generator.Generate(operations, model))
             {
                 _ = await command
-                    .ExecuteNonQueryAsync(relationalConnection, cancellationToken: CancellationToken.None)
+                    .ExecuteNonQueryAsync(relationalConnection, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -104,44 +116,65 @@ public sealed class MySqlGuidSeedIntegrationTests
                 .Set<GuidSeedIntegrationPrincipal>()
                 .Include(principal => principal.RequiredDependents)
                 .Include(principal => principal.OptionalDependents)
-                .SingleAsync(principal => principal.Id == s_firstPrincipalId, CancellationToken.None)
+                .SingleAsync(principal => principal.Id == s_firstPrincipalId, cancellationToken)
                 .ConfigureAwait(false);
 
             var second = await context
                 .Set<GuidSeedIntegrationPrincipal>()
                 .Include(principal => principal.RequiredDependents)
                 .Include(principal => principal.OptionalDependents)
-                .SingleAsync(principal => principal.Id == s_secondPrincipalId, CancellationToken.None)
+                .SingleAsync(principal => principal.Id == s_secondPrincipalId, cancellationToken)
                 .ConfigureAwait(false);
 
-            var physicalStorage = await ReadPhysicalGuidStorageAsync(connection).ConfigureAwait(false);
+            var physicalStorage = await ReadPhysicalGuidStorageAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
+
             int deletedRows;
 
             await using (var delete = connection.CreateCommand())
             {
                 delete.CommandText = $"DELETE FROM `{GuidSeedIntegrationContract.PrincipalTable}` WHERE `Id` = @id;";
                 delete.Parameters.AddWithValue("@id", s_firstPrincipalId.ToString("D", CultureInfo.InvariantCulture));
-                deletedRows = await delete.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                deletedRows = await delete
+                    .ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             context.ChangeTracker.Clear();
             var dependentRemains = await context
-                    .Set<GuidSeedIntegrationDependent>()
-                    .AnyAsync(dependent => dependent.PrincipalId == s_firstPrincipalId, CancellationToken.None)
-                    .ConfigureAwait(false);
+                .Set<GuidSeedIntegrationDependent>()
+                .AnyAsync(dependent => dependent.PrincipalId == s_firstPrincipalId, cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Single(first.RequiredDependents);
-            Assert.Same(first, first.RequiredDependents.Single().Principal);
+            Assert.Same(
+                first,
+                first.RequiredDependents.Single()
+                    .Principal);
+
             Assert.Empty(first.OptionalDependents);
             Assert.Single(second.RequiredDependents);
             Assert.Single(second.OptionalDependents);
-            Assert.Same(second, second.OptionalDependents.Single().OptionalPrincipal);
-            Assert.Null(second.RequiredDependents.Single().OptionalPrincipalId);
+            Assert.Same(
+                second,
+                second.OptionalDependents.Single()
+                    .OptionalPrincipal);
+
+            Assert.Null(
+                second.RequiredDependents.Single()
+                    .OptionalPrincipalId);
+
             Assert.Equal(
-                [s_secondPrincipalId.ToString("D", CultureInfo.InvariantCulture),
-                    s_firstPrincipalId.ToString("D", CultureInfo.InvariantCulture)],
-                physicalStorage.Ids.OrderBy(value => value, StringComparer.Ordinal).ToArray());
+                [
+                    s_secondPrincipalId.ToString("D", CultureInfo.InvariantCulture),
+                    s_firstPrincipalId.ToString("D", CultureInfo.InvariantCulture),
+                ],
+                physicalStorage
+                    .Ids
+                    .OrderBy(value => value, StringComparer.Ordinal)
+                    .ToArray());
+
             Assert.All(physicalStorage.BinaryLengths, length => Assert.Equal(16, length));
             Assert.Equal(1, physicalStorage.NullCount);
             Assert.Equal(1, deletedRows);
@@ -149,48 +182,64 @@ public sealed class MySqlGuidSeedIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
     /// <summary>
     /// Captures physical Guid values before the lifecycle test deletes its principal row.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task<(IReadOnlyList<string> Ids, IReadOnlyList<int> BinaryLengths, int NullCount)>
         ReadPhysicalGuidStorageAsync(
-        MySqlConnection connection
-    )
+            MySqlConnection connection,
+            CancellationToken cancellationToken
+        )
     {
-
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT LOWER(`Id`), OCTET_LENGTH(`Binary16`), `OptionalChar36` IS NULL "
             + $"FROM `{GuidSeedIntegrationContract.PrincipalTable}` ORDER BY `Name`;";
 
         await using var reader = await command
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var observedIds = new List<string>();
         var binaryLengths = new List<int>();
         var nullCount = 0;
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             observedIds.Add(reader.GetString(0));
             binaryLengths.Add(reader.GetInt32(1));
-            nullCount += reader.GetBoolean(2) ? 1 : 0;
+            nullCount += reader.GetBoolean(2)
+                ? 1
+                : 0;
         }
 
         return (observedIds, binaryLengths, nullCount);
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task CleanupAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{GuidSeedIntegrationContract.DependentTable}`; "
             + $"DROP TABLE IF EXISTS `{GuidSeedIntegrationContract.PrincipalTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 
@@ -230,6 +279,7 @@ internal sealed class GuidSeedIntegrationContext : DbContext
             entity
                 .Property(principal => principal.Binary16)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
             entity.HasData(
                 new GuidSeedIntegrationPrincipal
                 {
@@ -256,11 +306,13 @@ internal sealed class GuidSeedIntegrationContext : DbContext
                 .WithMany(principal => principal.RequiredDependents)
                 .HasForeignKey(dependent => dependent.PrincipalId)
                 .OnDelete(DeleteBehavior.Cascade);
+
             entity
                 .HasOne(dependent => dependent.OptionalPrincipal)
                 .WithMany(principal => principal.OptionalDependents)
                 .HasForeignKey(dependent => dependent.OptionalPrincipalId)
                 .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasData(
                 new GuidSeedIntegrationDependent
                 {

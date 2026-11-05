@@ -1,5 +1,3 @@
-using System.Data;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Contains the converters responsibility for MySqlTypeMappingBaselineTests.</summary>
@@ -43,7 +41,10 @@ public sealed partial class MySqlTypeMappingBaselineTests
 
         // Assert
         Assert.Equal(expected, property.GetColumnType());
-        Assert.Equal(expected, property.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            expected,
+            property.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>

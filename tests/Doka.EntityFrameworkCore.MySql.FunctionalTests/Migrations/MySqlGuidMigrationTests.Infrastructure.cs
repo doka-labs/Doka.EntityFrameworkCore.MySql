@@ -16,21 +16,15 @@ public sealed partial class MySqlGuidMigrationTests
         var operations = GetDifferences(source, target);
         var code = GenerateMigrationCode(operations);
         var compilation = CompileMigrationCode(code);
-        var failure = Record.Exception(() => target.GetService<IMigrationsSqlGenerator>()
-            .Generate(operations, target.GetService<IDesignTimeModel>().Model));
+        var failure = Record.Exception(() => target
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(
+                operations,
+                target.GetService<IDesignTimeModel>()
+                    .Model));
 
         return new GuidMigrationProbe(operations, code, compilation, failure);
     }
-
-    /// <summary>
-    /// Keeps transition observations together without repeating a provider operation in the assertion phase.
-    /// </summary>
-    private sealed record GuidMigrationProbe(
-        List<MigrationOperation> Operations,
-        string Code,
-        (bool Success, string[] Errors) Compilation,
-        Exception? SqlFailure
-    );
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext => CreateOptions<TContext>(MySqlGuidFormat.Binary16);
@@ -38,7 +32,9 @@ public sealed partial class MySqlGuidMigrationTests
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlGuidFormat defaultGuidFormat
     )
-        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<TContext>()
+        .UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
             options => options.DefaultGuidFormat(defaultGuidFormat))
@@ -50,8 +46,14 @@ public sealed partial class MySqlGuidMigrationTests
     ) => target
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
-            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
+            source
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel(),
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel())
         .ToList();
 
     private static List<MigrationOperation> GetDifferences(
@@ -60,7 +62,10 @@ public sealed partial class MySqlGuidMigrationTests
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
             null,
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel())
         .ToList();
 
     private static string GenerateMigrationCode(
@@ -122,4 +127,14 @@ public sealed partial class MySqlGuidMigrationTests
 
         return (result.Success, errors);
     }
+
+    /// <summary>
+    /// Keeps transition observations together without repeating a provider operation in the assertion phase.
+    /// </summary>
+    private sealed record GuidMigrationProbe(
+        List<MigrationOperation> Operations,
+        string Code,
+        (bool Success, string[] Errors) Compilation,
+        Exception? SqlFailure
+    );
 }

@@ -30,7 +30,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         // Act
         var generated = GenerateAndCompile(context);
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var snapshotRoundTrip = CaptureRoundTrip(context, generated.SnapshotModel);
         var designerRoundTrip = CaptureRoundTrip(context, generated.DesignerModel);
         var sourceMigration = CaptureInitialMigration(context, sourceModel);
@@ -40,9 +42,21 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         // Assert
         AssertSqlDefaultGuidProperty(sourceModel, entityName, format, storeType, defaultSql, explicitClient: false);
         AssertSqlDefaultGuidProperty(
-            generated.SnapshotModel, entityName, format, storeType, defaultSql, explicitClient: false);
+            generated.SnapshotModel,
+            entityName,
+            format,
+            storeType,
+            defaultSql,
+            explicitClient: false);
+
         AssertSqlDefaultGuidProperty(
-            generated.DesignerModel, entityName, format, storeType, defaultSql, explicitClient: false);
+            generated.DesignerModel,
+            entityName,
+            format,
+            storeType,
+            defaultSql,
+            explicitClient: false);
+
         Assert.DoesNotContain("ClientGuid", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.DoesNotContain("ClientGuid", generated.DesignerCode, StringComparison.Ordinal);
         Assert.Contains(".Property<System.Guid>(\"Id\")", generated.SnapshotCode, StringComparison.Ordinal);
@@ -77,15 +91,28 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var generated = GenerateAndCompile(legacy);
         var snapshotRoundTrip = CaptureRoundTrip(target, generated.SnapshotModel);
         var designerRoundTrip = CaptureRoundTrip(target, generated.DesignerModel);
-        var targetModel = target.GetService<IDesignTimeModel>().Model;
+        var targetModel = target.GetService<IDesignTimeModel>()
+            .Model;
 
         // Assert
         Assert.Contains("ClientGuid", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.Contains("ClientGuid", generated.DesignerCode, StringComparison.Ordinal);
         AssertSqlDefaultGuidProperty(
-            generated.SnapshotModel, entityName, format, storeType, defaultSql, explicitClient: true);
+            generated.SnapshotModel,
+            entityName,
+            format,
+            storeType,
+            defaultSql,
+            explicitClient: true);
+
         AssertSqlDefaultGuidProperty(
-            generated.DesignerModel, entityName, format, storeType, defaultSql, explicitClient: true);
+            generated.DesignerModel,
+            entityName,
+            format,
+            storeType,
+            defaultSql,
+            explicitClient: true);
+
         AssertSqlDefaultGuidProperty(targetModel, entityName, format, storeType, defaultSql, explicitClient: false);
         AssertRoundTripsWithoutOperations(snapshotRoundTrip);
         AssertRoundTripsWithoutOperations(designerRoundTrip);
@@ -101,7 +128,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         bool explicitClient
     )
     {
-        var property = model.FindEntityType(entityName)?.FindProperty("Id");
+        var property = model
+            .FindEntityType(entityName)
+            ?.FindProperty("Id");
 
         Assert.NotNull(property);
         Assert.Equal(typeof(Guid), property.ClrType);
@@ -114,7 +143,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         {
             Assert.Equal(
                 MySqlValueGenerationStrategy.ClientGuid,
-                property.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)?.Value);
+                property.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
+                    ?.Value);
         }
         else
         {
@@ -141,7 +171,11 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.Equal(storeType, column.ColumnType);
         Assert.Equal(defaultSql, column.DefaultValueSql);
         Assert.Null(column.DefaultValue);
-        Assert.Equal(format, column.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value);
+        Assert.Equal(
+            format,
+            column.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                ?.Value);
+
         Assert.Contains("table.Column<Guid>", migration.Code, StringComparison.Ordinal);
         Assert.Contains($"defaultValueSql: \"{defaultSql}\"", migration.Code, StringComparison.Ordinal);
     }

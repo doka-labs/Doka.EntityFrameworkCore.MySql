@@ -27,7 +27,9 @@ internal sealed class MySqlMaterializedSourceDefinition(SelectExpression source)
             ? sourceVisitor.VisitMaterializedSource(Source)
             : (SelectExpression)visitor.Visit(Source);
 
-        return ReferenceEquals(visited, Source) ? this : new MySqlMaterializedSourceDefinition(visited);
+        return ReferenceEquals(visited, Source)
+            ? this
+            : new MySqlMaterializedSourceDefinition(visited);
     }
 }
 

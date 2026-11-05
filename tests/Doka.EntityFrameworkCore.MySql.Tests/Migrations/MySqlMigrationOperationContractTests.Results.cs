@@ -3,6 +3,20 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>Verifies generated and consumed handler results and their input boundaries.</summary>
 public sealed partial class MySqlMigrationOperationContractTests
 {
+    /// <summary>Returns each invalid outcome code independently for both result factories.</summary>
+    public static IEnumerable<object?[]> InvalidOutcomeCases =>
+        new[]
+            {
+                null,
+                "",
+                "   ",
+                "Generated",
+                "generated-value",
+                "1_generated",
+                "generated value",
+            }
+            .SelectMany(code => new[] { new object?[] { code, false }, new object?[] { code, true } });
+
     /// <summary>
     /// Verifies generated result snapshots the caller owned command collection.
     /// </summary>
@@ -58,7 +72,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         Func<object?> act = () => consumed
             ? MySqlMigrationOperationResult.Consumed(outcomeCode!)
             : MySqlMigrationOperationResult.Generated(
-                [MySqlMigrationCommandSpec.Create("SELECT 1;")], outcomeCode!);
+                [MySqlMigrationCommandSpec.Create("SELECT 1;")],
+                outcomeCode!);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -66,11 +81,6 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Assert
         Assert.IsAssignableFrom<ArgumentException>(recordedException);
     }
-
-    /// <summary>Returns each invalid outcome code independently for both result factories.</summary>
-    public static IEnumerable<object?[]> InvalidOutcomeCases =>
-        new string?[] { null, "", "   ", "Generated", "generated-value", "1_generated", "generated value", }
-            .SelectMany(code => new[] { new object?[] { code, false }, new object?[] { code, true }, });
 
     /// <summary>
     /// Verifies empty results are rejected.
@@ -129,11 +139,13 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         var outcomeCode = $"g{new string('a', 64)}";
+
         // Act
         var recordedException = Record.Exception(() => consumed
             ? MySqlMigrationOperationResult.Consumed(outcomeCode)
             : MySqlMigrationOperationResult.Generated(
-                [MySqlMigrationCommandSpec.Create("SELECT 1;")], outcomeCode));
+                [MySqlMigrationCommandSpec.Create("SELECT 1;")],
+                outcomeCode));
 
         // Assert
         Assert.IsType<ArgumentException>(recordedException);

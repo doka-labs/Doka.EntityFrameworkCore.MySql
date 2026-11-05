@@ -6,9 +6,6 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed partial class MySqlMigrationOperationContractTests
 {
-    /// <summary>Provides a nonstandard operation for rendering-lease contract tests.</summary>
-    private sealed class CustomOperation : MigrationOperation;
-
     /// <summary>Creates the conventional GUID column used by metadata projection cases.</summary>
     private static AddColumnOperation CreateColumnOperation() => new()
     {
@@ -30,4 +27,7 @@ public sealed partial class MySqlMigrationOperationContractTests
 
         return operation;
     }
+
+    /// <summary>Provides a nonstandard operation for rendering-lease contract tests.</summary>
+    private sealed class CustomOperation : MigrationOperation;
 }

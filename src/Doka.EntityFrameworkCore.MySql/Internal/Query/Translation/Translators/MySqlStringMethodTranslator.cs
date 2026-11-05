@@ -89,12 +89,16 @@ internal sealed class MySqlStringMethodTranslator : IMethodCallTranslator
     private static readonly MethodInfo s_firstOrDefaultMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.FirstOrDefault)
-            && method.GetParameters().Length == 1);
+            && method.GetParameters()
+                .Length
+            == 1);
 
     private static readonly MethodInfo s_lastOrDefaultMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.LastOrDefault)
-            && method.GetParameters().Length == 1);
+            && method.GetParameters()
+                .Length
+            == 1);
 
     private static readonly MethodInfo s_regexIsMatchMethod = typeof(Regex).GetRuntimeMethod(
         nameof(Regex.IsMatch),

@@ -24,7 +24,8 @@ public sealed partial class
     ) => ComplexNavigationContractAssertions.AssertSelectManySubqueryWithCustomProjection(
         async,
         () => Fixture.CreateContext(),
-        Fixture.GetExpectedData());
+        Fixture.GetExpectedData(),
+        cancellationToken: CancellationToken.None);
 
     public override async Task GroupJoin_client_method_in_OrderBy(
         bool async
@@ -32,15 +33,17 @@ public sealed partial class
     {
         await ComplexNavigationContractAssertions.AssertClientOrderByTranslationFails(
             () => base.GroupJoin_client_method_in_OrderBy(async),
-            typeof(ComplexNavigationsMySqlFixture));
+            typeof(ComplexNavigationsMySqlFixture),
+            cancellationToken: CancellationToken.None);
     }
 
     public override async Task Join_with_result_selector_returning_queryable_throws_validation_error(
         bool async
     )
     {
-        await ComplexNavigationContractAssertions.AssertQueryableResultValidationFails(() =>
-            base.Join_with_result_selector_returning_queryable_throws_validation_error(async));
+        await ComplexNavigationContractAssertions.AssertQueryableResultValidationFails(
+            () => base.Join_with_result_selector_returning_queryable_throws_validation_error(async),
+            cancellationToken: CancellationToken.None);
     }
 }
 
@@ -87,7 +90,8 @@ public sealed partial class
     ) => ComplexNavigationContractAssertions.AssertSelectManySubqueryWithCustomProjection(
         async,
         () => Fixture.CreateContext(),
-        Fixture.GetExpectedData());
+        Fixture.GetExpectedData(),
+        cancellationToken: CancellationToken.None);
 
     public override async Task GroupJoin_client_method_in_OrderBy(
         bool async
@@ -95,15 +99,17 @@ public sealed partial class
     {
         await ComplexNavigationContractAssertions.AssertClientOrderByTranslationFails(
             () => base.GroupJoin_client_method_in_OrderBy(async),
-            typeof(ComplexNavigationsSharedTypeMySqlFixture));
+            typeof(ComplexNavigationsSharedTypeMySqlFixture),
+            cancellationToken: CancellationToken.None);
     }
 
     public override async Task Join_with_result_selector_returning_queryable_throws_validation_error(
         bool async
     )
     {
-        await ComplexNavigationContractAssertions.AssertQueryableResultValidationFails(() =>
-            base.Join_with_result_selector_returning_queryable_throws_validation_error(async));
+        await ComplexNavigationContractAssertions.AssertQueryableResultValidationFails(
+            () => base.Join_with_result_selector_returning_queryable_throws_validation_error(async),
+            cancellationToken: CancellationToken.None);
     }
 }
 
@@ -134,11 +140,21 @@ file static class ComplexNavigationContractAssertions
 {
     private const string QueryTestBaseTypeName = "Microsoft.EntityFrameworkCore.Query.ComplexNavigationsQueryTestBase";
 
+    /// <summary>
+    /// Checks the expected upstream client-ordering translation failure.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="action">The upstream assertion callback to invoke.</param>
+    /// <param name="fixtureType">The upstream fixture type named in translation diagnostics.</param>
     public static async Task AssertClientOrderByTranslationFails(
         Func<Task> action,
-        Type fixtureType
+        Type fixtureType,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(action);
         var queryTestBaseType = $"{QueryTestBaseTypeName}<{fixtureType.FullName}>";
         var expectedDetails = CoreStrings.QueryUnableToTranslateMethod(queryTestBaseType, "ClientMethodNullableInt");
@@ -146,10 +162,19 @@ file static class ComplexNavigationContractAssertions
         Assert.Contains(expectedDetails, exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Checks the expected upstream queryable-result validation failure.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="action">The upstream assertion callback to invoke.</param>
     public static async Task AssertQueryableResultValidationFails(
-        Func<Task> action
+        Func<Task> action,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Materializing IQueryable<T> inside a result projection is invalid. EF Core
         // currently reports that validation failure while creating the query executor.
         await Assert.ThrowsAsync<ArgumentException>(action);
@@ -160,7 +185,7 @@ file static class ComplexNavigationContractAssertions
     /// the set of valid first-child results without assuming collection order.
     /// </summary>
     /// <remarks>
-    /// The upstream query orders <see cref="Level1"/> rows by their unique ID, but it
+    /// The upstream query orders <see cref="Level1" /> rows by their unique ID, but it
     /// does not order the children produced by <c>SelectMany</c>. SQL may therefore
     /// return any child of the first parent. Sources retrieved 2026-07-30:
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/limit-optimization.html">
@@ -168,12 +193,19 @@ file static class ComplexNavigationContractAssertions
     /// <see href="https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/order-by">
     /// MariaDB ORDER BY</see>.
     /// </remarks>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
+    /// <param name="contextFactory">The factory that creates the context used by the query.</param>
+    /// <param name="expectedData">The in-memory source of expected query results.</param>
     public static async Task AssertSelectManySubqueryWithCustomProjection(
         bool async,
         Func<DbContext> contextFactory,
-        ISetSource expectedData
+        ISetSource expectedData,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var context = contextFactory();
         var query = context
             .Set<Level1>()
@@ -185,7 +217,9 @@ file static class ComplexNavigationContractAssertions
 
         Assert.Contains("ORDER BY `l`.`Id`", sql, StringComparison.Ordinal);
 
-        var results = async ? await query.ToListAsync() : query.ToList();
+        var results = async
+            ? await query.ToListAsync(cancellationToken: cancellationToken)
+            : query.ToList();
 
         var result = Assert.Single(results);
         var firstParent = expectedData

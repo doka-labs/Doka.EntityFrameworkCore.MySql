@@ -51,7 +51,9 @@ public sealed class MySqlSentinelContractTests
     [Theory]
     [InlineData((int)MySqlIntervalUnit.Hour)]
     [InlineData((int)MySqlIntervalUnit.Minute)]
-    public void Time_add_accepts_supported_interval_unit(int intervalUnitValue)
+    public void Time_add_accepts_supported_interval_unit(
+        int intervalUnitValue
+    )
     {
         // Arrange
         var intervalUnit = (MySqlIntervalUnit)intervalUnitValue;
@@ -100,7 +102,9 @@ public sealed class MySqlSentinelContractTests
             _ => MySqlSentinelContract.GetName(kind),
         };
 
-        var invalidCount = kind == MySqlSentinelKind.GroupConcat ? 1 : ValidArgumentCount(kind) + 1;
+        var invalidCount = kind == MySqlSentinelKind.GroupConcat
+            ? 1
+            : ValidArgumentCount(kind) + 1;
 
         // Act
         var exception = Record.Exception(() => MySqlSentinelContract.Resolve(name, invalidCount));

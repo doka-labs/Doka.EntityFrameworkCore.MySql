@@ -11,7 +11,7 @@ public sealed partial class MySql84CrudBaselineTests
         // Arrange
         var connectionString = GetConnectionString();
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -19,7 +19,8 @@ public sealed partial class MySql84CrudBaselineTests
             await using var context = new GuidRoundtripContext(CreateGuidRoundtripOptions(connectionString));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{BinaryGuidTableName}` (
                          `Id` binary(16) NOT NULL,
@@ -32,7 +33,8 @@ public sealed partial class MySql84CrudBaselineTests
                          `Name` longtext NOT NULL,
                          CONSTRAINT `PK_{CharGuidTableName}` PRIMARY KEY (`Id`)
                      ) CHARACTER SET utf8mb4;
-                     """)
+                     """,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var binaryEntity = new BinaryGuidEntity
@@ -52,17 +54,23 @@ public sealed partial class MySql84CrudBaselineTests
             // WHY: Both mappings intentionally share one model and save operation
             // so one property cannot silently change the other property's transport.
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
 
             var loadedBinary = await context
-                .BinaryGuidEntities.SingleAsync(entity => entity.Id == binaryEntity.Id)
+                .BinaryGuidEntities
+                .SingleAsync(
+                    entity => entity.Id == binaryEntity.Id,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var loadedChar = await context
-                .CharGuidEntities.SingleAsync(entity => entity.Id == charEntity.Id)
+                .CharGuidEntities
+                .SingleAsync(
+                    entity => entity.Id == charEntity.Id,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -75,7 +83,8 @@ public sealed partial class MySql84CrudBaselineTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

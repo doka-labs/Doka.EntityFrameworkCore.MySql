@@ -5,12 +5,13 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// Pins the ownership and parsing contract of the provider's
-/// <see cref="JsonElement"/> value converter.
+/// <see cref="JsonElement" /> value converter.
 /// </summary>
 public sealed class MySqlJsonElementTypeMappingTests
 {
     private static readonly ValueConverter s_converter =
-        MySqlJsonTypeMapping.CreateJsonElementMapping().Converter!;
+        MySqlJsonTypeMapping.CreateJsonElementMapping()
+            .Converter!;
 
     /// <summary>
     /// Verifies converter returns an independently owned element.
@@ -91,7 +92,10 @@ public sealed class MySqlJsonElementTypeMappingTests
     {
         // Arrange
         var mapping = CreateMapping(jsonType);
-        var json = jsonType == typeof(JsonArray) ? """["array"]""" : """{"kind":"literal"}""";
+        var json = jsonType == typeof(JsonArray)
+            ? """["array"]"""
+            : """{"kind":"literal"}""";
+
         var value = jsonType == typeof(JsonElement)
             ? (object)JsonElement.Parse(json)
             : jsonType == typeof(JsonDocument)
@@ -137,7 +141,9 @@ public sealed class MySqlJsonElementTypeMappingTests
     }
 
     /// <summary>Creates the provider mapping matching one supported JSON model type.</summary>
-    private static MySqlJsonTypeMapping CreateMapping(Type jsonType) => jsonType switch
+    private static MySqlJsonTypeMapping CreateMapping(
+        Type jsonType
+    ) => jsonType switch
     {
         _ when jsonType == typeof(JsonElement) => MySqlJsonTypeMapping.CreateJsonElementMapping(),
         _ when jsonType == typeof(JsonDocument) => MySqlJsonTypeMapping.CreateJsonDocumentMapping(),

@@ -24,11 +24,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
     /// <summary>Returns independently selectable numeric string projections on the original engines.</summary>
     public static IEnumerable<object[]> StringNumericCases => SelectedStringTargets.SelectMany(target =>
-        new[]
-        {
-            new object[] { target.ToString(), "IndexOf", 8 },
-            new object[] { target.ToString(), "Length", 7 },
-        });
+        new[] { new object[] { target.ToString(), "IndexOf", 8 }, new object[] { target.ToString(), "Length", 7 } });
 
     private static IEnumerable<IntegrationDatabaseTarget> SelectedStringTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
@@ -60,11 +56,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             var query = method switch
             {
@@ -108,22 +104,37 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             // WHY: These calls are expression-tree nodes translated to SQL;
             // the CLR culture is never consulted by UPPER()/LOWER().
 #pragma warning disable CA1304, CA1311
             var query = method switch
             {
-                "ToUpper" => context.Items.Where(item => item.Id == 1).Select(item => item.Name.ToUpper()),
-                "ToLower" => context.Items.Where(item => item.Id == 2).Select(item => item.Name.ToLower()),
-                "Trim" => context.Items.Where(item => item.Id == 1).Select(item => item.Name.Trim()),
-                "Substring" => context.Items.Where(item => item.Id == 2).Select(item => item.Name.Substring(4)),
-                "Replace" => context.Items.Where(item => item.Id == 2).Select(item => item.Name.Replace("Good", "See you ")),
+                "ToUpper" => context
+                    .Items
+                    .Where(item => item.Id == 1)
+                    .Select(item => item.Name.ToUpper()),
+                "ToLower" => context
+                    .Items
+                    .Where(item => item.Id == 2)
+                    .Select(item => item.Name.ToLower()),
+                "Trim" => context
+                    .Items
+                    .Where(item => item.Id == 1)
+                    .Select(item => item.Name.Trim()),
+                "Substring" => context
+                    .Items
+                    .Where(item => item.Id == 2)
+                    .Select(item => item.Name.Substring(4)),
+                "Replace" => context
+                    .Items
+                    .Where(item => item.Id == 2)
+                    .Select(item => item.Name.Replace("Good", "See you ")),
                 _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Unknown string projection."),
             };
 #pragma warning restore CA1304, CA1311
@@ -162,18 +173,26 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            await SeedStringItemsAsync(context);
+            await SeedStringItemsAsync(context, CancellationToken.None);
 
             var query = method switch
             {
-                "IndexOf" => context.Items.Where(item => item.Id == 1)
+                "IndexOf" => context
+                    .Items
+                    .Where(item => item.Id == 1)
                     .Select(item => item.Name.IndexOf("World", StringComparison.Ordinal)),
-                "Length" => context.Items.Where(item => item.Id == 2).Select(item => item.Name.Length),
-                _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Unknown numeric string projection."),
+                "Length" => context
+                    .Items
+                    .Where(item => item.Id == 2)
+                    .Select(item => item.Name.Length),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(method),
+                    method,
+                    "Unknown numeric string projection."),
             };
 
             // Act
@@ -188,8 +207,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         }
     }
 
+    /// <summary>Seeds string items data for subsequent integration queries.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SeedStringItemsAsync(
-        QueryContext context
+        QueryContext context,
+        CancellationToken cancellationToken
     )
     {
         context.Items.AddRange(
@@ -215,7 +237,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 CreatedAt = new DateTime(2024, 12, 25, 18, 0, 0),
             });
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken: cancellationToken);
         context.ChangeTracker.Clear();
     }
 }

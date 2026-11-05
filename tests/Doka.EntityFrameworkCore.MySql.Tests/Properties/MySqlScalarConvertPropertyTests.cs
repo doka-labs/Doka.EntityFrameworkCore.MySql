@@ -3,7 +3,7 @@ using FsCheck.Xunit;
 namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 
 /// <summary>
-/// Property-style coverage for <see cref="MySqlScalarConvert.ToBoolean(object?)"/>.
+/// Property-style coverage for <see cref="MySqlScalarConvert.ToBoolean(object?)" />.
 /// The conversion is the single chokepoint every <c>GET_LOCK</c> / <c>RELEASE_LOCK</c>
 /// scalar result routes through; its type-dispatch behavior across the full numeric
 /// matrix plus the documented string vocabulary needs the FsCheck saturation that
@@ -12,6 +12,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 public sealed class MySqlScalarConvertPropertyTests
 {
     /// <summary>Computes the documented true-string vocabulary independently of provider conversion.</summary>
+
     // WHY: The string dispatch in MySqlScalarConvert.ToBoolean is: the literal "1" returns true
     // (Ordinal compare); every other input routes through bool.TryParse, which is
     // case-insensitive and whitespace-tolerant. The property mirrors that contract so a

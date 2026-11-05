@@ -5,24 +5,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationContext
 {
-    private Dictionary<int, ShapedQueryExpression>? _materializedSources;
-    private Dictionary<int, Expression>? _materializedSourceQueries;
-
-    /// <summary>Gets the once-preprocessed lexical source definitions for this compilation.</summary>
-    internal Dictionary<int, Expression> MaterializedSourceQueries => _materializedSourceQueries ??= [];
-
-    /// <summary>
-    /// Gets the canonical shapes owned exclusively by this query compilation.
-    /// </summary>
-    internal Dictionary<int, ShapedQueryExpression> MaterializedSources => _materializedSources ??= [];
-
-    /// <summary>Gets or sets the narrow navigation-expansion scope of an already filtered entity source.</summary>
-    internal bool VisitingMaterializedEntityRoot { get; set; }
-
-    /// <inheritdoc />
-    public override bool IgnoreQueryFilters => VisitingMaterializedEntityRoot || base.IgnoreQueryFilters;
-
     private const string LazyLoadingProxyAnnotation = "Proxies:LazyLoading";
+    private Dictionary<int, Expression>? _materializedSourceQueries;
+    private Dictionary<int, ShapedQueryExpression>? _materializedSources;
 
     /// <summary>
     /// Initializes a context for a regular query compilation.
@@ -51,6 +36,20 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
         bool precompiling
     ) : base(dependencies, relationalDependencies, async, precompiling) { }
 
+    /// <summary>Gets the once-preprocessed lexical source definitions for this compilation.</summary>
+    internal Dictionary<int, Expression> MaterializedSourceQueries => _materializedSourceQueries ??= [];
+
+    /// <summary>
+    /// Gets the canonical shapes owned exclusively by this query compilation.
+    /// </summary>
+    internal Dictionary<int, ShapedQueryExpression> MaterializedSources => _materializedSources ??= [];
+
+    /// <summary>Gets or sets the narrow navigation-expansion scope of an already filtered entity source.</summary>
+    internal bool VisitingMaterializedEntityRoot { get; set; }
+
+    /// <inheritdoc />
+    public override bool IgnoreQueryFilters => VisitingMaterializedEntityRoot || base.IgnoreQueryFilters;
+
     /// <summary>
     /// Gets whether the current query must buffer its result before issuing another command.
     /// </summary>
@@ -63,8 +62,9 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
     /// </remarks>
     public override bool IsBuffering =>
         base.IsBuffering
-        || QuerySplittingBehavior == global::Microsoft.EntityFrameworkCore.QuerySplittingBehavior.SplitQuery
-        || Model.FindAnnotation(LazyLoadingProxyAnnotation)?.Value is true;
+        || QuerySplittingBehavior == Microsoft.EntityFrameworkCore.QuerySplittingBehavior.SplitQuery
+        || Model.FindAnnotation(LazyLoadingProxyAnnotation)
+            ?.Value is true;
 
     /// <summary>
     /// Gets whether the provider can generate precompiled queries.

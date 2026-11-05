@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Provides MySQL-family temporal query operators for queries rooted in a <see cref="DbSet{TEntity}"/>.
+/// Provides MySQL-family temporal query operators for queries rooted in a <see cref="DbSet{TEntity}" />.
 /// </summary>
 public static class MySqlDbSetExtensions
 {
@@ -68,8 +68,8 @@ public static class MySqlDbSetExtensions
     /// Returns every entity version whose lifetime overlaps the half-open UTC range.
     /// </summary>
     /// <remarks>
-    /// Versions created exactly at <paramref name="utcTo"/> or removed exactly at
-    /// <paramref name="utcFrom"/> are excluded. Multiple versions of one key can be returned,
+    /// Versions created exactly at <paramref name="utcTo" /> or removed exactly at
+    /// <paramref name="utcFrom" /> are excluded. Multiple versions of one key can be returned,
     /// so the query is always no-tracking.
     /// </remarks>
     /// <typeparam name="TEntity">The entity type.</typeparam>
@@ -93,7 +93,7 @@ public static class MySqlDbSetExtensions
     /// Returns every entity version whose lifetime overlaps the UTC range, including its upper boundary.
     /// </summary>
     /// <remarks>
-    /// A version removed exactly at <paramref name="utcTo"/> is included. Multiple versions
+    /// A version removed exactly at <paramref name="utcTo" /> is included. Multiple versions
     /// of one key can be returned, so the query is always no-tracking.
     /// </remarks>
     /// <typeparam name="TEntity">The entity type.</typeparam>
@@ -166,7 +166,8 @@ public static class MySqlDbSetExtensions
         var queryRoot = (EntityQueryRootExpression)queryableSource.Expression;
 
         return queryableSource
-            .Provider.CreateQuery<TEntity>(
+            .Provider
+            .CreateQuery<TEntity>(
                 new MySqlTemporalQueryRootExpression(
                     queryRoot.QueryProvider!,
                     queryRoot.EntityType,

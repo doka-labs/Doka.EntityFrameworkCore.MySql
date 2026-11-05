@@ -103,7 +103,10 @@ public sealed class MySqlMariaDbUuidTests
 
         // Assert
         Assert.Equal(MySqlGuidFormat.Uuid, property.GetMySqlGuidFormat());
-        Assert.Equal("uuid", property.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            "uuid",
+            property.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>
@@ -174,15 +177,22 @@ public sealed class MySqlMariaDbUuidTests
         using var target = new ConvertedBytesContext(
             CreateOptions<ConvertedBytesContext>(serverVersion, defaultFormat));
 
-        var sourceModel = source.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = target.GetService<IDesignTimeModel>().Model;
+        var sourceModel = source
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = target.GetService<IDesignTimeModel>()
+            .Model;
 
         // Act
-        var operations = target.GetService<IMigrationsModelDiffer>()
+        var operations = target
+            .GetService<IMigrationsModelDiffer>()
             .GetDifferences(sourceModel, targetModel.GetRelationalModel());
 
         var alter = Assert.Single(operations.OfType<AlterColumnOperation>());
-        var commands = target.GetService<IMigrationsSqlGenerator>()
+        var commands = target
+            .GetService<IMigrationsSqlGenerator>()
             .Generate(operations, targetModel);
 
         // Assert
@@ -324,7 +334,8 @@ public sealed class MySqlMariaDbUuidTests
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion,
         MySqlGuidFormat? defaultFormat = null
-    ) where TContext : DbContext => MySqlFunctionalTestOptions
+    )
+        where TContext : DbContext => MySqlFunctionalTestOptions
         .CreateTransientBuilder<TContext>()
         .UseMySql(
             ConnectionString,
@@ -358,7 +369,9 @@ public sealed class MySqlMariaDbUuidTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<UuidRecord>().Property(record => record.Id)
+            modelBuilder
+                .Entity<UuidRecord>()
+                .Property(record => record.Id)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Uuid);
         }
     }
@@ -369,7 +382,9 @@ public sealed class MySqlMariaDbUuidTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<UuidRecord>().Property(record => record.Id)
+            modelBuilder
+                .Entity<UuidRecord>()
+                .Property(record => record.Id)
                 .HasColumnType("uuid");
         }
     }
@@ -399,10 +414,13 @@ public sealed class MySqlMariaDbUuidTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<ComplexUuidRecord>().ComplexProperty(
-                record => record.Details,
-                complex => complex.Property(details => details.ExternalId)
-                    .HasMySqlGuidFormat(MySqlGuidFormat.Uuid));
+            modelBuilder
+                .Entity<ComplexUuidRecord>()
+                .ComplexProperty(
+                    record => record.Details,
+                    complex => complex
+                        .Property(details => details.ExternalId)
+                        .HasMySqlGuidFormat(MySqlGuidFormat.Uuid));
         }
     }
 
@@ -412,7 +430,9 @@ public sealed class MySqlMariaDbUuidTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<ConvertedBytesRecord>().Property(record => record.Id)
+            modelBuilder
+                .Entity<ConvertedBytesRecord>()
+                .Property(record => record.Id)
                 .HasConversion<byte[]>();
         }
     }
@@ -425,7 +445,9 @@ public sealed class MySqlMariaDbUuidTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<ConvertedBytesRecord>().Property(record => record.Id)
+            modelBuilder
+                .Entity<ConvertedBytesRecord>()
+                .Property(record => record.Id)
                 .HasConversion<byte[]>()
                 .HasColumnType("varbinary(16)");
         }

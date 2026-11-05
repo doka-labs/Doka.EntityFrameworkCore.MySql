@@ -3,17 +3,17 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Represents a MySQL / MariaDB <c>JSON_TABLE</c> table-valued function call in the SQL tree.
 /// <c>JSON_TABLE</c> turns a JSON document into a rowset, letting EF Core compose
-/// <see cref="JsonScalarExpression"/>-style scalar projections AND owned-JSON entity sets into
+/// <see cref="JsonScalarExpression" />-style scalar projections AND owned-JSON entity sets into
 /// the relational query tree the same way SQL Server uses <c>OPENJSON</c>. The expression carries
 /// the source JSON argument, the JSON path that selects the row source, and the column
-/// definitions (<see cref="ColumnInfo"/>) that fill the rowset.
+/// definitions (<see cref="ColumnInfo" />) that fill the rowset.
 /// </summary>
 /// <remarks>
 /// Cross-engine: MySQL 8.0+ and MariaDB 10.6+ implement the same <c>JSON_TABLE</c> grammar
 /// (`JSON_TABLE(doc, path COLUMNS (col type PATH '$.x', key FOR ORDINALITY, nested JSON PATH '$.n'))`),
 /// so a single SQL-emission path covers both engines. The translator is the LINQ-side
 /// counterpart that turns <c>SqlExpression</c> primitive-collection sources and
-/// <see cref="JsonQueryExpression"/> owned-entity sources into instances of this expression.
+/// <see cref="JsonQueryExpression" /> owned-entity sources into instances of this expression.
 /// </remarks>
 internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
 {
@@ -21,32 +21,6 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
     private static ConstructorInfo? s_columnInfoQuotingConstructor;
     private static MethodInfo? s_pathSegmentAddMethod;
     private static MethodInfo? s_columnInfoAddMethod;
-
-    /// <summary>
-    /// Describes one column inside the <c>COLUMNS</c> clause of a <c>JSON_TABLE</c> call.
-    /// <see cref="Name"/> becomes the column alias; <see cref="TypeMapping"/> drives the
-    /// <c>type</c> token; <see cref="ResultTypeMapping"/> optionally restores the property
-    /// representation after lossless extraction; <see cref="Path"/> renders as
-    /// <c>PATH '$.x'</c> when non-null;
-    /// <see cref="AsJson"/> forces the column type to <c>JSON</c> so nested objects flow
-    /// through as raw JSON (the JSON_TABLE equivalent of OPENJSON's <c>AS JSON</c> suffix);
-    /// <see cref="ForOrdinality"/> emits <c>FOR ORDINALITY</c> instead of a type + path
-    /// (matches OPENJSON's <c>key</c> column for primitive collection ordering).
-    /// </summary>
-    public readonly record struct ColumnInfo(
-        string Name,
-        RelationalTypeMapping TypeMapping,
-        IReadOnlyList<PathSegment>? Path = null,
-        bool AsJson = false,
-        bool ForOrdinality = false,
-        RelationalTypeMapping? ResultTypeMapping = null
-    );
-
-    public SqlExpression JsonExpression => Arguments[0];
-
-    public IReadOnlyList<PathSegment>? Path { get; }
-
-    public IReadOnlyList<ColumnInfo>? ColumnInfos { get; }
 
     public MySqlJsonTableExpression(
         string alias,
@@ -80,6 +54,12 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
         Path = path;
         ColumnInfos = columnInfos;
     }
+
+    public SqlExpression JsonExpression => Arguments[0];
+
+    public IReadOnlyList<PathSegment>? Path { get; }
+
+    public IReadOnlyList<ColumnInfo>? ColumnInfos { get; }
 
     protected override Expression VisitChildren(
         ExpressionVisitor visitor
@@ -182,8 +162,8 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
     /// row path and every column descriptor explicitly is therefore required; otherwise a
     /// generated query would silently lose ordinality and nested JSON projection semantics.
     /// </remarks>
-    [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
-    public override Expression Quote() => Expression.New(
+    [Experimental("EF9100")]
+    public override Expression Quote() => New(
         s_quotingConstructor ??= typeof(MySqlJsonTableExpression).GetConstructor(
         [
             typeof(string),
@@ -191,16 +171,18 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
             typeof(IReadOnlyList<PathSegment>),
             typeof(IReadOnlyList<ColumnInfo>),
         ])!,
-        Expression.Constant(Alias, typeof(string)),
+        Constant(Alias, typeof(string)),
         JsonExpression.Quote(),
-        Path is null ? Expression.Constant(null, typeof(IReadOnlyList<PathSegment>)) : QuotePath(Path),
+        Path is null
+            ? Constant(null, typeof(IReadOnlyList<PathSegment>))
+            : QuotePath(Path),
         ColumnInfos is null
-            ? Expression.Constant(null, typeof(IReadOnlyList<ColumnInfo>))
-            : Expression.ListInit(
-                Expression.New(typeof(List<ColumnInfo>)),
-                ColumnInfos.Select(column => Expression.ElementInit(
+            ? Constant(null, typeof(IReadOnlyList<ColumnInfo>))
+            : ListInit(
+                New(typeof(List<ColumnInfo>)),
+                ColumnInfos.Select(column => ElementInit(
                     s_columnInfoAddMethod ??= typeof(List<ColumnInfo>).GetMethod(nameof(List<ColumnInfo>.Add))!,
-                    Expression.New(
+                    New(
                         s_columnInfoQuotingConstructor ??= typeof(ColumnInfo).GetConstructor(
                         [
                             typeof(string),
@@ -210,24 +192,24 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
                             typeof(bool),
                             typeof(RelationalTypeMapping),
                         ])!,
-                        Expression.Constant(column.Name),
+                        Constant(column.Name),
                         RelationalExpressionQuotingUtilities.QuoteTypeMapping(column.TypeMapping),
                         column.Path is null
-                            ? Expression.Constant(null, typeof(IReadOnlyList<PathSegment>))
+                            ? Constant(null, typeof(IReadOnlyList<PathSegment>))
                             : QuotePath(column.Path),
-                        Expression.Constant(column.AsJson),
-                        Expression.Constant(column.ForOrdinality),
+                        Constant(column.AsJson),
+                        Constant(column.ForOrdinality),
                         column.ResultTypeMapping is null
-                            ? Expression.Constant(null, typeof(RelationalTypeMapping))
+                            ? Constant(null, typeof(RelationalTypeMapping))
                             : RelationalExpressionQuotingUtilities.QuoteTypeMapping(
                                 column.ResultTypeMapping))))));
 
-    [System.Diagnostics.CodeAnalysis.Experimental("EF9100")]
+    [Experimental("EF9100")]
     private static ListInitExpression QuotePath(
         IReadOnlyList<PathSegment> path
-    ) => Expression.ListInit(
-        Expression.New(typeof(List<PathSegment>)),
-        path.Select(segment => Expression.ElementInit(
+    ) => ListInit(
+        New(typeof(List<PathSegment>)),
+        path.Select(segment => ElementInit(
             s_pathSegmentAddMethod ??= typeof(List<PathSegment>).GetMethod(nameof(List<PathSegment>.Add))!,
             segment.Quote())));
 
@@ -267,7 +249,10 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
 
                 expressionPrinter
                     .Append(" ")
-                    .Append(column.AsJson ? "JSON" : column.TypeMapping.StoreType);
+                    .Append(
+                        column.AsJson
+                            ? "JSON"
+                            : column.TypeMapping.StoreType);
 
                 if (column.Path is { Count: > 0 })
                 {
@@ -299,6 +284,7 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
                 expressionPrinter
                     .Append(".")
                     .Append(segment.PropertyName);
+
                 continue;
             }
 
@@ -312,4 +298,24 @@ internal sealed class MySqlJsonTableExpression : TableValuedFunctionExpression
             expressionPrinter.Append("]");
         }
     }
+
+    /// <summary>
+    /// Describes one column inside the <c>COLUMNS</c> clause of a <c>JSON_TABLE</c> call.
+    /// <see cref="Name" /> becomes the column alias; <see cref="TypeMapping" /> drives the
+    /// <c>type</c> token; <see cref="ResultTypeMapping" /> optionally restores the property
+    /// representation after lossless extraction; <see cref="Path" /> renders as
+    /// <c>PATH '$.x'</c> when non-null;
+    /// <see cref="AsJson" /> forces the column type to <c>JSON</c> so nested objects flow
+    /// through as raw JSON (the JSON_TABLE equivalent of OPENJSON's <c>AS JSON</c> suffix);
+    /// <see cref="ForOrdinality" /> emits <c>FOR ORDINALITY</c> instead of a type + path
+    /// (matches OPENJSON's <c>key</c> column for primitive collection ordering).
+    /// </summary>
+    public readonly record struct ColumnInfo(
+        string Name,
+        RelationalTypeMapping TypeMapping,
+        IReadOnlyList<PathSegment>? Path = null,
+        bool AsJson = false,
+        bool ForOrdinality = false,
+        RelationalTypeMapping? ResultTypeMapping = null
+    );
 }

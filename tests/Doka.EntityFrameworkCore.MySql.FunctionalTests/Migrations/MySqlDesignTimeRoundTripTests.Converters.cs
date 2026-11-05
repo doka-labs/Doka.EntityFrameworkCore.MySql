@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlDesignTimeRoundTripTests
@@ -27,8 +29,14 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var operations = context
             .GetService<IMigrationsModelDiffer>()
             .GetDifferences(
-                empty.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-                context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+                empty
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
+                context
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel());
 
         var migrationCode = GenerateMigrationCode(operations);
 
@@ -41,25 +49,34 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             ".Property<System.Text.Json.JsonElement>(\"Element\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".Property<System.Text.Json.JsonDocument>(\"Document\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".Property<System.Text.Json.Nodes.JsonNode>(\"Node\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".Property<System.Text.Json.Nodes.JsonObject>(\"ObjectValue\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".Property<System.Text.Json.Nodes.JsonArray>(\"Array\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(".Property<byte[]>(\"Version\")", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.DoesNotContain(".Property<string>(\"Element\")", generated.SnapshotCode, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Property<System.DateTime>(\"Version\")", generated.SnapshotCode, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            ".Property<System.DateTime>(\"Version\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+
         Assert.Contains("JsonElement.Parse(", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.Contains("JsonDocument.Parse(", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.Contains("JsonNode.Parse(", generated.SnapshotCode, StringComparison.Ordinal);
@@ -74,10 +91,12 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             ".HasDefaultValue(\"{\\\"kind\\\":\\\"default",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             ".HasDefaultValue(\"{\\\"kind\\\":\\\"default",
             generated.DesignerCode,
             StringComparison.Ordinal);
+
         AssertProviderJsonSeedModelValues(generated.SnapshotModel);
         AssertProviderJsonSeedModelValues(generated.DesignerModel);
         AssertProviderJsonDefaultModelValue(generated.SnapshotModel);
@@ -87,13 +106,14 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         var columns = Assert
             .Single(operations.OfType<CreateTableOperation>())
-            .Columns.ToDictionary(column => column.Name, StringComparer.Ordinal);
+            .Columns
+            .ToDictionary(column => column.Name, StringComparer.Ordinal);
 
         Assert.Equal(typeof(JsonElement), columns["Element"].ClrType);
         Assert.Equal(typeof(JsonDocument), columns["Document"].ClrType);
-        Assert.Equal(typeof(System.Text.Json.Nodes.JsonNode), columns["Node"].ClrType);
-        Assert.Equal(typeof(System.Text.Json.Nodes.JsonObject), columns["ObjectValue"].ClrType);
-        Assert.Equal(typeof(System.Text.Json.Nodes.JsonArray), columns["Array"].ClrType);
+        Assert.Equal(typeof(JsonNode), columns["Node"].ClrType);
+        Assert.Equal(typeof(JsonObject), columns["ObjectValue"].ClrType);
+        Assert.Equal(typeof(JsonArray), columns["Array"].ClrType);
         Assert.Equal(typeof(byte[]), columns["Version"].ClrType);
         AssertProviderJsonDefaultOperationValues(columns);
         AssertProviderJsonSeedOperationValues(operations);

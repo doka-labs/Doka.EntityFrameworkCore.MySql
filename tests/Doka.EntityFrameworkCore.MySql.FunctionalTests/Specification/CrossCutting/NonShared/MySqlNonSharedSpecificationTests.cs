@@ -43,11 +43,13 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
         // The upstream assertion is positional, while SQL without ORDER BY has
         // no row-order contract. Preserve the asserted seed order explicitly.
         var query = context
-            .Warehouses.Select(warehouse => new Context18582.WarehouseModel
+            .Warehouses
+            .Select(warehouse => new Context18582.WarehouseModel
             {
                 WarehouseCode = warehouse.WarehouseCode,
                 DestinationCountryCodes = warehouse
-                    .DestinationCountries.OrderBy(country => country.Id)
+                    .DestinationCountries
+                    .OrderBy(country => country.Id)
                     .Select(country => country.CountryCode)
                     .ToArray(),
             })
@@ -55,7 +57,9 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
 
         Assert.Contains("ORDER BY `w`.`Id`, `w0`.`Id`", query.ToQueryString(), StringComparison.Ordinal);
 
-        var result = async ? await query.ToListAsync() : query.ToList();
+        var result = async
+            ? await query.ToListAsync()
+            : query.ToList();
 
         var warehouseModel = Assert.Single(result);
         Assert.Equal("W001", warehouseModel.WarehouseCode);
@@ -78,7 +82,8 @@ public sealed class OwnedEntityQueryMySqlTest : OwnedEntityQueryRelationalTestBa
         var query = context.Partners
             .Select(partner => new
             {
-                Addresses = partner.Addresses
+                Addresses = partner
+                    .Addresses
                     .OrderBy(address => address.Id)
                     .Select(address => new
                     {

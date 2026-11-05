@@ -10,7 +10,7 @@ public static class MySqlKeyBuilderExtensions
     /// MariaDB's <c>WITHOUT OVERLAPS</c> constraint.
     /// </summary>
     /// <param name="keyBuilder">The key builder.</param>
-    /// <returns>The same <see cref="KeyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="KeyBuilder" /> instance.</returns>
     public static KeyBuilder UseWithoutOverlaps(
         this KeyBuilder keyBuilder
     )
@@ -28,7 +28,7 @@ public static class MySqlKeyBuilderExtensions
     /// </summary>
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="keyBuilder">The key builder.</param>
-    /// <returns>The same <see cref="KeyBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="KeyBuilder{TEntity}" /> instance.</returns>
     public static KeyBuilder<TEntity> UseWithoutOverlaps<TEntity>(
         this KeyBuilder<TEntity> keyBuilder
     )

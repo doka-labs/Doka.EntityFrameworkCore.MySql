@@ -2,8 +2,14 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlGuidMigrationIntegrationTests
 {
+    /// <summary>
+    /// Verifies char36 transition preserves populated relationship for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertChar36TransitionPreservesPopulatedRelationshipAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -11,8 +17,8 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
-        await CleanupAsync(connection);
+        await connection.OpenAsync(cancellationToken);
+        await CleanupAsync(connection, cancellationToken);
 
         try
         {
@@ -25,7 +31,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
             await using var native = new NativeChar36GuidContext(
                 CreateOptions<NativeChar36GuidContext>(connectionString, serverVersion));
 
-            await ExecuteOperationsAsync(converted, connection, GetDifferences(empty, converted));
+            await ExecuteOperationsAsync(converted, connection, GetDifferences(empty, converted), cancellationToken);
             converted.Documents.Add(
                 new TextGuidDocument
                 {
@@ -35,17 +41,18 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                         new TextGuidDocumentRevision(),
                     },
                 });
-            await converted.SaveChangesAsync();
+
+            await converted.SaveChangesAsync(cancellationToken: cancellationToken);
 
             // WHY: The Down transition must consume the populated relationship produced by Up.
             // Act
             var upOperations = GetDifferences(converted, native);
-            await ExecuteOperationsAsync(native, connection, upOperations);
-            var afterUp = await ReadDatabaseContractAsync(native, connection);
+            await ExecuteOperationsAsync(native, connection, upOperations, cancellationToken);
+            var afterUp = await ReadDatabaseContractAsync(native, connection, cancellationToken);
 
             var downOperations = GetDifferences(native, converted);
-            await ExecuteOperationsAsync(converted, connection, downOperations);
-            var afterDown = await ReadDatabaseContractAsync(converted, connection);
+            await ExecuteOperationsAsync(converted, connection, downOperations, cancellationToken);
+            var afterDown = await ReadDatabaseContractAsync(converted, connection, cancellationToken);
 
             // Assert
             AssertForeignKeyLifecycle(upOperations, "varchar(36)", "char(36)");
@@ -55,7 +62,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection);
+            await CleanupAsync(connection, CancellationToken.None);
         }
     }
 
@@ -65,7 +72,6 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         string newStoreType
     )
     {
-
         var operationList = operations.ToList();
 
         var drop = Assert.Single(operations.OfType<DropForeignKeyOperation>());
@@ -87,19 +93,25 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         Assert.True(operationList.IndexOf(add) > operationList.IndexOf(alters[1]));
     }
 
+    /// <summary>
+    /// Reads database contract for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="connection">The open database connection.</param>
     private static async Task<(TextGuidDocument Document, bool HasFirstRow, string? Id, string? DocumentId,
         bool HasSecondRow, string? DeleteRule)> ReadDatabaseContractAsync(
         GuidMigrationContext context,
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
-
         context.ChangeTracker.Clear();
 
         var document = await context
             .Documents
             .Include(item => item.Revisions)
-            .SingleAsync();
+            .SingleAsync(cancellationToken: cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT CAST(d.`Id` AS CHAR(36)), CAST(r.`DocumentId` AS CHAR(36)) "
@@ -111,22 +123,31 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         string? id;
         string? documentId;
 
-        await using (var reader = await command.ExecuteReaderAsync())
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken: cancellationToken))
         {
-            hasFirstRow = await reader.ReadAsync();
-            id = hasFirstRow ? reader.GetString(0) : null;
-            documentId = hasFirstRow ? reader.GetString(1) : null;
-            hasSecondRow = await reader.ReadAsync();
+            hasFirstRow = await reader.ReadAsync(cancellationToken);
+            id = hasFirstRow
+                ? reader.GetString(0)
+                : null;
+
+            documentId = hasFirstRow
+                ? reader.GetString(1)
+                : null;
+
+            hasSecondRow = await reader.ReadAsync(cancellationToken);
         }
 
         command.CommandText = "SELECT rc.`DELETE_RULE` "
             + "FROM information_schema.REFERENTIAL_CONSTRAINTS AS rc "
             + "WHERE rc.`CONSTRAINT_SCHEMA` = DATABASE() "
             + "AND rc.`CONSTRAINT_NAME` = @constraintName;";
+
         command.Parameters.Clear();
         command.Parameters.AddWithValue("@constraintName", ForeignKeyName);
 
-        var deleteRule = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        var deleteRule = Convert.ToString(
+            await command.ExecuteScalarAsync(cancellationToken),
+            CultureInfo.InvariantCulture);
 
         return (document, hasFirstRow, id, documentId, hasSecondRow, deleteRule);
     }
@@ -137,7 +158,11 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     )
     {
         Assert.Equal(s_documentId, actual.Document.Id);
-        Assert.Equal(s_documentId, Assert.Single(actual.Document.Revisions).DocumentId);
+        Assert.Equal(
+            s_documentId,
+            Assert.Single(actual.Document.Revisions)
+                .DocumentId);
+
         Assert.True(actual.HasFirstRow);
         Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), actual.Id);
         Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), actual.DocumentId);

@@ -107,6 +107,7 @@ public sealed partial class MySqlModelingBaselineTests
         // Assert
         Assert.Contains("JOIN", sql, StringComparison.OrdinalIgnoreCase);
     }
+
     /// <summary>
     /// Lazy loading -- verifies model accepts proxy configuration.
     /// Note: actual proxy loading requires live DB, but model configuration can be verified.
@@ -125,6 +126,7 @@ public sealed partial class MySqlModelingBaselineTests
         Assert.NotNull(navigation);
         Assert.True(navigation.IsCollection);
     }
+
     [Fact]
     public void Nullable_property_is_modeled_as_optional()
     {
@@ -138,6 +140,7 @@ public sealed partial class MySqlModelingBaselineTests
         // Assert
         Assert.True(managerIdProperty.IsNullable);
     }
+
     /// <summary>
     /// ON DELETE SET NULL FK DDL verification.
     /// </summary>
@@ -217,6 +220,7 @@ public sealed partial class MySqlModelingBaselineTests
                 e
                     .Property(c => c.Text)
                     .HasMaxLength(1000);
+
                 e
                     .HasOne(c => c.Post)
                     .WithMany(p => p.Comments)
@@ -258,9 +262,11 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<Student>()
                 .ToTable("Students");
+
             modelBuilder
                 .Entity<Course>()
                 .ToTable("Courses");
+
             modelBuilder
                 .Entity<Student>()
                 .HasMany(s => s.Courses)
@@ -300,9 +306,11 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<Blog>()
                 .ToTable("Blogs");
+
             modelBuilder
                 .Entity<Post>()
                 .ToTable("Posts");
+
             modelBuilder
                 .Entity<Blog>()
                 .HasMany(b => b.Posts)

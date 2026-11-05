@@ -1,3 +1,6 @@
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -28,7 +31,7 @@ public sealed partial class PerformanceGateTests
             metrics: []);
 
         // Act
-        var actual = Benchmarks.Program.HasFailedBenchmarkReports([report]);
+        var actual = Program.HasFailedBenchmarkReports([report]);
 
         // Assert
         Assert.Equal(
@@ -43,7 +46,7 @@ public sealed partial class PerformanceGateTests
     public void Provider_workload_benchmark_is_compatible_with_BenchmarkDotNet()
     {
         // Arrange
-        var benchmarkType = typeof(Benchmarks.ProviderWorkloadBenchmarks);
+        var benchmarkType = typeof(ProviderWorkloadBenchmarks);
 
         // Act
         var actual = benchmarkType.IsSealed;

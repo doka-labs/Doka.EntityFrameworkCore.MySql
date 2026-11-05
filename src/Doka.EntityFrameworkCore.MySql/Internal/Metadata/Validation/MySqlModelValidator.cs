@@ -149,7 +149,9 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
             if (prefixLength == 0
                 && MySqlIndexByteBudget.HasUnboundedStoreType(property))
             {
-                var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[]) ? "binary" : "text";
+                var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[])
+                    ? "binary"
+                    : "text";
 
                 MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
                     logger,
@@ -173,7 +175,12 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
             }
 
             var characterWidth = MySqlIndexByteBudget.GetBytesPerCharacter(entityType, property, table, tableDefaults);
-            var propertyBytes = MySqlIndexByteBudget.GetIndexedBytes(property, prefixLength, fullLength, characterWidth);
+            var propertyBytes = MySqlIndexByteBudget.GetIndexedBytes(
+                property,
+                prefixLength,
+                fullLength,
+                characterWidth);
+
             if (propertyBytes is null)
             {
                 continue;
@@ -395,7 +402,11 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         public int GetHashCode(
             (string? Schema, string? Name) value
         ) => HashCode.Combine(
-            value.Schema is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(value.Schema),
-            value.Name is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(value.Name));
+            value.Schema is null
+                ? 0
+                : StringComparer.OrdinalIgnoreCase.GetHashCode(value.Schema),
+            value.Name is null
+                ? 0
+                : StringComparer.OrdinalIgnoreCase.GetHashCode(value.Name));
     }
 }

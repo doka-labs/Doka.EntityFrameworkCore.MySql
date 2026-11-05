@@ -33,11 +33,18 @@ public sealed class MySqlEnumerationQueryTests
         var extract = "JSON_EXTRACT('{}', " + expectedPath + ")";
         var expected = scenario == "empty"
             ? "SELECT '{}' AS `Value`"
-            : "SELECT CASE WHEN JSON_TYPE(" + extract + ") = 'NULL' THEN NULL ELSE JSON_UNQUOTE("
-                + extract + ") END AS `Value`";
+            : "SELECT CASE WHEN JSON_TYPE("
+            + extract
+            + ") = 'NULL' THEN NULL ELSE JSON_UNQUOTE("
+            + extract
+            + ") END AS `Value`";
 
         // Act
-        var actual = context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(select).CommandText;
+        var actual = context
+            .GetService<IQuerySqlGeneratorFactory>()
+            .Create()
+            .GetCommand(select)
+            .CommandText;
 
         // Assert
         Assert.Equal(expected, actual, ignoreLineEndingDifferences: true);
@@ -58,8 +65,14 @@ public sealed class MySqlEnumerationQueryTests
         // Arrange
         using var context = CreateContext(mariaDb);
         var sql = context.GetService<ISqlExpressionFactory>();
-        var path = scenario == "null" ? null : CreatePath(scenario);
-        IReadOnlyList<PathSegment> columnPath = scenario is "empty" or "null" ? [] : [new("nested"), new("value")];
+        var path = scenario == "null"
+            ? null
+            : CreatePath(scenario);
+
+        IReadOnlyList<PathSegment> columnPath = scenario is "empty" or "null"
+            ? []
+            : [new PathSegment("nested"), new PathSegment("value")];
+
         var table = new MySqlJsonTableExpression(
             "j",
             sql.Constant("[]", MySqlStringTypeMapping.Default),
@@ -70,12 +83,24 @@ public sealed class MySqlEnumerationQueryTests
             new ColumnExpression("Value", "j", typeof(int), IntTypeMapping.Default, nullable: false),
             [table]);
 
-        var expectedColumnPath = scenario is "empty" or "null" ? "'$'" : "'$.nested.value'";
-        var expected = "SELECT `j`.`Value`" + Environment.NewLine
-            + "FROM JSON_TABLE(" + expectedSource + " COLUMNS (`Value` int PATH " + expectedColumnPath + ")) AS `j`";
+        var expectedColumnPath = scenario is "empty" or "null"
+            ? "'$'"
+            : "'$.nested.value'";
+
+        var expected = "SELECT `j`.`Value`"
+            + Environment.NewLine
+            + "FROM JSON_TABLE("
+            + expectedSource
+            + " COLUMNS (`Value` int PATH "
+            + expectedColumnPath
+            + ")) AS `j`";
 
         // Act
-        var actual = context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(select).CommandText;
+        var actual = context
+            .GetService<IQuerySqlGeneratorFactory>()
+            .Create()
+            .GetCommand(select)
+            .CommandText;
 
         // Assert
         Assert.Equal(expected, actual, ignoreLineEndingDifferences: true);
@@ -103,8 +128,10 @@ public sealed class MySqlEnumerationQueryTests
         var select = CreateSelect(scalar);
 
         // Act
-        var exception = Record.Exception(() => context.GetService<IQuerySqlGeneratorFactory>()
-            .Create().GetCommand(select));
+        var exception = Record.Exception(() => context
+            .GetService<IQuerySqlGeneratorFactory>()
+            .Create()
+            .GetCommand(select));
 
         // Assert
         Assert.IsType<EncoderFallbackException>(exception);
@@ -128,8 +155,14 @@ public sealed class MySqlEnumerationQueryTests
         using var context = CreateContext(mariaDb);
         var sql = context.GetService<ISqlExpressionFactory>();
         var useLong = scenario == "long";
-        var clrType = useLong ? typeof(long) : typeof(int);
-        RelationalTypeMapping mapping = useLong ? LongTypeMapping.Default : IntTypeMapping.Default;
+        var clrType = useLong
+            ? typeof(long)
+            : typeof(int);
+
+        RelationalTypeMapping mapping = useLong
+            ? LongTypeMapping.Default
+            : IntTypeMapping.Default;
+
         var arguments = new List<SqlExpression>
         {
             new SqlParameterExpression("first", clrType, mapping),
@@ -151,7 +184,9 @@ public sealed class MySqlEnumerationQueryTests
         var select = CreateSelect(sql.Constant(1), limit: least);
         var values = new Dictionary<string, object?>
         {
-            ["first"] = scenario == "negative" ? -3 : 30,
+            ["first"] = scenario == "negative"
+                ? -3
+                : 30,
             ["second"] = 20,
         };
 
@@ -165,7 +200,12 @@ public sealed class MySqlEnumerationQueryTests
         var constant = Assert.IsType<SqlConstantExpression>(actual.Limit);
 
         Assert.Equal(clrType, constant.Type);
-        Assert.Equal(useLong ? (object)(long)expected : expected, constant.Value);
+        Assert.Equal(
+            useLong
+                ? (object)(long)expected
+                : expected,
+            constant.Value);
+
         Assert.Same(least, select.Limit);
         Assert.False(CanCache(parameters));
     }
@@ -187,7 +227,13 @@ public sealed class MySqlEnumerationQueryTests
         // Arrange
         using var context = CreateContext(mariaDb);
         var sql = context.GetService<ISqlExpressionFactory>();
-        var arguments = new List<SqlExpression> { sql.Constant(9), sql.Constant(8), sql.Constant(7) };
+        var arguments = new List<SqlExpression>
+        {
+            sql.Constant(9),
+            sql.Constant(8),
+            sql.Constant(7),
+        };
+
         var values = new Dictionary<string, object?>();
 
         if (scenario == "empty")
@@ -197,7 +243,11 @@ public sealed class MySqlEnumerationQueryTests
         else if (scenario == "unresolved")
         {
             arguments[position] = new ColumnExpression(
-                "Value", "unresolved", typeof(int), IntTypeMapping.Default, nullable: false);
+                "Value",
+                "unresolved",
+                typeof(int),
+                IntTypeMapping.Default,
+                nullable: false);
         }
         else if (scenario != "nonintegral")
         {
@@ -231,6 +281,7 @@ public sealed class MySqlEnumerationQueryTests
             "MySQL LIMIT requires an integral value or parameter, but the combined row-limit "
             + "expression could not be evaluated.",
             failure.Message);
+
         Assert.Same(least, select.Limit);
         Assert.False(CanCache(parameters));
     }
@@ -247,17 +298,29 @@ public sealed class MySqlEnumerationQueryTests
         // Arrange
         using var context = CreateContext(mariaDb);
         var sql = context.GetService<ISqlExpressionFactory>();
-        var first = CreateSelect(sql.Constant(1), limit: Least(sql,
-            [new SqlParameterExpression("first", typeof(int), IntTypeMapping.Default), sql.Constant(4)],
-            typeof(int), IntTypeMapping.Default));
+        var first = CreateSelect(
+            sql.Constant(1),
+            limit: Least(
+                sql,
+                [new SqlParameterExpression("first", typeof(int), IntTypeMapping.Default), sql.Constant(4)],
+                typeof(int),
+                IntTypeMapping.Default));
 
-        var second = CreateSelect(sql.Constant(2), limit: Least(sql,
-            [new SqlParameterExpression("second", typeof(int), IntTypeMapping.Default), sql.Constant(20)],
-            typeof(int), IntTypeMapping.Default));
+        var second = CreateSelect(
+            sql.Constant(2),
+            limit: Least(
+                sql,
+                [new SqlParameterExpression("second", typeof(int), IntTypeMapping.Default), sql.Constant(20)],
+                typeof(int),
+                IntTypeMapping.Default));
 
         var union = new UnionExpression("u", first, second, distinct: true);
         var parameters = new ParametersCacheDecorator(
-            new Dictionary<string, object?> { ["first"] = 3, ["second"] = 10 });
+            new Dictionary<string, object?>
+            {
+                ["first"] = 3,
+                ["second"] = 10,
+            });
 
         var visitor = new MySqlLimitExpressionEvaluatingExpressionVisitor(sql, parameters);
 
@@ -265,8 +328,16 @@ public sealed class MySqlEnumerationQueryTests
         var actual = (UnionExpression)visitor.Visit(union);
 
         // Assert
-        Assert.Equal(3, Assert.IsType<SqlConstantExpression>(actual.Source1.Limit).Value);
-        Assert.Equal(10, Assert.IsType<SqlConstantExpression>(actual.Source2.Limit).Value);
+        Assert.Equal(
+            3,
+            Assert.IsType<SqlConstantExpression>(actual.Source1.Limit)
+                .Value);
+
+        Assert.Equal(
+            10,
+            Assert.IsType<SqlConstantExpression>(actual.Source2.Limit)
+                .Value);
+
         Assert.IsType<SqlFunctionExpression>(first.Limit);
         Assert.IsType<SqlFunctionExpression>(second.Limit);
         Assert.False(CanCache(parameters));
@@ -310,9 +381,11 @@ public sealed class MySqlEnumerationQueryTests
         // Arrange
         using var context = CreateContext(mariaDb);
         var sql = context.GetService<ISqlExpressionFactory>();
-        var projection = Least(sql,
+        var projection = Least(
+            sql,
             [sql.Constant(7), new SqlParameterExpression("missing", typeof(int), IntTypeMapping.Default)],
-            typeof(int), IntTypeMapping.Default);
+            typeof(int),
+            IntTypeMapping.Default);
 
         var select = CreateSelect(projection);
         var parameters = new ParametersCacheDecorator(new Dictionary<string, object?>());
@@ -341,8 +414,11 @@ public sealed class MySqlEnumerationQueryTests
             yield return [mariaDb, "escaped", "_utf8mb4 X'242E22615C22625C5C6322'"];
             yield return [mariaDb, "dynamic-first", "CONCAT('$[', CAST(@index AS CHAR), '].value')"];
             yield return [mariaDb, "dynamic-last", "CONCAT('$.items[', CAST(@index AS CHAR), ']')"];
-            yield return [mariaDb, "dynamic-mixed",
-                "CONCAT('$.outer[2].items[', CAST(@index AS CHAR), '].value[', CAST(@second AS CHAR), ']')"];
+            yield return
+            [
+                mariaDb, "dynamic-mixed",
+                "CONCAT('$.outer[2].items[', CAST(@index AS CHAR), '].value[', CAST(@second AS CHAR), ']')",
+            ];
         }
     }
 
@@ -356,8 +432,11 @@ public sealed class MySqlEnumerationQueryTests
             yield return [mariaDb, "row-property", "'[]', '$.items[*]'"];
             yield return [mariaDb, "row-index", "'[]', '$.items[2]'"];
             yield return [mariaDb, "row-quoted", "'[]', '$.outer.\"quoted.name\"[*]'"];
-            yield return [mariaDb, "row-dynamic",
-                "JSON_EXTRACT('[]', CONCAT('$.items[', CAST(@index AS CHAR), '].children')), '$[*]'"];
+            yield return
+            [
+                mariaDb, "row-dynamic",
+                "JSON_EXTRACT('[]', CONCAT('$.items[', CAST(@index AS CHAR), '].children')), '$[*]'",
+            ];
         }
     }
 
@@ -395,19 +474,28 @@ public sealed class MySqlEnumerationQueryTests
     ) => scenario switch
     {
         "empty" => [],
-        "property" => [new("name")],
-        "index" => [new(new SqlConstantExpression(2, IntTypeMapping.Default))],
-        "mixed" => [new("outer"), new(new SqlConstantExpression(2, IntTypeMapping.Default)), new("name")],
-        "quoted" => [new("outer"), new("quoted.name"), new("a'b")],
-        "escaped" => [new("a\"b\\c")],
-        "dynamic-first" => [new(Parameter("index")), new("value")],
-        "dynamic-last" => [new("items"), new(Parameter("index"))],
-        "dynamic-mixed" => [new("outer"), new(new SqlConstantExpression(2, IntTypeMapping.Default)),
-            new("items"), new(Parameter("index")), new("value"), new(Parameter("second"))],
-        "row-property" => [new("items")],
-        "row-index" => [new("items"), new(new SqlConstantExpression(2, IntTypeMapping.Default))],
-        "row-quoted" => [new("outer"), new("quoted.name")],
-        "row-dynamic" => [new("items"), new(Parameter("index")), new("children")],
+        "property" => [new PathSegment("name")],
+        "index" => [new PathSegment(new SqlConstantExpression(2, IntTypeMapping.Default))],
+        "mixed" =>
+        [
+            new PathSegment("outer"), new PathSegment(new SqlConstantExpression(2, IntTypeMapping.Default)),
+            new PathSegment("name"),
+        ],
+        "quoted" => [new PathSegment("outer"), new PathSegment("quoted.name"), new PathSegment("a'b")],
+        "escaped" => [new PathSegment("a\"b\\c")],
+        "dynamic-first" => [new PathSegment(Parameter("index")), new PathSegment("value")],
+        "dynamic-last" => [new PathSegment("items"), new PathSegment(Parameter("index"))],
+        "dynamic-mixed" =>
+        [
+            new PathSegment("outer"), new PathSegment(new SqlConstantExpression(2, IntTypeMapping.Default)),
+            new PathSegment("items"), new PathSegment(Parameter("index")), new PathSegment("value"),
+            new PathSegment(Parameter("second")),
+        ],
+        "row-property" => [new PathSegment("items")],
+        "row-index" =>
+            [new PathSegment("items"), new PathSegment(new SqlConstantExpression(2, IntTypeMapping.Default))],
+        "row-quoted" => [new PathSegment("outer"), new PathSegment("quoted.name")],
+        "row-dynamic" => [new PathSegment("items"), new PathSegment(Parameter("index")), new PathSegment("children")],
         _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
     };
 
@@ -439,9 +527,17 @@ public sealed class MySqlEnumerationQueryTests
         // SQL fragment would bypass precisely the path traversal being guarded.
 #pragma warning disable EF1001
         return new SelectExpression(
-            alias: null, tables ?? [], predicate: null, groupBy: [], having: null,
-            [new ProjectionExpression(projection, "Value")], distinct: false, orderings: [],
-            offset: null, limit, new SqlAliasManager());
+            alias: null,
+            tables ?? [],
+            predicate: null,
+            groupBy: [],
+            having: null,
+            [new ProjectionExpression(projection, "Value")],
+            distinct: false,
+            orderings: [],
+            offset: null,
+            limit,
+            new SqlAliasManager());
 #pragma warning restore EF1001
     }
 
@@ -458,13 +554,14 @@ public sealed class MySqlEnumerationQueryTests
 
     private static QueryContext CreateContext(
         bool mariaDb
-    ) => new(new DbContextOptionsBuilder<QueryContext>()
-        .UseMySql(
-            "Server=localhost;Database=enumeration_query_unit;User ID=test;Password=unused;",
-            mariaDb
-                ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-                : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-        .Options);
+    ) => new(
+        new DbContextOptionsBuilder<QueryContext>()
+            .UseMySql(
+                "Server=localhost;Database=enumeration_query_unit;User ID=test;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .Options);
 
     /// <summary>Supplies the real provider service graph without executing a database command.</summary>
     private sealed class QueryContext(DbContextOptions<QueryContext> options) : DbContext(options);

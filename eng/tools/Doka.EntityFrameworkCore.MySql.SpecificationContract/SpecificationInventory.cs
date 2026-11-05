@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.SpecificationContract;
 /// <summary>
 /// Builds and persists the exact specification surface exposed by the restored EF Core
 /// specification packages. The inventory follows the same base-type enumeration as
-/// <see cref="RelationalComplianceTestBase"/>.
+/// <see cref="RelationalComplianceTestBase" />.
 /// </summary>
 internal static class SpecificationInventory
 {
@@ -43,19 +43,18 @@ internal static class SpecificationInventory
                 ]));
 
         var testMethodDictionary = testMethods
-            .Values.SelectMany(methods => methods.Inherited)
+            .Values
+            .SelectMany(methods => methods.Inherited)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
         var testMethodIndexes = testMethodDictionary
-            .Select((
-                testId,
-                index
-            ) => new
+            .Select((testId,
+                index) => new
             {
                 testId,
-                index
+                index,
             })
             .ToDictionary(
                 item => item.testId,
@@ -137,7 +136,10 @@ internal static class SpecificationInventory
             return type.FullName ?? type.Name;
         }
 
-        var definitionName = type.GetGenericTypeDefinition().FullName ?? type.Name;
+        var definitionName = type.GetGenericTypeDefinition()
+                .FullName
+            ?? type.Name;
+
         var tick = definitionName.IndexOf('`', StringComparison.Ordinal);
         if (tick >= 0)
         {
@@ -189,12 +191,14 @@ internal static class SpecificationInventory
 
         return new SpecificationBaseDescriptor(
             TypeId(type),
-            type.Assembly.GetName().Name!,
+            type.Assembly.GetName()
+                .Name!,
             TypeName(type),
             directBaseTypeId,
             type.IsAbstract,
             type.IsGenericTypeDefinition
-                ? type.GetGenericArguments().Length
+                ? type.GetGenericArguments()
+                    .Length
                 : 0,
             SuiteDomain(type),
             FixtureContracts(type),
@@ -285,17 +289,17 @@ internal static class SpecificationInventory
         var name = type.FullName ?? type.Name;
 
         if (ContainsAny(
-                name,
-                ".Migrations.",
-                "Migration",
-                ".Update.",
-                "UpdateTestBase",
-                "BulkUpdate",
-                "SaveChanges",
-                "StoreGenerated",
-                "Transaction",
-                "CommandInterception",
-                "ConnectionInterception"))
+            name,
+            ".Migrations.",
+            "Migration",
+            ".Update.",
+            "UpdateTestBase",
+            "BulkUpdate",
+            "SaveChanges",
+            "StoreGenerated",
+            "Transaction",
+            "CommandInterception",
+            "ConnectionInterception"))
         {
             return "migration-update";
         }
@@ -380,7 +384,8 @@ internal sealed record AssemblyIdentity(
             .Name!,
         assembly
             .GetName()
-            .Version?.ToString()
+            .Version
+            ?.ToString()
         ?? throw new InvalidOperationException($"Assembly '{assembly.GetName().Name}' has no assembly version."),
         assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion

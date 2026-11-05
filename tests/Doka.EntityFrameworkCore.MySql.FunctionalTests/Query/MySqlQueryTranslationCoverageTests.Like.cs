@@ -132,7 +132,7 @@ public sealed partial class MySqlQueryTranslationCoverageTests
         // Act
         var sql = context
             .Set<CoverageEntity>()
-            .Where(entity => MySqlDbFunctionsExtensions.Like<string>(EF.Functions, entity.Name, "A%"))
+            .Where(entity => EF.Functions.Like<string>(entity.Name, "A%"))
             .ToQueryString();
 
         // Assert
@@ -165,9 +165,12 @@ public sealed partial class MySqlQueryTranslationCoverageTests
             "duration" => (entities.Where(entity => EF.Functions.Like(entity.Duration, "%")), typeof(TimeSpan)),
             "boolean" => (entities.Where(entity => EF.Functions.Like(entity.IsActive, "%")), typeof(bool)),
             "binary" => (entities.Where(entity => EF.Functions.Like(entity.BinaryData, "%")), typeof(byte[])),
-            "custom" => (entities.Where(entity => EF.Functions.Like(entity.CustomValue, "%")), typeof(UnsupportedLikeValue)),
+            "custom" => (entities.Where(entity => EF.Functions.Like(entity.CustomValue, "%")),
+                typeof(UnsupportedLikeValue)),
             "object" => (
-                entities.Where(entity => EF.Functions.Like(EF.Property<object>(entity, nameof(CoverageEntity.Name)), "%")),
+                entities.Where(entity => EF.Functions.Like(
+                    EF.Property<object>(entity, nameof(CoverageEntity.Name)),
+                    "%")),
                 typeof(object)),
             _ => throw new ArgumentOutOfRangeException(nameof(shape)),
         };
@@ -228,19 +231,23 @@ public sealed partial class MySqlQueryTranslationCoverageTests
 
         // Act
         var expected = optional
-            ? context.Set<CoverageEntity>()
+            ? context
+                .Set<CoverageEntity>()
                 .Where(entity => DbFunctionsExtensions.Like(EF.Functions, entity.OptionalText!, "A%", "!"))
                 .ToQueryString()
-            : context.Set<CoverageEntity>()
+            : context
+                .Set<CoverageEntity>()
                 .Where(entity => DbFunctionsExtensions.Like(EF.Functions, entity.Name, "A%"))
                 .ToQueryString();
 
         var actual = optional
-            ? context.Set<CoverageEntity>()
+            ? context
+                .Set<CoverageEntity>()
                 .Where(entity => EF.Functions.Like<string?>(entity.OptionalText, "A%", "!"))
                 .ToQueryString()
-            : context.Set<CoverageEntity>()
-                .Where(entity => EF.Functions.Like<string>(entity.Name, "A%"))
+            : context
+                .Set<CoverageEntity>()
+                .Where(entity => EF.Functions.Like(entity.Name, "A%"))
                 .ToQueryString();
 
         // Assert
@@ -264,7 +271,8 @@ public sealed partial class MySqlQueryTranslationCoverageTests
         var escapeCharacter = "!";
 
         // Act
-        var sql = context.Set<CoverageEntity>()
+        var sql = context
+            .Set<CoverageEntity>()
             .Where(entity => EF.Functions.Like(entity.OptionalToken, pattern, escapeCharacter)
                 || EF.Functions.Like(entity.TextToken, pattern, escapeCharacter)
                 || EF.Functions.Like(entity.SignedValue, pattern, escapeCharacter))
@@ -296,23 +304,27 @@ public sealed partial class MySqlQueryTranslationCoverageTests
         using var context = CreateContext(isMariaDb);
         var token = new Guid("00112233-4455-6677-8899-aabbccddeeff");
         Guid? optionalToken = token;
-        var expectedParameter = optional ? "@optionalToken" : "@token";
+        var expectedParameter = optional
+            ? "@optionalToken"
+            : "@token";
 
         // Act
         var sql = optional
-            ? context.Set<CoverageEntity>()
+            ? context
+                .Set<CoverageEntity>()
                 .Where(entity => EF.Functions.Like(optionalToken, entity.Name))
-                .Select(entity => entity.Id).ToQueryString()
-            : context.Set<CoverageEntity>()
+                .Select(entity => entity.Id)
+                .ToQueryString()
+            : context
+                .Set<CoverageEntity>()
                 .Where(entity => EF.Functions.Like(token, entity.Name))
-                .Select(entity => entity.Id).ToQueryString();
+                .Select(entity => entity.Id)
+                .ToQueryString();
 
         // Assert
         Assert.Contains($"HEX({expectedParameter})", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LOWER(CONCAT(", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("LIKE `c`.`Name`", sql, StringComparison.Ordinal);
         Assert.InRange(sql.Length, 1, 1024);
-
     }
-
 }

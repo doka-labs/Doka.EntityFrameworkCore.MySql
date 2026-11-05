@@ -8,7 +8,8 @@ public sealed class IntegrationTheorySelectionTests
     public void Selected_eligible_target_keeps_theory_enabled()
     {
         // Arrange
-        var target = IntegrationTestEnvironment.GetSelectedTargets()[0];
+        var target = IntegrationTestEnvironment
+            .GetSelectedTargets()[0];
 
         // Act
         var attribute = new RequiresDatabaseTargetsTheoryAttribute(target);
@@ -83,7 +84,9 @@ public sealed class IntegrationTheorySelectionTests
     )
     {
         // Arrange
-        var selectedTarget = IntegrationTestEnvironment.GetSelectedTargets()[0];
+        var selectedTarget = IntegrationTestEnvironment
+            .GetSelectedTargets()[0];
+
         var additionalTarget = Enum.Parse<IntegrationDatabaseTarget>(additionalTargetName);
 
         // Act

@@ -8,7 +8,7 @@ internal sealed class MySqlStraightJoinExpression : InnerJoinExpression
         typeof(TableExpressionBase),
         typeof(SqlExpression),
         typeof(bool),
-        typeof(IReadOnlyDictionary<string, IAnnotation>)
+        typeof(IReadOnlyDictionary<string, IAnnotation>),
     ])!;
 
     /// <summary>Creates an edge with the existing join's predicate, pruning contract and annotations.</summary>
@@ -25,9 +25,10 @@ internal sealed class MySqlStraightJoinExpression : InnerJoinExpression
 
     /// <inheritdoc />
     public override JoinExpressionBase Update(
-        TableExpressionBase table,
-        SqlExpression joinPredicate
-    )
+            TableExpressionBase table,
+            SqlExpression joinPredicate
+        )
+
         // WHY: InnerJoinExpression.Update rewrites a changed TRUE predicate to CrossJoin and drops
         // annotations. This edge's physical direction must survive that otherwise equivalent rewrite.
         => ReferenceEquals(table, Table) && ReferenceEquals(joinPredicate, JoinPredicate)
@@ -52,7 +53,7 @@ internal sealed class MySqlStraightJoinExpression : InnerJoinExpression
         s_constructor,
         Table.Quote(),
         JoinPredicate.Quote(),
-        Expression.Constant(IsPrunable),
+        Constant(IsPrunable),
         MySqlRelationalExpressionQuoting.QuoteAnnotations(Annotations));
 
     /// <inheritdoc />

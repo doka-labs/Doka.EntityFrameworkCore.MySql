@@ -94,12 +94,17 @@ public sealed partial class MySqlMigrationOperationHandlerTests
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+
         Assert.Equal(
             command.CommandText,
             string.Concat(command.Fragments.Select(static fragment => fragment.CommandText.ToString())));
+
         Assert.Contains(
             "ALTER TABLE `Entries` ADD `Description` varchar(64) NULL COMMENT",
-            command.Fragments[2].CommandText.ToString(),
+            command
+                .Fragments[2]
+                .CommandText
+                .ToString(),
             StringComparison.Ordinal);
     }
 
@@ -192,7 +197,8 @@ public sealed partial class MySqlMigrationOperationHandlerTests
             .Single();
 
         var operation = CreateCommentWrapperOperation(path);
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
 
         // Act
         _ = generator.Generate(

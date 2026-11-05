@@ -6,10 +6,24 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Query;
 public sealed class MySqlTemporalQueryTranslationTests
 {
     private static readonly DateTime s_from =
-        new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        new(
+            2026,
+            1,
+            2,
+            3,
+            4,
+            5,
+            DateTimeKind.Utc);
 
     private static readonly DateTime s_to =
-        new(2026, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+        new(
+            2026,
+            2,
+            3,
+            4,
+            5,
+            6,
+            DateTimeKind.Utc);
 
     /// <summary>
     /// MariaDB query roots map directly to the native system-time grammar.
@@ -48,7 +62,8 @@ public sealed class MySqlTemporalQueryTranslationTests
 
         // Act
         var sql = context
-            .Records.TemporalContainedIn(s_from, s_to)
+            .Records
+            .TemporalContainedIn(s_from, s_to)
             .ToQueryString();
 
         // Assert
@@ -96,7 +111,8 @@ public sealed class MySqlTemporalQueryTranslationTests
 
         // Act
         var sql = context
-            .Records.TemporalAll()
+            .Records
+            .TemporalAll()
             .ToQueryString();
 
         // Assert
@@ -297,7 +313,8 @@ public sealed class MySqlTemporalQueryTranslationTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Records.TemporalAll()
+            .Records
+            .TemporalAll()
             .ToQueryString());
 
         // Assert
@@ -340,7 +357,9 @@ public sealed class MySqlTemporalQueryTranslationTests
     )
         where TConfiguration : ITemporalQueryConfiguration, new()
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TemporalQueryContext<TConfiguration>>().UseMySql(
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<TemporalQueryContext<TConfiguration>>()
+            .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;
@@ -352,7 +371,9 @@ public sealed class MySqlTemporalQueryTranslationTests
         MySqlServerVersion serverVersion
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TptTemporalContext>().UseMySql(
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<TptTemporalContext>()
+            .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;
@@ -364,7 +385,9 @@ public sealed class MySqlTemporalQueryTranslationTests
         MySqlServerVersion serverVersion
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<TpcTemporalContext>().UseMySql(
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<TpcTemporalContext>()
+            .UseMySql(
                 "Server=localhost;Database=doka;User ID=root;Password=password;",
                 serverVersion)
             .Options;
@@ -463,7 +486,9 @@ public sealed class MySqlTemporalQueryTranslationTests
                 entity.ToTable("TemporalAnimals", table => table.IsTemporal());
             });
 
-            modelBuilder.Entity<TptTemporalDog>().ToTable("TemporalDogs");
+            modelBuilder
+                .Entity<TptTemporalDog>()
+                .ToTable("TemporalDogs");
         }
     }
 
@@ -491,11 +516,21 @@ public sealed class MySqlTemporalQueryTranslationTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.Entity<TpcTemporalAnimal>().UseTpcMappingStrategy();
-            modelBuilder.Entity<TpcTemporalAnimal>().HasKey(animal => animal.Id);
-            modelBuilder.Entity<TpcTemporalDog>()
+            modelBuilder
+                .Entity<TpcTemporalAnimal>()
+                .UseTpcMappingStrategy();
+
+            modelBuilder
+                .Entity<TpcTemporalAnimal>()
+                .HasKey(animal => animal.Id);
+
+            modelBuilder
+                .Entity<TpcTemporalDog>()
                 .ToTable("TemporalDogs", table => table.IsTemporal());
-            modelBuilder.Entity<TpcTemporalCat>().ToTable("TemporalCats");
+
+            modelBuilder
+                .Entity<TpcTemporalCat>()
+                .ToTable("TemporalCats");
         }
     }
 

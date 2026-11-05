@@ -12,13 +12,13 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var cache = store.Cache;
 
         var before = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -27,11 +27,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         cache.Set("default-expiration", [1], new DistributedCacheEntryOptions());
 
         var after = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         var defaults = await store
-            .ReadEntryAsync("default-expiration")
+            .ReadEntryAsync("default-expiration", CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert
@@ -50,12 +50,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var cache = store.Cache;
         var after = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         var absolute =
@@ -71,13 +71,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         var absoluteState = await store
-            .ReadEntryAsync("absolute")
+            .ReadEntryAsync("absolute", CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
         if (useAsync)
         {
-            await cache.RefreshAsync("absolute", CancellationToken.None).ConfigureAwait(false);
+            await cache
+                .RefreshAsync("absolute", CancellationToken.None)
+                .ConfigureAwait(false);
         }
         else
         {
@@ -99,7 +101,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Equal(
             absoluteState,
             await store
-                .ReadEntryAsync("absolute")
+                .ReadEntryAsync("absolute", CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -112,13 +114,13 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var cache = store.Cache;
 
         var before = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -134,11 +136,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         var after = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         var relative = await store
-            .ReadEntryAsync("relative")
+            .ReadEntryAsync("relative", CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert
@@ -156,7 +158,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var cache = store.Cache;
@@ -176,11 +178,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ExecuteForKeyAsync(
                 $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(MINUTE, 1, UTC_TIMESTAMP(6)) "
                 + "WHERE `Id` = CAST(@key AS BINARY);",
-                "sliding")
+                "sliding",
+                CancellationToken.None)
             .ConfigureAwait(false);
 
         var before = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -189,11 +192,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         var value = cache.Get("sliding");
 
         var after = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         var refreshed = await store
-            .ReadEntryAsync("sliding")
+            .ReadEntryAsync("sliding", CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert
@@ -211,7 +214,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var cache = store.Cache;
@@ -229,7 +232,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         var capped = await store
-            .ReadEntryAsync("capped")
+            .ReadEntryAsync("capped", CancellationToken.None)
             .ConfigureAwait(false);
 
         var buffer = new ExactBufferWriter(1);
@@ -238,11 +241,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Act
         if (useTryGet)
         {
-            found = await cache.TryGetAsync("capped", buffer, CancellationToken.None).ConfigureAwait(false);
+            found = await cache
+                .TryGetAsync("capped", buffer, CancellationToken.None)
+                .ConfigureAwait(false);
         }
         else
         {
-            await cache.RefreshAsync("capped", CancellationToken.None).ConfigureAwait(false);
+            await cache
+                .RefreshAsync("capped", CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         // Assert
@@ -256,7 +263,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Equal(
             capped,
             await store
-                .ReadEntryAsync("capped")
+                .ReadEntryAsync("capped", CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -270,11 +277,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetExpirationStoreAsync(ParseTarget(targetName))
+            .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-get-async" : "expired-get-sync";
-        await CreateExpiredSlidingEntryAsync(store, cache, key)
+        var key = useAsync
+            ? "expired-get-async"
+            : "expired-get-sync";
+
+        await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -282,6 +293,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             ? await cache
                 .GetAsync(key, CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies expired reads through synchronous Get.
             // ReSharper disable once MethodHasAsyncOverload
             : cache.Get(key);
@@ -300,12 +312,16 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetExpirationStoreAsync(ParseTarget(targetName))
+            .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-buffer-async" : "expired-buffer-sync";
+        var key = useAsync
+            ? "expired-buffer-async"
+            : "expired-buffer-sync";
+
         var destination = new ExactBufferWriter(0);
-        await CreateExpiredSlidingEntryAsync(store, cache, key)
+        await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -313,6 +329,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             ? await cache
                 .TryGetAsync(key, destination, CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies expired reads through synchronous TryGet.
             // ReSharper disable once MethodHasAsyncOverload
             : cache.TryGet(key, destination);
@@ -332,11 +349,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetExpirationStoreAsync(ParseTarget(targetName))
+            .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-refresh-async" : "expired-refresh-sync";
-        var expired = await CreateExpiredSlidingEntryAsync(store, cache, key)
+        var key = useAsync
+            ? "expired-refresh-async"
+            : "expired-refresh-sync";
+
+        var expired = await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -357,7 +378,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Equal(
             expired,
             await store
-                .ReadEntryAsync(key)
+                .ReadEntryAsync(key, CancellationToken.None)
                 .ConfigureAwait(false));
     }
 
@@ -370,11 +391,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetExpirationStoreAsync(ParseTarget(targetName))
+            .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
         const string key = "expired-replace";
-        await CreateExpiredSlidingEntryAsync(store, cache, key)
+        await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
@@ -397,12 +419,14 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetExpirationStoreAsync(ParseTarget(targetName))
+            .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
         var before = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         var options = new DistributedCacheEntryOptions
         {
             AbsoluteExpiration = new DateTimeOffset(DateTime.SpecifyKind(before.AddHours(-1), DateTimeKind.Utc)),
@@ -420,10 +444,16 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ConfigureAwait(false));
     }
 
+    /// <summary>Creates an expired sliding entry using the database clock.</summary>
+    /// <param name="store">The store used by this operation.</param>
+    /// <param name="cache">The cache used by this operation.</param>
+    /// <param name="key">The cache key for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<CacheIntegrationStore.EntryState> CreateExpiredSlidingEntryAsync(
         CacheIntegrationStore store,
         MySqlDistributedCache cache,
-        string key
+        string key,
+        CancellationToken cancellationToken
     )
     {
         await cache
@@ -431,18 +461,19 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 key,
                 [4],
                 new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10) },
-                CancellationToken.None)
+                cancellationToken)
             .ConfigureAwait(false);
 
         await store
             .ExecuteForKeyAsync(
                 $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)) "
                 + "WHERE `Id` = CAST(@key AS BINARY);",
-                key)
+                key,
+                cancellationToken)
             .ConfigureAwait(false);
 
         return await store
-            .ReadEntryAsync(key)
+            .ReadEntryAsync(key, cancellationToken)
             .ConfigureAwait(false);
     }
 }

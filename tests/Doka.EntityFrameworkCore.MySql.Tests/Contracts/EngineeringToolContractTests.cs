@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Globalization;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -33,32 +36,37 @@ public sealed class EngineeringToolContractTests
         var output = Path.Combine(directory.Path, "output");
         Directory.CreateDirectory(input);
         File.WriteAllText(Path.Combine(input, "coverage.cobertura.xml"), "<coverage />");
-        WriteExecutable(Path.Combine(directory.Path, "dotnet"), $$"""
-            #!/usr/bin/env bash
-            set -euo pipefail
-            tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            case "$*" in
-                "run --project "*) exit 0 ;;
-                "tool restore")
-                    echo restore >> "${tool_root}/events"
-                    exit {{restoreExitCode}}
-                    ;;
-                "tool run reportgenerator "*)
-                    echo manifest-generator >> "${tool_root}/events"
-                    if [[ "{{generatorExitCode}}" != "0" ]]; then
-                        exit {{generatorExitCode}}
-                    fi
+        WriteExecutable(
+            Path.Combine(directory.Path, "dotnet"),
+            $$"""
+              #!/usr/bin/env bash
+              set -euo pipefail
+              tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+              case "$*" in
+                  "run --project "*) exit 0 ;;
+                  "tool restore")
+                      echo restore >> "${tool_root}/events"
+                      exit {{restoreExitCode}}
+                      ;;
+                  "tool run reportgenerator "*)
+                      echo manifest-generator >> "${tool_root}/events"
+                      if [[ "{{generatorExitCode}}" != "0" ]]; then
+                          exit {{generatorExitCode}}
+                      fi
 
-                    for argument in "$@"; do
-                        if [[ "${argument}" == -targetdir:* ]]; then
-                            printf '<coverage />' > "${argument#-targetdir:}/Cobertura.xml"
-                        fi
-                    done
-                    ;;
-                *) exit 42 ;;
-            esac
-            """);
-        WriteExecutable(Path.Combine(directory.Path, "reportgenerator"), """
+                      for argument in "$@"; do
+                          if [[ "${argument}" == -targetdir:* ]]; then
+                              printf '<coverage />' > "${argument#-targetdir:}/Cobertura.xml"
+                          fi
+                      done
+                      ;;
+                  *) exit 42 ;;
+              esac
+              """);
+
+        WriteExecutable(
+            Path.Combine(directory.Path, "reportgenerator"),
+            """
             #!/usr/bin/env bash
             tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             echo global-generator >> "${tool_root}/events"
@@ -105,12 +113,16 @@ public sealed class EngineeringToolContractTests
         var end = workflow.IndexOf("\n      - name: Upload raw benchmark", start, StringComparison.Ordinal);
 
         // Act
-        var result = Run(repositoryRoot, "-c", default,
+        var result = Run(
+            repositoryRoot,
+            "-c",
+            default,
             "set -euo pipefail\nbenchmark_status=\"$1\"\ntee_status=\"$2\"\ndiagnostic=unused\n"
             + "bash() { return \"${benchmark_status}\"; }\ntee() { return \"${tee_status}\"; }\n"
-            + workflow[start..end], "benchmark-diagnostics",
-            benchmarkExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            teeExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            + workflow[start..end],
+            "benchmark-diagnostics",
+            benchmarkExitCode.ToString(CultureInfo.InvariantCulture),
+            teeExitCode.ToString(CultureInfo.InvariantCulture));
 
         // Assert
         Assert.Equal(expectedExitCode, result.ExitCode);
@@ -134,14 +146,21 @@ public sealed class EngineeringToolContractTests
         var end = script.IndexOf("\necho \"Benchmark evaluation policy:", start, StringComparison.Ordinal);
 
         // Act
-        var result = Run(repositoryRoot, "-c", default,
+        var result = Run(
+            repositoryRoot,
+            "-c",
+            default,
             "set -euo pipefail\nevaluation=\"$1\"\ncontract=unused\n"
             + "require_benchmark_host_headroom() { echo admission-called; return 1; }\n"
-            + script[start..end], "benchmark-admission", evaluation);
+            + script[start..end],
+            "benchmark-admission",
+            evaluation);
 
         // Assert
         Assert.Equal(expectedExitCode, result.ExitCode);
-        Assert.Equal(evaluation == "full", result.StandardOutput.Contains("admission-called", StringComparison.Ordinal));
+        Assert.Equal(
+            evaluation == "full",
+            result.StandardOutput.Contains("admission-called", StringComparison.Ordinal));
     }
 
     /// <summary>Verifies the shell and executable agree on hosted enforcement, including explicit overrides.</summary>
@@ -168,13 +187,24 @@ public sealed class EngineeringToolContractTests
         end = script.IndexOf('\n', end);
 
         // Act
-        var result = Run(repositoryRoot, "-c", default,
+        var result = Run(
+            repositoryRoot,
+            "-c",
+            default,
             "set -euo pipefail\nevaluation=\"$1\"\nGITHUB_ACTIONS=\"$2\"\n"
-            + script[start..end] + "\nprintf '%s' \"${DOKA_BENCHMARK_EVALUATION}\"",
-            "benchmark-policy", requested, actions);
+            + script[start..end]
+            + "\nprintf '%s' \"${DOKA_BENCHMARK_EVALUATION}\"",
+            "benchmark-policy",
+            requested,
+            actions);
 
         // Assert
-        Assert.Equal(expected is null ? 78 : 0, result.ExitCode);
+        Assert.Equal(
+            expected is null
+                ? 78
+                : 0,
+            result.ExitCode);
+
         Assert.Equal(expected ?? string.Empty, result.StandardOutput);
     }
 
@@ -199,15 +229,22 @@ public sealed class EngineeringToolContractTests
         var end = script.IndexOf("\nset +e", start, StringComparison.Ordinal);
 
         // Act
-        var result = Run(repositoryRoot, "-c", default,
+        var result = Run(
+            repositoryRoot,
+            "-c",
+            default,
             "set -euo pipefail\nsoak_required=true\nbenchmark_assembly=unused\nsoak_report=unused\n"
             + "gate_arguments=()\nraw_status=\"$1\"\ndotnet() { return \"${raw_status}\"; }\n"
-            + script[start..end] + "\necho evaluator-reached",
-            "benchmark-soak-outcome", soakExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            + script[start..end]
+            + "\necho evaluator-reached",
+            "benchmark-soak-outcome",
+            soakExitCode.ToString(CultureInfo.InvariantCulture));
 
         // Assert
         Assert.Equal(expectedExitCode, result.ExitCode);
-        Assert.Equal(expectedExitCode == 0, result.StandardOutput.Contains("evaluator-reached", StringComparison.Ordinal));
+        Assert.Equal(
+            expectedExitCode == 0,
+            result.StandardOutput.Contains("evaluator-reached", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -272,7 +309,10 @@ public sealed class EngineeringToolContractTests
             .GetString();
 
         var fakeDotnet = Path.Combine(directory.Path, "dotnet");
-        var reportedVersion = exactVersion ? requiredVersion : "10.0.999";
+        var reportedVersion = exactVersion
+            ? requiredVersion
+            : "10.0.999";
+
         WriteExecutable(fakeDotnet, $"#!/usr/bin/env bash\nprintf '%s\\n' '{reportedVersion}'\n");
 
         // Act
@@ -418,7 +458,7 @@ public sealed class EngineeringToolContractTests
         params string[] arguments
     )
     {
-        var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+        var startInfo = new ProcessStartInfo("bash")
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardError = true,
@@ -437,8 +477,9 @@ public sealed class EngineeringToolContractTests
             startInfo.Environment[environment.Name] = environment.Value;
         }
 
-        using var process = System.Diagnostics.Process.Start(startInfo)
+        using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{script}'.");
+
         var standardOutput = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
@@ -461,8 +502,8 @@ public sealed class EngineeringToolContractTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

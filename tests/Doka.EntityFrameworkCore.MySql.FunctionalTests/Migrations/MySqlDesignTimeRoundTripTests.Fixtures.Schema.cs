@@ -25,6 +25,7 @@ public sealed class InvisibleColumnDesignContext : DbContext
                 .Property(record => record.HiddenValue)
                 .HasDefaultValue(string.Empty)
                 .IsInvisible();
+
             entity
                 .Property(record => record.VisibleValue)
                 .IsInvisible(false);
@@ -74,7 +75,10 @@ public sealed class EntitySplitDesignContext : DbContext
         {
             entity.ToTable("EntitySplitDesignRecords");
             entity.HasKey(record => record.Id);
-            entity.Property(record => record.Id).UseMySqlAutoIncrementColumn();
+            entity
+                .Property(record => record.Id)
+                .UseMySqlAutoIncrementColumn();
+
             entity.SplitToTable(
                 "EntitySplitDesignDetails",
                 split => split.Property(record => record.Description));

@@ -1,4 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.Benchmarks;
+using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
@@ -10,6 +11,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
 {
     private const string ConnectionString =
         "Server=localhost;Database=scoped_allocation_tests;User ID=root;Password=tests;";
+
     private const long MaximumMatrixAllocationBytes = 48L * 1024L * 1024L;
     private const double MaximumNormalizedGrowthRatio = 1.10D;
     private const double MaximumHandlerScopedAllocationRatio = 0.75D;
@@ -70,7 +72,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
             // Act
             var hundredAllocation = MeasureAllocation(() => benchmark.GenerateOperationPopulation(1));
             var thousandAllocation = MeasureAllocation(() => benchmark.GenerateOperationPopulation(2));
-            var normalizedGrowth = (thousandAllocation / 1000D) / (hundredAllocation / 100D);
+            var normalizedGrowth = thousandAllocation / 1000D / (hundredAllocation / 100D);
 
             // Assert
             Assert.InRange(normalizedGrowth, 0D, MaximumNormalizedGrowthRatio);
@@ -91,7 +93,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         string[] arguments = ["--workloads"];
 
         // Act
-        var exitCode = await Doka.EntityFrameworkCore.MySql.Benchmarks.Program.Main(arguments);
+        var exitCode = await Program.Main(arguments);
 
         // Assert
         Assert.Equal(78, exitCode);
@@ -371,7 +373,7 @@ public sealed class MySqlMigrationOperationHandlerAllocationTests
         double maximumRatio
     )
     {
-        var maximumScopedAllocation = (ordinaryAllocation * maximumRatio)
+        var maximumScopedAllocation = ordinaryAllocation * maximumRatio
             + ScopedAllocationFixedAllowanceBytes;
 
         Assert.True(

@@ -13,21 +13,42 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 [MemoryDiagnoser]
 public partial class QueryEnumerationBenchmark : IDisposable
 {
+    private string? _compiledQuerySql;
     private QueryContext _context = null!;
-    private ISqlExpressionFactory _sql = null!;
+    private Expression _input = null!;
     private IRelationalTypeMappingSource _mappings = null!;
     private Func<object> _operation = null!;
-    private Expression _input = null!;
-    private string? _compiledQuerySql;
+    private ISqlExpressionFactory _sql = null!;
 
     /// <summary>Gets or sets the independently measured query pipeline.</summary>
     [Params(
-        "json-static-single", "json-static-nested", "json-dynamic-nested", "json-table-50",
-        "json-decode-50", "limit-two", "limit-nested", "apply-50", "apply-delete-50",
-        "dynamic-offset", "compile-materialized", "compile-string-aggregate", "compile-json-document",
-        "compile-includes-union", "compile-member-init-lineage", "compile-materialized-include",
-        "guard-union-all-overlap", "guard-union-all-disjoint")]
+        "json-static-single",
+        "json-static-nested",
+        "json-dynamic-nested",
+        "json-table-50",
+        "json-decode-50",
+        "limit-two",
+        "limit-nested",
+        "apply-50",
+        "apply-delete-50",
+        "dynamic-offset",
+        "compile-materialized",
+        "compile-string-aggregate",
+        "compile-json-document",
+        "compile-includes-union",
+        "compile-member-init-lineage",
+        "compile-materialized-include",
+        "guard-union-all-overlap",
+        "guard-union-all-disjoint")]
     public string Scenario { get; set; } = "json-static-single";
+
+    /// <summary>Releases the offline provider context.</summary>
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _context?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>Creates real provider services, expression trees, and stable output controls.</summary>
     [GlobalSetup]
@@ -48,13 +69,18 @@ public partial class QueryEnumerationBenchmark : IDisposable
         // WHY: Identity and output diagnostics are setup work, not per-invocation
         // allocations. The fingerprint compares whole outputs across provider builds.
         var result = _operation();
-        var output = _compiledQuerySql ?? (result is Expression expression ? expression.Print() : result.ToString()!);
+        var output = _compiledQuerySql
+            ?? (result is Expression expression
+                ? expression.Print()
+                : result.ToString()!);
+
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(output)));
         Console.WriteLine($"QueryEnumeration {Scenario}: input={_input.GetType().FullName}; output-sha256={digest}");
 
         if (_input is SelectExpression select)
         {
-            Console.WriteLine($"tables={select.Tables.GetType().FullName}; "
+            Console.WriteLine(
+                $"tables={select.Tables.GetType().FullName}; "
                 + $"projections={select.Projection.GetType().FullName}");
         }
     }
@@ -64,14 +90,6 @@ public partial class QueryEnumerationBenchmark : IDisposable
     [Benchmark]
     public object ExecuteCompletePipeline() => _operation();
 
-    /// <summary>Releases the offline provider context.</summary>
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _context?.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
     private Func<object> CreateOperation()
     {
         switch (Scenario)
@@ -80,8 +98,15 @@ public partial class QueryEnumerationBenchmark : IDisposable
             case "json-static-nested":
             case "json-dynamic-nested":
             case "json-table-50":
-                _input = Scenario == "json-table-50" ? CreateJsonTable() : CreateJsonScalar();
-                return () => _context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(_input).CommandText;
+                _input = Scenario == "json-table-50"
+                    ? CreateJsonTable()
+                    : CreateJsonScalar();
+
+                return () => _context
+                    .GetService<IQuerySqlGeneratorFactory>()
+                    .Create()
+                    .GetCommand(_input)
+                    .CommandText;
 
             case "json-decode-50":
                 _input = CreateJsonTable();
@@ -99,25 +124,50 @@ public partial class QueryEnumerationBenchmark : IDisposable
             case "dynamic-offset":
                 _input = CreateDynamicOffset();
                 return () => new MySqlDynamicOffsetRewritingExpressionVisitor(
-                    _sql, _mappings, new SqlAliasManager()).Visit(_input);
+                    _sql,
+                    _mappings,
+                    new SqlAliasManager()).Visit(_input);
 
             case "compile-materialized":
-                return Compile(_context.Rows
-                    .Select(row => new SourceProjection { Id = row.Id, Name = row.Name })
-                    .WithMaterializedSource(shared => shared.Join(shared, left => left.Id, right => right.Id,
-                        (left, right) => left.Name)));
+                return Compile(
+                    _context
+                        .Rows
+                        .Select(row => new SourceProjection
+                        {
+                            Id = row.Id,
+                            Name = row.Name,
+                        })
+                        .WithMaterializedSource(shared => shared.Join(
+                            shared,
+                            left => left.Id,
+                            right => right.Id,
+                            (left, right) => left.Name)));
 
             case "compile-string-aggregate":
-                return Compile(_context.Rows.GroupBy(row => row.GroupId)
-                    .Select(group => string.Join("|", group.OrderBy(row => row.Name)
-                        .Select(row => string.Join("/", new[] { row.Name, row.Name, row.Name })))));
+                return Compile(
+                    _context
+                        .Rows
+                        .GroupBy(row => row.GroupId)
+                        .Select(group => string.Join(
+                            "|",
+                            group
+                                .OrderBy(row => row.Name)
+                                .Select(row => string.Join("/", new[] { row.Name, row.Name, row.Name })))));
 
             case "compile-json-document":
-                return Compile(_context.Rows.SelectMany(row => row.Document.Items).Select(item => item.Token));
+                return Compile(
+                    _context
+                        .Rows
+                        .SelectMany(row => row.Document.Items)
+                        .Select(item => item.Token));
 
             case "compile-includes-union":
-                return Compile(_context.PlainRows.Where(row => row.Id < 10)
-                    .Union(_context.PlainRows.Where(row => row.Id > 20)).Include(row => row.Children));
+                return Compile(
+                    _context
+                        .PlainRows
+                        .Where(row => row.Id < 10)
+                        .Union(_context.PlainRows.Where(row => row.Id > 20))
+                        .Include(row => row.Children));
 
             case "compile-member-init-lineage":
                 return CreateMemberInitLineageOperation();
@@ -135,7 +185,9 @@ public partial class QueryEnumerationBenchmark : IDisposable
     }
 
     /// <summary>Runs EF's uncached extraction and compilation boundary for a prepared LINQ query.</summary>
-    private Func<object> Compile<T>(IQueryable<T> query)
+    private Func<object> Compile<T>(
+        IQueryable<T> query
+    )
     {
         _input = query.Expression;
         _compiledQuerySql = query.ToQueryString();
@@ -172,22 +224,38 @@ public partial class QueryEnumerationBenchmark : IDisposable
         }
 
         _input = Select([new ProjectionExpression(_sql.Constant(1), "Value")], limit: limit);
-        var parameters = new Dictionary<string, object?> { ["first"] = 30, ["second"] = 20 };
+        var parameters = new Dictionary<string, object?>
+        {
+            ["first"] = 30,
+            ["second"] = 20,
+        };
+
         // WHY: Production parameter processing uses this EF internal options
         // record; using the same boundary keeps this a complete-method probe.
 #pragma warning disable EF1001
-        var processor = _context.GetService<IRelationalParameterBasedSqlProcessorFactory>()
-            .Create(new RelationalParameterBasedSqlProcessorParameters(
-                false, ParameterTranslationMode.MultipleParameters));
+        var processor = _context
+            .GetService<IRelationalParameterBasedSqlProcessorFactory>()
+            .Create(
+                new RelationalParameterBasedSqlProcessorParameters(
+                    false,
+                    ParameterTranslationMode.MultipleParameters));
 #pragma warning restore EF1001
 
-        Console.WriteLine($"limit-arguments={arguments.GetType().FullName}; "
+        Console.WriteLine(
+            $"limit-arguments={arguments.GetType().FullName}; "
             + $"expression-arguments={((SqlFunctionExpression)limit).Arguments!.GetType().FullName}");
 
         return () => processor.Process(_input, new ParametersCacheDecorator(parameters));
     }
 
-    private SqlFunctionExpression Least(IReadOnlyList<SqlExpression> arguments)
-        => (SqlFunctionExpression)_sql.Function("LEAST", arguments, nullable: false,
-            argumentsPropagateNullability: arguments.Select(_ => false), typeof(int), IntTypeMapping.Default);
+    private SqlFunctionExpression Least(
+        IReadOnlyList<SqlExpression> arguments
+    )
+        => (SqlFunctionExpression)_sql.Function(
+            "LEAST",
+            arguments,
+            nullable: false,
+            argumentsPropagateNullability: arguments.Select(_ => false),
+            typeof(int),
+            IntTypeMapping.Default);
 }

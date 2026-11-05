@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// Live concurrency coverage for the migration advisory lock (per ADR D-002): two
 /// migrations running against different databases on the same MySQL instance must
 /// not block each other, while two migrations against the same database must
-/// serialize, with the third caller observing a <see cref="TimeoutException"/>
+/// serialize, with the third caller observing a <see cref="TimeoutException" />
 /// when the lock timeout is exhausted.
 /// </summary>
 [IntegrationDatabaseTest]
@@ -22,9 +22,10 @@ public sealed class MySqlMigrationConcurrencyTests
         var dbNameA = $"doka_lock_a_{Guid.NewGuid():N}"[..30];
         var dbNameB = $"doka_lock_b_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbNameA)
+        await CreateDatabaseAsync(baseConnectionString, dbNameA, CancellationToken.None)
             .ConfigureAwait(false);
-        await CreateDatabaseAsync(baseConnectionString, dbNameB)
+
+        await CreateDatabaseAsync(baseConnectionString, dbNameB, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -59,6 +60,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             await DropDatabaseAsync(baseConnectionString, dbNameA)
                 .ConfigureAwait(false);
+
             await DropDatabaseAsync(baseConnectionString, dbNameB)
                 .ConfigureAwait(false);
         }
@@ -67,7 +69,7 @@ public sealed class MySqlMigrationConcurrencyTests
     /// <summary>
     /// Serialization check: two migrations against the same database compete for
     /// the same lock. The second caller waits; a third caller with a sub-second
-    /// timeout surfaces a <see cref="TimeoutException"/>.
+    /// timeout surfaces a <see cref="TimeoutException" />.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Migration_locks_serialize_on_same_database_and_surface_timeout()
@@ -76,8 +78,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_s_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
 
         try
@@ -94,8 +97,9 @@ public sealed class MySqlMigrationConcurrencyTests
 
             await using var contender = new MySqlConnection(scopedConnectionString);
             await contender
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
+
             await using var probe = contender.CreateCommand();
             probe.CommandText = "SELECT GET_LOCK(@name, 0);";
             var nameParam = probe.CreateParameter();
@@ -105,7 +109,7 @@ public sealed class MySqlMigrationConcurrencyTests
 
             // Act
             var probeResult = await probe
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -132,8 +136,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var dbName = $"doka_lock_w_{Guid.NewGuid():N}"[..30];
         var holdDuration = TimeSpan.FromSeconds(2);
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
 
         try
@@ -194,8 +199,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_k_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
 
@@ -203,7 +209,7 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             await using var holderConnection = new MySqlConnection(scopedConnectionString);
             await holderConnection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             await using (var holdCommand = holderConnection.CreateCommand())
@@ -215,7 +221,7 @@ public sealed class MySqlMigrationConcurrencyTests
                 holdCommand.Parameters.Add(holdNameParam);
 
                 var holdResult = await holdCommand
-                    .ExecuteScalarAsync()
+                    .ExecuteScalarAsync(CancellationToken.None)
                     .ConfigureAwait(false);
 
                 Assert.Equal(1L, Convert.ToInt64(holdResult, CultureInfo.InvariantCulture));
@@ -223,13 +229,14 @@ public sealed class MySqlMigrationConcurrencyTests
 
             await using var killerConnection = new MySqlConnection(scopedConnectionString);
             await killerConnection
-                .OpenAsync()
+                .OpenAsync(CancellationToken.None)
                 .ConfigureAwait(false);
+
             await using (var killCommand = killerConnection.CreateCommand())
             {
                 killCommand.CommandText = $"KILL {holderConnection.ServerThread};";
                 await killCommand
-                    .ExecuteNonQueryAsync()
+                    .ExecuteNonQueryAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
@@ -267,8 +274,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_t_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
 
         try
@@ -287,8 +295,7 @@ public sealed class MySqlMigrationConcurrencyTests
             // Act
             var stopwatch = Stopwatch.StartNew();
 
-            await Assert.ThrowsAsync<TimeoutException>(
-                () => contenderHistory.AcquireDatabaseLockAsync());
+            await Assert.ThrowsAsync<TimeoutException>(() => contenderHistory.AcquireDatabaseLockAsync());
             stopwatch.Stop();
 
             // Assert
@@ -312,8 +319,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_st_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
 
         try
@@ -360,8 +368,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_c_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
 
         try
@@ -374,13 +383,13 @@ public sealed class MySqlMigrationConcurrencyTests
             var contenderHistory = contenderContext.GetService<IHistoryRepository>();
 
             await using (var heldLock = await holderHistory
-                             .AcquireDatabaseLockAsync()
-                             .ConfigureAwait(false))
+                .AcquireDatabaseLockAsync()
+                .ConfigureAwait(false))
             {
                 using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                    () => contenderHistory.AcquireDatabaseLockAsync(cancellation.Token));
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                    contenderHistory.AcquireDatabaseLockAsync(cancellation.Token));
             }
 
             await using var verifierContext = new LockContext(CreateOptions(scopedConnectionString));
@@ -412,8 +421,9 @@ public sealed class MySqlMigrationConcurrencyTests
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_d_{Guid.NewGuid():N}"[..30];
 
-        await CreateDatabaseAsync(baseConnectionString, dbName)
+        await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
+
         var scopedConnectionString = BuildConnectionString(baseConnectionString, dbName);
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
 
@@ -440,17 +450,16 @@ public sealed class MySqlMigrationConcurrencyTests
                 }
             });
 
-            var disposeTask = Task.Run(
-                async () => await lockInstance
-                    .DisposeAsync()
-                    .ConfigureAwait(false));
+            var disposeTask = Task.Run(async () => await lockInstance
+                .DisposeAsync()
+                .ConfigureAwait(false));
 
             await Task
                 .WhenAll(reacquireTask, disposeTask)
                 .WaitAsync(TimeSpan.FromSeconds(10))
                 .ConfigureAwait(false);
 
-            await AssertLockIsFreeAsync(scopedConnectionString, lockName)
+            await AssertLockIsFreeAsync(scopedConnectionString, lockName, CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Act
@@ -482,9 +491,16 @@ public sealed class MySqlMigrationConcurrencyTests
         return builder.ConnectionString;
     }
 
+    /// <summary>
+    /// Creates database for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="baseConnectionString">The target database connection string.</param>
+    /// <param name="databaseName">The database name.</param>
     private static async Task CreateDatabaseAsync(
         string baseConnectionString,
-        string databaseName
+        string databaseName,
+        CancellationToken cancellationToken
     )
     {
         var serverBuilder = new MySqlConnectionStringBuilder(baseConnectionString)
@@ -496,15 +512,17 @@ public sealed class MySqlMigrationConcurrencyTests
 
         await using var connection = new MySqlConnection(serverBuilder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE IF NOT EXISTS `{databaseName}` CHARACTER SET utf8mb4;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    // WHY: Cleanup must finish after caller cancellation to leave no test resources behind.
     private static async Task DropDatabaseAsync(
         string baseConnectionString,
         string databaseName
@@ -519,12 +537,13 @@ public sealed class MySqlMigrationConcurrencyTests
 
         await using var connection = new MySqlConnection(serverBuilder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -558,15 +577,22 @@ public sealed class MySqlMigrationConcurrencyTests
         return builder.Options;
     }
 
+    /// <summary>
+    /// Verifies lock is free for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="lockName">The lock name.</param>
     private static async Task AssertLockIsFreeAsync(
         string connectionString,
-        string lockName
+        string lockName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Act
@@ -579,7 +605,7 @@ public sealed class MySqlMigrationConcurrencyTests
             1L,
             Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync()
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture));
     }

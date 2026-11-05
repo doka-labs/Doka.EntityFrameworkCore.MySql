@@ -13,7 +13,6 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     private const string CrossesTable = "DokaSpatialCrosses";
     private const string SridTable = "DokaSpatialSrid";
 
-    private readonly SpatialFixture _fixture;
     private static readonly IntegrationDatabaseTarget[] s_materializationTargets =
         [IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb118];
 
@@ -31,6 +30,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     private static readonly string[] s_materializationShapes = ["Untracked", "Scalar", "Include", "SplitInclude"];
     private static readonly string[] s_geometryFunctions = ["Buffer", "Combine", "Union", "Envelope"];
 
+    private readonly SpatialFixture _fixture;
+
     /// <summary>Uses lazily seeded, class-owned spatial datasets.</summary>
     public MySqlNetTopologySuiteContractIntegrationTests(
         SpatialFixture fixture
@@ -41,12 +42,14 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Identifies MariaDB versions that enforce SRID through a check constraint.</summary>
     public static IEnumerable<object[]> MariaDbCases =>
-        s_mariaDbTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+        s_mariaDbTargets
+            .Where(IntegrationTestEnvironment.IsTargetSelected)
             .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies engines that exercise every geometry reader shape.</summary>
     public static IEnumerable<object[]> MaterializationTargetCases =>
-        s_materializationTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+        s_materializationTargets
+            .Where(IntegrationTestEnvironment.IsTargetSelected)
             .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies the independent untracked/projection/include reader paths.</summary>
@@ -57,7 +60,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Identifies engines that expose the tested scalar and aggregate functions.</summary>
     public static IEnumerable<object[]> FunctionTargetCases =>
-        s_functionTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+        s_functionTargets
+            .Where(IntegrationTestEnvironment.IsTargetSelected)
             .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies each independently executable geometry-returning function.</summary>
@@ -80,11 +84,15 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         var connectionString = GetConnectionString(engine, "Srid");
-        await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+        await DropContractTablesAsync(connectionString, CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var source = new EmptySpatialContractContext(
             CreateOptions<EmptySpatialContractContext>(connectionString, engine));
+
         await using var context = new SpatialSridContractContext(
             CreateOptions<SpatialSridContractContext>(connectionString, engine));
+
         await using var provider = ScaffoldingTestServices.CreateDesignTimeServiceProvider(
             includeSpatialServices: true);
 
@@ -97,27 +105,49 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             // WHY: Each observation depends on the same schema transition:
             // generated DDL must be enforced and then recovered as SRID metadata.
             // Act
-            var operations = context.GetService<IMigrationsModelDiffer>().GetDifferences(
-                source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-                context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
-            var commands = context.GetService<IMigrationsSqlGenerator>().Generate(operations, context.Model);
+            var operations = context
+                .GetService<IMigrationsModelDiffer>()
+                .GetDifferences(
+                    source
+                        .GetService<IDesignTimeModel>()
+                        .Model
+                        .GetRelationalModel(),
+                    context
+                        .GetService<IDesignTimeModel>()
+                        .Model
+                        .GetRelationalModel());
+
+            var commands = context
+                .GetService<IMigrationsSqlGenerator>()
+                .Generate(operations, context.Model);
+
             var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
 
             foreach (var command in commands)
             {
-                await context.Database.ExecuteSqlRawAsync(command.CommandText).ConfigureAwait(false);
+                await context
+                    .Database
+                    .ExecuteSqlRawAsync(command.CommandText)
+                    .ConfigureAwait(false);
             }
 
-            var showCreate = await ReadShowCreateTableAsync(connectionString, SridTable).ConfigureAwait(false);
+            var showCreate = await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var failure = await Record.ExceptionAsync(() => context.Database.ExecuteSqlRawAsync(
                 $"INSERT INTO `{SridTable}` (`Id`, `Location`) VALUES (1, ST_GeomFromText('POINT (1 2)', 0));"));
-            var databaseModel = services.GetRequiredService<IDatabaseModelFactory>()
+
+            var databaseModel = services
+                .GetRequiredService<IDatabaseModelFactory>()
                 .Create(connectionString, databaseOptions);
-            var scaffolded = services.GetRequiredService<IReverseEngineerScaffolder>().ScaffoldModel(
-                connectionString,
-                databaseOptions,
-                new ModelReverseEngineerOptions(),
-                ScaffoldingTestServices.CreateCodeGenerationOptions(connectionString));
+
+            var scaffolded = services
+                .GetRequiredService<IReverseEngineerScaffolder>()
+                .ScaffoldModel(
+                    connectionString,
+                    databaseOptions,
+                    new ModelReverseEngineerOptions(),
+                    ScaffoldingTestServices.CreateCodeGenerationOptions(connectionString));
 
             // Assert
             Assert.Contains("CHECK (ST_SRID(`Location`) = 4326)", sql, StringComparison.Ordinal);
@@ -127,18 +157,27 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
             Assert.NotNull(showCreateSql);
             Assert.Contains("CHECK (srid(`Location`) = 4326)", showCreateSql, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(4025, Assert.IsType<MySqlException>(failure).Number);
+            Assert.Equal(
+                4025,
+                Assert.IsType<MySqlException>(failure)
+                    .Number);
+
             var table = Assert.Single(databaseModel.Tables);
             var location = Assert.Single(table.Columns, column => column.Name == "Location");
 
-            Assert.Equal(4326, location.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)?.Value);
+            Assert.Equal(
+                4326,
+                location.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
+                    ?.Value);
+
             Assert.Null(table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints));
             Assert.Contains(".HasSrid(4326)", scaffolded.ContextFile.Code, StringComparison.Ordinal);
             Assert.DoesNotContain("HasCheckConstraint", scaffolded.ContextFile.Code, StringComparison.Ordinal);
         }
         finally
         {
-            await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+            await DropContractTablesAsync(connectionString, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 }

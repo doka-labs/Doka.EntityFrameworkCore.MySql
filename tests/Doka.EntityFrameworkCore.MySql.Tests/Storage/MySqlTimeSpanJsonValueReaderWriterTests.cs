@@ -44,7 +44,9 @@ public sealed class MySqlTimeSpanJsonValueReaderWriterTests
     {
         // Arrange
         var readerWriter = MySqlTimeSpanJsonValueReaderWriter.Instance;
-        var expected = direction > 0 ? s_maximum : -s_maximum;
+        var expected = direction > 0
+            ? s_maximum
+            : -s_maximum;
 
         // Act
         var json = readerWriter.ToJsonString(expected);
@@ -80,5 +82,4 @@ public sealed class MySqlTimeSpanJsonValueReaderWriterTests
         var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Contains("exceeds the MySQL TIME range", exception.Message, StringComparison.Ordinal);
     }
-
 }

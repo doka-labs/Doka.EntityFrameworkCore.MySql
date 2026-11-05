@@ -7,7 +7,7 @@ internal static class IntegrationDatabaseUtilities
     /// </summary>
     /// <param name="baseConnectionString">Connection string for the target server.</param>
     /// <param name="databaseName">Name of the isolated database.</param>
-    /// <returns>A connection string that selects <paramref name="databaseName"/>.</returns>
+    /// <returns>A connection string that selects <paramref name="databaseName" />.</returns>
     public static string BuildConnectionString(
         string baseConnectionString,
         string databaseName
@@ -48,6 +48,7 @@ internal static class IntegrationDatabaseUtilities
         connection.Open();
 
         using var command = connection.CreateCommand();
+
         // WHY: A run-owned schema must never silently reuse another run's data.
         command.CommandText = $"CREATE DATABASE {DelimitIdentifier(databaseName)};";
         command.ExecuteNonQuery();
@@ -58,8 +59,10 @@ internal static class IntegrationDatabaseUtilities
     /// does not already exist.
     /// </summary>
     /// <param name="connectionString">Connection string selecting the database.</param>
+    /// <param name="cancellationToken">Cancels connection establishment and database creation.</param>
     public static async Task EnsureDatabaseExistsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         var builder = new MySqlConnectionStringBuilder(connectionString);
@@ -76,14 +79,14 @@ internal static class IntegrationDatabaseUtilities
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE IF NOT EXISTS {DelimitIdentifier(databaseName)};";
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -95,6 +98,7 @@ internal static class IntegrationDatabaseUtilities
         string connectionString
     )
     {
+        // WHY: Fixture disposal must remove run-owned databases even after caller cancellation.
         var builder = new MySqlConnectionStringBuilder(connectionString);
         var databaseName = builder.Database;
 
@@ -109,14 +113,14 @@ internal static class IntegrationDatabaseUtilities
 
         await using var connection = new MySqlConnection(builder.ConnectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS {DelimitIdentifier(databaseName)};";
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

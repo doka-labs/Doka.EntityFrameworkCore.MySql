@@ -6,12 +6,16 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string NamedSecondTable = "IntBoundNamedSecond";
     private const string NamedTargetTable = "IntBoundNamedTargets";
 
+    /// <summary>Creates the named lineage fixture with cancellable database work.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<NamedLineageFixture> CreateNamedLineageFixtureAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<NamedLineageContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<NamedLineageContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -22,16 +26,41 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         try
         {
-            await DropNamedLineageTablesAsync(context);
-            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            await DropNamedLineageTablesAsync(context, cancellationToken);
+            await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
             context.Targets.AddRange(
-                new NamedLineageTarget { Id = 11, Name = "first-target" },
-                new NamedLineageTarget { Id = 22, Name = "second-target" });
+                new NamedLineageTarget
+                {
+                    Id = 11,
+                    Name = "first-target",
+                },
+                new NamedLineageTarget
+                {
+                    Id = 22,
+                    Name = "second-target",
+                });
+
             // WHY: Equal keys in both named mappings make a lost mapping identity
             // return the other target instead of passing because the key is unique.
-            context.Set<NamedLineageNode>("First").Add(new NamedLineageNode { Id = 1, TargetId = 11 });
-            context.Set<NamedLineageNode>("Second").Add(new NamedLineageNode { Id = 1, TargetId = 22 });
-            await context.SaveChangesAsync(CancellationToken.None);
+            context
+                .Set<NamedLineageNode>("First")
+                .Add(
+                    new NamedLineageNode
+                    {
+                        Id = 1,
+                        TargetId = 11,
+                    });
+
+            context
+                .Set<NamedLineageNode>("Second")
+                .Add(
+                    new NamedLineageNode
+                    {
+                        Id = 1,
+                        TargetId = 22,
+                    });
+
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
 
@@ -45,11 +74,14 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         }
     }
 
+    /// <summary>Drops the named lineage tables using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropNamedLineageTablesAsync(
-        NamedLineageContext context
+        NamedLineageContext context,
+        CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{NamedFirstTable}`, `{NamedSecondTable}`; DROP TABLE IF EXISTS `{NamedTargetTable}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     private sealed class NamedLineageFixture(
         NamedLineageContext context,
@@ -64,7 +96,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             try
             {
-                await DropNamedLineageTablesAsync(Context);
+                await DropNamedLineageTablesAsync(Context, CancellationToken.None);
             }
             finally
             {
@@ -83,27 +115,56 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<NamedLineageNode>("First", entity =>
-            {
-                entity.ToTable(NamedFirstTable);
-                entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.TargetId).HasColumnName("FirstTargetId");
-                entity.HasOne(row => row.Target).WithMany().HasForeignKey(row => row.TargetId);
-            });
-            modelBuilder.SharedTypeEntity<NamedLineageNode>("Second", entity =>
-            {
-                entity.ToTable(NamedSecondTable);
-                entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.TargetId).HasColumnName("SecondTargetId");
-                entity.HasOne(row => row.Target).WithMany().HasForeignKey(row => row.TargetId);
-            });
+            modelBuilder.SharedTypeEntity<NamedLineageNode>(
+                "First",
+                entity =>
+                {
+                    entity.ToTable(NamedFirstTable);
+                    entity.HasKey(row => row.Id);
+                    entity
+                        .Property(row => row.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(row => row.TargetId)
+                        .HasColumnName("FirstTargetId");
+
+                    entity
+                        .HasOne(row => row.Target)
+                        .WithMany()
+                        .HasForeignKey(row => row.TargetId);
+                });
+
+            modelBuilder.SharedTypeEntity<NamedLineageNode>(
+                "Second",
+                entity =>
+                {
+                    entity.ToTable(NamedSecondTable);
+                    entity.HasKey(row => row.Id);
+                    entity
+                        .Property(row => row.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(row => row.TargetId)
+                        .HasColumnName("SecondTargetId");
+
+                    entity
+                        .HasOne(row => row.Target)
+                        .WithMany()
+                        .HasForeignKey(row => row.TargetId);
+                });
+
             modelBuilder.Entity<NamedLineageTarget>(entity =>
             {
                 entity.ToTable(NamedTargetTable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.Name).HasMaxLength(64);
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.Name)
+                    .HasMaxLength(64);
             });
         }
     }

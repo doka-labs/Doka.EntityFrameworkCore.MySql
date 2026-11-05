@@ -82,7 +82,8 @@ public sealed class IntegrationDatabaseTargetContractTests
         var supportedLine = Version.Parse(request.ServerVersionToken[(separator + 1)..]);
 
         // Act
-        var profileVersion = IntegrationTestEnvironment.GetServerVersion(target).Version;
+        var profileVersion = IntegrationTestEnvironment.GetServerVersion(target)
+            .Version;
 
         // Assert
         Assert.Equal(supportedLine.Major, profileVersion.Major);

@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// Loads the set of MariaDB columns guarded by a JSON_VALID CHECK constraint. MariaDB
 /// stores JSON columns as LONGTEXT with utf8mb4_bin collation plus a CHECK constraint
 /// of the form <c>json_valid(`column`)</c>; the
-/// <see cref="ColumnLoader"/> uses the returned set to lift those columns back to the
+/// <see cref="ColumnLoader" /> uses the returned set to lift those columns back to the
 /// canonical "json" store type during reverse engineering. Runs once per scaffolding
 /// pass on MariaDB engines only; returns an empty set on MySQL.
 /// </summary>

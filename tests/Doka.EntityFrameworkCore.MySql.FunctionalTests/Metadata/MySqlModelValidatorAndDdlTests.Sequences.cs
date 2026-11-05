@@ -100,7 +100,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
         var operation = new RenameSequenceOperation
         {
             Name = "OldSeq",
-            NewName = "NewSeq"
+            NewName = "NewSeq",
         };
 
         // Act

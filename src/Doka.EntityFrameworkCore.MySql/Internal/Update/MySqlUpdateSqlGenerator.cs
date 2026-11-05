@@ -22,6 +22,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         _singletonOptions = singletonOptions
             .OfType<MySqlSingletonOptions>()
             .Single();
+
         _stringTypeMapping = dependencies.TypeMappingSource.FindMapping(typeof(string))
             ?? throw new InvalidOperationException(
                 "The MySQL update SQL generator requires a string type mapping.");
@@ -95,7 +96,8 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         }
 
         var outputModifications = command
-            .ColumnModifications.Where(static modification => modification.Column is IStoreStoredProcedureParameter
+            .ColumnModifications
+            .Where(static modification => modification.Column is IStoreStoredProcedureParameter
             {
                 Direction: ParameterDirection.Output or ParameterDirection.InputOutput,
             })
@@ -110,6 +112,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             SqlGenerationHelper.GenerateParameterNamePlaceholder(
                 commandStringBuilder,
                 GetOutputVariableName(commandParameterName));
+
             commandStringBuilder.Append(" = ");
 
             if (parameter.Direction == ParameterDirection.InputOutput)
@@ -218,6 +221,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             commandStringBuilder
                 .AppendLine()
                 .Append("VALUES ");
+
             return;
         }
 
@@ -272,7 +276,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
 
     /// <summary>
     /// Emits a partial JSON document update when EF supplies a non-root
-    /// <see cref="IColumnModification.JsonPath"/>. Scalar properties remain
+    /// <see cref="IColumnModification.JsonPath" />. Scalar properties remain
     /// relational values so MySQL-family engines preserve their JSON scalar
     /// type. Serialized objects and collections pass through
     /// <c>JSON_EXTRACT(value, '$')</c> so <c>JSON_SET</c> inserts JSON instead
@@ -298,7 +302,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         stringBuilder.Append(_stringTypeMapping.GenerateSqlLiteral(columnModification.JsonPath));
         stringBuilder.Append(", ");
 
-        if (columnModification.Property is { IsPrimitiveCollection: false, })
+        if (columnModification.Property is { IsPrimitiveCollection: false })
         {
             base.AppendUpdateColumnValue(updateSqlGeneratorHelper, columnModification, stringBuilder, name, schema);
         }
@@ -408,6 +412,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
                 modification,
                 commandPosition,
                 out var localRequiresTransaction);
+
             requiresTransaction = requiresTransaction || localRequiresTransaction;
         }
 
@@ -416,7 +421,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
 
     /// <summary>
     /// Emits a single <c>INSERT INTO t (cols) VALUES (...),(...),(...);</c> statement for
-    /// write-only batches. <see cref="ResultSetMapping.NoResults"/> because the caller
+    /// write-only batches. <see cref="ResultSetMapping.NoResults" /> because the caller
     /// already knows the row count and no server-generated columns need to come back.
     /// </summary>
     private ResultSetMapping AppendInsertMultipleRowsInSingleStatementOperation(
@@ -442,14 +447,17 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             commandStringBuilder
                 .Append(',')
                 .AppendLine();
+
             var currentWriteOperations =
                 modificationCommands[index].ColumnModifications;
+
             if (reusableWriteOperations is not null)
             {
                 PopulateOperations(
                     modificationCommands[index].ColumnModifications,
                     reusableWriteOperations,
                     OperationKind.Write);
+
                 currentWriteOperations = reusableWriteOperations;
             }
 
@@ -471,9 +479,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
     /// <summary>
     /// MariaDB 10.5+ multi-row INSERT with RETURNING: collapses a multi-row write +
     /// per-row read-back into a single statement whose result set contains one row per
-    /// inserted row, in INSERT order. Returns <see cref="ResultSetMapping.NotLastInResultSet"/>;
-    /// <see cref="MySqlModificationCommandBatch.ApplyPendingBulkInsertCommands"/> flips
-    /// the last command's mapping to <see cref="ResultSetMapping.LastInResultSet"/> so the
+    /// inserted row, in INSERT order. Returns <see cref="ResultSetMapping.NotLastInResultSet" />;
+    /// <see cref="MySqlModificationCommandBatch.ApplyPendingBulkInsertCommands" /> flips
+    /// the last command's mapping to <see cref="ResultSetMapping.LastInResultSet" /> so the
     /// batch reader consumes N rows from one result set, each propagated to the
     /// corresponding command in INSERT order.
     /// </summary>
@@ -509,6 +517,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
                     modificationCommands[index].ColumnModifications,
                     reusableWriteOperations,
                     OperationKind.Write);
+
                 currentWriteOperations = reusableWriteOperations;
             }
 
@@ -545,7 +554,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
     /// INSERT + SELECT LAST_INSERT_ID round-trip pair into a single statement
     /// whose result set carries the generated columns (auto-increment, computed,
     /// trigger-modified). Reads the columns to project from
-    /// <see cref="IReadOnlyModificationCommand.ColumnModifications"/> -- every
+    /// <see cref="IReadOnlyModificationCommand.ColumnModifications" /> -- every
     /// column that the database produces (IsRead) is emitted in the RETURNING
     /// list in declaration order.
     /// </summary>
@@ -707,13 +716,6 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         _ => throw new UnreachableException(),
     };
 
-    private enum OperationKind
-    {
-        Read,
-        Write,
-        Condition,
-    }
-
     private void TrimTrailingStatementTerminator(
         StringBuilder commandStringBuilder
     )
@@ -774,7 +776,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             : outputModifications.All(modification => ReferenceEquals(modification.Column, command.RowsAffectedColumn));
 
         return ResultSetMapping.LastInResultSet
-            | (onlyRowsAffected ? ResultSetMapping.ResultSetWithRowsAffectedOnly : ResultSetMapping.NoResults);
+            | (onlyRowsAffected
+                ? ResultSetMapping.ResultSetWithRowsAffectedOnly
+                : ResultSetMapping.NoResults);
     }
 
     protected override void AppendIdentityWhereCondition(
@@ -795,7 +799,9 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
             var mapping = columnModification.TypeMapping
                 ?? Dependencies.TypeMappingSource.GetMapping(columnModification.Property!);
 
-            commandStringBuilder.Append(" = ").Append(mapping.GenerateSqlLiteral(defaultValue));
+            commandStringBuilder
+                .Append(" = ")
+                .Append(mapping.GenerateSqlLiteral(defaultValue));
         }
         else
         {
@@ -810,7 +816,7 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
 
     internal static bool IsIdentityColumn(
         IColumnModification modification
-    ) => modification is { IsKey: true, IsRead: true, IsWrite: false, }
+    ) => modification is { IsKey: true, IsRead: true, IsWrite: false }
         && (modification.Property is null
             || modification.Property.GetMySqlValueGenerationStrategy() == MySqlValueGenerationStrategy.AutoIncrement
             || modification.Property.ValueGenerated == ValueGenerated.Never);
@@ -853,5 +859,12 @@ internal sealed partial class MySqlUpdateSqlGenerator : UpdateAndSelectSqlGenera
         commandStringBuilder.Insert(
             0,
             $"SET AUTOCOMMIT = 1{SqlGenerationHelper.StatementTerminator}" + Environment.NewLine);
+    }
+
+    private enum OperationKind
+    {
+        Read,
+        Write,
+        Condition,
     }
 }

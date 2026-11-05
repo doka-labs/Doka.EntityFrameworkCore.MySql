@@ -2,24 +2,30 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
+    /// <summary>Verifies the changed parameters contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertChangedParametersAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var minimum = 31;
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id >= minimum)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
             .OrderBy(id => id);
 
-        var previous = await query.ToArrayAsync(CancellationToken.None);
+        var previous = await query.ToArrayAsync(cancellationToken);
         minimum = 32;
         fixture.Probe.Reset();
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([31, 32], previous);
@@ -28,22 +34,28 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the repeated enumeration contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRepeatedEnumerationAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id == 1)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id == 1)
             .Select(_ => Guid.NewGuid())
             .WithMaterializedSource(source => source);
 
-        var previous = await query.SingleAsync(CancellationToken.None);
+        var previous = await query.SingleAsync(cancellationToken);
         fixture.Probe.Reset();
 
-        var actual = await query.SingleAsync(CancellationToken.None);
+        var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
         Assert.NotEqual(Guid.Empty, actual);
@@ -51,33 +63,40 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the compiled query contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCompiledQueryAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = EF.CompileAsyncQuery<BindingContext, int, int>((context, minimum) => context.Items
+        var query = EF.CompileAsyncQuery<BindingContext, int, int>((context, minimum) => context
+            .Items
             .Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
             .OrderBy(id => id));
 
-        var actual = await ReadAsync(query(fixture.Context, 31));
+        var actual = await ReadAsync(query(fixture.Context, 31), cancellationToken);
 
         // Assert
         Assert.Equal([31, 32], actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Executes the read database scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> ReadAsync(
-        IAsyncEnumerable<int> source
+        IAsyncEnumerable<int> source,
+        CancellationToken cancellationToken
     )
     {
         var result = new List<int>();
 
-        await foreach (var value in source.WithCancellation(CancellationToken.None))
+        await foreach (var value in source.WithCancellation(cancellationToken))
         {
             result.Add(value);
         }
@@ -85,15 +104,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         return result.ToArray();
     }
 
+    /// <summary>Verifies the entity tracking contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertEntityTrackingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
                 left => left.Id,
@@ -101,32 +126,55 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 (left, _) => left))
             .OrderBy(item => item.Id);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([1, 2], actual.Select(item => item.Id));
-        Assert.Equal(2, fixture.Context.ChangeTracker.Entries<BoundItem>().Count());
-        Assert.All(actual, item => Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(item).State));
+        Assert.Equal(
+            2,
+            fixture
+                .Context
+                .ChangeTracker
+                .Entries<BoundItem>()
+                .Count());
+
+        Assert.All(
+            actual,
+            item => Assert.Equal(
+                EntityState.Unchanged,
+                fixture.Context.Entry(item)
+                    .State));
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the collection results contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCollectionResultsAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 3)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 3)
             .WithMaterializedSource(source => source.Select(item => new CollectionResult
             {
                 Id = item.Id,
-                Children = item.Children.OrderBy(child => child.Id).Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .OrderBy(child => child.Id)
+                    .Select(child => child.Name)
+                    .ToArray(),
             }))
             .OrderBy(item => item.Id);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([1, 2, 3], actual.Select(item => item.Id));
@@ -136,12 +184,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the cancellation contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCancellationAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var interceptor = new CommandCancellationProbeInterceptor();
         await using var context = CreateContext(target, interceptor);
         using var cancellation = new CancellationTokenSource();
@@ -149,8 +200,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Act
         var query = context.Items.WithMaterializedSource(source => source.Where(item => item.Id <= 2));
 
-        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => query.ToArrayAsync(cancellation.Token));
+        var exception =
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ToArrayAsync(cancellation.Token));
 
         // Assert
         Assert.Equal(cancellation.Token, exception.CancellationToken);
@@ -158,15 +209,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, interceptor.InvocationCount);
     }
 
+    /// <summary>Verifies the construction contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertConstructionAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
                 left => left.Id,
@@ -180,18 +237,24 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Empty(fixture.Context.ChangeTracker.Entries());
     }
 
+    /// <summary>Verifies the client projection rejected contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertClientProjectionRejectedAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Select(item => ClientOnlyProjection(item.Name))
+        var query = fixture
+            .Context
+            .Items
+            .Select(item => ClientOnlyProjection(item.Name))
             .WithMaterializedSource(source => source);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Equal(0, fixture.Probe.Count);
@@ -201,33 +264,45 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         string value
     ) => $"client:{value}";
 
+    /// <summary>Verifies the collection source rejected contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCollectionSourceRejectedAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Select(item => new CollectionResult
+        var query = fixture
+            .Context
+            .Items
+            .Select(item => new CollectionResult
             {
                 Id = item.Id,
-                Children = item.Children.Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .Select(child => child.Name)
+                    .ToArray(),
             })
             .WithMaterializedSource(source => source.Select(item => item.Id));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Equal(0, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the foreign context rejected contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertForeignContextRejectedAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var foreignProbe = new BindingCommandProbe();
         await using var foreign = CreateContext(target, foreignProbe);
 
@@ -238,7 +313,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             remote => remote.Id,
             (local, _) => local.Id));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Equal(0, fixture.Probe.Count);

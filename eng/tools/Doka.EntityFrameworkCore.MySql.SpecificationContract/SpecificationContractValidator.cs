@@ -68,6 +68,7 @@ internal static class SpecificationContractValidator
     {
         var report = ValidateRepository(repositoryRoot, providerAssemblyPath);
         var errors = report.Errors.ToList();
+
         // The baseline already identifies every missing provider mapping. Run the
         // independent upstream assertion only after that actionable debt reaches zero.
         if (errors.Count == 0
@@ -154,14 +155,16 @@ internal static class SpecificationContractValidator
         ValidateDistinct(baseline.Entries.Select(entry => entry.UpstreamBaseId), "baseline base ID", errors);
 
         var entries = baseline
-            .Entries.GroupBy(entry => entry.UpstreamBaseId, StringComparer.Ordinal)
+            .Entries
+            .GroupBy(entry => entry.UpstreamBaseId, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
                 group => group.First(),
                 StringComparer.Ordinal);
 
         var inventoryIds = inventory
-            .BaseClasses.Select(descriptor => descriptor.Id)
+            .BaseClasses
+            .Select(descriptor => descriptor.Id)
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var descriptor in inventory.BaseClasses)
@@ -186,7 +189,7 @@ internal static class SpecificationContractValidator
         }
 
         foreach (var entry in baseline.Entries.Where(entry =>
-                     entry.EfCoreVersions.Contains(inventory.EfCoreVersion, StringComparer.Ordinal)))
+            entry.EfCoreVersions.Contains(inventory.EfCoreVersion, StringComparer.Ordinal)))
         {
             if (!inventoryIds.Contains(entry.UpstreamBaseId))
             {
@@ -199,7 +202,8 @@ internal static class SpecificationContractValidator
         }
 
         var baselineDebt = baseline
-            .Entries.Where(entry => entry.BaselineState == "provider-debt")
+            .Entries
+            .Where(entry => entry.BaselineState == "provider-debt")
             .ToArray();
 
         if (baseline.InitialProviderGapCount != baselineDebt.Length)
@@ -225,13 +229,17 @@ internal static class SpecificationContractValidator
                 continue;
             }
 
-            var mappings = actualMappings.TryGetValue(descriptor.Id, out var values) ? values : [];
+            var mappings = actualMappings.TryGetValue(descriptor.Id, out var values)
+                ? values
+                : [];
+
             if (mappings.Count > 0)
             {
                 if (entry.BaselineState == "implemented")
                 {
                     var removedMappings = entry
-                        .ProviderTypes.Except(mappings, StringComparer.Ordinal)
+                        .ProviderTypes
+                        .Except(mappings, StringComparer.Ordinal)
                         .ToArray();
 
                     foreach (var removedMapping in removedMappings)
@@ -275,11 +283,11 @@ internal static class SpecificationContractValidator
     )
     {
         if (!DateOnly.TryParseExact(
-                committed.RetrievedAt,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var retrievedAt))
+            committed.RetrievedAt,
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var retrievedAt))
         {
             errors.Add($"Inventory retrievedAt '{committed.RetrievedAt}' is invalid.");
             return;
@@ -330,7 +338,8 @@ internal static class SpecificationContractValidator
     {
         if (entry.Targets.Count == 0
             || !entry
-                .Targets.OrderBy(value => value, StringComparer.Ordinal)
+                .Targets
+                .OrderBy(value => value, StringComparer.Ordinal)
                 .SequenceEqual(
                     supportedTargets.OrderBy(value => value, StringComparer.Ordinal),
                     StringComparer.Ordinal))
@@ -390,9 +399,9 @@ internal static class SpecificationContractValidator
     )
     {
         foreach (var duplicate in values
-                     .GroupBy(value => value, StringComparer.Ordinal)
-                     .Where(group => group.Count() > 1)
-                     .Select(group => group.Key))
+            .GroupBy(value => value, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key))
         {
             errors.Add($"Duplicate {label} '{duplicate}'.");
         }

@@ -9,7 +9,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql84)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -19,7 +19,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task MySql97_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql97)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -29,7 +29,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb1011)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -39,7 +39,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb114)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -49,7 +49,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb118)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -59,25 +59,32 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_generated_context_compiles_and_executes()
     {
-        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb123)
+        await RunGeneratedContextRuntimeAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs generated context runtime for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task RunGeneratedContextRuntimeAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await CreateSchemaAsync(connectionString)
+        await CreateSchemaAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
-        await CreateIndexAndStoreSchemaAsync(connectionString, target)
+
+        await CreateIndexAndStoreSchemaAsync(connectionString, target, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
-            var serverVersionText = await ReadServerVersionAsync(connectionString)
+            var serverVersionText = await ReadServerVersionAsync(connectionString, cancellationToken)
                 .ConfigureAwait(false);
 
             await using var serviceProvider =
@@ -116,142 +123,158 @@ public sealed partial class MySqlScaffoldingRoundTripTests
                         contextName: "RuntimeSchemaContext",
                         suppressOnConfiguring: true));
 
-            await DropSchemaAsync(connectionString)
+            await DropSchemaAsync(connectionString, cancellationToken)
                 .ConfigureAwait(false);
-            await DropIndexAndStoreSchemaAsync(connectionString, target)
+
+            await DropIndexAndStoreSchemaAsync(connectionString, target, cancellationToken)
                 .ConfigureAwait(false);
 
             await GeneratedContextRuntimeVerifier
                 .VerifyAsync(
                     scaffoldedModel,
                     connectionString,
-                    serverVersionText)
+                    serverVersionText,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
-            await AssertRuntimeSchemaAsync(connectionString, target)
+            await AssertRuntimeSchemaAsync(connectionString, target, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
-            await DropSchemaAsync(connectionString)
+            await DropSchemaAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
-            await DropIndexAndStoreSchemaAsync(connectionString, target)
+
+            await DropIndexAndStoreSchemaAsync(connectionString, target, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Verifies runtime schema for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task AssertRuntimeSchemaAsync(
         string connectionString,
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var sequenceExistsSql = IsMariaDb(target)
-            ?
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = '{IndexStoreSequence}'
-              AND TABLE_TYPE = 'SEQUENCE';
-            """
-            :
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = '{EmulatedSequenceTable}'
-              AND TABLE_TYPE = 'BASE TABLE';
-            """;
+            ? $"""
+               SELECT COUNT(*)
+               FROM information_schema.TABLES
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = '{IndexStoreSequence}'
+                 AND TABLE_TYPE = 'SEQUENCE';
+               """
+            : $"""
+               SELECT COUNT(*)
+               FROM information_schema.TABLES
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = '{EmulatedSequenceTable}'
+                 AND TABLE_TYPE = 'BASE TABLE';
+               """;
 
         // Act
         var tableCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME IN ('{ParentTable}', '{ChildTable}', '{IndexStoreTable}')
-              AND TABLE_TYPE = 'BASE TABLE';
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(*)
+                 FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME IN ('{ParentTable}', '{ChildTable}', '{IndexStoreTable}')
+                   AND TABLE_TYPE = 'BASE TABLE';
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var foreignKeyCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.REFERENTIAL_CONSTRAINTS
-            WHERE CONSTRAINT_SCHEMA = DATABASE()
-              AND CONSTRAINT_NAME = '{ForeignKey}';
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(*)
+                 FROM information_schema.REFERENTIAL_CONSTRAINTS
+                 WHERE CONSTRAINT_SCHEMA = DATABASE()
+                   AND CONSTRAINT_NAME = '{ForeignKey}';
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var checkCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = '{ParentTable}'
-              AND CONSTRAINT_TYPE = 'CHECK'
-              AND CONSTRAINT_NAME = '{CheckConstraint}';
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(*)
+                 FROM information_schema.TABLE_CONSTRAINTS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = '{ParentTable}'
+                   AND CONSTRAINT_TYPE = 'CHECK'
+                   AND CONSTRAINT_NAME = '{CheckConstraint}';
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var foreignKeyIndexCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(DISTINCT INDEX_NAME)
-            FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = '{ChildTable}'
-              AND COLUMN_NAME = 'ParentId'
-              AND SEQ_IN_INDEX = 1;
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(DISTINCT INDEX_NAME)
+                 FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = '{ChildTable}'
+                   AND COLUMN_NAME = 'ParentId'
+                   AND SEQ_IN_INDEX = 1;
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var jsonConstraintCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(*)
-            FROM information_schema.TABLE_CONSTRAINTS AS constraints
-            INNER JOIN information_schema.CHECK_CONSTRAINTS AS checks
-                ON checks.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
-                AND checks.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
-            WHERE constraints.TABLE_SCHEMA = DATABASE()
-              AND constraints.TABLE_NAME = '{IndexStoreTable}'
-              AND constraints.CONSTRAINT_TYPE = 'CHECK'
-              AND LOWER(checks.CHECK_CLAUSE) LIKE '%json_valid%';
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(*)
+                 FROM information_schema.TABLE_CONSTRAINTS AS constraints
+                 INNER JOIN information_schema.CHECK_CONSTRAINTS AS checks
+                     ON checks.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
+                     AND checks.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
+                 WHERE constraints.TABLE_SCHEMA = DATABASE()
+                   AND constraints.TABLE_NAME = '{IndexStoreTable}'
+                   AND constraints.CONSTRAINT_TYPE = 'CHECK'
+                   AND LOWER(checks.CHECK_CLAUSE) LIKE '%json_valid%';
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var backfilledRowCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(*)
-            FROM `{ParentTable}`
-            WHERE `OptionalCount` = 9
-              AND `ComputedCount` = 10;
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(*)
+                 FROM `{ParentTable}`
+                 WHERE `OptionalCount` = 9
+                   AND `ComputedCount` = 10;
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var providerIndexCount = await ExecuteScalarInt64Async(
-            connection,
-            $"""
-            SELECT COUNT(DISTINCT INDEX_NAME)
-            FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = '{IndexStoreTable}'
-              AND INDEX_NAME IN ('{PrefixIndex}', '{FullTextIndex}', '{SpatialIndex}', '{UniqueIndex}');
-            """)
+                connection,
+                $"""
+                 SELECT COUNT(DISTINCT INDEX_NAME)
+                 FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = '{IndexStoreTable}'
+                   AND INDEX_NAME IN ('{PrefixIndex}', '{FullTextIndex}', '{SpatialIndex}', '{UniqueIndex}');
+                 """,
+                cancellationToken)
             .ConfigureAwait(false);
 
-        var sequenceCount = await ExecuteScalarInt64Async(connection, sequenceExistsSql)
+        var sequenceCount = await ExecuteScalarInt64Async(connection, sequenceExistsSql, cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
@@ -259,7 +282,12 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         Assert.Equal(1L, foreignKeyCount);
         Assert.Equal(1L, checkCount);
         Assert.Equal(1L, foreignKeyIndexCount);
-        Assert.Equal(IsMariaDb(target) ? 1L : 0L, jsonConstraintCount);
+        Assert.Equal(
+            IsMariaDb(target)
+                ? 1L
+                : 0L,
+            jsonConstraintCount);
+
         Assert.Equal(1L, backfilledRowCount);
         Assert.Equal(4L, providerIndexCount);
         Assert.Equal(1L, sequenceCount);

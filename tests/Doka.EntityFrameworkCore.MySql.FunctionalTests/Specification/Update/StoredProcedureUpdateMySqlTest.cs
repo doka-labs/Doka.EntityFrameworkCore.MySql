@@ -7,6 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
+
 /// <summary>
 /// Runs the relational stored-procedure update contract against MySQL-family
 /// engines.
@@ -16,9 +17,10 @@ public sealed class StoredProcedureUpdateMySqlTest
 {
     public StoredProcedureUpdateMySqlTest(
         NonSharedFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
+
+    protected override ITestStoreFactory TestStoreFactory
+        => MySqlTestStoreFactory.Instance;
 
     protected override async Task CreateStoredProcedures(
         DbContext context,
@@ -31,9 +33,8 @@ public sealed class StoredProcedureUpdateMySqlTest
             TimeSpan.FromSeconds(1)
         ).Split(createSprocSql);
 
-        foreach (var batch in batches.Where(
-                     static batch => !string.IsNullOrEmpty(batch)
-                 ))
+        foreach (var batch in batches.Where(static batch => !string.IsNullOrEmpty(batch)
+            ))
         {
             await context.Database.ExecuteSqlRawAsync(batch);
         }
@@ -42,8 +43,7 @@ public sealed class StoredProcedureUpdateMySqlTest
     protected override void ConfigureStoreGeneratedConcurrencyToken(
         EntityTypeBuilder entityTypeBuilder,
         string propertyName
-    ) => entityTypeBuilder.Property<byte[]>(propertyName).IsRowVersion();
-
-    protected override ITestStoreFactory TestStoreFactory
-        => MySqlTestStoreFactory.Instance;
+    ) => entityTypeBuilder
+        .Property<byte[]>(propertyName)
+        .IsRowVersion();
 }

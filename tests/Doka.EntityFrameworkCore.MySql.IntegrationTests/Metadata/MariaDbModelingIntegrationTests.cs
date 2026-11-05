@@ -15,7 +15,7 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new TphContext(CreateOptions<TphContext>(connectionString));
-        await CleanupAsync(context, "MdbTphAnimals");
+        await CleanupAsync(context, CancellationToken.None, "MdbTphAnimals");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -31,12 +31,28 @@ public sealed class MariaDbModelingIntegrationTests
 
         try
         {
-            context.Animals.Add(new TphDog { Name = "Rex", Breed = "Shepherd" });
-            context.Animals.Add(new TphCat { Name = "Mimi", IsIndoor = true });
-            await context.SaveChangesAsync();
+            context.Animals.Add(
+                new TphDog
+                {
+                    Name = "Rex",
+                    Breed = "Shepherd",
+                });
+
+            context.Animals.Add(
+                new TphCat
+                {
+                    Name = "Mimi",
+                    IsIndoor = true,
+                });
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
-            var dogs = await context.Animals.OfType<TphDog>().ToListAsync();
+            var dogs = await context
+                .Animals
+                .OfType<TphDog>()
+                .ToListAsync();
+
             var allAnimalCount = await context.Animals.CountAsync();
 
             // Assert
@@ -46,7 +62,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "MdbTphAnimals");
+            await CleanupAsync(context, CancellationToken.None, "MdbTphAnimals");
         }
     }
 
@@ -56,20 +72,30 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new TptContext(CreateOptions<TptContext>(connectionString));
-        await CleanupAsync(context, "MdbTptCars", "MdbTptVehicles");
+        await CleanupAsync(context, CancellationToken.None, "MdbTptCars", "MdbTptVehicles");
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbTptVehicles` (`Id` int NOT NULL AUTO_INCREMENT, `Make` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbTptCars` (`Id` int NOT NULL, `SeatCount` int NOT NULL, PRIMARY KEY (`Id`), FOREIGN KEY (`Id`) REFERENCES `MdbTptVehicles` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Vehicles.Add(new TptCar { Make = "Audi", SeatCount = 4 });
-            await context.SaveChangesAsync();
+            context.Vehicles.Add(
+                new TptCar
+                {
+                    Make = "Audi",
+                    SeatCount = 4,
+                });
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
-            var car = await context.Vehicles.OfType<TptCar>().FirstAsync();
+            var car = await context
+                .Vehicles
+                .OfType<TptCar>()
+                .FirstAsync();
 
             // Assert
             Assert.Equal("Audi", car.Make);
@@ -77,7 +103,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "MdbTptCars", "MdbTptVehicles");
+            await CleanupAsync(context, CancellationToken.None, "MdbTptCars", "MdbTptVehicles");
         }
     }
 
@@ -87,7 +113,7 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new OwnedContext(CreateOptions<OwnedContext>(connectionString));
-        await CleanupAsync(context, "MdbOwnedCustomers");
+        await CleanupAsync(context, CancellationToken.None, "MdbOwnedCustomers");
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbOwnedCustomers` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, `Address_Street` varchar(200) NULL, `Address_City` varchar(100) NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
@@ -104,7 +130,8 @@ public sealed class MariaDbModelingIntegrationTests
                         City = "Munich",
                     },
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
             // Act
@@ -115,7 +142,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "MdbOwnedCustomers");
+            await CleanupAsync(context, CancellationToken.None, "MdbOwnedCustomers");
         }
     }
 
@@ -125,12 +152,14 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new M2MContext(CreateOptions<M2MContext>(connectionString));
-        await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
+        await CleanupAsync(context, CancellationToken.None, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbStudents` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbCourses` (`Id` int NOT NULL AUTO_INCREMENT, `Title` varchar(200) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbM2MCourseStudent` (`CoursesId` int NOT NULL, `StudentsId` int NOT NULL, PRIMARY KEY (`CoursesId`, `StudentsId`), FOREIGN KEY (`CoursesId`) REFERENCES `MdbCourses` (`Id`) ON DELETE CASCADE, FOREIGN KEY (`StudentsId`) REFERENCES `MdbStudents` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
 
@@ -139,12 +168,13 @@ public sealed class MariaDbModelingIntegrationTests
             var s = new M2MStudent { Name = "Eve" };
             s.Courses.Add(new M2MCourse { Title = "Math" });
             context.Students.Add(s);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
             // Act
             var loaded = await context
-                .Students.Include(x => x.Courses)
+                .Students
+                .Include(x => x.Courses)
                 .FirstAsync();
 
             // Assert
@@ -152,7 +182,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
+            await CleanupAsync(context, CancellationToken.None, "MdbM2MCourseStudent", "MdbStudents", "MdbCourses");
         }
     }
 
@@ -162,27 +192,34 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new ConcurrencyContext(CreateOptions<ConcurrencyContext>(connectionString));
-        await CleanupAsync(context, "MdbConcurrency");
+        await CleanupAsync(context, CancellationToken.None, "MdbConcurrency");
 
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbConcurrency` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, `Version` int NOT NULL DEFAULT 0, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbConcurrency` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, `Version` int NOT NULL DEFAULT 0, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Items.Add(new ConcurrencyItem { Name = "Original", Version = 1 });
-            await context.SaveChangesAsync();
+            context.Items.Add(
+                new ConcurrencyItem
+                {
+                    Name = "Original",
+                    Version = 1,
+                });
+
+            await context.SaveChangesAsync(CancellationToken.None);
             await context.Database.ExecuteSqlRawAsync("UPDATE `MdbConcurrency` SET `Version` = 99 WHERE `Id` = 1;");
             var entity = await context.Items.FirstAsync();
             entity.Name = "Modified";
 
             // Act
-            var failure = await Record.ExceptionAsync(() => context.SaveChangesAsync());
+            var failure = await Record.ExceptionAsync(() => context.SaveChangesAsync(CancellationToken.None));
 
             // Assert
             Assert.IsType<DbUpdateConcurrencyException>(failure);
         }
         finally
         {
-            await CleanupAsync(context, "MdbConcurrency");
+            await CleanupAsync(context, CancellationToken.None, "MdbConcurrency");
         }
     }
 
@@ -192,7 +229,7 @@ public sealed class MariaDbModelingIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
         await using var context = new ConverterContext(CreateOptions<ConverterContext>(connectionString));
-        await CleanupAsync(context, "MdbConverter");
+        await CleanupAsync(context, CancellationToken.None, "MdbConverter");
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbConverter` (`Id` int NOT NULL AUTO_INCREMENT, `IsActive` varchar(1) NOT NULL, `Price` decimal(18,2) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
@@ -203,9 +240,10 @@ public sealed class MariaDbModelingIntegrationTests
                 new ConverterItem
                 {
                     IsActive = true,
-                    Price = 99.95m
+                    Price = 99.95m,
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
             // Act
@@ -217,7 +255,7 @@ public sealed class MariaDbModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "MdbConverter");
+            await CleanupAsync(context, CancellationToken.None, "MdbConverter");
         }
     }
 
@@ -234,8 +272,15 @@ public sealed class MariaDbModelingIntegrationTests
         return b.Options;
     }
 
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="ctx">The context used for the database operation.</param>
+    /// <param name="tables">The tables.</param>
     private static async Task CleanupAsync(
         DbContext ctx,
+        CancellationToken cancellationToken,
         params string[] tables
     )
     {
@@ -244,7 +289,9 @@ public sealed class MariaDbModelingIntegrationTests
             // Escape any backticks defensively so the helper is safe-by-construction
             // even if a future caller passes a non-literal identifier.
             var quoted = t.Replace("`", "``", StringComparison.Ordinal);
-            await ctx.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{quoted}`;");
+            await ctx.Database.ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{quoted}`;",
+                cancellationToken: cancellationToken);
         }
     }
 
@@ -285,13 +332,16 @@ public sealed class MariaDbModelingIntegrationTests
                     .HasDiscriminator<string>("Type")
                     .HasValue<TphDog>("Dog")
                     .HasValue<TphCat>("Cat");
+
                 e
                     .Property("Type")
                     .HasMaxLength(64);
+
                 e
                     .Property(a => a.Name)
                     .HasMaxLength(100);
             });
+
             m.Entity<TphDog>(e => e
                 .Property(d => d.Breed)
                 .HasMaxLength(100));
@@ -324,6 +374,7 @@ public sealed class MariaDbModelingIntegrationTests
             m
                 .Entity<TptVehicle>()
                 .UseTptMappingStrategy();
+
             m.Entity<TptVehicle>(e =>
             {
                 e.ToTable("MdbTptVehicles");
@@ -331,6 +382,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(v => v.Make)
                     .HasMaxLength(100);
             });
+
             m
                 .Entity<TptCar>()
                 .ToTable("MdbTptCars");
@@ -368,6 +420,7 @@ public sealed class MariaDbModelingIntegrationTests
                 e
                     .Property(c => c.Name)
                     .HasMaxLength(100);
+
                 e.OwnsOne(
                     c => c.Address,
                     a =>
@@ -375,6 +428,7 @@ public sealed class MariaDbModelingIntegrationTests
                         a
                             .Property(x => x.Street)
                             .HasMaxLength(200);
+
                         a
                             .Property(x => x.City)
                             .HasMaxLength(100);
@@ -416,6 +470,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(s => s.Name)
                     .HasMaxLength(100);
             });
+
             m.Entity<M2MCourse>(e =>
             {
                 e.ToTable("MdbCourses");
@@ -423,6 +478,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(c => c.Title)
                     .HasMaxLength(200);
             });
+
             m
                 .Entity<M2MStudent>()
                 .HasMany(s => s.Courses)
@@ -486,8 +542,13 @@ public sealed class MariaDbModelingIntegrationTests
                 e.ToTable("MdbConverter");
                 e
                     .Property(c => c.IsActive)
-                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasConversion(
+                        v => v
+                            ? "Y"
+                            : "N",
+                        v => v == "Y")
                     .HasMaxLength(1);
+
                 e
                     .Property(c => c.Price)
                     .HasPrecision(18, 2);

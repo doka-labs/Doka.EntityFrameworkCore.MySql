@@ -13,8 +13,13 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         var oversized = new string('X', 1_048_574);
-        string[] setup = oversizedSetup ? ["S", oversized] : ["S"];
-        string[] cleanup = oversizedSetup ? ["C"] : ["C", oversized];
+        string[] setup = oversizedSetup
+            ? ["S", oversized]
+            : ["S"];
+
+        string[] cleanup = oversizedSetup
+            ? ["C"]
+            : ["C", oversized];
 
         // Act
         var exception = Record.Exception(() => MySqlMigrationCommandSpec.CreateScoped(setup, "B", cleanup));

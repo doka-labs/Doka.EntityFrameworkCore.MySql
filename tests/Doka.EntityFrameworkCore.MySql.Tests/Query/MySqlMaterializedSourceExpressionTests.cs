@@ -11,7 +11,10 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         // Arrange
         using var context = CreateContext();
         var source = CreateLeafSource();
-        var expression = new MySqlMaterializedSourceExpression("rows", 17, source,
+        var expression = new MySqlMaterializedSourceExpression(
+            "rows",
+            17,
+            source,
             new Dictionary<string, IAnnotation>
             {
                 ["Doka:Reference"] = new Annotation("Doka:Reference", "reference-value"),
@@ -26,11 +29,20 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         Assert.Equal("rows", reconstructed.Alias);
         Assert.Equal(17, reconstructed.BindingId);
         Assert.Equal("leaf_seed", reconstructed.Source.Alias);
-        Assert.Equal("reference-value", reconstructed.FindAnnotation("Doka:Reference")?.Value);
-        Assert.Equal(true, reconstructed.FindAnnotation("Doka:Enabled")?.Value);
+        Assert.Equal(
+            "reference-value",
+            reconstructed.FindAnnotation("Doka:Reference")
+                ?.Value);
+
+        Assert.Equal(
+            true,
+            reconstructed.FindAnnotation("Doka:Enabled")
+                ?.Value);
+
         Assert.NotNull(reconstructed.FindAnnotation("Doka:Optional"));
         Assert.Null(reconstructed.FindAnnotation("Doka:Optional")!.Value);
-        Assert.Collection(reconstructed.Source.Projection,
+        Assert.Collection(
+            reconstructed.Source.Projection,
             projection =>
             {
                 Assert.Equal("Token", projection.Alias);
@@ -66,8 +78,10 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         Assert.Equal("second", reconstructed.Alias);
         Assert.Equal(original.BindingId, reconstructed.BindingId);
         Assert.Same(original.Source, aliased.Source);
-        Assert.Equal(original.Source.Projection.Select(projection => projection.Alias),
+        Assert.Equal(
+            original.Source.Projection.Select(projection => projection.Alias),
             reconstructed.Source.Projection.Select(projection => projection.Alias));
+
         Assert.Equal("first", original.Alias);
     }
 
@@ -86,13 +100,16 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         // Assert
         Assert.Equal(32, reconstructed.BindingId);
         Assert.Equal("pair_seed", reconstructed.Source.Alias);
-        Assert.Collection(reconstructed.Source.Tables,
+        Assert.Collection(
+            reconstructed.Source.Tables,
             table => AssertNestedReference(table, "first", 31),
             table => AssertNestedReference(table, "second", 31));
+
         var first = Assert.IsType<MySqlMaterializedSourceExpression>(reconstructed.Source.Tables[0]);
         var second = Assert.IsType<MySqlMaterializedSourceExpression>(reconstructed.Source.Tables[1]);
         Assert.Same(first.Definition, second.Definition);
-        Assert.Collection(reconstructed.Source.Projection,
+        Assert.Collection(
+            reconstructed.Source.Projection,
             projection =>
             {
                 Assert.Equal("FirstToken", projection.Alias);
@@ -121,10 +138,18 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         using var context = CreateContext();
         var expression = CreateNestedSource();
         var generators = context.GetService<IQuerySqlGeneratorFactory>();
-        var expected = generators.Create().GetCommand(expression.Source).CommandText;
+        var expected = generators
+            .Create()
+            .GetCommand(expression.Source)
+            .CommandText;
 
         // Act
-        var actual = generators.Create().GetCommand(RoundTrip(expression, context).Source).CommandText;
+        var actual = generators
+            .Create()
+            .GetCommand(
+                RoundTrip(expression, context)
+                    .Source)
+            .CommandText;
 
         // Assert
         Assert.Equal(expected, actual);
@@ -137,22 +162,33 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     {
         // Arrange
         using var context = CreateContext();
-        var source = CreateNestedSource().Source;
+        var source = CreateNestedSource()
+            .Source;
+
         var generators = context.GetService<IQuerySqlGeneratorFactory>();
-        var expected = generators.Create().GetCommand(source).CommandText;
+        var expected = generators
+            .Create()
+            .GetCommand(source)
+            .CommandText;
 
         // Act
         var quoted = source.Quote();
         var bound = new TypeMappingSourceBindingExpressionVisitor(context.GetService<IRelationalTypeMappingSource>())
             .Visit(quoted);
 
-        var reconstructed = Expression.Lambda<Func<SelectExpression>>(bound).Compile()();
+        var reconstructed = Expression
+            .Lambda<Func<SelectExpression>>(bound)
+            .Compile()();
 
-        var actual = generators.Create().GetCommand(reconstructed).CommandText;
+        var actual = generators
+            .Create()
+            .GetCommand(reconstructed)
+            .CommandText;
 
         // Assert
         Assert.Equal(expected, actual);
-        Assert.Collection(reconstructed.Tables,
+        Assert.Collection(
+            reconstructed.Tables,
             table => AssertNestedReference(table, "first", 31),
             table => AssertNestedReference(table, "second", 31));
     }
@@ -182,19 +218,37 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     {
         var first = new MySqlMaterializedSourceExpression("first", 31, CreateLeafSource());
         var second = first.WithAlias("second");
-        var source = CreateSource("pair_seed", [first, second],
-        [
-            new ProjectionExpression(new ColumnExpression("Token", "first", typeof(Guid),
-                MySqlGuidBinaryTypeMapping.Default, nullable: false), "FirstToken"),
-            new ProjectionExpression(new ColumnExpression("OptionalName", "second", typeof(string),
-                MySqlStringTypeMapping.Default, nullable: true), "SecondName"),
-        ]);
+        var source = CreateSource(
+            "pair_seed",
+            [first, second],
+            [
+                new ProjectionExpression(
+                    new ColumnExpression(
+                        "Token",
+                        "first",
+                        typeof(Guid),
+                        MySqlGuidBinaryTypeMapping.Default,
+                        nullable: false),
+                    "FirstToken"),
+                new ProjectionExpression(
+                    new ColumnExpression(
+                        "OptionalName",
+                        "second",
+                        typeof(string),
+                        MySqlStringTypeMapping.Default,
+                        nullable: true),
+                    "SecondName"),
+            ]);
 
         return new MySqlMaterializedSourceExpression("pairs", 32, source);
     }
 
     /// <summary>Checks the semantic identity and schema of one reconstructed nested reference.</summary>
-    private static void AssertNestedReference(TableExpressionBase table, string alias, int bindingId)
+    private static void AssertNestedReference(
+        TableExpressionBase table,
+        string alias,
+        int bindingId
+    )
     {
         var reference = Assert.IsType<MySqlMaterializedSourceExpression>(table);
         Assert.Equal(alias, reference.Alias);
@@ -205,12 +259,17 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
 
     /// <summary>Builds an immutable scalar schema with a native GUID and a typed nullable payload.</summary>
     private static SelectExpression CreateLeafSource()
-        => CreateSource("leaf_seed", [],
-        [
-            new ProjectionExpression(new SqlConstantExpression(Guid.Empty, MySqlGuidBinaryTypeMapping.Default), "Token"),
-            new ProjectionExpression(new SqlConstantExpression(null, typeof(string), MySqlStringTypeMapping.Default),
-                "OptionalName"),
-        ]);
+        => CreateSource(
+            "leaf_seed",
+            [],
+            [
+                new ProjectionExpression(
+                    new SqlConstantExpression(Guid.Empty, MySqlGuidBinaryTypeMapping.Default),
+                    "Token"),
+                new ProjectionExpression(
+                    new SqlConstantExpression(null, typeof(string), MySqlStringTypeMapping.Default),
+                    "OptionalName"),
+            ]);
 
     /// <summary>Constructs the exact immutable relational fixture required by the quotation contract.</summary>
     private static SelectExpression CreateSource(
@@ -227,20 +286,26 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
 
     /// <summary>Reconstructs the quoted SQL node after binding EF's type-mapping service placeholder.</summary>
     [Experimental("EF9100")]
-    private static MySqlMaterializedSourceExpression RoundTrip(MySqlMaterializedSourceExpression expression, QuoteContext context)
+    private static MySqlMaterializedSourceExpression RoundTrip(
+        MySqlMaterializedSourceExpression expression,
+        QuoteContext context
+    )
     {
         var quoted = expression.Quote();
         var bound = new TypeMappingSourceBindingExpressionVisitor(context.GetService<IRelationalTypeMappingSource>())
             .Visit(quoted);
 
-        return Expression.Lambda<Func<MySqlMaterializedSourceExpression>>(bound).Compile()();
+        return Expression
+            .Lambda<Func<MySqlMaterializedSourceExpression>>(bound)
+            .Compile()();
     }
 
     /// <summary>Creates a context only for EF's provider type-mapping service.</summary>
     private static QuoteContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<QuoteContext>()
-            .UseMySql("Server=localhost;Database=quote;User ID=unused;",
+            .UseMySql(
+                "Server=localhost;Database=quote;User ID=unused;",
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
             .Options;
 
@@ -248,17 +313,24 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     }
 
     /// <summary>Supplies the same mapping-service placeholder binding as EF's generated reconstruction.</summary>
-    private sealed class TypeMappingSourceBindingExpressionVisitor(IRelationalTypeMappingSource source) : ExpressionVisitor
+    private sealed class TypeMappingSourceBindingExpressionVisitor(IRelationalTypeMappingSource source)
+        : ExpressionVisitor
     {
         /// <inheritdoc />
-        protected override Expression VisitParameter(ParameterExpression node)
-            => node.Name == "relationalTypeMappingSource" ? Expression.Constant(source, node.Type) : base.VisitParameter(node);
+        protected override Expression VisitParameter(
+            ParameterExpression node
+        )
+            => node.Name == "relationalTypeMappingSource"
+                ? Expression.Constant(source, node.Type)
+                : base.VisitParameter(node);
     }
 
     /// <summary>Hosts mapping services without executing queries.</summary>
     private sealed class QuoteContext : DbContext
     {
         /// <summary>Initializes the quotation service context.</summary>
-        public QuoteContext(DbContextOptions<QuoteContext> options) : base(options) { }
+        public QuoteContext(
+            DbContextOptions<QuoteContext> options
+        ) : base(options) { }
     }
 }

@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// table and column metadata has been loaded. The shared history-table set prevents a
 /// recognized temporal implementation detail from resurfacing when multiple databases
 /// are scaffolded in a different order. Created once per selected database in a
-/// <see cref="MySqlDatabaseModelFactory.Create(DbConnection, DatabaseModelFactoryOptions)"/>
+/// <see cref="MySqlDatabaseModelFactory.Create(DbConnection, DatabaseModelFactoryOptions)" />
 /// call and discarded when the call returns; do not cache references to it.
 /// </summary>
 internal sealed class ScaffoldingPipelineContext

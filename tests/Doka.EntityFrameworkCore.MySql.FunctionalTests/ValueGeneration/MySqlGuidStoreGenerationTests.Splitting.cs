@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.ValueGeneration;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlGuidStoreGenerationTests
@@ -35,7 +37,10 @@ public sealed partial class MySqlGuidStoreGenerationTests
     {
         // Arrange
         using var context = CreateFragmentGuidContext(mariaDb, format, nullable, "none");
-        var propertyName = nullable ? nameof(FragmentGuidRow.OptionalToken) : nameof(FragmentGuidRow.Token);
+        var propertyName = nullable
+            ? nameof(FragmentGuidRow.OptionalToken)
+            : nameof(FragmentGuidRow.Token);
+
         var primary = StoreObjectIdentifier.Table("FragmentGuidPayload", schema: null);
         var fragment = StoreObjectIdentifier.Table("FragmentGuidValues", schema: null);
 
@@ -77,7 +82,10 @@ public sealed partial class MySqlGuidStoreGenerationTests
     {
         // Arrange
         using var context = CreateFragmentGuidContext(mariaDb, format, nullable, expression);
-        var propertyName = nullable ? nameof(FragmentGuidRow.OptionalToken) : nameof(FragmentGuidRow.Token);
+        var propertyName = nullable
+            ? nameof(FragmentGuidRow.OptionalToken)
+            : nameof(FragmentGuidRow.Token);
+
         var fragment = StoreObjectIdentifier.Table("FragmentGuidValues", schema: null);
         var computed = expression == "computed";
 
@@ -88,10 +96,29 @@ public sealed partial class MySqlGuidStoreGenerationTests
         Assert.Null(property.GetColumnName(StoreObjectIdentifier.Table("FragmentGuidPayload", schema: null)));
         Assert.NotNull(property.GetColumnName(fragment));
         Assert.Null(property.GetMySqlValueGenerationStrategy());
-        Assert.Equal(computed ? ValueGenerated.OnAddOrUpdate : ValueGenerated.OnAdd, property.ValueGenerated);
-        Assert.Equal(computed ? null : DefaultSql(format), property.GetDefaultValueSql(fragment));
-        Assert.Equal(computed ? "`Source`" : null, property.GetComputedColumnSql(fragment));
-        Assert.Equal(computed ? PropertySaveBehavior.Ignore : PropertySaveBehavior.Save, property.GetBeforeSaveBehavior());
+        Assert.Equal(
+            computed
+                ? ValueGenerated.OnAddOrUpdate
+                : ValueGenerated.OnAdd,
+            property.ValueGenerated);
+
+        Assert.Equal(
+            computed
+                ? null
+                : DefaultSql(format),
+            property.GetDefaultValueSql(fragment));
+
+        Assert.Equal(
+            computed
+                ? "`Source`"
+                : null,
+            property.GetComputedColumnSql(fragment));
+
+        Assert.Equal(
+            computed
+                ? PropertySaveBehavior.Ignore
+                : PropertySaveBehavior.Save,
+            property.GetBeforeSaveBehavior());
     }
 
     /// <summary>Reports explicit strategy controls for each valid secondary mapping.</summary>
@@ -120,15 +147,21 @@ public sealed partial class MySqlGuidStoreGenerationTests
     {
         // Arrange
         using var context = CreateFragmentGuidContext(mariaDb, format, nullable, "sql", strategy);
-        var propertyName = nullable ? nameof(FragmentGuidRow.OptionalToken) : nameof(FragmentGuidRow.Token);
+        var propertyName = nullable
+            ? nameof(FragmentGuidRow.OptionalToken)
+            : nameof(FragmentGuidRow.Token);
 
         // Act
         var property = context.Model.FindEntityType(typeof(FragmentGuidRow))!.FindProperty(propertyName)!;
 
         // Assert
         Assert.Equal(strategy, property.GetMySqlValueGenerationStrategy());
-        Assert.Equal(strategy == MySqlValueGenerationStrategy.None ? ValueGenerated.Never : ValueGenerated.OnAdd,
+        Assert.Equal(
+            strategy == MySqlValueGenerationStrategy.None
+                ? ValueGenerated.Never
+                : ValueGenerated.OnAdd,
             property.ValueGenerated);
+
         Assert.Equal(DefaultSql(format), property.GetDefaultValueSql());
     }
 
@@ -152,9 +185,12 @@ public sealed partial class MySqlGuidStoreGenerationTests
             "sql",
             MySqlValueGenerationStrategy.ClientGuid);
 
-        var propertyName = nullable ? nameof(FragmentGuidRow.OptionalToken) : nameof(FragmentGuidRow.Token);
+        var propertyName = nullable
+            ? nameof(FragmentGuidRow.OptionalToken)
+            : nameof(FragmentGuidRow.Token);
+
         var property = context.Model.FindEntityType(typeof(FragmentGuidRow))!.FindProperty(propertyName)!;
-        var selector = context.GetService<Microsoft.EntityFrameworkCore.ValueGeneration.IValueGeneratorSelector>();
+        var selector = context.GetService<IValueGeneratorSelector>();
 
         // Act
         var selected = selector.TrySelect(property, property.DeclaringType, out var generator);
@@ -192,9 +228,18 @@ public sealed partial class MySqlGuidStoreGenerationTests
         Assert.Null(property.GetColumnName(primary));
         Assert.NotNull(property.GetColumnName(secondary));
         Assert.Null(property.GetDefaultValueSql());
-        Assert.Equal(hasDefault ? "UUID()" : null, property.GetDefaultValueSql(secondary));
-        Assert.Equal(hasDefault ? null : MySqlValueGenerationStrategy.ClientGuid,
+        Assert.Equal(
+            hasDefault
+                ? "UUID()"
+                : null,
+            property.GetDefaultValueSql(secondary));
+
+        Assert.Equal(
+            hasDefault
+                ? null
+                : MySqlValueGenerationStrategy.ClientGuid,
             property.GetMySqlValueGenerationStrategy());
+
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
     }
 
@@ -213,7 +258,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
             .FindEntityType(typeof(SharedFragmentGuidDependent))!
             .FindProperty(nameof(SharedFragmentGuidDependent.Token))!;
 
-        var selector = context.GetService<Microsoft.EntityFrameworkCore.ValueGeneration.IValueGeneratorSelector>();
+        var selector = context.GetService<IValueGeneratorSelector>();
 
         // Act
         var selected = selector.TrySelect(property, property.DeclaringType, out var generator);
@@ -243,8 +288,10 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         // Assert
         Assert.Null(property.GetComputedColumnSql());
-        Assert.Equal("'00112233-4455-4677-8899-aabbccddeeff'",
+        Assert.Equal(
+            "'00112233-4455-4677-8899-aabbccddeeff'",
             property.GetComputedColumnSql(StoreObjectIdentifier.Table("FragmentSharedGuid", schema: null)));
+
         Assert.Null(property.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAddOrUpdate, property.ValueGenerated);
         Assert.Equal(PropertySaveBehavior.Ignore, property.GetBeforeSaveBehavior());

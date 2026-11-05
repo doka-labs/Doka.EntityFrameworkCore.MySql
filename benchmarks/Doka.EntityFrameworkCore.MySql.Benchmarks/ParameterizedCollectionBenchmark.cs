@@ -14,6 +14,14 @@ public class ParameterizedCollectionBenchmark : IDisposable
     private BenchmarkContext? _context;
     private Guid[] _filterIds = [];
 
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _context?.Dispose();
+        _context = null;
+        GC.SuppressFinalize(this);
+    }
+
     /// <summary>
     /// Creates the deterministic benchmark corpus and verifies that the
     /// predicate cardinality is the same for both GUID storage formats.
@@ -41,6 +49,7 @@ public class ParameterizedCollectionBenchmark : IDisposable
                             BinaryId = CreateGuid(index),
                             CharId = CreateGuid(index),
                         }));
+
                 setupContext.SaveChanges();
             }
         }
@@ -52,12 +61,24 @@ public class ParameterizedCollectionBenchmark : IDisposable
         // without issuing concurrent operations on one DbContext.
         var matchCounts = new[]
         {
-            JsonParameterBinary16().GetAwaiter().GetResult(),
-            MultipleParametersBinary16().GetAwaiter().GetResult(),
-            ConstantBinary16().GetAwaiter().GetResult(),
-            JsonParameterChar36().GetAwaiter().GetResult(),
-            MultipleParametersChar36().GetAwaiter().GetResult(),
-            ConstantChar36().GetAwaiter().GetResult(),
+            JsonParameterBinary16()
+                .GetAwaiter()
+                .GetResult(),
+            MultipleParametersBinary16()
+                .GetAwaiter()
+                .GetResult(),
+            ConstantBinary16()
+                .GetAwaiter()
+                .GetResult(),
+            JsonParameterChar36()
+                .GetAwaiter()
+                .GetResult(),
+            MultipleParametersChar36()
+                .GetAwaiter()
+                .GetResult(),
+            ConstantChar36()
+                .GetAwaiter()
+                .GetResult(),
         };
 
         if (matchCounts.Any(matchCount => matchCount != FilterCount))
@@ -76,7 +97,9 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.Parameter(_filterIds).Contains(entity.BinaryId),
+            entity => EF
+                .Parameter(_filterIds)
+                .Contains(entity.BinaryId),
             CancellationToken.None);
     }
 
@@ -89,7 +112,9 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.MultipleParameters(_filterIds).Contains(entity.BinaryId),
+            entity => EF
+                .MultipleParameters(_filterIds)
+                .Contains(entity.BinaryId),
             CancellationToken.None);
     }
 
@@ -102,7 +127,9 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.Constant(_filterIds).Contains(entity.BinaryId),
+            entity => EF
+                .Constant(_filterIds)
+                .Contains(entity.BinaryId),
             CancellationToken.None);
     }
 
@@ -115,7 +142,9 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.Parameter(_filterIds).Contains(entity.CharId),
+            entity => EF
+                .Parameter(_filterIds)
+                .Contains(entity.CharId),
             CancellationToken.None);
     }
 
@@ -128,7 +157,9 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.MultipleParameters(_filterIds).Contains(entity.CharId),
+            entity => EF
+                .MultipleParameters(_filterIds)
+                .Contains(entity.CharId),
             CancellationToken.None);
     }
 
@@ -141,16 +172,10 @@ public class ParameterizedCollectionBenchmark : IDisposable
         var context = GetContext();
 
         return context.ParameterizedCollectionEntities.CountAsync(
-            entity => EF.Constant(_filterIds).Contains(entity.CharId),
+            entity => EF
+                .Constant(_filterIds)
+                .Contains(entity.CharId),
             CancellationToken.None);
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _context?.Dispose();
-        _context = null;
-        GC.SuppressFinalize(this);
     }
 
     private BenchmarkContext GetContext() => _context
@@ -159,5 +184,16 @@ public class ParameterizedCollectionBenchmark : IDisposable
 
     private static Guid CreateGuid(
         int value
-    ) => new(value, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    ) => new(
+        value,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0);
 }

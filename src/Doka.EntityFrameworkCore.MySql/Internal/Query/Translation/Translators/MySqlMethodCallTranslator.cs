@@ -868,5 +868,4 @@ internal sealed class MySqlMethodCallTranslator : IMethodCallTranslator
             instance.Type,
             instance.TypeMapping);
     }
-
 }

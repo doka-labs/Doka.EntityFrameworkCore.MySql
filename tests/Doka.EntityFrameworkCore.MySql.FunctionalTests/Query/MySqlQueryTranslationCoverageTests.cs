@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -302,20 +304,20 @@ public sealed partial class MySqlQueryTranslationCoverageTests
             .Set<CoverageEntity>()
             .Select(e => new
             {
-                Days = (e.CreatedAt - baseline).Days,
-                Hours = (e.CreatedAt - baseline).Hours,
-                Minutes = (e.CreatedAt - baseline).Minutes,
-                Seconds = (e.CreatedAt - baseline).Seconds,
-                Milliseconds = (e.CreatedAt - baseline).Milliseconds,
-                Microseconds = (e.CreatedAt - baseline).Microseconds,
-                Nanoseconds = (e.CreatedAt - baseline).Nanoseconds,
-                TotalDays = (e.CreatedAt - baseline).TotalDays,
-                TotalHours = (e.CreatedAt - baseline).TotalHours,
-                TotalMinutes = (e.CreatedAt - baseline).TotalMinutes,
-                TotalSeconds = (e.CreatedAt - baseline).TotalSeconds,
-                TotalMilliseconds = (e.CreatedAt - baseline).TotalMilliseconds,
-                TotalMicroseconds = (e.CreatedAt - baseline).TotalMicroseconds,
-                TotalNanoseconds = (e.CreatedAt - baseline).TotalNanoseconds,
+                (e.CreatedAt - baseline).Days,
+                (e.CreatedAt - baseline).Hours,
+                (e.CreatedAt - baseline).Minutes,
+                (e.CreatedAt - baseline).Seconds,
+                (e.CreatedAt - baseline).Milliseconds,
+                (e.CreatedAt - baseline).Microseconds,
+                (e.CreatedAt - baseline).Nanoseconds,
+                (e.CreatedAt - baseline).TotalDays,
+                (e.CreatedAt - baseline).TotalHours,
+                (e.CreatedAt - baseline).TotalMinutes,
+                (e.CreatedAt - baseline).TotalSeconds,
+                (e.CreatedAt - baseline).TotalMilliseconds,
+                (e.CreatedAt - baseline).TotalMicroseconds,
+                (e.CreatedAt - baseline).TotalNanoseconds,
             })
             .ToQueryString();
 
@@ -336,26 +338,26 @@ public sealed partial class MySqlQueryTranslationCoverageTests
         using var context = CreateContext();
 
         // Act
-        var entity = System.Linq.Expressions.Expression.Parameter(
+        var entity = Expression.Parameter(
             typeof(CoverageEntity),
             "entity");
 
-        var name = System.Linq.Expressions.Expression.Property(
+        var name = Expression.Property(
             entity,
             nameof(CoverageEntity.Name));
 
-        var createdAt = System.Linq.Expressions.Expression.Property(
+        var createdAt = Expression.Property(
             entity,
             nameof(CoverageEntity.CreatedAt));
 
-        var parse = System.Linq.Expressions.Expression.Call(
+        var parse = Expression.Call(
             typeof(DateTime).GetMethod(
                 nameof(DateTime.Parse),
                 [typeof(string)])!,
             name);
 
-        var predicate = System.Linq.Expressions.Expression.Lambda<Func<CoverageEntity, bool>>(
-            System.Linq.Expressions.Expression.GreaterThanOrEqual(parse, createdAt),
+        var predicate = Expression.Lambda<Func<CoverageEntity, bool>>(
+            Expression.GreaterThanOrEqual(parse, createdAt),
             entity);
 
         var sql = context

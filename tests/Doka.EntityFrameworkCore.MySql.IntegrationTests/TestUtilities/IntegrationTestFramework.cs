@@ -49,7 +49,10 @@ internal sealed class IntegrationTestFrameworkExecutor : XunitTestFrameworkExecu
 
         // WHY: xUnit v2 exposes a synchronous executor hook, but the assembly
         // runner must await server startup and cleanup around parallel classes.
-        runner.RunAsync().GetAwaiter().GetResult();
+        runner
+            .RunAsync()
+            .GetAwaiter()
+            .GetResult();
     }
 }
 
@@ -67,14 +70,19 @@ internal sealed class IntegrationTestAssemblyRunner : XunitTestAssemblyRunner
     ) : base(testAssembly, testCases, diagnosticMessageSink, executionMessageSink, executionOptions)
     {
         var attributeName = typeof(IntegrationDatabaseTestAttribute).AssemblyQualifiedName!;
-        _requiresDatabase = testCases.Any(testCase => testCase.TestMethod.TestClass.Class
+        _requiresDatabase = testCases.Any(testCase => testCase
+            .TestMethod
+            .TestClass
+            .Class
             .GetCustomAttributes(attributeName)
             .Any());
     }
 
     protected override async Task AfterTestAssemblyStartingAsync()
     {
-        await base.AfterTestAssemblyStartingAsync().ConfigureAwait(false);
+        await base
+            .AfterTestAssemblyStartingAsync()
+            .ConfigureAwait(false);
 
         if (!_requiresDatabase)
         {
@@ -84,7 +92,10 @@ internal sealed class IntegrationTestAssemblyRunner : XunitTestAssemblyRunner
         // WHY: An assembly-owned session can outlive concurrently running class
         // collections; a collection fixture would serialize all of those classes.
         var fixture = new IntegrationDatabaseFixture();
-        await fixture.InitializeAsync().ConfigureAwait(false);
+        await fixture
+            .InitializeAsync()
+            .ConfigureAwait(false);
+
         _databaseFixture = fixture;
     }
 
@@ -94,13 +105,18 @@ internal sealed class IntegrationTestAssemblyRunner : XunitTestAssemblyRunner
         {
             if (_databaseFixture is not null)
             {
-                await _databaseFixture.DisposeAsync().ConfigureAwait(false);
+                await _databaseFixture
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+
                 _databaseFixture = null;
             }
         }
         finally
         {
-            await base.BeforeTestAssemblyFinishedAsync().ConfigureAwait(false);
+            await base
+                .BeforeTestAssemblyFinishedAsync()
+                .ConfigureAwait(false);
         }
     }
 }

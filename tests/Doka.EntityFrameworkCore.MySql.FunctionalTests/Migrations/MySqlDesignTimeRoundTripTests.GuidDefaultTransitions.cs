@@ -31,13 +31,17 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         using var context = new GuidExpressionDesignContext(
             CreateOptions<GuidExpressionDesignContext>(MySqlServerVersion.MariaDb(new Version(11, 8, 0))),
             format,
-            computed ? "computed" : "default",
+            computed
+                ? "computed"
+                : "default",
             target: false,
             strategy);
 
         // Act
         var generated = GenerateAndCompile(context);
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var sourceOperations = CaptureInitialOperations(context, sourceModel);
         var snapshotOperations = CaptureInitialOperations(context, generated.SnapshotModel);
         var designerOperations = CaptureInitialOperations(context, generated.DesignerModel);
@@ -141,7 +145,11 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         // Assert
         AssertGuidExpressionPropertyStrategy(generated.SnapshotModel, MySqlValueGenerationStrategy.None);
         AssertGuidExpressionPropertyStrategy(generated.DesignerModel, MySqlValueGenerationStrategy.None);
-        AssertGuidExpressionPropertyStrategy(target.GetService<IDesignTimeModel>().Model, strategy: null);
+        AssertGuidExpressionPropertyStrategy(
+            target.GetService<IDesignTimeModel>()
+                .Model,
+            strategy: null);
+
         AssertRoundTripsWithoutOperations(snapshotRoundTrip);
         AssertRoundTripsWithoutOperations(designerRoundTrip);
     }
@@ -262,13 +270,27 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         var operation = Assert.Single(roundTrip.Operations.OfType<AlterColumnOperation>());
 
-        Assert.Equal(rename is "column" or "both" ? "RenamedValue" : "Value", operation.Name);
         Assert.Equal(
-            rename is "table" or "both" ? "RenamedGuidExpressionDesignRecord" : "GuidExpressionDesignRecord",
+            rename is "column" or "both"
+                ? "RenamedValue"
+                : "Value",
+            operation.Name);
+
+        Assert.Equal(
+            rename is "table" or "both"
+                ? "RenamedGuidExpressionDesignRecord"
+                : "GuidExpressionDesignRecord",
             operation.Table);
 
-        Assert.Equal(targetStrategy, operation.GetMySqlMigrationMetadata().ValueGenerationStrategy);
-        Assert.Equal(sourceStrategy, operation.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
+            targetStrategy,
+            operation.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
+        Assert.Equal(
+            sourceStrategy,
+            operation.OldColumn.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
 
         if (change == "default")
         {
@@ -320,8 +342,15 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var column = Assert.Single(table.Columns, candidate => candidate.Name == "Value");
 
         Assert.Equal(typeof(Guid), column.ClrType);
-        Assert.Equal(format, column.GetMySqlMigrationMetadata().GuidFormat);
-        Assert.Equal(strategy, column.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
+            format,
+            column.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
+        Assert.Equal(
+            strategy,
+            column.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
     }
 
     /// <summary>
@@ -350,9 +379,20 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var operation = Assert.IsType<AlterColumnOperation>(Assert.Single(roundTrip.Operations));
 
         Assert.Equal("Value", operation.Name);
-        Assert.Equal(format, operation.GetMySqlMigrationMetadata().GuidFormat);
-        Assert.Equal(strategy, operation.GetMySqlMigrationMetadata().ValueGenerationStrategy);
-        Assert.Equal(strategy, operation.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Equal(
+            format,
+            operation.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
+        Assert.Equal(
+            strategy,
+            operation.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
+        Assert.Equal(
+            strategy,
+            operation.OldColumn.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
 
         if (change == "default")
         {
@@ -374,12 +414,12 @@ public sealed partial class MySqlDesignTimeRoundTripTests
     /// </summary>
     public sealed class GuidExpressionDesignContext : DbContext
     {
-        private readonly MySqlGuidFormat _format;
         private readonly string _change;
-        private readonly bool _target;
-        private readonly MySqlValueGenerationStrategy? _strategy;
-        private readonly string _rename;
         private readonly bool _changeExpression;
+        private readonly MySqlGuidFormat _format;
+        private readonly string _rename;
+        private readonly MySqlValueGenerationStrategy? _strategy;
+        private readonly bool _target;
 
         /// <summary>Creates one independently cached endpoint of the physical-column comparison.</summary>
         public GuidExpressionDesignContext(
@@ -405,55 +445,66 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("GuidExpressionDesignRecord", entity =>
-            {
-                entity.ToTable(
-                    _target && _rename is "table" or "both"
-                        ? "RenamedGuidExpressionDesignRecord"
-                        : "GuidExpressionDesignRecord");
-
-                entity.IndexerProperty<int>("Id").ValueGeneratedNever();
-
-                // Keep key identity stable so rename cases isolate column metadata from constraint renaming.
-                entity.HasKey("Id").HasName("PK_GuidExpressionDesignRecord");
-
-                var property = entity.IndexerProperty<Guid>("Value").HasMySqlGuidFormat(_format);
-
-                if (_target && _rename is "column" or "both")
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "GuidExpressionDesignRecord",
+                entity =>
                 {
-                    property.HasColumnName("RenamedValue");
-                }
+                    entity.ToTable(
+                        _target && _rename is "table" or "both"
+                            ? "RenamedGuidExpressionDesignRecord"
+                            : "GuidExpressionDesignRecord");
 
-                if (_change == "default")
-                {
-                    var function = _target && _changeExpression ? "UUID_v7()" : "UUID()";
-                    var expression = _format == MySqlGuidFormat.Binary16
-                        ? $"UNHEX(REPLACE({function}, '-', ''))"
-                        : function;
+                    entity
+                        .IndexerProperty<int>("Id")
+                        .ValueGeneratedNever();
 
-                    property.HasDefaultValueSql(expression);
-                }
-                else
-                {
-                    var value = _change == "computed" && _target && _changeExpression
-                        ? "00112233-4455-6677-8899-aabbccddee00"
-                        : "00112233-4455-6677-8899-aabbccddeeff";
+                    // Keep key identity stable so rename cases isolate column metadata from constraint renaming.
+                    entity
+                        .HasKey("Id")
+                        .HasName("PK_GuidExpressionDesignRecord");
 
-                    var expression = _format == MySqlGuidFormat.Binary16
-                        ? $"UNHEX(REPLACE('{value}', '-', ''))"
-                        : $"'{value}'";
+                    var property = entity
+                        .IndexerProperty<Guid>("Value")
+                        .HasMySqlGuidFormat(_format);
 
-                    property.HasComputedColumnSql(
-                        expression,
-                        stored: _change == "stored" && _target && _changeExpression);
-                }
+                    if (_target && _rename is "column" or "both")
+                    {
+                        property.HasColumnName("RenamedValue");
+                    }
 
-                if (_strategy is { } strategy)
-                {
-                    // Legacy snapshots serialize the prior convention's strategy as explicit configuration.
-                    property.HasMySqlValueGenerationStrategy(strategy);
-                }
-            });
+                    if (_change == "default")
+                    {
+                        var function = _target && _changeExpression
+                            ? "UUID_v7()"
+                            : "UUID()";
+
+                        var expression = _format == MySqlGuidFormat.Binary16
+                            ? $"UNHEX(REPLACE({function}, '-', ''))"
+                            : function;
+
+                        property.HasDefaultValueSql(expression);
+                    }
+                    else
+                    {
+                        var value = _change == "computed" && _target && _changeExpression
+                            ? "00112233-4455-6677-8899-aabbccddee00"
+                            : "00112233-4455-6677-8899-aabbccddeeff";
+
+                        var expression = _format == MySqlGuidFormat.Binary16
+                            ? $"UNHEX(REPLACE('{value}', '-', ''))"
+                            : $"'{value}'";
+
+                        property.HasComputedColumnSql(
+                            expression,
+                            stored: _change == "stored" && _target && _changeExpression);
+                    }
+
+                    if (_strategy is { } strategy)
+                    {
+                        // Legacy snapshots serialize the prior convention's strategy as explicit configuration.
+                        property.HasMySqlValueGenerationStrategy(strategy);
+                    }
+                });
         }
     }
 }

@@ -121,6 +121,7 @@ public sealed partial class MySqlMigrationDdlCoverageTests
             $"UPDATE `Entries` SET `Value` = {expectedLiteral} WHERE `Value` IS NULL;",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("MODIFY COLUMN `Value`", sql, StringComparison.Ordinal);
     }
 

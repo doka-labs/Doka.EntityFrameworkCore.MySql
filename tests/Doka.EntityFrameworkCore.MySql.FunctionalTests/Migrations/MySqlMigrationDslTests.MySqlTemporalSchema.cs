@@ -62,6 +62,7 @@ public sealed partial class MySqlMigrationDslTests
             "ALTER TABLE `TemporalRecords` RENAME COLUMN `Name` TO `DisplayName`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ALTER TABLE `TemporalRecordsHistory` RENAME COLUMN `Name` TO `DisplayName`",
             sql,
@@ -96,6 +97,7 @@ public sealed partial class MySqlMigrationDslTests
             "ALTER TABLE `TemporalRecords` MODIFY COLUMN `Name` varchar(128) NOT NULL",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ALTER TABLE `TemporalRecordsHistory` MODIFY COLUMN `Name` varchar(128) NOT NULL",
             sql,
@@ -128,14 +130,22 @@ public sealed partial class MySqlMigrationDslTests
         var dropColumn = Assert.Single(operations.OfType<DropColumnOperation>());
 
         Assert.True(
-            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
-        Assert.True(dropColumn.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value as bool?);
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+                ?.Value as bool?);
+
+        Assert.True(
+            dropColumn.FindAnnotation(MySqlAnnotationNames.IsTemporal)
+                ?.Value as bool?);
+
         Assert.Equal(
             "TemporalRecordsHistory",
-            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)?.Value);
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)
+                ?.Value);
+
         Assert.Equal(
             "TemporalRecordsHistory",
-            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)?.Value);
+            dropColumn.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)
+                ?.Value);
 
         var sql = string.Join(
             Environment.NewLine,
@@ -145,6 +155,7 @@ public sealed partial class MySqlMigrationDslTests
             "ALTER TABLE `TemporalRecords` DROP COLUMN `Description`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ALTER TABLE `TemporalRecordsHistory` DROP COLUMN `Description`",
             sql,
@@ -175,6 +186,7 @@ public sealed partial class MySqlMigrationDslTests
             "ALTER TABLE `TemporalRecords` ADD `NameLength` int GENERATED ALWAYS AS (CHAR_LENGTH(`Name`)) STORED",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ALTER TABLE `TemporalRecordsHistory` ADD `NameLength` int GENERATED ALWAYS AS (CHAR_LENGTH(`Name`)) STORED",
             sql,
@@ -208,10 +220,12 @@ public sealed partial class MySqlMigrationDslTests
             "RENAME TABLE `TemporalRecords` TO `TemporalEntries`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "RENAME TABLE `TemporalRecordsHistory` TO `TemporalEntriesHistory`",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(" ON `TemporalRecords` FOR EACH ROW", sql, StringComparison.Ordinal);
         Assert.Contains(" ON `TemporalEntries` FOR EACH ROW", sql, StringComparison.Ordinal);
     }
@@ -269,10 +283,12 @@ public sealed partial class MySqlMigrationDslTests
             "ADD `ValidFrom` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)",
             enableSql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ADD `ValidTo` datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59.999999'",
             enableSql,
             StringComparison.Ordinal);
+
         Assert.True(historyActivation > finalPeriodColumn);
         Assert.Contains("CREATE TABLE `TemporalRecordsHistory`", enableSql, StringComparison.Ordinal);
         Assert.Contains("CREATE TRIGGER", enableSql, StringComparison.Ordinal);

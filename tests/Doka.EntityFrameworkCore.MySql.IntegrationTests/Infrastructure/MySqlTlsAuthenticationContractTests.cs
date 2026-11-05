@@ -42,7 +42,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MySql84,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)),
-                "caching_sha2_password")
+                "caching_sha2_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -55,7 +56,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MySql97,
                 IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
-                "caching_sha2_password")
+                "caching_sha2_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -68,7 +70,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
                 IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
-                "mysql_native_password")
+                "mysql_native_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -81,7 +84,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MariaDb114,
                 MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
-                "mysql_native_password")
+                "mysql_native_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -94,7 +98,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
-                "mysql_native_password")
+                "mysql_native_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -107,46 +112,56 @@ public sealed class MySqlTlsAuthenticationContractTests
         await AssertSecurityContractAsync(
                 IntegrationDatabaseTarget.MariaDb123,
                 IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
-                "mysql_native_password")
+                "mysql_native_password",
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private async Task AssertSecurityContractAsync(
         IntegrationDatabaseTarget target,
         MySqlServerVersion serverVersion,
-        string expectedPasswordPlugin
+        string expectedPasswordPlugin,
+        CancellationToken cancellationToken
     )
     {
         var endpoint = _fixture.GetEndpoint(target);
 
         var tlsOptions = Assert.IsType<TestDatabaseTlsOptions>(endpoint.TlsOptions);
 
-        await AssertVerifiedTransportAsync(endpoint.ConnectionString, serverVersion)
+        await AssertVerifiedTransportAsync(endpoint.ConnectionString, serverVersion, cancellationToken)
             .ConfigureAwait(false);
-        await AssertInvalidTransportProfilesAreRejectedAsync(endpoint.ConnectionString, tlsOptions)
+
+        await AssertInvalidTransportProfilesAreRejectedAsync(endpoint.ConnectionString, tlsOptions, cancellationToken)
             .ConfigureAwait(false);
+
         await AssertAuthenticationProfilesAsync(
                 endpoint.ConnectionString,
                 tlsOptions,
                 serverVersion,
-                expectedPasswordPlugin)
+                expectedPasswordPlugin,
+                cancellationToken)
             .ConfigureAwait(false);
+
         await AssertConnectionLifecycleCallbacksAsync(
                 endpoint.ConnectionString,
                 tlsOptions,
-                serverVersion)
+                serverVersion,
+                cancellationToken)
             .ConfigureAwait(false);
+
         await AssertDataSourceLifecycleCallbacksAsync(
                 endpoint.ConnectionString,
                 tlsOptions,
-                serverVersion)
+                serverVersion,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertConnectionLifecycleCallbacksAsync(
         string administrativeConnectionString,
         TestDatabaseTlsOptions tlsOptions,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -176,12 +191,14 @@ public sealed class MySqlTlsAuthenticationContractTests
                 errors,
                 certificateAuthority);
         };
+
         connection.ProvideClientCertificatesCallback = certificates =>
         {
             Interlocked.Increment(ref clientCertificateCallbackCount);
             certificates.Add(clientCertificate);
             return ValueTask.CompletedTask;
         };
+
         connection.ProvidePasswordCallback = _ =>
         {
             Interlocked.Increment(ref passwordCallbackCount);
@@ -189,11 +206,12 @@ public sealed class MySqlTlsAuthenticationContractTests
         };
 
         // Act
-        var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<SecurityContractContext>()
             .UseMySql(connection, serverVersion)
             .Options;
 
-        await AssertLifecycleOperationsAsync(options)
+        await AssertLifecycleOperationsAsync(options, cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
@@ -206,7 +224,8 @@ public sealed class MySqlTlsAuthenticationContractTests
     private static async Task AssertDataSourceLifecycleCallbacksAsync(
         string administrativeConnectionString,
         TestDatabaseTlsOptions tlsOptions,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -227,22 +246,22 @@ public sealed class MySqlTlsAuthenticationContractTests
         var rotatedPasswordPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var administrativeConnection = new MySqlConnection(administrativeConnectionString);
         await administrativeConnection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        await DropUserAsync(administrativeConnection, LifecycleCallbackUser)
+
+        await DropUserAsync(administrativeConnection, LifecycleCallbackUser, cancellationToken)
             .ConfigureAwait(false);
-        await CreateLifecycleCallbackUserAsync(administrativeConnection)
+
+        await CreateLifecycleCallbackUserAsync(administrativeConnection, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
             await using var dataSource = new MySqlDataSourceBuilder(builder.ConnectionString)
-                .UseRemoteCertificateValidationCallback((
-                    _,
+                .UseRemoteCertificateValidationCallback((_,
                     certificate,
                     _,
-                    errors
-                ) =>
+                    errors) =>
                 {
                     Interlocked.Increment(ref certificateCallbackCount);
                     return ValidateTestServerCertificate(certificate, errors, certificateAuthority);
@@ -254,10 +273,8 @@ public sealed class MySqlTlsAuthenticationContractTests
                     return ValueTask.CompletedTask;
                 })
                 .UsePeriodicPasswordProvider(
-                    (
-                        _,
-                        _
-                    ) =>
+                    (_,
+                        _) =>
                     {
                         Interlocked.Increment(ref passwordProviderCount);
                         var password = Volatile.Read(ref currentPassword);
@@ -271,10 +288,8 @@ public sealed class MySqlTlsAuthenticationContractTests
                     },
                     TimeSpan.FromMilliseconds(50),
                     TimeSpan.FromMilliseconds(50))
-                .UseConnectionOpenedCallback((
-                    _,
-                    _
-                ) =>
+                .UseConnectionOpenedCallback((_,
+                    _) =>
                 {
                     Interlocked.Increment(ref connectionOpenedCallbackCount);
                     return ValueTask.CompletedTask;
@@ -282,18 +297,24 @@ public sealed class MySqlTlsAuthenticationContractTests
                 .Build();
 
             // Act
-            var options = IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(dataSource, serverVersion)
+            var options = IntegrationTestDbContextOptions
+                .Create<SecurityContractContext>()
+                .UseMySql(dataSource, serverVersion)
                 .Options;
 
-            await AssertLifecycleOperationsAsync(options)
+            await AssertLifecycleOperationsAsync(options, cancellationToken)
                 .ConfigureAwait(false);
-            await RotateLifecycleCallbackPasswordAsync(administrativeConnection)
+
+            await RotateLifecycleCallbackPasswordAsync(administrativeConnection, cancellationToken)
                 .ConfigureAwait(false);
+
             Volatile.Write(ref currentPassword, RotatedLifecyclePassword);
             await rotatedPasswordPublished
-                .Task.WaitAsync(TimeSpan.FromSeconds(10))
+                .Task
+                .WaitAsync(TimeSpan.FromSeconds(10), cancellationToken)
                 .ConfigureAwait(false);
-            await AssertLifecycleOperationsAsync(options)
+
+            await AssertLifecycleOperationsAsync(options, cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
@@ -304,7 +325,8 @@ public sealed class MySqlTlsAuthenticationContractTests
         }
         finally
         {
-            await DropUserAsync(administrativeConnection, LifecycleCallbackUser)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await DropUserAsync(administrativeConnection, LifecycleCallbackUser, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -328,8 +350,10 @@ public sealed class MySqlTlsAuthenticationContractTests
     )
     {
         if (certificate is null
-            || (errors & (SslPolicyErrors.RemoteCertificateNameMismatch
-                          | SslPolicyErrors.RemoteCertificateNotAvailable)) != 0)
+            || (errors
+                & (SslPolicyErrors.RemoteCertificateNameMismatch
+                    | SslPolicyErrors.RemoteCertificateNotAvailable))
+            != 0)
         {
             return false;
         }
@@ -344,7 +368,8 @@ public sealed class MySqlTlsAuthenticationContractTests
     }
 
     private static async Task AssertLifecycleOperationsAsync(
-        DbContextOptions<SecurityContractContext> options
+        DbContextOptions<SecurityContractContext> options,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -356,20 +381,29 @@ public sealed class MySqlTlsAuthenticationContractTests
             // Act
             // WHY: Creation and deletion use the same callback-bearing connection
             // configuration so every server-level operation must preserve it.
-            var existedBefore = await creator.ExistsAsync().ConfigureAwait(false);
-
-            await creator
-                .CreateAsync()
+            var existedBefore = await creator
+                .ExistsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var existedAfterCreate = await creator.ExistsAsync().ConfigureAwait(false);
-            var hadTables = await creator.HasTablesAsync().ConfigureAwait(false);
-
             await creator
-                .DeleteAsync()
+                .CreateAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var existsAfterDelete = await creator.ExistsAsync().ConfigureAwait(false);
+            var existedAfterCreate = await creator
+                .ExistsAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var hadTables = await creator
+                .HasTablesAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            await creator
+                .DeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var existsAfterDelete = await creator
+                .ExistsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.False(existedBefore);
@@ -380,11 +414,11 @@ public sealed class MySqlTlsAuthenticationContractTests
         finally
         {
             if (await creator
-                    .ExistsAsync()
-                    .ConfigureAwait(false))
+                .ExistsAsync(CancellationToken.None)
+                .ConfigureAwait(false))
             {
                 await creator
-                    .DeleteAsync()
+                    .DeleteAsync(CancellationToken.None)
                     .ConfigureAwait(false);
             }
         }
@@ -392,13 +426,14 @@ public sealed class MySqlTlsAuthenticationContractTests
 
     private static async Task AssertVerifiedTransportAsync(
         string connectionString,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var cipherCommand = connection.CreateCommand();
@@ -406,10 +441,12 @@ public sealed class MySqlTlsAuthenticationContractTests
 
         // Act
         await using var reader = await cipherCommand
-            .ExecuteReaderAsync()
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var hasCipherRow = await reader.ReadAsync().ConfigureAwait(false);
+        var hasCipherRow = await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // WHY: The cipher value can only be read from a positioned reader. This
         // guard validates fixture output before the independent provider query.
@@ -418,11 +455,16 @@ public sealed class MySqlTlsAuthenticationContractTests
         var cipher = reader.GetString(1);
 
         await using var context = new SecurityContractContext(
-            IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
+            IntegrationTestDbContextOptions
+                .Create<SecurityContractContext>()
+                .UseMySql(connectionString, serverVersion)
                 .Options);
 
-        var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-            .SingleAsync().ConfigureAwait(false);
+        var scalar = await context
+            .Database
+            .SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.False(string.IsNullOrWhiteSpace(cipher));
@@ -431,7 +473,8 @@ public sealed class MySqlTlsAuthenticationContractTests
 
     private static async Task AssertInvalidTransportProfilesAreRejectedAsync(
         string connectionString,
-        TestDatabaseTlsOptions tlsOptions
+        TestDatabaseTlsOptions tlsOptions,
+        CancellationToken cancellationToken
     )
     {
         var disabledTls = new MySqlConnectionStringBuilder(connectionString)
@@ -440,14 +483,15 @@ public sealed class MySqlTlsAuthenticationContractTests
             SslMode = MySqlSslMode.Disabled,
         };
 
-        await AssertConnectionRejectedAsync(disabledTls.ConnectionString)
+        await AssertConnectionRejectedAsync(disabledTls.ConnectionString, cancellationToken)
             .ConfigureAwait(false);
 
         await using var administrativeConnection = new MySqlConnection(connectionString);
         await administrativeConnection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        await DropUserAsync(administrativeConnection, CertificateValidationUser)
+
+        await DropUserAsync(administrativeConnection, CertificateValidationUser, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -459,7 +503,7 @@ public sealed class MySqlTlsAuthenticationContractTests
             {
                 createCommand.CommandText = $"CREATE USER '{CertificateValidationUser}'@'%';";
                 _ = await createCommand
-                    .ExecuteNonQueryAsync()
+                    .ExecuteNonQueryAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -474,7 +518,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 SslMode = MySqlSslMode.VerifyCA,
             };
 
-            await AssertConnectionRejectedAsync(untrustedAuthority.ConnectionString)
+            await AssertConnectionRejectedAsync(untrustedAuthority.ConnectionString, cancellationToken)
                 .ConfigureAwait(false);
 
             var hostnameMismatch = new MySqlConnectionStringBuilder(certificateValidationConnectionString)
@@ -482,12 +526,13 @@ public sealed class MySqlTlsAuthenticationContractTests
                 Server = IPAddress.Loopback.ToString(),
             };
 
-            await AssertConnectionRejectedAsync(hostnameMismatch.ConnectionString)
+            await AssertConnectionRejectedAsync(hostnameMismatch.ConnectionString, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
-            await DropUserAsync(administrativeConnection, CertificateValidationUser)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await DropUserAsync(administrativeConnection, CertificateValidationUser, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -496,27 +541,37 @@ public sealed class MySqlTlsAuthenticationContractTests
         string administrativeConnectionString,
         TestDatabaseTlsOptions tlsOptions,
         MySqlServerVersion serverVersion,
-        string expectedPasswordPlugin
+        string expectedPasswordPlugin,
+        CancellationToken cancellationToken
     )
     {
         await using var administrativeConnection = new MySqlConnection(administrativeConnectionString);
         await administrativeConnection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        await DropTestUsersAsync(administrativeConnection)
+        await DropTestUsersAsync(administrativeConnection, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
-            await CreateTestUserAsync(administrativeConnection, PasswordUser, requireClientCertificate: false)
+            await CreateTestUserAsync(
+                    administrativeConnection,
+                    PasswordUser,
+                    requireClientCertificate: false,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
-            await CreateTestUserAsync(administrativeConnection, ClientCertificateUser, requireClientCertificate: true)
+
+            await CreateTestUserAsync(
+                    administrativeConnection,
+                    ClientCertificateUser,
+                    requireClientCertificate: true,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal(
                 expectedPasswordPlugin,
-                await GetAuthenticationPluginAsync(administrativeConnection, PasswordUser)
+                await GetAuthenticationPluginAsync(administrativeConnection, PasswordUser, cancellationToken)
                     .ConfigureAwait(false));
 
             var passwordConnectionString = CreateUserConnectionString(
@@ -524,7 +579,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 PasswordUser,
                 TestPassword);
 
-            await AssertProviderQueryAsync(passwordConnectionString, serverVersion)
+            await AssertProviderQueryAsync(passwordConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
 
             var wrongPassword = new MySqlConnectionStringBuilder(passwordConnectionString)
@@ -532,7 +587,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 Password = "wrong_password",
             };
 
-            await AssertConnectionRejectedAsync(wrongPassword.ConnectionString)
+            await AssertConnectionRejectedAsync(wrongPassword.ConnectionString, cancellationToken)
                 .ConfigureAwait(false);
 
             var clientCertificateConnectionString = new MySqlConnectionStringBuilder(
@@ -542,7 +597,7 @@ public sealed class MySqlTlsAuthenticationContractTests
                 SslKey = tlsOptions.ClientKeyFile,
             }.ConnectionString;
 
-            await AssertProviderQueryAsync(clientCertificateConnectionString, serverVersion)
+            await AssertProviderQueryAsync(clientCertificateConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
 
             var missingClientCertificate = new MySqlConnectionStringBuilder(clientCertificateConnectionString)
@@ -551,12 +606,13 @@ public sealed class MySqlTlsAuthenticationContractTests
                 SslKey = string.Empty,
             };
 
-            await AssertConnectionRejectedAsync(missingClientCertificate.ConnectionString)
+            await AssertConnectionRejectedAsync(missingClientCertificate.ConnectionString, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
-            await DropTestUsersAsync(administrativeConnection)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await DropTestUsersAsync(administrativeConnection, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -564,60 +620,69 @@ public sealed class MySqlTlsAuthenticationContractTests
     private static async Task CreateTestUserAsync(
         MySqlConnection connection,
         string user,
-        bool requireClientCertificate
+        bool requireClientCertificate,
+        CancellationToken cancellationToken
     )
     {
         await using (var createCommand = connection.CreateCommand())
         {
             createCommand.CommandText = $"CREATE USER '{user}'@'%' IDENTIFIED BY '{TestPassword}'"
-                + (requireClientCertificate ? " REQUIRE X509;" : ";");
+                + (requireClientCertificate
+                    ? " REQUIRE X509;"
+                    : ";");
+
             _ = await createCommand
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
 
         await using var grantCommand = connection.CreateCommand();
         grantCommand.CommandText = $"GRANT SELECT ON `doka_provider`.* TO '{user}'@'%';";
         _ = await grantCommand
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task CreateLifecycleCallbackUserAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using (var createCommand = connection.CreateCommand())
         {
             createCommand.CommandText = $"CREATE USER '{LifecycleCallbackUser}'@'%' "
                 + $"IDENTIFIED BY '{InitialLifecyclePassword}' REQUIRE X509;";
+
             _ = await createCommand
-                .ExecuteNonQueryAsync()
+                .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
 
         await using var grantCommand = connection.CreateCommand();
         grantCommand.CommandText = $"GRANT CREATE, DROP, SELECT ON *.* TO '{LifecycleCallbackUser}'@'%';";
         _ = await grantCommand
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task RotateLifecycleCallbackPasswordAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"ALTER USER '{LifecycleCallbackUser}'@'%' "
             + $"IDENTIFIED BY '{RotatedLifecyclePassword}';";
+
         _ = await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task<string> GetAuthenticationPluginAsync(
         MySqlConnection connection,
-        string user
+        string user,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -626,30 +691,32 @@ public sealed class MySqlTlsAuthenticationContractTests
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync()
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 
     private static async Task DropTestUsersAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP USER IF EXISTS '{PasswordUser}'@'%', '{ClientCertificateUser}'@'%';";
         _ = await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task DropUserAsync(
         MySqlConnection connection,
-        string user
+        string user,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP USER IF EXISTS '{user}'@'%';";
         _ = await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -669,24 +736,31 @@ public sealed class MySqlTlsAuthenticationContractTests
 
     private static async Task AssertProviderQueryAsync(
         string connectionString,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var context = new SecurityContractContext(
-            IntegrationTestDbContextOptions.Create<SecurityContractContext>().UseMySql(connectionString, serverVersion)
+            IntegrationTestDbContextOptions
+                .Create<SecurityContractContext>()
+                .UseMySql(connectionString, serverVersion)
                 .Options);
 
         // Act
-        var scalar = await context.Database.SqlQueryRaw<int>("SELECT 1 AS Value")
-            .SingleAsync().ConfigureAwait(false);
+        var scalar = await context
+            .Database
+            .SqlQueryRaw<int>("SELECT 1 AS Value")
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(1, scalar);
     }
 
     private static async Task AssertConnectionRejectedAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -694,7 +768,7 @@ public sealed class MySqlTlsAuthenticationContractTests
 
         // Act
         var exception = await Record
-            .ExceptionAsync(connection.OpenAsync)
+            .ExceptionAsync(() => connection.OpenAsync(cancellationToken))
             .ConfigureAwait(false);
 
         // Assert

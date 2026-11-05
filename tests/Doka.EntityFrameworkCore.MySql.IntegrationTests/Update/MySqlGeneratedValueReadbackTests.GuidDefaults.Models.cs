@@ -35,8 +35,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         }.ConnectionString;
 
         var builder = IntegrationTestDbContextOptions.Create<GuidDefaultsContext<TMapping, TMode>>();
-        builder.UseMySql(connectionString, IntegrationTestEnvironment.GetServerVersion(target),
-            mysql => mysql.MaxBatchSize(1000).DefaultGuidFormat(GetGuidDefaultsFormat<TMapping>()));
+        builder.UseMySql(
+            connectionString,
+            IntegrationTestEnvironment.GetServerVersion(target),
+            mysql => mysql
+                .MaxBatchSize(1000)
+                .DefaultGuidFormat(GetGuidDefaultsFormat<TMapping>()));
 
         if (capture is not null)
         {
@@ -53,8 +57,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         _ => MySqlGuidFormat.Uuid,
     };
 
+    /// <summary>Recreates the GUID-default model tables before the readback assertion.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RecreateGuidDefaultsTablesAsync(
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
         // WHY: Dependents must be removed first because the previous case can
@@ -64,13 +72,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             + $"`{GuidDefaultDependentTable}`, `{GuidDefaultPrincipalTable}`, "
             + $"`{GuidDefaultValueTable}`, `{GuidComputedValueTable}`, `{GuidDefaultLiteralKeyTable}`, "
             + $"`{GuidDefaultSharedTable}`;",
-            CancellationToken.None);
-        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), CancellationToken.None);
+            cancellationToken);
+
+        await context.Database.ExecuteSqlRawAsync(context.Database.GenerateCreateScript(), cancellationToken);
     }
 
     private static string GuidDefaultSql(
         MySqlGuidFormat format
-    ) => format == MySqlGuidFormat.Binary16 ? "UNHEX(REPLACE(UUID(), '-', ''))" : "UUID()";
+    ) => format == MySqlGuidFormat.Binary16
+        ? "UNHEX(REPLACE(UUID(), '-', ''))"
+        : "UUID()";
 
     private static string GuidComputedSql(
         MySqlGuidFormat format
@@ -78,7 +89,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     {
         const string text = "CONCAT('00112233-4455-6677-8899-', LPAD(CAST(`Input` AS CHAR), 12, '0'))";
 
-        return format == MySqlGuidFormat.Binary16 ? $"UNHEX(REPLACE({text}, '-', ''))" : text;
+        return format == MySqlGuidFormat.Binary16
+            ? $"UNHEX(REPLACE({text}, '-', ''))"
+            : text;
     }
 
     private static Guid ExpectedComputedGuid(
@@ -102,15 +115,24 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 principal.ToTable(GuidDefaultPrincipalTable);
                 principal.UseStorageEngine("InnoDB");
                 principal.HasKey(row => row.Id);
-                principal.HasIndex(row => row.Marker).IsUnique();
-                principal.Property(row => row.Id).HasDefaultValueSql(GuidDefaultSql(format));
+                principal
+                    .HasIndex(row => row.Marker)
+                    .IsUnique();
+
+                principal
+                    .Property(row => row.Id)
+                    .HasDefaultValueSql(GuidDefaultSql(format));
 
                 var dependent = modelBuilder.Entity<GuidDefaultDependent>();
                 dependent.ToTable(GuidDefaultDependentTable);
                 dependent.UseStorageEngine("InnoDB");
                 dependent.HasKey(row => row.Id);
-                dependent.Property(row => row.Id).ValueGeneratedNever();
-                dependent.HasOne(row => row.Principal)
+                dependent
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                dependent
+                    .HasOne(row => row.Principal)
                     .WithMany(row => row.Dependents)
                     .HasForeignKey(row => row.PrincipalId);
             }
@@ -120,16 +142,28 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 entity.ToTable(GuidDefaultValueTable);
                 entity.UseStorageEngine("InnoDB");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.RequiredValue).HasDefaultValueSql(GuidDefaultSql(format));
-                entity.Property(row => row.NullableValue).HasDefaultValueSql(GuidDefaultSql(format));
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.RequiredValue)
+                    .HasDefaultValueSql(GuidDefaultSql(format));
+
+                entity
+                    .Property(row => row.NullableValue)
+                    .HasDefaultValueSql(GuidDefaultSql(format));
+
                 // WHY: Application conversions must survive generated readback
                 // independently of the provider's default GUID storage mapping.
-                entity.Property(row => row.ConvertedValue)
+                entity
+                    .Property(row => row.ConvertedValue)
                     .HasConversion(value => value.ToString(), value => Guid.Parse(value))
                     .HasColumnType("char(36)")
                     .HasDefaultValueSql("UUID()");
-                entity.Property(row => row.ConvertedNullableValue)
+
+                entity
+                    .Property(row => row.ConvertedNullableValue)
                     .HasConversion<string>()
                     .HasColumnType("char(36)")
                     .HasDefaultValueSql("UUID()");
@@ -139,10 +173,24 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 var entity = modelBuilder.Entity<GuidDefaultLiteralKeyRow>();
                 entity.ToTable(GuidDefaultLiteralKeyTable);
                 entity.UseStorageEngine("InnoDB");
-                entity.HasKey(row => new { row.Id, row.Flag });
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.Flag).HasDefaultValue(true).HasSentinel(false);
-                entity.Property(row => row.Stamp).HasComputedColumnSql("`Marker` * 17 + 3", stored: true);
+                entity.HasKey(row => new
+                {
+                    row.Id,
+                    row.Flag,
+                });
+
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.Flag)
+                    .HasDefaultValue(true)
+                    .HasSentinel(false);
+
+                entity
+                    .Property(row => row.Stamp)
+                    .HasComputedColumnSql("`Marker` * 17 + 3", stored: true);
             }
             else if (typeof(TMode) == typeof(GuidDefaultsSharedTableMode))
             {
@@ -150,53 +198,89 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 principal.ToTable(GuidDefaultSharedTable);
                 principal.UseStorageEngine("InnoDB");
                 principal.HasKey(row => row.Id);
-                principal.Property(row => row.Id).HasDefaultValueSql(GuidDefaultSql(format));
-                principal.Property(row => row.Payload).HasColumnName("PrincipalPayload").HasMaxLength(64);
-                principal.HasOne(row => row.Dependent)
+                principal
+                    .Property(row => row.Id)
+                    .HasDefaultValueSql(GuidDefaultSql(format));
+
+                principal
+                    .Property(row => row.Payload)
+                    .HasColumnName("PrincipalPayload")
+                    .HasMaxLength(64);
+
+                principal
+                    .HasOne(row => row.Dependent)
                     .WithOne(row => row.Principal)
                     .HasForeignKey<GuidDefaultSharedDependent>(row => row.Id)
                     .IsRequired();
-                principal.Navigation(row => row.Dependent).IsRequired();
+
+                principal
+                    .Navigation(row => row.Dependent)
+                    .IsRequired();
 
                 var dependent = modelBuilder.Entity<GuidDefaultSharedDependent>();
                 dependent.ToTable(GuidDefaultSharedTable);
                 dependent.UseStorageEngine("InnoDB");
                 dependent.HasKey(row => row.Id);
+
                 // WHY: Only the shared-column root declares the SQL default;
                 // dependent generation must resolve that store-column metadata.
-                dependent.Property(row => row.Id).ValueGeneratedOnAdd();
-                dependent.Property(row => row.Payload).HasColumnName("DependentPayload").HasMaxLength(64);
+                dependent
+                    .Property(row => row.Id)
+                    .ValueGeneratedOnAdd();
+
+                dependent
+                    .Property(row => row.Payload)
+                    .HasColumnName("DependentPayload")
+                    .HasMaxLength(64);
             }
             else if (typeof(TMode) == typeof(GuidDefaultsSplitValueMode)
-                     || typeof(TMode) == typeof(GuidDefaultsSplitComputedMode))
+                || typeof(TMode) == typeof(GuidDefaultsSplitComputedMode))
             {
                 var entity = modelBuilder.Entity<GuidSplitGeneratedRow>();
                 entity.ToTable(GuidSplitGeneratedPrincipalTable);
                 entity.UseStorageEngine("InnoDB");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.Payload).HasMaxLength(64);
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.Payload)
+                    .HasMaxLength(64);
 
                 // WHY: Generated outputs belong only to the secondary store;
                 // integer keys let both engines read them back without guessing UUID keys.
-                entity.SplitToTable(GuidSplitGeneratedSecondaryTable, split =>
-                {
-                    split.Property(row => row.Input);
-                    split.Property(row => row.RequiredValue);
-                    split.Property(row => row.NullableValue);
-                });
+                entity.SplitToTable(
+                    GuidSplitGeneratedSecondaryTable,
+                    split =>
+                    {
+                        split.Property(row => row.Input);
+                        split.Property(row => row.RequiredValue);
+                        split.Property(row => row.NullableValue);
+                    });
 
                 if (typeof(TMode) == typeof(GuidDefaultsSplitValueMode))
                 {
-                    entity.Property(row => row.RequiredValue).HasDefaultValueSql(GuidDefaultSql(format));
-                    entity.Property(row => row.NullableValue).HasDefaultValueSql(GuidDefaultSql(format));
+                    entity
+                        .Property(row => row.RequiredValue)
+                        .HasDefaultValueSql(GuidDefaultSql(format));
+
+                    entity
+                        .Property(row => row.NullableValue)
+                        .HasDefaultValueSql(GuidDefaultSql(format));
                 }
                 else
                 {
                     var expression = GuidComputedSql(format);
-                    entity.Property(row => row.RequiredValue).HasComputedColumnSql(expression, stored: true);
-                    entity.Property(row => row.NullableValue).HasComputedColumnSql(
-                        $"CASE WHEN MOD(`Input`, 2) = 0 THEN NULL ELSE {expression} END", stored: true);
+                    entity
+                        .Property(row => row.RequiredValue)
+                        .HasComputedColumnSql(expression, stored: true);
+
+                    entity
+                        .Property(row => row.NullableValue)
+                        .HasComputedColumnSql(
+                            $"CASE WHEN MOD(`Input`, 2) = 0 THEN NULL ELSE {expression} END",
+                            stored: true);
                 }
             }
             else
@@ -206,11 +290,19 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 entity.ToTable(GuidComputedValueTable);
                 entity.UseStorageEngine("InnoDB");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.RequiredValue).HasComputedColumnSql(expression, stored: true);
-                entity.Property(row => row.NullableValue)
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.RequiredValue)
+                    .HasComputedColumnSql(expression, stored: true);
+
+                entity
+                    .Property(row => row.NullableValue)
                     .HasComputedColumnSql(
-                        $"CASE WHEN MOD(`Input`, 2) = 0 THEN NULL ELSE {expression} END", stored: true);
+                        $"CASE WHEN MOD(`Input`, 2) = 0 THEN NULL ELSE {expression} END",
+                        stored: true);
             }
         }
     }

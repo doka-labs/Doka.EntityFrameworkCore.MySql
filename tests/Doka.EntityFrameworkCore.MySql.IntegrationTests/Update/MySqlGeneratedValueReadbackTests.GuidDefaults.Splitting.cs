@@ -14,9 +14,15 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitValueMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
-        var rows = Enumerable.Range(1, 8)
-            .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
+        var rows = Enumerable
+            .Range(1, 8)
+            .Select(id => new GuidSplitGeneratedRow
+            {
+                Id = id,
+                Input = id,
+                Payload = $"row-{id}",
+            })
             .Reverse()
             .ToArray();
 
@@ -29,7 +35,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             NullableValue = CreateGuid(102),
         };
 
-        context.Set<GuidSplitGeneratedRow>().AddRange(rows);
+        context
+            .Set<GuidSplitGeneratedRow>()
+            .AddRange(rows);
+
         context.Add(supplied);
         capture.Enabled = true;
 
@@ -37,27 +46,47 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidSplitGeneratedRow>().AsNoTracking()
+        var persisted = await context
+            .Set<GuidSplitGeneratedRow>()
+            .AsNoTracking()
             .ToDictionaryAsync(row => row.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(9, persisted.Count);
-        Assert.Equal(8, rows.Select(row => row.RequiredValue).Distinct().Count());
-        Assert.Equal(8, rows.Select(row => row.NullableValue).Distinct().Count());
-        Assert.All(rows.Append(supplied), row =>
-        {
-            Assert.NotEqual(Guid.Empty, row.RequiredValue);
-            Assert.NotNull(row.NullableValue);
-            Assert.NotEqual(Guid.Empty, row.NullableValue);
-            Assert.Equal(persisted[row.Id].RequiredValue, row.RequiredValue);
-            Assert.Equal(persisted[row.Id].NullableValue, row.NullableValue);
-            Assert.Equal(persisted[row.Id].Payload, row.Payload);
-        });
+        Assert.Equal(
+            8,
+            rows
+                .Select(row => row.RequiredValue)
+                .Distinct()
+                .Count());
+
+        Assert.Equal(
+            8,
+            rows
+                .Select(row => row.NullableValue)
+                .Distinct()
+                .Count());
+
+        Assert.All(
+            rows.Append(supplied),
+            row =>
+            {
+                Assert.NotEqual(Guid.Empty, row.RequiredValue);
+                Assert.NotNull(row.NullableValue);
+                Assert.NotEqual(Guid.Empty, row.NullableValue);
+                Assert.Equal(persisted[row.Id].RequiredValue, row.RequiredValue);
+                Assert.Equal(persisted[row.Id].NullableValue, row.NullableValue);
+                Assert.Equal(persisted[row.Id].Payload, row.Payload);
+            });
+
         Assert.Equal(CreateGuid(101), supplied.RequiredValue);
         Assert.Equal(CreateGuid(102), supplied.NullableValue);
-        Assert.Contains(GuidDefaultInsertHeaders(capture.Commands, GuidSplitGeneratedSecondaryTable), header =>
-            !header.Contains("`RequiredValue`", StringComparison.Ordinal)
-            && !header.Contains("`NullableValue`", StringComparison.Ordinal));
+        Assert.Contains(
+            GuidDefaultInsertHeaders(capture.Commands, GuidSplitGeneratedSecondaryTable),
+            header =>
+                !header.Contains("`RequiredValue`", StringComparison.Ordinal)
+                && !header.Contains("`NullableValue`", StringComparison.Ordinal));
+
         AssertSplitGuidGeneratedMetadata(context, ValueGenerated.OnAdd);
     }
 
@@ -73,38 +102,54 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
-        var rows = Enumerable.Range(1, 8)
-            .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
+        var rows = Enumerable
+            .Range(1, 8)
+            .Select(id => new GuidSplitGeneratedRow
+            {
+                Id = id,
+                Input = id,
+                Payload = $"row-{id}",
+            })
             .Reverse()
             .ToArray();
 
-        context.Set<GuidSplitGeneratedRow>().AddRange(rows);
+        context
+            .Set<GuidSplitGeneratedRow>()
+            .AddRange(rows);
+
         capture.Enabled = true;
 
         // Act
         await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidSplitGeneratedRow>().AsNoTracking()
+        var persisted = await context
+            .Set<GuidSplitGeneratedRow>()
+            .AsNoTracking()
             .ToDictionaryAsync(row => row.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(8, persisted.Count);
         AssertSplitGuidGeneratedMetadata(context, ValueGenerated.OnAddOrUpdate);
-        Assert.All(rows, row =>
-        {
-            AssertSplitGuidComputedValues(row);
-            Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
-            Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
-            Assert.Equal(row.Payload, persisted[row.Id].Payload);
-        });
+        Assert.All(
+            rows,
+            row =>
+            {
+                AssertSplitGuidComputedValues(row);
+                Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
+                Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
+                Assert.Equal(row.Payload, persisted[row.Id].Payload);
+            });
+
         Assert.NotEmpty(GuidDefaultInsertHeaders(capture.Commands, GuidSplitGeneratedSecondaryTable));
-        Assert.All(GuidDefaultInsertHeaders(capture.Commands, GuidSplitGeneratedSecondaryTable), header =>
-        {
-            Assert.DoesNotContain("`RequiredValue`", header, StringComparison.Ordinal);
-            Assert.DoesNotContain("`NullableValue`", header, StringComparison.Ordinal);
-        });
+        Assert.All(
+            GuidDefaultInsertHeaders(capture.Commands, GuidSplitGeneratedSecondaryTable),
+            header =>
+            {
+                Assert.DoesNotContain("`RequiredValue`", header, StringComparison.Ordinal);
+                Assert.DoesNotContain("`NullableValue`", header, StringComparison.Ordinal);
+            });
     }
 
     /// <summary>Refreshes secondary computed GUIDs on update, including both nullable transitions.</summary>
@@ -119,13 +164,22 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSplitComputedMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
-        var rows = Enumerable.Range(1, 8)
-            .Select(id => new GuidSplitGeneratedRow { Id = id, Input = id, Payload = $"row-{id}" })
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
+        var rows = Enumerable
+            .Range(1, 8)
+            .Select(id => new GuidSplitGeneratedRow
+            {
+                Id = id,
+                Input = id,
+                Payload = $"row-{id}",
+            })
             .Reverse()
             .ToArray();
 
-        context.Set<GuidSplitGeneratedRow>().AddRange(rows);
+        context
+            .Set<GuidSplitGeneratedRow>()
+            .AddRange(rows);
+
         await context.SaveChangesAsync(CancellationToken.None);
         var previous = rows.ToDictionary(row => row.Id, row => row.RequiredValue);
 
@@ -142,23 +196,33 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidSplitGeneratedRow>().AsNoTracking()
+        var persisted = await context
+            .Set<GuidSplitGeneratedRow>()
+            .AsNoTracking()
             .ToDictionaryAsync(row => row.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(8, persisted.Count);
         AssertSplitGuidGeneratedMetadata(context, ValueGenerated.OnAddOrUpdate);
-        Assert.All(rows, row =>
-        {
-            AssertSplitGuidComputedValues(row);
-            Assert.NotEqual(previous[row.Id], row.RequiredValue);
-            Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
-            Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
-            Assert.Equal(row.Payload, persisted[row.Id].Payload);
-        });
-        Assert.Equal(8, capture.Commands.Sum(sql => CountOccurrences(sql, $"UPDATE `{GuidSplitGeneratedSecondaryTable}`")));
-        Assert.DoesNotContain(capture.Commands, sql =>
-            sql.Contains($"UPDATE `{GuidSplitGeneratedPrincipalTable}`", StringComparison.Ordinal));
+        Assert.All(
+            rows,
+            row =>
+            {
+                AssertSplitGuidComputedValues(row);
+                Assert.NotEqual(previous[row.Id], row.RequiredValue);
+                Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
+                Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
+                Assert.Equal(row.Payload, persisted[row.Id].Payload);
+            });
+
+        Assert.Equal(
+            8,
+            capture.Commands.Sum(sql => CountOccurrences(sql, $"UPDATE `{GuidSplitGeneratedSecondaryTable}`")));
+
+        Assert.DoesNotContain(
+            capture.Commands,
+            sql =>
+                sql.Contains($"UPDATE `{GuidSplitGeneratedPrincipalTable}`", StringComparison.Ordinal));
     }
 
     private static void AssertSplitGuidGeneratedMetadata(
@@ -167,8 +231,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         var entity = context.Model.FindEntityType(typeof(GuidSplitGeneratedRow))!;
-        var primary = StoreObjectIdentifier.Table(GuidSplitGeneratedPrincipalTable, null);
-        var secondary = StoreObjectIdentifier.Table(GuidSplitGeneratedSecondaryTable, null);
+        var primary = StoreObjectIdentifier.Table(GuidSplitGeneratedPrincipalTable);
+        var secondary = StoreObjectIdentifier.Table(GuidSplitGeneratedSecondaryTable);
         var required = entity.FindProperty(nameof(GuidSplitGeneratedRow.RequiredValue))!;
         var nullable = entity.FindProperty(nameof(GuidSplitGeneratedRow.NullableValue))!;
 
@@ -187,6 +251,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         Assert.Equal(ExpectedComputedGuid(row.Input), row.RequiredValue);
-        Assert.Equal(row.Input % 2 == 0 ? null : ExpectedComputedGuid(row.Input), row.NullableValue);
+        Assert.Equal(
+            row.Input % 2 == 0
+                ? null
+                : ExpectedComputedGuid(row.Input),
+            row.NullableValue);
     }
 }

@@ -2,13 +2,13 @@ namespace Doka.EntityFrameworkCore.MySql.RuntimeSmoke;
 
 public static class Program
 {
-    private static readonly MySqlServerVersion s_mySql84 = MySqlServerVersion.MySql(new Version(8, 4, 0));
     private const string RuntimeSmokeHost = "127.0.0.1";
     private const int RuntimeSmokePort = 33068;
     private const string RuntimeSmokeUser = "root";
     private const string RuntimeSmokePassword = "root_password";
     private const string BasicDatabaseName = "runtime_smoke_basic";
     private const string SpatialDatabaseName = "runtime_smoke_spatial";
+    private static readonly MySqlServerVersion s_mySql84 = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -42,11 +42,12 @@ public static class Program
 
         var supportsQueryExecution = RuntimeFeature.IsDynamicCodeSupported;
 
-        await RunBasicCompiledModelSmokeAsync(supportsQueryExecution);
+        // WHY: Main has no cancellation input; helpers require an explicit token at this boundary.
+        await RunBasicCompiledModelSmokeAsync(supportsQueryExecution, cancellationToken: CancellationToken.None);
 
         if (supportsQueryExecution)
         {
-            await RunSpatialCompiledModelSmokeAsync(true);
+            await RunSpatialCompiledModelSmokeAsync(true, cancellationToken: CancellationToken.None);
         }
 
         Console.WriteLine("Runtime smoke OK.");
@@ -85,7 +86,7 @@ public static class Program
     [RequiresDynamicCode("This smoke resolves EF Core's migrations service graph and executes the public handler SPI.")]
     private static void VerifyMigrationOperationHandlerConformance()
     {
-        foreach (var handlersBeforeProvider in new[] { false, true, })
+        foreach (var handlersBeforeProvider in new[] { false, true })
         {
             VerifySuccessfulHandlerOrder(RuntimeSmokeHandlerOrder.PrimaryFirst, handlersBeforeProvider);
             VerifySuccessfulHandlerOrder(RuntimeSmokeHandlerOrder.SecondaryFirst, handlersBeforeProvider);
@@ -95,6 +96,7 @@ public static class Program
             RuntimeSmokeHandlerOrder.ConflictingId,
             () => new RuntimeSmokeMigrationOperation(),
             MySqlMigrationHandlerFailureCode.DuplicateHandlerId);
+
         VerifyExpectedHandlerFailure(
             RuntimeSmokeHandlerOrder.ConflictingOperation,
             () => new RuntimeSmokeMigrationOperation(),
@@ -131,7 +133,12 @@ public static class Program
             context.Model);
 
         if (commands.Count != 4
-            || !string.Equals(commands[0].CommandText.TrimEnd(), "SELECT 1;", StringComparison.Ordinal)
+            || !string.Equals(
+                commands[0]
+                    .CommandText
+                    .TrimEnd(),
+                "SELECT 1;",
+                StringComparison.Ordinal)
             || !commands[0].TransactionSuppressed
             || !string.Equals(commands[1].CommandText, "SELECT 2;", StringComparison.Ordinal)
             || commands[1].TransactionSuppressed
@@ -156,6 +163,7 @@ public static class Program
             context,
             new DerivedRuntimeSmokeMigrationOperation(),
             MySqlMigrationHandlerFailureCode.UnknownOperationType);
+
         VerifyExpectedHandlerFailure(
             generator,
             context,
@@ -173,8 +181,8 @@ public static class Program
             _ = primaryHandler.LastContext.RenderStandardOperation(new SqlOperation { Sql = "SELECT 4;" });
         }
         catch (MySqlMigrationOperationHandlerException exception) when (exception.FailureCode
-                                                                        == MySqlMigrationHandlerFailureCode
-                                                                            .ContextExpired)
+            == MySqlMigrationHandlerFailureCode
+                .ContextExpired)
         {
             return;
         }
@@ -187,37 +195,57 @@ public static class Program
         RuntimeSmokeMigrationContext context
     )
     {
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var operations = context
             .GetService<IMigrationsModelDiffer>()
             .GetDifferences(null, model.GetRelationalModel());
+
         var createTable = operations
             .OfType<CreateTableOperation>()
             .Single(operation => operation.Name == "RuntimeSmokeMetadataEntries");
+
         var id = createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.Id));
-        var reference = createTable.Columns.Single(
-            column => column.Name == nameof(RuntimeSmokeMetadataEntry.Reference));
-        var binaryReference = createTable.Columns.Single(
-            column => column.Name == nameof(RuntimeSmokeMetadataEntry.BinaryReference));
-        var clientReference = createTable.Columns.Single(
-            column => column.Name == nameof(RuntimeSmokeMetadataEntry.ClientReference));
-        var manualReference = createTable.Columns.Single(
-            column => column.Name == nameof(RuntimeSmokeMetadataEntry.ManualReference));
+        var reference =
+            createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.Reference));
+
+        var binaryReference =
+            createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.BinaryReference));
+
+        var clientReference =
+            createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.ClientReference));
+
+        var manualReference =
+            createTable.Columns.Single(column => column.Name == nameof(RuntimeSmokeMetadataEntry.ManualReference));
+
         var index = operations
             .OfType<CreateIndexOperation>()
             .Single(operation => operation.Table == "RuntimeSmokeMetadataEntries");
 
-        if (id.GetMySqlMigrationMetadata().ValueGenerationStrategy
-                != MySqlValueGenerationStrategy.AutoIncrement
-            || reference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Char36
-            || binaryReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Binary16
-            || clientReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Binary16
-            || clientReference.GetMySqlMigrationMetadata().ValueGenerationStrategy
-                != MySqlValueGenerationStrategy.ClientGuid
-            || manualReference.GetMySqlMigrationMetadata().GuidFormat != MySqlGuidFormat.Char36
-            || manualReference.GetMySqlMigrationMetadata().ValueGenerationStrategy
-                != MySqlValueGenerationStrategy.None
-            || index.GetMySqlMigrationMetadata().IndexPrefixLengths is not { } prefixLengths
+        if (id.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy
+            != MySqlValueGenerationStrategy.AutoIncrement
+            || reference.GetMySqlMigrationMetadata()
+                .GuidFormat
+            != MySqlGuidFormat.Char36
+            || binaryReference.GetMySqlMigrationMetadata()
+                .GuidFormat
+            != MySqlGuidFormat.Binary16
+            || clientReference.GetMySqlMigrationMetadata()
+                .GuidFormat
+            != MySqlGuidFormat.Binary16
+            || clientReference.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy
+            != MySqlValueGenerationStrategy.ClientGuid
+            || manualReference.GetMySqlMigrationMetadata()
+                .GuidFormat
+            != MySqlGuidFormat.Char36
+            || manualReference.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy
+            != MySqlValueGenerationStrategy.None
+            || index.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths is not { } prefixLengths
             || !prefixLengths.SequenceEqual([16, 0]))
         {
             throw new InvalidOperationException(
@@ -231,6 +259,7 @@ public static class Program
     {
         var ordinary = handler.LastOrdinaryCommand
             ?? throw new InvalidOperationException("The ordinary provider baseline command was not captured.");
+
         var ordinaryFragment = ordinary.Fragments.Single();
         if (ordinaryFragment.Kind != MySqlMigrationCommandFragmentKind.Body
             || !ordinaryFragment.CommandText.Span.SequenceEqual(ordinary.CommandText))
@@ -241,6 +270,7 @@ public static class Program
 
         var scoped = handler.LastScopedCommand
             ?? throw new InvalidOperationException("The scoped provider baseline command was not captured.");
+
         var expectedKinds = new[]
         {
             MySqlMigrationCommandFragmentKind.Setup,
@@ -248,7 +278,11 @@ public static class Program
             MySqlMigrationCommandFragmentKind.Body,
             MySqlMigrationCommandFragmentKind.Cleanup,
         };
-        if (!scoped.Fragments.Select(fragment => fragment.Kind).SequenceEqual(expectedKinds)
+
+        if (!scoped
+                .Fragments
+                .Select(fragment => fragment.Kind)
+                .SequenceEqual(expectedKinds)
             || !string.Equals(
                 scoped.CommandText,
                 string.Concat(scoped.Fragments.Select(fragment => fragment.CommandText.ToString())),
@@ -267,7 +301,9 @@ public static class Program
 
         var handlerScoped = handler.LastHandlerScopedCommand
             ?? throw new InvalidOperationException("The handler-authored scope was not captured.");
-        if (!handlerScoped.Fragments
+
+        if (!handlerScoped
+                .Fragments
                 .Select(fragment => fragment.Kind)
                 .SequenceEqual(
                 [
@@ -355,14 +391,22 @@ public static class Program
             $"The package-only migration-operation handler did not fail with {expectedFailureCode}.");
     }
 
+    /// <summary>
+    /// Runs basic provider checks against the generated compiled model.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="supportsQueryExecution">Whether the current runtime supports dynamic query compilation.</param>
     [RequiresUnreferencedCode(
         "This smoke verifies the documented trimmed runtime path for the compiled-model baseline.")]
     [RequiresDynamicCode("This smoke verifies the documented NativeAOT runtime path for the compiled-model baseline.")]
     private static async Task RunBasicCompiledModelSmokeAsync(
-        bool supportsQueryExecution
+        bool supportsQueryExecution,
+        CancellationToken cancellationToken
     )
     {
-        await ResetDatabaseAsync(BasicDatabaseName)
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await ResetDatabaseAsync(BasicDatabaseName, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         var connectionString = CreateConnectionString(BasicDatabaseName);
@@ -375,12 +419,13 @@ public static class Program
         if (supportsQueryExecution)
         {
             await context
-                .Database.EnsureCreatedAsync(CancellationToken.None)
+                .Database
+                .EnsureCreatedAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
-            await CreateBasicNativeAotSchemaAsync(context)
+            await CreateBasicNativeAotSchemaAsync(context, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -389,16 +434,19 @@ public static class Program
             {
                 Name = "runtime-smoke",
             });
+
         await context
-            .SaveChangesAsync(CancellationToken.None)
+            .SaveChangesAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (!supportsQueryExecution)
         {
             if (context
-                    .ChangeTracker.Entries<BasicSmokeEntity>()
+                    .ChangeTracker
+                    .Entries<BasicSmokeEntity>()
                     .Single()
-                    .Entity.Id
+                    .Entity
+                    .Id
                 <= 0)
             {
                 throw new InvalidOperationException(
@@ -408,11 +456,349 @@ public static class Program
             return;
         }
 
-        if (!await HasRuntimeSmokeBasicEntityAsync(context))
+        if (!await HasRuntimeSmokeBasicEntityAsync(context, cancellationToken: cancellationToken))
         {
             throw new InvalidOperationException(
                 "The compiled-model basic smoke query did not execute through the MySQL provider path.");
         }
+    }
+
+    private static void AddHandler<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
+        IServiceCollection services
+    )
+        where THandler : class, IMySqlMigrationOperationHandler => services.TryAddEnumerable(
+        ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, THandler>());
+
+    /// <summary>
+    /// Runs spatial provider checks against the generated compiled model.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="supportsQueryExecution">Whether the current runtime supports dynamic query compilation.</param>
+    [RequiresUnreferencedCode(
+        "This smoke verifies the documented trimmed runtime path for the spatial compiled-model baseline.")]
+    [RequiresDynamicCode(
+        "This smoke verifies the documented NativeAOT runtime path for the spatial compiled-model baseline.")]
+    private static async Task RunSpatialCompiledModelSmokeAsync(
+        bool supportsQueryExecution,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await ResetDatabaseAsync(SpatialDatabaseName, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        var connectionString = CreateConnectionString(SpatialDatabaseName);
+        var options = new DbContextOptionsBuilder<SpatialSmokeContext>()
+            .UseMySql(connectionString, s_mySql84, mySqlOptions => mySqlOptions.UseNetTopologySuite())
+            .UseModel(CompiledModelAccessor.GetSpatialModel())
+            .Options;
+
+        await using var context = new SpatialSmokeContext(options);
+        if (supportsQueryExecution)
+        {
+            await context
+                .Database
+                .EnsureCreatedAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await CreateSpatialNativeAotSchemaAsync(context, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        context.SpatialEntities.Add(
+            new SpatialSmokeEntity
+            {
+                Location = new Point(13.4050, 52.5200)
+                {
+                    SRID = 4326,
+                },
+            });
+
+        await context
+            .SaveChangesAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!supportsQueryExecution)
+        {
+            if (context
+                    .ChangeTracker
+                    .Entries<SpatialSmokeEntity>()
+                    .Single()
+                    .Entity
+                    .Id
+                <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The NativeAOT spatial smoke path did not complete the expected generated-value insert baseline.");
+            }
+
+            return;
+        }
+
+        if (!await HasRuntimeSmokeSpatialEntityAsync(context, cancellationToken: cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "The compiled-model spatial smoke query did not execute through the approved spatial translation path.");
+        }
+    }
+
+    private static string CreateConnectionString(
+        string databaseName
+    )
+    {
+        var configuredConnectionString = Environment.GetEnvironmentVariable(
+            "DOKA_RUNTIME_SMOKE_CONNECTION_STRING");
+
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            // Release candidates own an isolated container on a dynamic port.
+            // Replacing only the database keeps credentials and transport
+            // options in the runner-owned connection contract.
+            var configuredBuilder = new MySqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Database = databaseName,
+            };
+
+            return configuredBuilder.ConnectionString;
+        }
+
+        return $"Server={RuntimeSmokeHost};Port={RuntimeSmokePort};"
+            + $"Database={databaseName};User ID={RuntimeSmokeUser};"
+            + $"Password={RuntimeSmokePassword};";
+    }
+
+    /// <summary>
+    /// Recreates the runtime smoke database before schema setup.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="databaseName">The isolated database owned by the scenario.</param>
+    private static async Task ResetDatabaseAsync(
+        string databaseName,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var builder = new MySqlConnectionStringBuilder(CreateConnectionString(databaseName))
+        {
+            Database = string.Empty,
+        };
+
+        builder.Remove("Database");
+        builder.Remove("Initial Catalog");
+
+        await using var connection = new MySqlConnection(builder.ConnectionString);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await ExecuteServerCommandAsync(
+                connection,
+                $"DROP DATABASE IF EXISTS `{databaseName}`;",
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        await ExecuteServerCommandAsync(
+                connection,
+                $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4;",
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Executes one runtime smoke administration command.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="connection">The connection used for the operation.</param>
+    /// <param name="commandText">The server administration statement to execute.</param>
+    private static async Task ExecuteServerCommandAsync(
+        MySqlConnection connection,
+        string commandText,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+
+        await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates the basic provider schema used by the NativeAOT runtime smoke.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
+    private static async Task CreateBasicNativeAotSchemaAsync(
+        BasicSmokeContext context,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var entityType = context.Model.FindEntityType(typeof(BasicSmokeEntity))
+            ?? throw new InvalidOperationException(
+                "The NativeAOT basic smoke path could not resolve the compiled entity type.");
+
+        var storeObject = StoreObjectIdentifier.Table(
+            entityType.GetTableName()
+            ?? throw new InvalidOperationException(
+                "The NativeAOT basic smoke path could not resolve the compiled table name."),
+            entityType.GetSchema());
+
+        var idColumnName = entityType
+                .FindProperty(nameof(BasicSmokeEntity.Id))
+                ?.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                "The NativeAOT basic smoke path could not resolve the compiled Id column name.");
+
+        var nameColumnName = entityType
+                .FindProperty(nameof(BasicSmokeEntity.Name))
+                ?.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                "The NativeAOT basic smoke path could not resolve the compiled Name column name.");
+
+        var createTableSql = $"""
+                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
+                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
+                                  {DelimitIdentifier(nameColumnName)} longtext NOT NULL,
+                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
+                              ) CHARACTER SET utf8mb4;
+                              """;
+
+        await context
+            .Database
+            .ExecuteSqlRawAsync(createTableSql, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates the spatial schema used by the NativeAOT runtime smoke.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
+    private static async Task CreateSpatialNativeAotSchemaAsync(
+        SpatialSmokeContext context,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var entityType = context.Model.FindEntityType(typeof(SpatialSmokeEntity))
+            ?? throw new InvalidOperationException(
+                "The NativeAOT spatial smoke path could not resolve the compiled entity type.");
+
+        var storeObject = StoreObjectIdentifier.Table(
+            entityType.GetTableName()
+            ?? throw new InvalidOperationException(
+                "The NativeAOT spatial smoke path could not resolve the compiled table name."),
+            entityType.GetSchema());
+
+        var idColumnName = entityType
+                .FindProperty(nameof(SpatialSmokeEntity.Id))
+                ?.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                "The NativeAOT spatial smoke path could not resolve the compiled Id column name.");
+
+        var locationColumnName = entityType
+                .FindProperty(nameof(SpatialSmokeEntity.Location))
+                ?.GetColumnName(storeObject)
+            ?? throw new InvalidOperationException(
+                "The NativeAOT spatial smoke path could not resolve the compiled Location column name.");
+
+        var createTableSql = $"""
+                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
+                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
+                                  {DelimitIdentifier(locationColumnName)} point NOT NULL /*!80003 SRID 4326 */,
+                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
+                              ) CHARACTER SET utf8mb4;
+                              """;
+
+        await context
+            .Database
+            .ExecuteSqlRawAsync(createTableSql, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static string DelimitIdentifier(
+        string identifier
+    ) => $"`{identifier.Replace("`", "``", StringComparison.Ordinal)}`";
+
+    /// <summary>
+    /// Checks the basic smoke query using a cancellation-aware enumerator.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
+    private static async Task<bool> HasRuntimeSmokeBasicEntityAsync(
+        BasicSmokeContext context,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var enumerator = GetRuntimeSmokeBasicEntities(context)
+            .GetAsyncEnumerator(cancellationToken);
+
+        return await enumerator.MoveNextAsync();
+    }
+
+    /// <summary>
+    /// Creates the deferred basic query consumed by the cancellation-aware smoke enumerator.
+    /// </summary>
+    /// <param name="context">The compiled-model context that owns the query.</param>
+    /// <returns>The deferred query; the consumer supplies cancellation during enumeration.</returns>
+
+    // WHY: Building the query performs no I/O; GetAsyncEnumerator receives the caller token.
+    private static IAsyncEnumerable<BasicSmokeEntity> GetRuntimeSmokeBasicEntities(
+        BasicSmokeContext context
+    )
+    {
+        return context
+            .BasicEntities
+            .Where(entity => entity.Name == "runtime-smoke")
+            .AsAsyncEnumerable();
+    }
+
+    /// <summary>
+    /// Checks the spatial smoke query using a cancellation-aware enumerator.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="context">The context used by this scenario.</param>
+    private static async Task<bool> HasRuntimeSmokeSpatialEntityAsync(
+        SpatialSmokeContext context,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var enumerator = GetRuntimeSmokeSpatialEntities(context)
+            .GetAsyncEnumerator(cancellationToken);
+
+        return await enumerator.MoveNextAsync();
+    }
+
+    /// <summary>
+    /// Creates the deferred spatial query consumed by the cancellation-aware smoke enumerator.
+    /// </summary>
+    /// <param name="context">The compiled-model context that owns the query.</param>
+    /// <returns>The deferred query; the consumer supplies cancellation during enumeration.</returns>
+
+    // WHY: Building the query performs no I/O; GetAsyncEnumerator receives the caller token.
+    private static IAsyncEnumerable<SpatialSmokeEntity> GetRuntimeSmokeSpatialEntities(
+        SpatialSmokeContext context
+    )
+    {
+        return context
+            .SpatialEntities
+            .Where(entity => EF.Functions.DistanceSphere(entity.Location, entity.Location) < 1d)
+            .AsAsyncEnumerable();
     }
 
     private class RuntimeSmokeMigrationOperation : MigrationOperation;
@@ -427,10 +813,6 @@ public static class Program
 
     private sealed class RuntimeSmokeMigrationHandler : IMySqlMigrationOperationHandler
     {
-        public string HandlerId => "runtime_smoke.operation";
-
-        public Type OperationType => typeof(RuntimeSmokeMigrationOperation);
-
         public MySqlMigrationOperationContext? LastContext { get; private set; }
 
         public MySqlMigrationCommandSpec? LastHandlerScopedCommand { get; private set; }
@@ -440,6 +822,9 @@ public static class Program
         public MySqlMigrationCommandSpec? LastOrdinaryCommand { get; private set; }
 
         public MySqlMigrationCommandSpec? LastScopedCommand { get; private set; }
+        public string HandlerId => "runtime_smoke.operation";
+
+        public Type OperationType => typeof(RuntimeSmokeMigrationOperation);
 
         public MySqlMigrationOperationResult Generate(
             MySqlMigrationOperationContext context
@@ -460,6 +845,7 @@ public static class Program
                     Sql = "SELECT 1;",
                     SuppressTransaction = true,
                 });
+
             var scopedBaseline = context.RenderStandardOperation(
                 new AddColumnOperation
                 {
@@ -470,6 +856,7 @@ public static class Program
                     IsNullable = true,
                     Comment = "path\\segment",
                 });
+
             var opaqueCommand = MySqlMigrationCommandSpec.Create("SELECT 2;");
             var handlerScopedCommand = MySqlMigrationCommandSpec.CreateScoped(
                 ["SET @runtime_smoke_scope = 1;"],
@@ -482,7 +869,9 @@ public static class Program
             LastHandlerScopedCommand = handlerScopedCommand;
 
             return MySqlMigrationOperationResult.Generated(
-                baseline.Append(opaqueCommand).Append(handlerScopedCommand),
+                baseline
+                    .Append(opaqueCommand)
+                    .Append(handlerScopedCommand),
                 "runtime_smoke");
         }
     }
@@ -552,23 +941,29 @@ public static class Program
                 entity
                     .Property(entry => entry.Reference)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 entity
                     .Property(entry => entry.BinaryReference)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 entity
                     .Property(entry => entry.ClientReference)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16)
                     .UseMySqlClientGuidValueGeneration();
+
                 entity
                     .Property(entry => entry.ManualReference)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
                     .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.None);
+
                 entity
                     .Property(entry => entry.Name)
                     .HasMaxLength(64);
+
                 entity
                     .Property(entry => entry.Code)
                     .HasMaxLength(64);
+
                 entity
                     .HasIndex(
                         nameof(RuntimeSmokeMetadataEntry.Name),
@@ -636,8 +1031,7 @@ public static class Program
 
         public void Validate(
             IDbContextOptions options
-        )
-        { }
+        ) { }
 
         private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
         {
@@ -669,264 +1063,12 @@ public static class Program
         }
     }
 
-    private static void AddHandler<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
-        IServiceCollection services
-    )
-        where THandler : class, IMySqlMigrationOperationHandler => services.TryAddEnumerable(
-        ServiceDescriptor.Scoped<IMySqlMigrationOperationHandler, THandler>());
-
     private enum RuntimeSmokeHandlerOrder
     {
         PrimaryFirst,
         SecondaryFirst,
         ConflictingId,
         ConflictingOperation,
-    }
-
-    [RequiresUnreferencedCode(
-        "This smoke verifies the documented trimmed runtime path for the spatial compiled-model baseline.")]
-    [RequiresDynamicCode(
-        "This smoke verifies the documented NativeAOT runtime path for the spatial compiled-model baseline.")]
-    private static async Task RunSpatialCompiledModelSmokeAsync(
-        bool supportsQueryExecution
-    )
-    {
-        await ResetDatabaseAsync(SpatialDatabaseName)
-            .ConfigureAwait(false);
-
-        var connectionString = CreateConnectionString(SpatialDatabaseName);
-        var options = new DbContextOptionsBuilder<SpatialSmokeContext>()
-            .UseMySql(connectionString, s_mySql84, mySqlOptions => mySqlOptions.UseNetTopologySuite())
-            .UseModel(CompiledModelAccessor.GetSpatialModel())
-            .Options;
-
-        await using var context = new SpatialSmokeContext(options);
-        if (supportsQueryExecution)
-        {
-            await context
-                .Database.EnsureCreatedAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            await CreateSpatialNativeAotSchemaAsync(context)
-                .ConfigureAwait(false);
-        }
-
-        context.SpatialEntities.Add(
-            new SpatialSmokeEntity
-            {
-                Location = new Point(13.4050, 52.5200)
-                {
-                    SRID = 4326,
-                },
-            });
-        await context
-            .SaveChangesAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        if (!supportsQueryExecution)
-        {
-            if (context
-                    .ChangeTracker.Entries<SpatialSmokeEntity>()
-                    .Single()
-                    .Entity.Id
-                <= 0)
-            {
-                throw new InvalidOperationException(
-                    "The NativeAOT spatial smoke path did not complete the expected generated-value insert baseline.");
-            }
-
-            return;
-        }
-
-        if (!await HasRuntimeSmokeSpatialEntityAsync(context))
-        {
-            throw new InvalidOperationException(
-                "The compiled-model spatial smoke query did not execute through the approved spatial translation path.");
-        }
-    }
-
-    private static string CreateConnectionString(
-        string databaseName
-    )
-    {
-        var configuredConnectionString = Environment.GetEnvironmentVariable(
-            "DOKA_RUNTIME_SMOKE_CONNECTION_STRING");
-
-        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
-        {
-            // Release candidates own an isolated container on a dynamic port.
-            // Replacing only the database keeps credentials and transport
-            // options in the runner-owned connection contract.
-            var configuredBuilder = new MySqlConnectionStringBuilder(configuredConnectionString)
-            {
-                Database = databaseName,
-            };
-
-            return configuredBuilder.ConnectionString;
-        }
-
-        return $"Server={RuntimeSmokeHost};Port={RuntimeSmokePort};"
-            + $"Database={databaseName};User ID={RuntimeSmokeUser};"
-            + $"Password={RuntimeSmokePassword};";
-    }
-
-    private static async Task ResetDatabaseAsync(
-        string databaseName
-    )
-    {
-        var builder = new MySqlConnectionStringBuilder(CreateConnectionString(databaseName))
-        {
-            Database = string.Empty,
-        };
-
-        builder.Remove("Database");
-        builder.Remove("Initial Catalog");
-
-        await using var connection = new MySqlConnection(builder.ConnectionString);
-        await connection
-            .OpenAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-
-        await ExecuteServerCommandAsync(connection, $"DROP DATABASE IF EXISTS `{databaseName}`;")
-            .ConfigureAwait(false);
-        await ExecuteServerCommandAsync(connection, $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4;")
-            .ConfigureAwait(false);
-    }
-
-    private static async Task ExecuteServerCommandAsync(
-        MySqlConnection connection,
-        string commandText
-    )
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = commandText;
-
-        await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static async Task CreateBasicNativeAotSchemaAsync(
-        BasicSmokeContext context
-    )
-    {
-        var entityType = context.Model.FindEntityType(typeof(BasicSmokeEntity))
-            ?? throw new InvalidOperationException(
-                "The NativeAOT basic smoke path could not resolve the compiled entity type.");
-
-        var storeObject = StoreObjectIdentifier.Table(
-            entityType.GetTableName()
-            ?? throw new InvalidOperationException(
-                "The NativeAOT basic smoke path could not resolve the compiled table name."),
-            entityType.GetSchema());
-
-        var idColumnName = entityType
-                .FindProperty(nameof(BasicSmokeEntity.Id))
-                ?.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                "The NativeAOT basic smoke path could not resolve the compiled Id column name.");
-
-        var nameColumnName = entityType
-                .FindProperty(nameof(BasicSmokeEntity.Name))
-                ?.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                "The NativeAOT basic smoke path could not resolve the compiled Name column name.");
-
-        var createTableSql = $"""
-                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
-                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
-                                  {DelimitIdentifier(nameColumnName)} longtext NOT NULL,
-                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
-                              ) CHARACTER SET utf8mb4;
-                              """;
-
-        await context
-            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static async Task CreateSpatialNativeAotSchemaAsync(
-        SpatialSmokeContext context
-    )
-    {
-        var entityType = context.Model.FindEntityType(typeof(SpatialSmokeEntity))
-            ?? throw new InvalidOperationException(
-                "The NativeAOT spatial smoke path could not resolve the compiled entity type.");
-
-        var storeObject = StoreObjectIdentifier.Table(
-            entityType.GetTableName()
-            ?? throw new InvalidOperationException(
-                "The NativeAOT spatial smoke path could not resolve the compiled table name."),
-            entityType.GetSchema());
-
-        var idColumnName = entityType
-                .FindProperty(nameof(SpatialSmokeEntity.Id))
-                ?.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                "The NativeAOT spatial smoke path could not resolve the compiled Id column name.");
-
-        var locationColumnName = entityType
-                .FindProperty(nameof(SpatialSmokeEntity.Location))
-                ?.GetColumnName(storeObject)
-            ?? throw new InvalidOperationException(
-                "The NativeAOT spatial smoke path could not resolve the compiled Location column name.");
-
-        var createTableSql = $"""
-                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
-                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
-                                  {DelimitIdentifier(locationColumnName)} point NOT NULL /*!80003 SRID 4326 */,
-                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
-                              ) CHARACTER SET utf8mb4;
-                              """;
-
-        await context
-            .Database.ExecuteSqlRawAsync(createTableSql, CancellationToken.None)
-            .ConfigureAwait(false);
-    }
-
-    private static string DelimitIdentifier(
-        string identifier
-    ) => $"`{identifier.Replace("`", "``", StringComparison.Ordinal)}`";
-
-    private static async Task<bool> HasRuntimeSmokeBasicEntityAsync(
-        BasicSmokeContext context
-    )
-    {
-        await using var enumerator = GetRuntimeSmokeBasicEntities(context)
-            .GetAsyncEnumerator(CancellationToken.None);
-
-        return await enumerator.MoveNextAsync();
-    }
-
-    private static IAsyncEnumerable<BasicSmokeEntity> GetRuntimeSmokeBasicEntities(
-        BasicSmokeContext context
-    )
-    {
-        return context
-            .BasicEntities.Where(entity => entity.Name == "runtime-smoke")
-            .AsAsyncEnumerable();
-    }
-
-    private static async Task<bool> HasRuntimeSmokeSpatialEntityAsync(
-        SpatialSmokeContext context
-    )
-    {
-        await using var enumerator = GetRuntimeSmokeSpatialEntities(context)
-            .GetAsyncEnumerator(CancellationToken.None);
-
-        return await enumerator.MoveNextAsync();
-    }
-
-    private static IAsyncEnumerable<SpatialSmokeEntity> GetRuntimeSmokeSpatialEntities(
-        SpatialSmokeContext context
-    )
-    {
-        return context
-            .SpatialEntities.Where(entity => EF.Functions.DistanceSphere(entity.Location, entity.Location) < 1d)
-            .AsAsyncEnumerable();
     }
 
     public sealed class BasicSmokeContext : DbContext
@@ -998,6 +1140,7 @@ public static class Program
                 entity
                     .Property(item => item.Location)
                     .HasSrid(4326);
+
                 entity
                     .HasIndex(item => item.Location)
                     .IsSpatial();

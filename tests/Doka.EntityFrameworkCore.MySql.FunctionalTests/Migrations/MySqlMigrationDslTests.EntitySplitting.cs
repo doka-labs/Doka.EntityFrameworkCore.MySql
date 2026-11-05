@@ -34,6 +34,7 @@ public sealed partial class MySqlMigrationDslTests
             MySqlValueGenerationStrategy.AutoIncrement,
             principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.Null(secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy));
         Assert.Equal(["Id"], principal.PrimaryKey!.Columns);
         Assert.Equal(["Id"], secondary.PrimaryKey!.Columns);
@@ -74,18 +75,22 @@ public sealed partial class MySqlMigrationDslTests
             MySqlValueGenerationStrategy.AutoIncrement,
             ordinaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.NotEqual(
             MySqlValueGenerationStrategy.AutoIncrement,
             principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.NotEqual(
             MySqlValueGenerationStrategy.AutoIncrement,
             secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.DoesNotContain(
             "AUTO_INCREMENT",
             principalSql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "AUTO_INCREMENT",
             secondarySql,
@@ -120,24 +125,35 @@ public sealed partial class MySqlMigrationDslTests
             MySqlValueGenerationStrategy.None,
             principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.None,
-            principalId.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+            principalId.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             principalId.OldColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
-            principalId.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+            principalId.OldColumn.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.None,
             secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.None,
-            secondaryId.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+            secondaryId.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
         Assert.Null(secondaryId.OldColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy));
-        Assert.Null(secondaryId.OldColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+        Assert.Null(
+            secondaryId.OldColumn.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
     }
 }

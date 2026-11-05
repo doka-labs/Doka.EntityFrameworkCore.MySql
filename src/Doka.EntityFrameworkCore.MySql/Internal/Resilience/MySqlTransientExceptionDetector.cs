@@ -4,14 +4,6 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
 {
     private const int MaxInnerExceptionDepth = 20;
 
-    [Flags]
-    private enum TerminalCondition
-    {
-        None = 0,
-        Cancellation = 1,
-        CommandTimeout = 2,
-    }
-
     public bool IsCancellation(
         Exception exception
     ) => (ClassifyTerminalConditions(exception) & TerminalCondition.Cancellation) != 0;
@@ -42,8 +34,8 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth
-               && visited.Add(current))
+            && depth < MaxInnerExceptionDepth
+            && visited.Add(current))
         {
             if (current is MySqlException mySqlException)
             {
@@ -83,8 +75,8 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth
-               && visited.Add(current))
+            && depth < MaxInnerExceptionDepth
+            && visited.Add(current))
         {
             if (current is MySqlMigrationSessionCleanupException)
             {
@@ -110,8 +102,8 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         var visited = new HashSet<Exception>(ReferenceEqualityComparer.Instance);
 
         while (current is not null
-               && depth < MaxInnerExceptionDepth
-               && visited.Add(current))
+            && depth < MaxInnerExceptionDepth
+            && visited.Add(current))
         {
             if (current is OperationCanceledException)
             {
@@ -140,4 +132,12 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         or MySqlErrorCode.LockDeadlock
         or MySqlErrorCode.XARBDeadlock
         or MySqlErrorCode.UserLockDeadlock;
+
+    [Flags]
+    private enum TerminalCondition
+    {
+        None = 0,
+        Cancellation = 1,
+        CommandTimeout = 2,
+    }
 }

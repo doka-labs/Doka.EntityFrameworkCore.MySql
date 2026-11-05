@@ -26,16 +26,17 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
 
-        await SetupAsync(context);
+        await SetupAsync(context, CancellationToken.None);
 
         try
         {
-            context.Items.Add(new QueryItem
-            {
-                Name = "dt",
-                Category = "X",
-                CreatedAt = new DateTime(2025, 1, 1, 12, 0, 0),
-            });
+            context.Items.Add(
+                new QueryItem
+                {
+                    Name = "dt",
+                    Category = "X",
+                    CreatedAt = new DateTime(2025, 1, 1, 12, 0, 0),
+                });
 
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
@@ -46,7 +47,10 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 "AddMonths" => context.Items.Select(item => item.CreatedAt.AddMonths(2)),
                 "AddYears" => context.Items.Select(item => item.CreatedAt.AddYears(1)),
                 "AddHours" => context.Items.Select(item => item.CreatedAt.AddHours(5)),
-                _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Unknown DateTime arithmetic method."),
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(method),
+                    method,
+                    "Unknown DateTime arithmetic method."),
             };
 
             // Act

@@ -1,5 +1,8 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
+using JoinOneSelfPayload = Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel.JoinOneSelfPayload;
+using JoinOneToThreePayloadFull =
+    Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel.JoinOneToThreePayloadFull;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Loading;
 
@@ -69,11 +72,11 @@ public sealed class LazyLoadProxyMySqlTest : LazyLoadProxyRelationalTestBase<Laz
 
     public sealed class MySqlFixture : LoadRelationalFixtureBase
     {
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
         public override DbContextOptionsBuilder AddOptions(
             DbContextOptionsBuilder builder
         ) => base.AddOptions(builder.UseLazyLoadingProxies());
-
-        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
     }
 }
 
@@ -103,7 +106,7 @@ public sealed class
             base.OnModelCreating(modelBuilder, context);
 
             modelBuilder
-                .Entity<Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel.JoinOneSelfPayload>()
+                .Entity<JoinOneSelfPayload>()
                 .Property(e => e.Payload)
                 .HasDefaultValueSql("UTC_TIMESTAMP()");
 
@@ -113,7 +116,7 @@ public sealed class
                 .HasDefaultValue("Generated");
 
             modelBuilder
-                .Entity<Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel.JoinOneToThreePayloadFull>()
+                .Entity<JoinOneToThreePayloadFull>()
                 .Property(e => e.Payload)
                 .HasDefaultValue("Generated");
         }
@@ -144,7 +147,9 @@ public sealed class ManyToManyLoadMySqlTest : ManyToManyLoadTestBase<ManyToManyL
         {
             base.OnModelCreating(modelBuilder, context);
 
-            ConfigurePayloadDefaults<JoinOneSelfPayload>(modelBuilder);
+            ConfigurePayloadDefaults<Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel.JoinOneSelfPayload>(
+                modelBuilder);
+
             ConfigurePayloadDefaults<UnidirectionalJoinOneSelfPayload>(modelBuilder);
 
             modelBuilder
@@ -158,7 +163,7 @@ public sealed class ManyToManyLoadMySqlTest : ManyToManyLoadTestBase<ManyToManyL
                 .HasDefaultValue("Generated");
 
             modelBuilder
-                .Entity<JoinOneToThreePayloadFull>()
+                .Entity<Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel.JoinOneToThreePayloadFull>()
                 .Property(e => e.Payload)
                 .HasDefaultValue("Generated");
 

@@ -3,6 +3,47 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// <summary>Contains the temporal responsibility for MySqlTypeMappingBaselineTests.</summary>
 public sealed partial class MySqlTypeMappingBaselineTests
 {
+    /// <summary>Exposes independent temporal literal shapes at every server precision.</summary>
+    public static TheoryData<string, int, string> TimeLiteralCases
+    {
+        get
+        {
+            var cases = new TheoryData<string, int, string>();
+
+            for (var precision = 0; precision <= 6; precision++)
+            {
+                var fraction = precision == 0
+                    ? string.Empty
+                    : "." + "123456"[..precision];
+
+                cases.Add("time-only", precision, $"TIME '12:34:56{fraction}'");
+                cases.Add("positive-duration", precision, $"'27:00:00{fraction}'");
+                cases.Add("negative-duration", precision, $"'-27:00:00{fraction}'");
+            }
+
+            return cases;
+        }
+    }
+
+    /// <summary>Lists each CLR/store-type pair at every supported fractional-seconds precision.</summary>
+    public static TheoryData<Type, string, int> TemporalMappingPrecisionCases
+    {
+        get
+        {
+            var cases = new TheoryData<Type, string, int>();
+
+            for (var precision = 0; precision <= 6; precision++)
+            {
+                cases.Add(typeof(DateTime), "datetime", precision);
+                cases.Add(typeof(DateTime), "timestamp", precision);
+                cases.Add(typeof(TimeOnly), "time", precision);
+                cases.Add(typeof(TimeSpan), "time", precision);
+            }
+
+            return cases;
+        }
+    }
+
     /// <summary>
     /// Verifies that time literals are truncated to the declared store
     /// precision before either engine can apply a different rounding policy.
@@ -21,7 +62,10 @@ public sealed partial class MySqlTypeMappingBaselineTests
     {
         // Arrange
         using var context = new TypeMappingContext(CreateOptions<TypeMappingContext>());
-        var mapping = context.GetService<IRelationalTypeMappingSource>().FindMapping(clrType, storeType)!;
+        var mapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(clrType, storeType)!;
+
         var fraction = TimeSpan.FromTicks(1_234_567);
         object value = clrType == typeof(TimeOnly)
             ? new TimeOnly(12, 34, 56).Add(fraction)
@@ -55,26 +99,6 @@ public sealed partial class MySqlTypeMappingBaselineTests
         Assert.Same(
             JsonTimeSpanReaderWriter.Instance,
             mapping.JsonValueReaderWriter);
-    }
-
-    /// <summary>Exposes independent temporal literal shapes at every server precision.</summary>
-    public static TheoryData<string, int, string> TimeLiteralCases
-    {
-        get
-        {
-            var cases = new TheoryData<string, int, string>();
-
-            for (var precision = 0; precision <= 6; precision++)
-            {
-                var fraction = precision == 0 ? string.Empty : "." + "123456"[..precision];
-
-                cases.Add("time-only", precision, $"TIME '12:34:56{fraction}'");
-                cases.Add("positive-duration", precision, $"'27:00:00{fraction}'");
-                cases.Add("negative-duration", precision, $"'-27:00:00{fraction}'");
-            }
-
-            return cases;
-        }
     }
 
     /// <summary>Each temporal shape truncates the same input independently at its declared precision.</summary>
@@ -123,7 +147,9 @@ public sealed partial class MySqlTypeMappingBaselineTests
             ? new MySqlTimeOnlyTypeMapping("time(6)", 6)
             : new MySqlTimeSpanTypeMapping("time(6)", 6);
 
-        object value = timeOnly ? TimeOnly.MaxValue : TimeSpan.FromTicks(-9);
+        object value = timeOnly
+            ? TimeOnly.MaxValue
+            : TimeSpan.FromTicks(-9);
 
         try
         {
@@ -163,7 +189,9 @@ public sealed partial class MySqlTypeMappingBaselineTests
             ? MySqlTimeOnlyTypeMapping.Default
             : MySqlTimeSpanTypeMapping.Default;
 
-        object input = clrType == typeof(TimeOnly) ? value : value.ToTimeSpan();
+        object input = clrType == typeof(TimeOnly)
+            ? value
+            : value.ToTimeSpan();
 
         // Act
         var mapping = typeMappingSource.FindMapping(clrType)!;
@@ -202,7 +230,9 @@ public sealed partial class MySqlTypeMappingBaselineTests
             + TimeSpan.FromSeconds(59)
             + TimeSpan.FromTicks(additionalTicks);
 
-        var value = negative ? -maximum : maximum;
+        var value = negative
+            ? -maximum
+            : maximum;
 
         // Act
         var literal = typeMapping.GenerateSqlLiteral(value);
@@ -233,7 +263,9 @@ public sealed partial class MySqlTypeMappingBaselineTests
             + TimeSpan.FromSeconds(59);
 
         var outsideMaximum = maximum + TimeSpan.FromTicks(10);
-        var value = negative ? -outsideMaximum : outsideMaximum;
+        var value = negative
+            ? -outsideMaximum
+            : outsideMaximum;
 
         // Act
         var exception = Record.Exception(() => typeMapping.GenerateSqlLiteral(value));
@@ -338,25 +370,6 @@ public sealed partial class MySqlTypeMappingBaselineTests
 
         // Assert
         Assert.Equal(expected, mapping?.StoreType);
-    }
-
-    /// <summary>Lists each CLR/store-type pair at every supported fractional-seconds precision.</summary>
-    public static TheoryData<Type, string, int> TemporalMappingPrecisionCases
-    {
-        get
-        {
-            var cases = new TheoryData<Type, string, int>();
-
-            for (var precision = 0; precision <= 6; precision++)
-            {
-                cases.Add(typeof(DateTime), "datetime", precision);
-                cases.Add(typeof(DateTime), "timestamp", precision);
-                cases.Add(typeof(TimeOnly), "time", precision);
-                cases.Add(typeof(TimeSpan), "time", precision);
-            }
-
-            return cases;
-        }
     }
 
     /// <summary>

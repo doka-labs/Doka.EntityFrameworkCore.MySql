@@ -20,18 +20,24 @@ public sealed class MySqlGuidRelationshipConversionTests
             CreateOptions<DefaultChar36RelationshipContext>());
 
         // Act
-        var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
+        var properties = GetRelationshipProperties(
+            context.GetService<IDesignTimeModel>()
+                .Model);
 
         // Assert
-        Assert.All(properties, property =>
-        {
-            Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
-            Assert.Equal(MySqlGuidFormat.Char36, property.GetMySqlGuidFormat());
-            Assert.Equal("char(36)", property.GetColumnType());
-            Assert.Null(property.GetValueConverter());
-            Assert.Null(property.GetProviderClrType());
-            Assert.IsType<GuidToStringConverter>(property.GetRelationalTypeMapping().Converter);
-        });
+        Assert.All(
+            properties,
+            property =>
+            {
+                Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
+                Assert.Equal(MySqlGuidFormat.Char36, property.GetMySqlGuidFormat());
+                Assert.Equal("char(36)", property.GetColumnType());
+                Assert.Null(property.GetValueConverter());
+                Assert.Null(property.GetProviderClrType());
+                Assert.IsType<GuidToStringConverter>(
+                    property.GetRelationalTypeMapping()
+                        .Converter);
+            });
     }
 
     /// <summary>
@@ -46,16 +52,20 @@ public sealed class MySqlGuidRelationshipConversionTests
             CreateOptions<ApplicationChar36RelationshipContext>());
 
         // Act
-        var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
+        var properties = GetRelationshipProperties(
+            context.GetService<IDesignTimeModel>()
+                .Model);
 
         // Assert
-        Assert.All(properties, property =>
-        {
-            Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
-            Assert.Null(property.GetMySqlGuidFormat());
-            var converter = Assert.IsType<GuidToStringConverter>(property.GetValueConverter());
-            Assert.Equal(typeof(string), converter.ProviderClrType);
-        });
+        Assert.All(
+            properties,
+            property =>
+            {
+                Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
+                Assert.Null(property.GetMySqlGuidFormat());
+                var converter = Assert.IsType<GuidToStringConverter>(property.GetValueConverter());
+                Assert.Equal(typeof(string), converter.ProviderClrType);
+            });
     }
 
     /// <summary>
@@ -70,16 +80,20 @@ public sealed class MySqlGuidRelationshipConversionTests
             CreateOptions<ApplicationProviderTypeRelationshipContext>());
 
         // Act
-        var properties = GetRelationshipProperties(context.GetService<IDesignTimeModel>().Model);
+        var properties = GetRelationshipProperties(
+            context.GetService<IDesignTimeModel>()
+                .Model);
 
         // Assert
-        Assert.All(properties, property =>
-        {
-            Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
-            Assert.Null(property.GetMySqlGuidFormat());
-            Assert.Null(property.GetValueConverter());
-            Assert.Equal(typeof(string), property.GetProviderClrType());
-        });
+        Assert.All(
+            properties,
+            property =>
+            {
+                Assert.Equal(typeof(Guid), Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType);
+                Assert.Null(property.GetMySqlGuidFormat());
+                Assert.Null(property.GetValueConverter());
+                Assert.Equal(typeof(string), property.GetProviderClrType());
+            });
     }
 
     /// <summary>
@@ -104,7 +118,9 @@ public sealed class MySqlGuidRelationshipConversionTests
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
-        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<TContext>()
+        .UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options => options.DefaultGuidFormat(MySqlGuidFormat.Char36))
@@ -169,6 +185,7 @@ public sealed class MySqlGuidRelationshipConversionTests
                     .HasOne(item => item.Left)
                     .WithMany()
                     .HasForeignKey(item => item.ReferenceId);
+
                 entity
                     .HasOne(item => item.Right)
                     .WithMany()
@@ -182,6 +199,7 @@ public sealed class MySqlGuidRelationshipConversionTests
                     .HasOne(item => item.Left)
                     .WithMany()
                     .HasForeignKey(item => item.ReferenceId);
+
                 entity
                     .HasOne(item => item.Right)
                     .WithMany()

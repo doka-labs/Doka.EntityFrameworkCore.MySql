@@ -122,6 +122,30 @@ public sealed partial class MySqlModelingBaselineTests
         Assert.Equal("SplitOrders", headerType.GetTableName());
         Assert.Equal("SplitOrders", detailType.GetTableName());
     }
+
+    // Discriminator with explicit length
+    /// <summary>
+    /// Entity splitting -- one entity maps to two tables.
+    /// </summary>
+    [Fact]
+    public void Entity_splitting_maps_to_two_tables()
+    {
+        // Arrange
+        using var context = new EntitySplitContext(CreateOptions<EntitySplitContext>());
+
+        // Act
+        var model = context.Model;
+        var entityType = model.FindEntityType(typeof(SplitProduct))!;
+
+        // Entity should be mapped to multiple tables.
+        var tableMappings = entityType
+            .GetTableMappings()
+            .ToList();
+
+        // Assert
+        Assert.True(tableMappings.Count >= 2, $"Expected >= 2 table mappings but got {tableMappings.Count}");
+    }
+
     // -- Additional Context Definitions -----------------------------------
 
     // Table splitting
@@ -200,28 +224,6 @@ public sealed partial class MySqlModelingBaselineTests
         }
     }
 
-    // Discriminator with explicit length
-    /// <summary>
-    /// Entity splitting -- one entity maps to two tables.
-    /// </summary>
-    [Fact]
-    public void Entity_splitting_maps_to_two_tables()
-    {
-        // Arrange
-        using var context = new EntitySplitContext(CreateOptions<EntitySplitContext>());
-
-        // Act
-        var model = context.Model;
-        var entityType = model.FindEntityType(typeof(SplitProduct))!;
-
-        // Entity should be mapped to multiple tables.
-        var tableMappings = entityType
-            .GetTableMappings()
-            .ToList();
-
-        // Assert
-        Assert.True(tableMappings.Count >= 2, $"Expected >= 2 table mappings but got {tableMappings.Count}");
-    }
     // -- Entity Splitting ------------------------------------------------
 
     private sealed class SplitProduct

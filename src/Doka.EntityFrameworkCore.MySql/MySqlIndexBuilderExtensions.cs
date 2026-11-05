@@ -10,7 +10,7 @@ public static class MySqlIndexBuilderExtensions
     /// MariaDB's <c>WITHOUT OVERLAPS</c> constraint.
     /// </summary>
     /// <param name="indexBuilder">The index builder.</param>
-    /// <returns>The same <see cref="IndexBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder" /> instance.</returns>
     public static IndexBuilder UseWithoutOverlaps(
         this IndexBuilder indexBuilder
     )
@@ -28,7 +28,7 @@ public static class MySqlIndexBuilderExtensions
     /// </summary>
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="indexBuilder">The index builder.</param>
-    /// <returns>The same <see cref="IndexBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder{TEntity}" /> instance.</returns>
     public static IndexBuilder<TEntity> UseWithoutOverlaps<TEntity>(
         this IndexBuilder<TEntity> indexBuilder
     )
@@ -45,7 +45,7 @@ public static class MySqlIndexBuilderExtensions
     /// Configures the index as a full-text index.
     /// </summary>
     /// <param name="indexBuilder">The index builder.</param>
-    /// <returns>The same <see cref="IndexBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder" /> instance.</returns>
     public static IndexBuilder IsFullText(
         this IndexBuilder indexBuilder
     )
@@ -62,7 +62,7 @@ public static class MySqlIndexBuilderExtensions
     /// </summary>
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="indexBuilder">The index builder.</param>
-    /// <returns>The same <see cref="IndexBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder{TEntity}" /> instance.</returns>
     public static IndexBuilder<TEntity> IsFullText<TEntity>(
         this IndexBuilder<TEntity> indexBuilder
     )
@@ -81,7 +81,7 @@ public static class MySqlIndexBuilderExtensions
     /// </summary>
     /// <param name="indexBuilder">The index builder.</param>
     /// <param name="prefixLengths">One non-negative prefix length per index property.</param>
-    /// <returns>The same <see cref="IndexBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder" /> instance.</returns>
     public static IndexBuilder HasPrefixLength(
         this IndexBuilder indexBuilder,
         params int[] prefixLengths
@@ -114,7 +114,7 @@ public static class MySqlIndexBuilderExtensions
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="indexBuilder">The index builder.</param>
     /// <param name="prefixLengths">One non-negative prefix length per index property.</param>
-    /// <returns>The same <see cref="IndexBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="IndexBuilder{TEntity}" /> instance.</returns>
     public static IndexBuilder<TEntity> HasPrefixLength<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         params int[] prefixLengths

@@ -2,6 +2,51 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationDslTests
 {
+    private static void ConfigureTextIndex(
+        ModelBuilder modelBuilder,
+        bool fullText
+    )
+    {
+        var index = modelBuilder
+            .Entity<TextIndexEntity>()
+            .ToTable(TextIndexContract.TableName)
+            .HasIndex(entity => entity.Body)
+            .HasDatabaseName(TextIndexContract.IndexName);
+
+        modelBuilder
+            .Entity<TextIndexEntity>()
+            .Property(entity => entity.Body)
+            .HasMaxLength(256);
+
+        if (fullText)
+        {
+            index.IsFullText();
+        }
+    }
+
+    private static void ConfigureSpatialIndex(
+        ModelBuilder modelBuilder,
+        bool spatial
+    )
+    {
+        var index = modelBuilder
+            .Entity<SpatialIndexEntity>()
+            .ToTable(SpatialIndexContract.TableName)
+            .HasIndex(entity => entity.Location)
+            .HasDatabaseName(SpatialIndexContract.IndexName);
+
+        modelBuilder
+            .Entity<SpatialIndexEntity>()
+            .Property(entity => entity.Location)
+            .HasColumnType("point")
+            .HasSrid(0);
+
+        if (spatial)
+        {
+            index.IsSpatial();
+        }
+    }
+
     private sealed class PlainTextIndexContext : DbContext
     {
         /// <summary>
@@ -62,51 +107,6 @@ public sealed partial class MySqlMigrationDslTests
         ) => ConfigureSpatialIndex(modelBuilder, spatial: true);
     }
 
-    private static void ConfigureTextIndex(
-        ModelBuilder modelBuilder,
-        bool fullText
-    )
-    {
-        var index = modelBuilder
-            .Entity<TextIndexEntity>()
-            .ToTable(TextIndexContract.TableName)
-            .HasIndex(entity => entity.Body)
-            .HasDatabaseName(TextIndexContract.IndexName);
-
-        modelBuilder
-            .Entity<TextIndexEntity>()
-            .Property(entity => entity.Body)
-            .HasMaxLength(256);
-
-        if (fullText)
-        {
-            index.IsFullText();
-        }
-    }
-
-    private static void ConfigureSpatialIndex(
-        ModelBuilder modelBuilder,
-        bool spatial
-    )
-    {
-        var index = modelBuilder
-            .Entity<SpatialIndexEntity>()
-            .ToTable(SpatialIndexContract.TableName)
-            .HasIndex(entity => entity.Location)
-            .HasDatabaseName(SpatialIndexContract.IndexName);
-
-        modelBuilder
-            .Entity<SpatialIndexEntity>()
-            .Property(entity => entity.Location)
-            .HasColumnType("point")
-            .HasSrid(0);
-
-        if (spatial)
-        {
-            index.IsSpatial();
-        }
-    }
-
     private sealed class TextIndexEntity
     {
         /// <summary>
@@ -139,6 +139,7 @@ public sealed partial class MySqlMigrationDslTests
         /// The table name used by the migration fixture.
         /// </summary>
         public const string TableName = "TextIndexRecords";
+
         /// <summary>
         /// The index name used by the migration fixture.
         /// </summary>
@@ -151,6 +152,7 @@ public sealed partial class MySqlMigrationDslTests
         /// The table name used by the migration fixture.
         /// </summary>
         public const string TableName = "SpatialIndexRecords";
+
         /// <summary>
         /// The index name used by the migration fixture.
         /// </summary>

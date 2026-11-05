@@ -38,7 +38,8 @@ public class ModelInitializationBenchmarks
         using var context = new BenchmarkContext(options);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 
@@ -48,7 +49,8 @@ public class ModelInitializationBenchmarks
         using var context = new BenchmarkContext(_warmOptions);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 }
@@ -80,28 +82,34 @@ public class QueryTranslationBenchmarks
             totalLength += query.Id switch
             {
                 "string-length-filter" => context
-                    .BasicEntities.Where(entity => entity.Name.Length > 10)
+                    .BasicEntities
+                    .Where(entity => entity.Name.Length > 10)
                     .ToQueryString()
                     .Length,
                 "date-year-filter" => context
-                    .BasicEntities.Where(entity => entity.CreatedAt.Year == 2024)
+                    .BasicEntities
+                    .Where(entity => entity.CreatedAt.Year == 2024)
                     .ToQueryString()
                     .Length,
                 "json-string-contains" => context
-                    .BasicEntities.Where(entity => entity.Payload.Contains("\"kind\":\"benchmark\""))
+                    .BasicEntities
+                    .Where(entity => entity.Payload.Contains("\"kind\":\"benchmark\""))
                     .ToQueryString()
                     .Length,
                 "spatial-distance-sphere" => context
-                    .SpatialEntities.Where(entity =>
+                    .SpatialEntities
+                    .Where(entity =>
                         EF.Functions.DistanceSphere(entity.Location, _referencePoint) < 250000d)
                     .ToQueryString()
                     .Length,
                 "guid-format-filter" => context
-                    .TranslationEntities.Where(entity => entity.Token.ToString() == GuidText)
+                    .TranslationEntities
+                    .Where(entity => entity.Token.ToString() == GuidText)
                     .ToQueryString()
                     .Length,
                 "signed-bitwise-projection" => context
-                    .TranslationEntities.Select(entity => new
+                    .TranslationEntities
+                    .Select(entity => new
                     {
                         Left = entity.SignedValue << entity.ShiftCount,
                         Right = entity.SignedValue >> entity.ShiftCount,
@@ -113,7 +121,8 @@ public class QueryTranslationBenchmarks
                     .ToQueryString()
                     .Length,
                 "temporal-components-projection" => context
-                    .TranslationEntities.Select(entity => new
+                    .TranslationEntities
+                    .Select(entity => new
                     {
                         CreatedYear = entity.CreatedAt.Year,
                         CreatedDayOfYear = entity.CreatedAt.DayOfYear,
@@ -126,18 +135,21 @@ public class QueryTranslationBenchmarks
                     .ToQueryString()
                     .Length,
                 "byte-array-projection" => context
-                    .TranslationEntities.Select(entity => new
+                    .TranslationEntities
+                    .Select(entity => new
                     {
-                        Length = entity.BinaryPayload.Length,
+                        entity.BinaryPayload.Length,
                         First = entity.BinaryPayload[0],
                     })
                     .ToQueryString()
                     .Length,
                 "string-transform-projection" => context
-                    .TranslationEntities.Select(entity => new
+                    .TranslationEntities
+                    .Select(entity => new
                     {
-                        Length = entity
-                            .Name.Trim()
+                        entity
+                            .Name
+                            .Trim()
                             .Replace("old", "new")
                             .Length,
                         Segment = entity.Name.Substring(1, 4),
@@ -145,7 +157,8 @@ public class QueryTranslationBenchmarks
                     .ToQueryString()
                     .Length,
                 "math-projection" => context
-                    .TranslationEntities.Select(entity => new
+                    .TranslationEntities
+                    .Select(entity => new
                     {
                         Absolute = Math.Abs(entity.Score),
                         Sine = Math.Sin(entity.Score),
@@ -154,11 +167,13 @@ public class QueryTranslationBenchmarks
                     .ToQueryString()
                     .Length,
                 "numeric-convert-projection" => context
-                    .TranslationEntities.Select(entity => Convert.ToInt64(entity.Score))
+                    .TranslationEntities
+                    .Select(entity => Convert.ToInt64(entity.Score))
                     .ToQueryString()
                     .Length,
                 "ordered-group-concat-projection" => context
-                    .TranslationEntities.GroupBy(entity => entity.ShiftCount)
+                    .TranslationEntities
+                    .GroupBy(entity => entity.ShiftCount)
                     .Select(group => string.Join(
                         ", ",
                         group
@@ -193,7 +208,8 @@ public class HotPathBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .Where(entity => entity.CreatedAt.Year == 2024)
             .Take(RowCount)
             .Count();
@@ -205,7 +221,8 @@ public class HotPathBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Take(RowCount)
             .ToList();
@@ -268,10 +285,12 @@ public class MigrationsSqlGenerationBenchmarks
             var operations = differ.GetDifferences(
                 sourceContext
                     .GetService<IDesignTimeModel>()
-                    .Model.GetRelationalModel(),
+                    .Model
+                    .GetRelationalModel(),
                 targetContext
                     .GetService<IDesignTimeModel>()
-                    .Model.GetRelationalModel());
+                    .Model
+                    .GetRelationalModel());
 
             var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
             commandCount += commands.Count;
@@ -317,7 +336,8 @@ public class JsonBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Select(entity => entity.Payload)
             .Take(RowCount)
@@ -340,7 +360,8 @@ public class SpatialBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .SpatialEntities.AsNoTracking()
+            .SpatialEntities
+            .AsNoTracking()
             .Where(entity => EF.Functions.DistanceSphere(entity.Location, _referencePoint) < 250000d)
             .Take(100)
             .ToList();
@@ -360,7 +381,8 @@ public class ProjectionBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .Take(100)
             .ToList();
     }
@@ -371,7 +393,8 @@ public class ProjectionBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Select(entity => new BenchmarkProjection
             {
@@ -395,7 +418,7 @@ public class PaginationBenchmarks
         [
             0,
             100,
-            500
+            500,
         ]
         : [100];
 
@@ -408,7 +431,8 @@ public class PaginationBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(e => e.Id)
             .Skip(Offset)
             .Take(25)
@@ -429,12 +453,13 @@ public class GroupByBenchmarks
         using var context = BenchmarkEnvironment.CreateContext();
 
         return context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .GroupBy(e => e.CreatedAt.Year)
             .Select(g => new
             {
                 Year = g.Key,
-                Count = g.Count()
+                Count = g.Count(),
             })
             .Count();
     }
@@ -445,10 +470,8 @@ public class GroupByBenchmarks
 public class CompiledQueryBenchmarks
 {
     private static readonly Func<BenchmarkContext, int, IEnumerable<BasicBenchmarkEntity>> s_compiledQuery =
-        EF.CompileQuery((
-            BenchmarkContext ctx,
-            int year
-        ) => ctx.BasicEntities.Where(e => e.CreatedAt.Year == year));
+        EF.CompileQuery((BenchmarkContext ctx,
+            int year) => ctx.BasicEntities.Where(e => e.CreatedAt.Year == year));
 
     [GlobalSetup]
     public void GlobalSetup() => BenchmarkEnvironment.EnsureInitialized();

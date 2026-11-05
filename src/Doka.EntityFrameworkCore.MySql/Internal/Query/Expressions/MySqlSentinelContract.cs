@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Identifies provider-internal SQL shapes that cannot be represented by a regular
-/// <see cref="SqlFunctionExpression"/>.
+/// <see cref="SqlFunctionExpression" />.
 /// </summary>
 internal enum MySqlSentinelKind
 {
@@ -133,7 +133,10 @@ internal static class MySqlSentinelContract
                 nameof(intervalUnit));
         }
 
-        var prefix = kind == MySqlSentinelKind.DateAdd ? DateAddPrefix : TimeAddPrefix;
+        var prefix = kind == MySqlSentinelKind.DateAdd
+            ? DateAddPrefix
+            : TimeAddPrefix;
+
         return prefix + GetIntervalSql(intervalUnit);
     }
 

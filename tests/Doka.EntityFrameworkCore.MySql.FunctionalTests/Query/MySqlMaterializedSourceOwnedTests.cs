@@ -32,14 +32,28 @@ public sealed class MySqlMaterializedSourceOwnedTests
         using var context = CreateContext(mariaDb, mapping);
 
         // Act
-        var reference = context.Owners.Where(owner => owner.Profile != null && owner.Profile.Name == "selected")
-            .Select(owner => new { owner.Id, owner.Profile!.Name, owner.Profile!.Token })
+        var reference = context
+            .Owners
+            .Where(owner => owner.Profile != null && owner.Profile.Name == "selected")
+            .Select(owner => new
+            {
+                owner.Id,
+                owner.Profile!.Name,
+                owner.Profile!.Token,
+            })
             .OrderBy(row => row.Id)
             .ToQueryString();
 
-        var query = context.Owners.WithMaterializedSource(source => source
+        var query = context
+            .Owners
+            .WithMaterializedSource(source => source
                 .Where(owner => owner.Profile != null && owner.Profile.Name == "selected")
-                .Select(owner => new { owner.Id, owner.Profile!.Name, owner.Profile!.Token }))
+                .Select(owner => new
+                {
+                    owner.Id,
+                    owner.Profile!.Name,
+                    owner.Profile!.Token,
+                }))
             .OrderBy(row => row.Id);
 
         var actual = query.ToQueryString();
@@ -70,7 +84,12 @@ public sealed class MySqlMaterializedSourceOwnedTests
         using var context = CreateContext(mariaDb, mapping);
 
         // Act
-        var reference = context.Owners.Where(owner => owner.Id > 0).OrderBy(owner => owner.Id).ToQueryString();
+        var reference = context
+            .Owners
+            .Where(owner => owner.Id > 0)
+            .OrderBy(owner => owner.Id)
+            .ToQueryString();
+
         var query = context.Owners.WithMaterializedSource(source => source
             .Where(owner => owner.Id > 0)
             .OrderBy(owner => owner.Id));
@@ -103,20 +122,34 @@ public sealed class MySqlMaterializedSourceOwnedTests
     {
         // Arrange
         using var context = CreateContext(mariaDb, mapping);
+
         // WHY: Ordinary EF forbids tracking an owned result without its owner. Use
         // the same explicitly untracked source for the reference and bound query.
-        var source = context.Owners.AsNoTracking().Where(owner => owner.Profile != null)
+        var source = context
+            .Owners
+            .AsNoTracking()
+            .Where(owner => owner.Profile != null)
             .Select(owner => owner.Profile!);
 
         // Act
-        var reference = source.Where(profile => profile.Name == "selected")
+        var reference = source
+            .Where(profile => profile.Name == "selected")
             .OrderBy(profile => profile.Name)
-            .Select(profile => new { profile.Name, profile.Token })
+            .Select(profile => new
+            {
+                profile.Name,
+                profile.Token,
+            })
             .ToQueryString();
 
-        var query = source.WithMaterializedSource(bound => bound.Where(profile => profile.Name == "selected")
+        var query = source.WithMaterializedSource(bound => bound
+            .Where(profile => profile.Name == "selected")
             .OrderBy(profile => profile.Name)
-            .Select(profile => new { profile.Name, profile.Token }));
+            .Select(profile => new
+            {
+                profile.Name,
+                profile.Token,
+            }));
 
         var actual = query.ToQueryString();
 
@@ -163,7 +196,8 @@ public sealed class MySqlMaterializedSourceOwnedTests
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion version
     )
-        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>()
+        where TContext : DbContext => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<TContext>()
         .UseMySql("Server=localhost;Database=owned_binding;User ID=unused;", version)
         .Options;
 
@@ -189,19 +223,34 @@ public sealed class MySqlMaterializedSourceOwnedTests
             modelBuilder.Entity<ReferenceOwner>(entity =>
             {
                 entity.ToTable(TableName);
-                entity.Property(owner => owner.Label).HasColumnName(OwnerLabelColumn).HasMaxLength(64);
-                entity.OwnsOne(owner => owner.Profile, owned =>
-                {
-                    if (SeparateTable)
-                    {
-                        owned.ToTable(ProfileTableName);
-                    }
+                entity
+                    .Property(owner => owner.Label)
+                    .HasColumnName(OwnerLabelColumn)
+                    .HasMaxLength(64);
 
-                    owned.Property(profile => profile.Name).HasColumnName(ProfileNameColumn).HasMaxLength(64);
-                    owned.Property(profile => profile.Token).HasColumnName(ProfileTokenColumn)
-                        .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                });
-                entity.Navigation(owner => owner.Profile).IsRequired(!OptionalReference);
+                entity.OwnsOne(
+                    owner => owner.Profile,
+                    owned =>
+                    {
+                        if (SeparateTable)
+                        {
+                            owned.ToTable(ProfileTableName);
+                        }
+
+                        owned
+                            .Property(profile => profile.Name)
+                            .HasColumnName(ProfileNameColumn)
+                            .HasMaxLength(64);
+
+                        owned
+                            .Property(profile => profile.Token)
+                            .HasColumnName(ProfileTokenColumn)
+                            .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+                    });
+
+                entity
+                    .Navigation(owner => owner.Profile)
+                    .IsRequired(!OptionalReference);
             });
         }
     }

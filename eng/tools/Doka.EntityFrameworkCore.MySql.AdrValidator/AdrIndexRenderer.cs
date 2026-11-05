@@ -66,7 +66,8 @@ internal static class AdrIndexRenderer
 
         var relationships = documents
             .SelectMany(document => document
-                .Supersedes.Select(target => (document.Id, Verb: "supersedes", Target: target))
+                .Supersedes
+                .Select(target => (document.Id, Verb: "supersedes", Target: target))
                 .Concat(document.Amends.Select(target => (document.Id, Verb: "amends", Target: target))))
             .OrderBy(static relationship => relationship.Id, StringComparer.Ordinal)
             .ThenBy(static relationship => relationship.Verb, StringComparer.Ordinal)
@@ -111,12 +112,12 @@ internal static class AdrIndexRenderer
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(
-                   stream,
-                   new JsonWriterOptions
-                   {
-                       Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                       Indented = true
-                   }))
+            stream,
+            new JsonWriterOptions
+            {
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                Indented = true,
+            }))
         {
             writer.WriteStartObject();
             writer.WriteNumber("schemaVersion", 1);
@@ -170,7 +171,9 @@ internal static class AdrIndexRenderer
         AddRelationships(entries, "superseded by", document.SupersededBy);
         AddRelationships(entries, "amends", document.Amends);
         AddRelationships(entries, "amended by", document.AmendedBy);
-        return entries.Count == 0 ? "-" : string.Join("; ", entries);
+        return entries.Count == 0
+            ? "-"
+            : string.Join("; ", entries);
     }
 
     private static void AddRelationships(

@@ -11,9 +11,15 @@ internal sealed partial class MySqlMigrationsModelDiffer
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(target);
 
-        var sourceCharSet = source is null ? null : GetDatabaseCharSet(source);
+        var sourceCharSet = source is null
+            ? null
+            : GetDatabaseCharSet(source);
+
         var targetCharSet = GetDatabaseCharSet(target);
-        var sourceCollation = source is null ? null : GetDatabaseCollation(source);
+        var sourceCollation = source is null
+            ? null
+            : GetDatabaseCollation(source);
+
         var targetCollation = GetDatabaseCollation(target);
 
         if (string.Equals(sourceCharSet, targetCharSet, StringComparison.Ordinal)

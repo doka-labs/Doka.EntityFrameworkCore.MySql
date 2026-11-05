@@ -42,9 +42,9 @@ internal static class MySqlStandardMigrationOperations
         typeof(UpdateDataOperation),
     }.ToFrozenSet();
 
+    internal static IReadOnlySet<Type> Types => s_types;
+
     public static bool Contains(
         Type operationType
     ) => s_types.Contains(operationType);
-
-    internal static IReadOnlySet<Type> Types => s_types;
 }

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -67,7 +69,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         // Arrange
         var helper = CreateHelper();
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         // Act
         helper.DelimitIdentifier(sb, "Test`Col");
@@ -104,7 +106,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         // Arrange
         var helper = CreateHelper();
-        var builderOutput = new System.Text.StringBuilder();
+        var builderOutput = new StringBuilder();
 
         // Act
         helper.DelimitIdentifier(builderOutput, identifier);
@@ -133,7 +135,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         // Arrange
         var helper = (MySqlSqlGenerationHelper)CreateHelper();
-        var builderOutput = new System.Text.StringBuilder();
+        var builderOutput = new StringBuilder();
 
         // Act
         helper.EscapeIdentifier(builderOutput, identifier);
@@ -163,7 +165,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         // Arrange
         var helper = CreateHelper();
-        var builderOutput = new System.Text.StringBuilder();
+        var builderOutput = new StringBuilder();
 
         // Act
         helper.DelimitIdentifier(builderOutput, name, schema);
@@ -187,7 +189,7 @@ public sealed class MySqlSqlGenerationHelperTests
     {
         // Arrange
         var helper = CreateHelper();
-        var builderOutput = new System.Text.StringBuilder();
+        var builderOutput = new StringBuilder();
 
         // Act
         helper.DelimitIdentifier(builderOutput, "Plain", schema);

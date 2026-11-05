@@ -25,14 +25,25 @@ public sealed partial class DependencySecurityAuditTests
 
         // Assert
         Assert.Equal(expectedExitCode, result.ExitCode);
-        Assert.Equal(expectedExitCode == 0 ? "passed" : "failed", fixture.Summary.GetProperty("result").GetString());
+        Assert.Equal(
+            expectedExitCode == 0
+                ? "passed"
+                : "failed",
+            fixture
+                .Summary
+                .GetProperty("result")
+                .GetString());
+
         var paths = Directory.GetFileSystemEntries(fixture.RunPath, "*", SearchOption.AllDirectories);
         Assert.NotEmpty(paths);
+
         // WHY: upload-artifact applies this portable filename contract even on Unix,
         // where NuGet's real colon-containing cache entries are otherwise valid.
-        Assert.All(paths, path => Assert.DoesNotContain(
-            Path.GetRelativePath(fixture.RunPath, path),
-            character => character is '"' or ':' or '<' or '>' or '|' or '*' or '?' or '\r' or '\n'));
+        Assert.All(
+            paths,
+            path => Assert.DoesNotContain(
+                Path.GetRelativePath(fixture.RunPath, path),
+                character => character is '"' or ':' or '<' or '>' or '|' or '*' or '?' or '\r' or '\n'));
 
         Assert.True(File.Exists(Path.Combine(fixture.RunPath, "context.json")));
         Assert.True(File.Exists(Path.Combine(fixture.RunPath, "inventory.txt")));
@@ -40,8 +51,11 @@ public sealed partial class DependencySecurityAuditTests
         Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.TemporaryPath));
         if (diagnostic.Length != 0)
         {
-            Assert.Contains(Directory.GetFiles(fixture.RunPath, "*", SearchOption.AllDirectories),
-                path => File.ReadAllText(path).Contains(diagnostic, StringComparison.Ordinal));
+            Assert.Contains(
+                Directory.GetFiles(fixture.RunPath, "*", SearchOption.AllDirectories),
+                path => File
+                    .ReadAllText(path)
+                    .Contains(diagnostic, StringComparison.Ordinal));
         }
     }
 
@@ -58,8 +72,20 @@ public sealed partial class DependencySecurityAuditTests
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Equal("failed", fixture.Summary.GetProperty("result").GetString());
-        Assert.Equal(0, fixture.Summary.GetProperty("projectCount").GetInt32());
+        Assert.Equal(
+            "failed",
+            fixture
+                .Summary
+                .GetProperty("result")
+                .GetString());
+
+        Assert.Equal(
+            0,
+            fixture
+                .Summary
+                .GetProperty("projectCount")
+                .GetInt32());
+
         Assert.NotEmpty(File.ReadAllText(Path.Combine(fixture.RunPath, "http-cache.log")));
         Assert.True(File.Exists(Path.Combine(fixture.RunPath, "sdk.log")));
     }
@@ -85,16 +111,26 @@ public sealed partial class DependencySecurityAuditTests
         }
 
         // Act
-        var result = fixture.Execute(new Dictionary<string, string>
-        {
-            ["TMPDIR"] = temporaryRoot,
-        });
+        var result = fixture.Execute(
+            new Dictionary<string, string>
+            {
+                ["TMPDIR"] = temporaryRoot,
+            });
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Equal("failed", fixture.Summary.GetProperty("result").GetString());
-        Assert.Contains("outside audit evidence",
-            File.ReadAllText(Path.Combine(fixture.RunPath, "http-cache.log")), StringComparison.Ordinal);
+        Assert.Equal(
+            "failed",
+            fixture
+                .Summary
+                .GetProperty("result")
+                .GetString());
+
+        Assert.Contains(
+            "outside audit evidence",
+            File.ReadAllText(Path.Combine(fixture.RunPath, "http-cache.log")),
+            StringComparison.Ordinal);
+
         Assert.Single(Directory.GetDirectories(Path.Combine(fixture.Root, "evidence")));
     }
 
@@ -116,16 +152,50 @@ public sealed partial class DependencySecurityAuditTests
 
         // Assert
         Assert.Equal(1, result.ExitCode);
-        Assert.Equal("failed", fixture.Summary.GetProperty("result").GetString());
-        Assert.Equal(5, fixture.Summary.GetProperty("projectCount").GetInt32());
-        Assert.Equal(failure.Length == 0 ? 5 : 4, fixture.Summary.GetProperty("passedCount").GetInt32());
-        Assert.Equal(failure.Length == 0 ? 0 : 1, fixture.Summary.GetProperty("failedCount").GetInt32());
-        Assert.Contains("Simulated cache cleanup failure.",
-            File.ReadAllText(Path.Combine(fixture.RunPath, "http-cache-cleanup.log")), StringComparison.Ordinal);
+        Assert.Equal(
+            "failed",
+            fixture
+                .Summary
+                .GetProperty("result")
+                .GetString());
+
+        Assert.Equal(
+            5,
+            fixture
+                .Summary
+                .GetProperty("projectCount")
+                .GetInt32());
+
+        Assert.Equal(
+            failure.Length == 0
+                ? 5
+                : 4,
+            fixture
+                .Summary
+                .GetProperty("passedCount")
+                .GetInt32());
+
+        Assert.Equal(
+            failure.Length == 0
+                ? 0
+                : 1,
+            fixture
+                .Summary
+                .GetProperty("failedCount")
+                .GetInt32());
+
+        Assert.Contains(
+            "Simulated cache cleanup failure.",
+            File.ReadAllText(Path.Combine(fixture.RunPath, "http-cache-cleanup.log")),
+            StringComparison.Ordinal);
+
         if (failure.Length != 0)
         {
-            Assert.Contains(Directory.GetFiles(fixture.RunPath, "restore.log", SearchOption.AllDirectories),
-                path => File.ReadAllText(path).Contains("NU1900: advisory source unavailable", StringComparison.Ordinal));
+            Assert.Contains(
+                Directory.GetFiles(fixture.RunPath, "restore.log", SearchOption.AllDirectories),
+                path => File
+                    .ReadAllText(path)
+                    .Contains("NU1900: advisory source unavailable", StringComparison.Ordinal));
         }
     }
 }

@@ -13,12 +13,18 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("converter-hint");
 
         // Act
-        var property = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!.FindProperty("B")!;
+        var property = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!.FindProperty("B")!;
 
         // Assert
         Assert.Null(property.GetMaxLength());
         Assert.Equal(32, property.GetValueConverter()!.MappingHints!.Size);
-        Assert.Equal("varchar(32)", property.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            "varchar(32)",
+            property.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>
@@ -32,7 +38,10 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("twice");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
 
         // Assert
         Assert.Equal(254, entity.FindProperty("Id")!.GetMaxLength());
@@ -54,7 +63,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("tpc");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var entity = model.FindEntityType(typeof(BudgetTpcRow))!;
         var ddl = context.Database.GenerateCreateScript();
 
@@ -83,17 +94,31 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var owner = model.FindEntityType(typeof(BudgetOwner))!;
         var detail = model.FindEntityType(typeof(BudgetDetail))!;
 
         // Assert
         Assert.Equal(length, owner.FindProperty(nameof(BudgetOwner.Code))!.GetMaxLength());
-        Assert.Equal(storeType, owner.FindProperty(nameof(BudgetOwner.Code))!.GetRelationalTypeMapping().StoreType);
-        Assert.Equal(storeType, detail.FindProperty(nameof(BudgetDetail.Code))!.GetRelationalTypeMapping().StoreType);
         Assert.Equal(
-            scenario == "shared-explicit-store" ? storeType : null,
-            detail.FindProperty(nameof(BudgetDetail.Code))!.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
+            storeType,
+            owner.FindProperty(nameof(BudgetOwner.Code))!.GetRelationalTypeMapping()
+                .StoreType);
+
+        Assert.Equal(
+            storeType,
+            detail.FindProperty(nameof(BudgetDetail.Code))!.GetRelationalTypeMapping()
+                .StoreType);
+
+        Assert.Equal(
+            scenario == "shared-explicit-store"
+                ? storeType
+                : null,
+            detail.FindProperty(nameof(BudgetDetail.Code))!.FindAnnotation(RelationalAnnotationNames.ColumnType)
+                ?.Value);
+
         Assert.Equal(spareLength, owner.FindProperty(nameof(BudgetOwner.Spare))!.GetMaxLength());
     }
 
@@ -108,7 +133,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("shared-split");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var owner = model.FindEntityType(typeof(BudgetOwner))!;
         var detail = model.FindEntityType(typeof(BudgetDetail))!;
 
@@ -150,7 +177,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("shared-binary");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var owner = model.FindEntityType(typeof(BudgetBinaryOwner))!;
         var detail = model.FindEntityType(typeof(BudgetBinaryDetail))!;
 
@@ -159,7 +188,8 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(16, detail.FindProperty(nameof(BudgetBinaryDetail.Code))!.GetMaxLength());
         Assert.Equal(
             "varbinary(17)",
-            owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetRelationalTypeMapping().StoreType);
+            owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>
@@ -173,7 +203,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("shared-binary-mixed");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var owner = model.FindEntityType(typeof(BudgetBinaryOwner))!;
         var detail = model.FindEntityType(typeof(BudgetBinaryDetail))!;
         var storeDetail = model.FindEntityType(typeof(BudgetBinaryStoreDetail))!;
@@ -184,28 +216,8 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Null(storeDetail.FindProperty(nameof(BudgetBinaryStoreDetail.Code))!.GetMaxLength());
         Assert.Equal(
             "varbinary(17)",
-            owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetRelationalTypeMapping().StoreType);
-    }
-
-    private sealed class BudgetBinaryStoreDetail
-    {
-        public byte[] Code { get; set; } = [];
-    }
-
-    private sealed class BudgetBinaryOwner
-    {
-        public int Id { get; set; }
-
-        public byte[] Code { get; set; } = [];
-
-        public BudgetBinaryDetail Detail { get; set; } = new();
-
-        public BudgetBinaryStoreDetail StoreDetail { get; set; } = new();
-    }
-
-    private sealed class BudgetBinaryDetail
-    {
-        public byte[] Code { get; set; } = [];
+            owner.FindProperty(nameof(BudgetBinaryOwner.Code))!.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>
@@ -219,7 +231,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("owned-table-charset");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var entity = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var length = entity.FindProperty(nameof(BudgetDefaultDetail.B))!.GetMaxLength();
         var ddl = context.Database.GenerateCreateScript();
@@ -228,7 +242,10 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.True(length == 68, $"Expected B length68; actual={length}. Physical DDL: {ddl}");
         Assert.Contains("CHARACTER SET utf8mb4", ddl, StringComparison.Ordinal);
         Assert.Equal(700, entity.FindProperty(nameof(BudgetDefaultDetail.A))!.GetMaxLength());
-        Assert.Null(Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
+        Assert.Null(
+            Assert
+                .Single(entity.GetIndexes())
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>
@@ -247,7 +264,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var entity = model.FindEntityType(typeof(BudgetDefaultDetail))!;
         var length = entity.FindProperty(nameof(BudgetDefaultDetail.B))!.GetMaxLength();
         var ddl = context.Database.GenerateCreateScript();
@@ -274,6 +293,27 @@ public sealed partial class MySqlIndexByteBudgetTests
         // Assert
         Assert.Contains("3200 bytes", exception.Message, StringComparison.Ordinal);
         Assert.Contains("3072-byte", exception.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class BudgetBinaryStoreDetail
+    {
+        public byte[] Code { get; set; } = [];
+    }
+
+    private sealed class BudgetBinaryOwner
+    {
+        public int Id { get; set; }
+
+        public byte[] Code { get; set; } = [];
+
+        public BudgetBinaryDetail Detail { get; set; } = new();
+
+        public BudgetBinaryStoreDetail StoreDetail { get; set; } = new();
+    }
+
+    private sealed class BudgetBinaryDetail
+    {
+        public byte[] Code { get; set; } = [];
     }
 
     private sealed class BudgetDefaultOwner

@@ -8,7 +8,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Scalar_edge_cases_execute_correctly_on_mysql84() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql84);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
@@ -16,7 +16,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task Scalar_edge_cases_execute_correctly_on_mysql97() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql97);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
@@ -24,7 +24,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task Scalar_edge_cases_execute_correctly_on_mariadb1011() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb1011);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
@@ -32,7 +32,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task Scalar_edge_cases_execute_correctly_on_mariadb114() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb114);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
@@ -40,7 +40,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task Scalar_edge_cases_execute_correctly_on_mariadb118() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb118);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
@@ -48,16 +48,19 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task Scalar_edge_cases_execute_correctly_on_mariadb123() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123);
+        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Runs the scalar edge case tests integration scenario.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunScalarEdgeCaseTests(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = GetConnectionString(target);
         await using var context = new QueryContext(CreateOptions(connectionString, target));
-        await SetupAsync(context);
+        await SetupAsync(context, cancellationToken);
 
         var token = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
 
@@ -146,7 +149,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
             };
 
             context.Items.AddRange(sourceItems);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken: cancellationToken);
             context.ChangeTracker.Clear();
 
             // Act
@@ -169,7 +172,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                     Complement = ~item.SignedValue,
                     Token = item.Token.ToString(),
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken: cancellationToken);
 
             // Assert
             foreach (var source in sourceItems)
@@ -185,9 +188,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 Assert.Equal(
                     source.UnsignedLongValue << source.ShiftCount,
                     result.UnsignedLongLeftShift);
+
                 Assert.Equal(
                     source.UnsignedLongValue >> source.ShiftCount,
                     result.UnsignedLongRightShift);
+
                 Assert.Equal(~source.SignedValue, result.Complement);
                 Assert.Equal(token.ToString(), result.Token);
             }

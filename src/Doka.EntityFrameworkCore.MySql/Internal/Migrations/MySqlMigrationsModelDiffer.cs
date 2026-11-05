@@ -26,11 +26,15 @@ internal sealed partial class MySqlMigrationsModelDiffer : IMigrationsModelDiffe
 
         return _innerDiffer.HasDifferences(source, target)
             || !string.Equals(
-                source is null ? null : GetDatabaseCharSet(source),
+                source is null
+                    ? null
+                    : GetDatabaseCharSet(source),
                 GetDatabaseCharSet(target),
                 StringComparison.Ordinal)
             || !string.Equals(
-                source is null ? null : GetDatabaseCollation(source),
+                source is null
+                    ? null
+                    : GetDatabaseCollation(source),
                 GetDatabaseCollation(target),
                 StringComparison.Ordinal)
             || (source is not null && HasProviderIndexMetadataDifferences(source, target));

@@ -11,7 +11,9 @@ public sealed class IntegrationTestSchedulingContractTests
     public static IEnumerable<object[]> SelectedSupportedTargets =>
         IntegrationTestEnvironment
             .GetSelectedTargets()
-            .Where(IntegrationTestEnvironment.GetSupportedTargets().Contains)
+            .Where(
+                IntegrationTestEnvironment.GetSupportedTargets()
+                    .Contains)
             .Select(target => new object[] { target.ToString() });
 
     /// <summary>
@@ -62,7 +64,8 @@ public sealed class IntegrationTestSchedulingContractTests
         var collectionDefinition = typeof(ProcessWideIntegrationTestGroup);
 
         // Act
-        var membership = resetClass.GetCustomAttributesData()
+        var membership = resetClass
+            .GetCustomAttributesData()
             .Single(attribute => attribute.AttributeType == typeof(CollectionAttribute));
 
         var definition = collectionDefinition.GetCustomAttribute<CollectionDefinitionAttribute>();

@@ -14,7 +14,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         var arguments = expression.Arguments
             ?? throw new InvalidOperationException($"The {expression.Name} sentinel requires three arguments.");
 
-        if (arguments[1] is not SqlConstantExpression { Value: IReadOnlyList<PathSegment> path, })
+        if (arguments[1] is not SqlConstantExpression { Value: IReadOnlyList<PathSegment> path })
         {
             throw new InvalidOperationException(
                 $"The {expression.Name} sentinel requires an IReadOnlyList<PathSegment> path.");
@@ -44,7 +44,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// <c>ANY</c>, or <c>SOME</c>. MySQL also rejects a mutation that reads its
     /// target table without an intervening derived-table boundary.
     /// The outer <c>SELECT *</c> preserves the single-column and NULL semantics of the
-    /// original <see cref="InExpression"/>.
+    /// original <see cref="InExpression" />.
     /// </summary>
     protected override void GenerateIn(
         InExpression inExpression,
@@ -60,14 +60,17 @@ internal sealed partial class MySqlQuerySqlGenerator
             return;
         }
 
-        var requiresLimitIsolation = subquery is { Limit: not null, } or { Offset: not null, };
+        var requiresLimitIsolation = subquery is { Limit: not null } or { Offset: not null };
         var requiresTargetIsolation = subquery is not null && RequiresMutationTargetIsolation(subquery);
 
         if (!requiresLimitIsolation
             && !requiresTargetIsolation)
         {
             GenerateInItem(inExpression.Item);
-            Sql.Append(negated ? " NOT IN (" : " IN (");
+            Sql.Append(
+                negated
+                    ? " NOT IN ("
+                    : " IN (");
 
             if (inExpression.Values is not null)
             {
@@ -101,7 +104,11 @@ internal sealed partial class MySqlQuerySqlGenerator
         }
 
         GenerateInItem(inExpression.Item);
-        Sql.Append(negated ? " NOT IN (" : " IN (");
+        Sql.Append(
+            negated
+                ? " NOT IN ("
+                : " IN (");
+
         Sql.AppendLine();
 
         using (Sql.Indent())
@@ -151,7 +158,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Offset: var offset,
                 Projection:
                 [
-                { Expression: ColumnExpression { Name: "value", TableAlias: var projectionAlias, }, },
+                    { Expression: ColumnExpression { Name: "value", TableAlias: var projectionAlias } },
                 ],
             }
             || projectionAlias != jsonTable.Alias)
@@ -213,6 +220,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                     inExpression.Item.Type,
                     inExpression.Item.TypeMapping,
                     nullable: true));
+
             Sql.Append(" <=> ");
             Visit(inExpression.Item);
 
@@ -226,6 +234,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                         typeof(int),
                         RelationalTypeMapping.NullMapping,
                         nullable: false));
+
                 Sql.Append(" > ");
                 Visit(offset);
             }
@@ -240,6 +249,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                         typeof(int),
                         RelationalTypeMapping.NullMapping,
                         nullable: false));
+
                 Sql.Append(" <= ");
 
                 if (offset is not null)
@@ -258,7 +268,10 @@ internal sealed partial class MySqlQuerySqlGenerator
         }
 
         Sql.AppendLine();
-        Sql.Append(negated ? ") = 0" : ") > 0");
+        Sql.Append(
+            negated
+                ? ") = 0"
+                : ") > 0");
 
         return true;
     }
@@ -292,10 +305,10 @@ internal sealed partial class MySqlQuerySqlGenerator
     ) => orderings.Count == 0
         || (orderings is
             [
-            {
-                IsAscending: true,
-                Expression: ColumnExpression { Name: var columnName, TableAlias: var orderingAlias, },
-            },
+                {
+                    IsAscending: true,
+                    Expression: ColumnExpression { Name: var columnName, TableAlias: var orderingAlias },
+                },
             ]
             && orderingAlias == jsonTable.Alias
             && columnName == GetOrdinalityColumnName(jsonTable));
@@ -389,11 +402,14 @@ internal sealed partial class MySqlQuerySqlGenerator
         }
 
         Sql.AppendLine();
-        Sql.Append(negated ? ") IS NULL" : ") IS NOT NULL");
+        Sql.Append(
+            negated
+                ? ") IS NULL"
+                : ") IS NOT NULL");
     }
 
     /// <summary>
-    /// Dispatches to the <see cref="MySqlJsonTableExpression"/>-specific emitter when the
+    /// Dispatches to the <see cref="MySqlJsonTableExpression" />-specific emitter when the
     /// table-valued-function expression is our JSON_TABLE shape; falls through to the base
     /// emitter for ordinary stored TVFs (no MySQL-specific TVFs other than JSON_TABLE today).
     /// </summary>
@@ -414,9 +430,9 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// <summary>
     /// Emits the cross-engine JSON_TABLE grammar both MySQL 8.0+ and MariaDB 10.6+ accept:
     /// <c>JSON_TABLE(json, '$[*]' COLUMNS (...)) AS alias</c>.
-    /// Path strings reuse <see cref="AppendStaticJsonPath"/> / <see cref="AppendDynamicJsonPath"/>
+    /// Path strings reuse <see cref="AppendStaticJsonPath" /> / <see cref="AppendDynamicJsonPath" />
     /// so dynamic array indices (non-constant SqlExpressions) splice in through CONCAT the same
-    /// way <see cref="VisitJsonScalar"/> handles them.
+    /// way <see cref="VisitJsonScalar" /> handles them.
     /// </summary>
     private MySqlJsonTableExpression VisitJsonTableExpression(
         MySqlJsonTableExpression jsonTableExpression
@@ -479,7 +495,11 @@ internal sealed partial class MySqlQuerySqlGenerator
                 }
 
                 Sql.Append(" ");
-                Sql.Append(column.AsJson ? "JSON" : column.TypeMapping.StoreType);
+                Sql.Append(
+                    column.AsJson
+                        ? "JSON"
+                        : column.TypeMapping.StoreType);
+
                 Sql.Append(" PATH ");
 
                 if (column.Path is { Count: > 0 } columnPath)
@@ -518,17 +538,16 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// <list type="bullet">
     /// <item>Element-collection / nested-JSON mapping -> raw <c>JSON_EXTRACT</c>
     /// (returns JSON text; downstream JSON-aware shaper handles parsing).</item>
-    /// <item><see cref="string"/> -> <c>JSON_UNQUOTE(JSON_EXTRACT(...))</c> to strip the
+    /// <item><see cref="string" /> -> <c>JSON_UNQUOTE(JSON_EXTRACT(...))</c> to strip the
     /// JSON-text surrounding quotes.</item>
-    /// <item><see cref="bool"/> -> <c>(JSON_EXTRACT(...) = TRUE)</c>; MySQL and MariaDB
+    /// <item><see cref="bool" /> -> <c>(JSON_EXTRACT(...) = TRUE)</c>; MySQL and MariaDB
     /// have no <c>CAST ... AS BOOL</c> / <c>BIT</c> grammar, so a boolean comparison
     /// produces a TINYINT 0/1 that <c>reader.GetBoolean</c> reads natively.</item>
     /// <item>Numeric and temporal mappings -> an engine-aware <c>CAST</c> that preserves
     /// SQL <c>NULL</c> and matches the data-reader type expected by EF Core.</item>
-    /// <item><see cref="byte"/> arrays -> <c>FROM_BASE64</c> because JSON stores the value
+    /// <item><see cref="byte" /> arrays -> <c>FROM_BASE64</c> because JSON stores the value
     /// as Base64 text while relational comparisons use binary literals.</item>
     /// </list>
-    ///
     /// When the path contains a non-constant array index (a SQL expression rather than a
     /// literal integer), the path is emitted via <c>CONCAT</c> so the dynamic expression
     /// lives OUTSIDE the JSON path string literal:
@@ -604,7 +623,10 @@ internal sealed partial class MySqlQuerySqlGenerator
             {
                 Sql.Append("CAST(");
                 EmitJsonScalarRead(jsonScalarExpression);
-                Sql.Append(" AS ").Append(cast.Target).Append(")");
+                Sql
+                    .Append(" AS ")
+                    .Append(cast.Target)
+                    .Append(")");
             }
             else
             {
@@ -623,7 +645,10 @@ internal sealed partial class MySqlQuerySqlGenerator
                     Sql.Append(")");
                 }
 
-                Sql.Append(" AS ").Append(cast.Target).Append(") END");
+                Sql
+                    .Append(" AS ")
+                    .Append(cast.Target)
+                    .Append(") END");
             }
 
             return jsonScalarExpression;
@@ -714,17 +739,8 @@ internal sealed partial class MySqlQuerySqlGenerator
     }
 
     /// <summary>
-    /// Holds the CAST target token (e.g. <c>SIGNED</c>, <c>DECIMAL(10,2)</c>,
-    /// <c>DATETIME(6)</c>) plus a flag indicating whether the source expression must go
-    /// through <c>JSON_UNQUOTE</c> first. Numeric types do not need UNQUOTE (JSON_EXTRACT
-    /// returns the numeric value as a JSON number without quotes); temporal types DO need
-    /// UNQUOTE because they are stored as JSON strings (e.g. <c>"2023-01-01T00:00:00"</c>).
-    /// </summary>
-    private readonly record struct JsonScalarCast(string Target, bool NeedsUnquote);
-
-    /// <summary>
     /// Maps a column-level MySQL <c>StoreType</c> string to the CAST target a JSON scalar
-    /// projection wraps the <c>JSON_EXTRACT</c> call in. Returns <see langword="null"/> for
+    /// projection wraps the <c>JSON_EXTRACT</c> call in. Returns <see langword="null" /> for
     /// store types where no CAST is needed -- string-shaped types fall through to
     /// <c>JSON_UNQUOTE</c>; <c>json</c> stays raw; <c>tinyint(1)</c>/<c>bit(1)</c> are the
     /// boolean shape handled by the earlier <c>(= TRUE)</c> branch; binary store types are
@@ -741,14 +757,17 @@ internal sealed partial class MySqlQuerySqlGenerator
         var unsigned = lower.EndsWith(" unsigned", StringComparison.Ordinal);
 
         var baseType = unsigned
-            ? lower[..^" unsigned".Length].TrimEnd()
+            ? lower[..^" unsigned".Length]
+                .TrimEnd()
             : lower;
 
         // Strip trailing parameter list `(p,s)` / `(N)` so e.g. `decimal(10,2)` matches
         // `decimal`; the original storeType is reused verbatim when the CAST target needs
         // the precision (DECIMAL, DATETIME, TIME).
         var parenIndex = baseType.IndexOf('(');
-        var simpleType = parenIndex >= 0 ? baseType[..parenIndex] : baseType;
+        var simpleType = parenIndex >= 0
+            ? baseType[..parenIndex]
+            : baseType;
 
         var precisionSuffix = parenIndex >= 0
             ? storeType[storeType.IndexOf('(')..(storeType.IndexOf(')') + 1)]
@@ -757,30 +776,43 @@ internal sealed partial class MySqlQuerySqlGenerator
         return simpleType switch
         {
             "tinyint" or "smallint" or "mediumint" or "int" or "integer" or "bigint" or "year"
-                => new JsonScalarCast(unsigned ? "UNSIGNED" : "SIGNED", NeedsUnquote: false),
+                => new JsonScalarCast(
+                    unsigned
+                        ? "UNSIGNED"
+                        : "SIGNED",
+                    NeedsUnquote: false),
             "decimal" or "numeric" or "fixed" or "dec"
+
                 // Preserve the precision/scale from the store type so the reader gets a
                 // DECIMAL with the same shape as the underlying column.
                 => new JsonScalarCast(
-                    precisionSuffix is null ? "DECIMAL" : "DECIMAL" + precisionSuffix,
+                    precisionSuffix is null
+                        ? "DECIMAL"
+                        : "DECIMAL" + precisionSuffix,
                     NeedsUnquote: false),
             "float" or "double" or "real"
+
                 // Both engines accept CAST AS DOUBLE for any floating-point storage; reader
                 // GetFloat narrows the DOUBLE to float losslessly within the original range.
                 => new JsonScalarCast("DOUBLE", NeedsUnquote: false),
             "datetime" or "timestamp"
+
                 // Stored as JSON string "2023-01-01T00:00:00..."; UNQUOTE first to strip
                 // the surrounding double quotes before MySQL parses it as a temporal
                 // literal. Precision suffix preserved so DATETIME(6) round-trips
                 // microseconds.
                 => new JsonScalarCast(
-                    precisionSuffix is null ? "DATETIME" : "DATETIME" + precisionSuffix,
+                    precisionSuffix is null
+                        ? "DATETIME"
+                        : "DATETIME" + precisionSuffix,
                     NeedsUnquote: true),
             "date"
                 => new JsonScalarCast("DATE", NeedsUnquote: true),
             "time"
                 => new JsonScalarCast(
-                    precisionSuffix is null ? "TIME" : "TIME" + precisionSuffix,
+                    precisionSuffix is null
+                        ? "TIME"
+                        : "TIME" + precisionSuffix,
                     NeedsUnquote: true),
             _ => null,
         };
@@ -789,7 +821,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// <summary>
     /// Emits the raw <c>JSON_EXTRACT(&lt;json&gt;, '&lt;path&gt;')</c> expression, dispatching
     /// to the static-path / dynamic-path helper based on whether the path carries any
-    /// non-constant array index. Shared by every <see cref="VisitJsonScalar"/> code path.
+    /// non-constant array index. Shared by every <see cref="VisitJsonScalar" /> code path.
     /// </summary>
     private void EmitJsonExtract(
         JsonScalarExpression jsonScalarExpression
@@ -834,7 +866,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
     /// <summary>
     /// Emits a static JSON path for a <c>JSON_TABLE</c> row-source argument. Differs from
-    /// <see cref="AppendStaticJsonPath"/> by appending an <c>[*]</c> wildcard suffix when
+    /// <see cref="AppendStaticJsonPath" /> by appending an <c>[*]</c> wildcard suffix when
     /// the path's last segment is a property name (e.g. <c>$.OwnedCollectionBranch</c>
     /// becomes <c>$.OwnedCollectionBranch[*]</c>) so JSON_TABLE iterates the elements of
     /// the array AT the path rather than treating the array as a single row. A trailing
@@ -869,7 +901,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
     /// <summary>
     /// Escapes one property name at the JSON-path layer. The complete path is
-    /// subsequently passed to <see cref="MySqlSqlLiteralGenerator"/>, which
+    /// subsequently passed to <see cref="MySqlSqlLiteralGenerator" />, which
     /// handles SQL quoting without coupling JSON escaping to the session mode.
     /// </summary>
     private static string EscapeJsonPathPropertyName(
@@ -1038,4 +1070,16 @@ internal sealed partial class MySqlQuerySqlGenerator
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Holds the CAST target token (e.g. <c>SIGNED</c>, <c>DECIMAL(10,2)</c>,
+    /// <c>DATETIME(6)</c>) plus a flag indicating whether the source expression must go
+    /// through <c>JSON_UNQUOTE</c> first. Numeric types do not need UNQUOTE (JSON_EXTRACT
+    /// returns the numeric value as a JSON number without quotes); temporal types DO need
+    /// UNQUOTE because they are stored as JSON strings (e.g. <c>"2023-01-01T00:00:00"</c>).
+    /// </summary>
+    private readonly record struct JsonScalarCast(
+        string Target,
+        bool NeedsUnquote
+    );
 }

@@ -24,8 +24,6 @@ public sealed class
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-        public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
         public override bool StrictEquality => false;
 
         public override bool SupportsAnsi => false;
@@ -41,6 +39,8 @@ public sealed class
         public override bool PreservesDateTimeKind => false;
 
         public override DateTime DefaultDateTime => new();
+
+        public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
     }
 }
 
@@ -72,8 +72,6 @@ public sealed class CustomConvertersMySqlTest : CustomConvertersTestBase<CustomC
     {
         protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-        public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
         public override bool StrictEquality => false;
 
         public override bool SupportsAnsi => false;
@@ -89,6 +87,8 @@ public sealed class CustomConvertersMySqlTest : CustomConvertersTestBase<CustomC
         public override bool PreservesDateTimeKind => false;
 
         public override DateTime DefaultDateTime => new();
+
+        public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
     }
 }
 

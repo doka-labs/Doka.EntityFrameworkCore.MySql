@@ -19,7 +19,7 @@ public sealed class MySqlDiagnosticsTests
             "Server=localhost;Database=doka;User ID=root;Password=super-secret;");
 
         optionsBuilder.UseLoggerFactory(loggerFactory);
-        Action act = () => extension.Validate(optionsBuilder.Options);
+        var act = () => extension.Validate(optionsBuilder.Options);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -34,6 +34,7 @@ public sealed class MySqlDiagnosticsTests
         Assert.Equal(
             MySqlConfigurationFailureReason.MissingServerVersion,
             entry.State["Reason"]);
+
         Assert.Equal("ConnectionString", entry.State["ConnectionPath"]);
         Assert.DoesNotContain("Server=", entry.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Database=", entry.Message, StringComparison.OrdinalIgnoreCase);
@@ -51,14 +52,14 @@ public sealed class MySqlDiagnosticsTests
         // Arrange
         const string secret = "connection-contract-secret";
         var sink = new TestLogSink();
-        using var loggerFactory = LoggerFactory.Create(
-            builder => builder.AddProvider(new TestLoggerProvider(sink)));
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
 
         var optionsBuilder = new DbContextOptionsBuilder();
         optionsBuilder.UseLoggerFactory(loggerFactory);
         optionsBuilder.UseMySql(
             $"Server=localhost;Database=doka;User ID=root;Password={secret};UseAffectedRows=true;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         using var context = new DbContext(optionsBuilder.Options);
         Action act = () =>
             _ = context.GetService<IRelationalConnection>();
@@ -71,9 +72,11 @@ public sealed class MySqlDiagnosticsTests
         var entry = Assert.Single(
             sink.Entries,
             candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
+
         Assert.Equal(
             MySqlConfigurationFailureReason.ChangedRowSemanticsUnsupported,
             entry.State["Reason"]);
+
         Assert.Equal("ConnectionString", entry.State["ConnectionPath"]);
         Assert.DoesNotContain(secret, exception.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);
@@ -89,8 +92,7 @@ public sealed class MySqlDiagnosticsTests
         // Arrange
         const string secret = "borrowed-connection-secret";
         var sink = new TestLogSink();
-        using var loggerFactory = LoggerFactory.Create(
-            builder => builder.AddProvider(new TestLoggerProvider(sink)));
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
 
         var optionsBuilder = new DbContextOptionsBuilder();
         using var connection = new MySqlConnection(
@@ -111,9 +113,11 @@ public sealed class MySqlDiagnosticsTests
         var entry = Assert.Single(
             sink.Entries,
             candidate => candidate.EventId.Id == MySqlEventId.InvalidConfiguration.Id);
+
         Assert.Equal(
             MySqlConfigurationFailureReason.GuidTransportIncompatible,
             entry.State["Reason"]);
+
         Assert.Equal(nameof(DbConnection), entry.State["ConnectionPath"]);
         Assert.DoesNotContain(secret, exception.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);

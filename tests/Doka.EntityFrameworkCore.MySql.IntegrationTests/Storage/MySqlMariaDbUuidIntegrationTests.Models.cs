@@ -19,37 +19,47 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             {
                 entity.ToTable(PrincipalTable);
                 entity.HasKey(principal => principal.Id);
-                entity.Property(principal => principal.BinaryId)
+                entity
+                    .Property(principal => principal.BinaryId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                entity.Property(principal => principal.CharId)
+
+                entity
+                    .Property(principal => principal.CharId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-                entity.Property(principal => principal.ConvertedId)
+
+                entity
+                    .Property(principal => principal.ConvertedId)
                     .HasConversion<byte[]>();
-                entity.HasData(new NativeUuidPrincipal
-                {
-                    Id = s_seededId,
-                    OptionalNativeId = s_optionalId,
-                    BinaryId = Guid.Parse("89a78261-ea26-494e-a520-b518f51ed3d1"),
-                    CharId = Guid.Parse("1e326748-be2c-4856-bf8d-cffc79c192cf"),
-                    ConvertedId = s_convertedSeedId,
-                    Name = "seeded",
-                });
+
+                entity.HasData(
+                    new NativeUuidPrincipal
+                    {
+                        Id = s_seededId,
+                        OptionalNativeId = s_optionalId,
+                        BinaryId = Guid.Parse("89a78261-ea26-494e-a520-b518f51ed3d1"),
+                        CharId = Guid.Parse("1e326748-be2c-4856-bf8d-cffc79c192cf"),
+                        ConvertedId = s_convertedSeedId,
+                        Name = "seeded",
+                    });
             });
 
             modelBuilder.Entity<NativeUuidDependent>(entity =>
             {
                 entity.ToTable(DependentTable);
                 entity.HasKey(dependent => dependent.Id);
-                entity.HasOne(dependent => dependent.Principal)
+                entity
+                    .HasOne(dependent => dependent.Principal)
                     .WithMany(principal => principal.Dependents)
                     .HasForeignKey(dependent => dependent.PrincipalId)
                     .OnDelete(DeleteBehavior.Cascade);
-                entity.HasData(new NativeUuidDependent
-                {
-                    Id = 1,
-                    PrincipalId = s_seededId,
-                    Name = "seeded-related",
-                });
+
+                entity.HasData(
+                    new NativeUuidDependent
+                    {
+                        Id = 1,
+                        PrincipalId = s_seededId,
+                        Name = "seeded-related",
+                    });
             });
         }
     }
@@ -94,7 +104,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             {
                 entity.ToTable(OptInTable);
                 entity.HasKey(value => value.Id);
-                entity.Property(value => value.NativeId)
+                entity
+                    .Property(value => value.NativeId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Uuid);
             });
         }
@@ -122,9 +133,12 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             {
                 entity.ToTable(VersionedTable);
                 entity.HasKey(value => value.NativeId);
-                entity.Property(value => value.BinaryId)
+                entity
+                    .Property(value => value.BinaryId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                entity.Property(value => value.CharId)
+
+                entity
+                    .Property(value => value.CharId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
             });
         }
@@ -153,7 +167,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             {
                 entity.ToTable(Char36BytesTable);
                 entity.HasKey(value => value.Id);
-                entity.Property(value => value.ConvertedId)
+                entity
+                    .Property(value => value.ConvertedId)
                     .HasConversion<byte[]>();
             });
         }

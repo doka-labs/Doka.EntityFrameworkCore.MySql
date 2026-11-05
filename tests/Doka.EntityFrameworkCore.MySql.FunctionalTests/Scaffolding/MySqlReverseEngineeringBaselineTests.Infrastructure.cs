@@ -207,10 +207,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         table.Indexes.Add(duplicateUniqueIndex);
         table.SetAnnotation(
             MySqlAnnotationNames.ScaffoldingCheckConstraints,
-            new MySqlScaffoldedCheckConstraint[]
-            {
-                new("CK_core_record_optional", "`OptionalCount` >= 0"),
-            });
+            new MySqlScaffoldedCheckConstraint[] { new("CK_core_record_optional", "`OptionalCount` >= 0") });
 
         var childTable = new DatabaseTable
         {
@@ -326,8 +323,16 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         {
             Table = table,
             Name = "IX_StoreType_Name_Code",
-            Columns = { nameColumn, codeColumn },
-            IsDescending = { false, true },
+            Columns =
+            {
+                nameColumn,
+                codeColumn,
+            },
+            IsDescending =
+            {
+                false,
+                true,
+            },
         };
 
         prefixIndex.SetAnnotation(MySqlAnnotationNames.IndexPrefixLength, prefixLengths);
@@ -357,10 +362,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
 
         functionalIndex.SetAnnotation(
             MySqlAnnotationNames.ScaffoldingIndexParts,
-            new MySqlScaffoldedIndexPart[]
-            {
-                new(null, "lower(`Name`)", false, null),
-            });
+            new MySqlScaffoldedIndexPart[] { new(null, "lower(`Name`)", false, null) });
 
         table.Indexes.Add(prefixIndex);
         table.Indexes.Add(fullTextIndex);
@@ -413,15 +415,19 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourceHistoryTable,
             "audit_entries_history");
+
         table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourceHistorySchema,
             databaseModel.DatabaseName);
+
         table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourcePeriodStartColumn,
             "ValidFrom");
+
         table.SetAnnotation(
             MySqlAnnotationNames.TemporalSourcePeriodEndColumn,
             "ValidTo");
+
         databaseModel.Tables.Add(table);
 
         return databaseModel;
@@ -453,6 +459,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             Name = "PRIMARY",
             Columns = { idColumn },
         };
+
         table.PrimaryKey.SetAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps, true);
         table.SetAnnotation(MySqlAnnotationNames.IsApplicationTime, true);
         table.SetAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName, "BusinessValidity");

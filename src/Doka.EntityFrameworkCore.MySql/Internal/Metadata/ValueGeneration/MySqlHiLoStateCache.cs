@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Process-wide cache of Hi/Lo block state keyed by database identity, sequence name,
 /// and block size.
-/// EF Core resolves a fresh <see cref="MySqlValueGeneratorSelector"/> per DbContext;
+/// EF Core resolves a fresh <see cref="MySqlValueGeneratorSelector" /> per DbContext;
 /// without a shared state cache every context would allocate a new client-side block
 /// on its first insert and the Hi/Lo round-trip savings would never materialize.
 /// Database identity prevents two servers or databases with the same sequence name
@@ -18,7 +18,13 @@ internal static class MySqlHiLoStateCache
     private static readonly ConcurrentQueue<CacheKey> s_insertionOrder = new();
 
     /// <summary>
-    /// Returns the shared <see cref="HiLoValueGeneratorState"/> for the given key,
+    /// Returns the current number of cached state entries. Test-only inspection
+    /// surface; production code never reads this.
+    /// </summary>
+    internal static int Count => s_states.Count;
+
+    /// <summary>
+    /// Returns the shared <see cref="HiLoValueGeneratorState" /> for the given key,
     /// creating it on first observation. Subsequent callers for the same key receive
     /// the same instance so the underlying block window survives across DbContexts.
     /// </summary>
@@ -45,12 +51,6 @@ internal static class MySqlHiLoStateCache
     }
 
     /// <summary>
-    /// Returns the current number of cached state entries. Test-only inspection
-    /// surface; production code never reads this.
-    /// </summary>
-    internal static int Count => s_states.Count;
-
-    /// <summary>
     /// Drops every cached state. Test-only; production code never invokes this.
     /// </summary>
     internal static void ResetForTesting()
@@ -62,7 +62,7 @@ internal static class MySqlHiLoStateCache
     private static void TrimToCapacity()
     {
         while (s_states.Count > Capacity
-               && s_insertionOrder.TryDequeue(out var oldestKey))
+            && s_insertionOrder.TryDequeue(out var oldestKey))
         {
             _ = s_states.TryRemove(oldestKey, out _);
         }
@@ -92,7 +92,7 @@ internal readonly record struct MySqlDatabaseIdentity(
     /// <summary>
     /// Parses the provider connection string into the logical and protocol-specific
     /// endpoint fields that determine sequence ownership. Equivalent connection-
-    /// string spellings are canonicalized by <see cref="MySqlConnectionStringBuilder"/>.
+    /// string spellings are canonicalized by <see cref="MySqlConnectionStringBuilder" />.
     /// </summary>
     public static MySqlDatabaseIdentity FromConnectionString(
         string connectionString

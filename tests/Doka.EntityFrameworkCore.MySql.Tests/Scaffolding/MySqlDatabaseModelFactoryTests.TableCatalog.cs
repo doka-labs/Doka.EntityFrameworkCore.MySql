@@ -35,7 +35,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                     "BASE TABLE");
             }
             else if (scenario is ScaffoldingScenario.MySqlTemporalEmulation
-                     or ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
+                or ScaffoldingScenario.IncompleteMySqlTemporalEmulation)
             {
                 table.Rows.Add(
                     "audit_entries",
@@ -43,6 +43,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                     DBNull.Value,
                     "InnoDB",
                     "BASE TABLE");
+
                 table.Rows.Add(
                     "audit_entries_history",
                     "utf8mb4_0900_ai_ci",
@@ -76,6 +77,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                     DBNull.Value,
                     "InnoDB",
                     "BASE TABLE");
+
                 table.Rows.Add(
                     "spatial_feature_table",
                     "utf8mb4_0900_ai_ci",
@@ -163,6 +165,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 "mixed_index_table",
                 "Second",
@@ -174,6 +177,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 "spatial_feature_table",
                 "Id",
@@ -185,6 +189,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 DBNull.Value,
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 "spatial_feature_table",
                 "Location",

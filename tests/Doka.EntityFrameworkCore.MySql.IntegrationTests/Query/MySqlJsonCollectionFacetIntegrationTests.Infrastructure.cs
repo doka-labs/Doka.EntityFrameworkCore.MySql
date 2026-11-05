@@ -21,21 +21,28 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
         return new JsonCollectionFacetContext(builder.Options);
     }
 
+    /// <summary>Selects the markers from the integration table.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> SelectMarkersAsync(
         JsonCollectionFacetContext context,
-        Expression<Func<JsonCollectionFacetValue, bool>> predicate
-    ) => await context.Owners
+        Expression<Func<JsonCollectionFacetValue, bool>> predicate,
+        CancellationToken cancellationToken
+    ) => await context
+        .Owners
         .Where(owner => owner.Id == 1)
         .SelectMany(owner => owner.Values)
         .Where(predicate)
         .Select(value => value.Marker)
-        .ToArrayAsync(CancellationToken.None);
+        .ToArrayAsync(cancellationToken);
 
+    /// <summary>Drops the table using the caller's cancellation policy.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTableAsync(
-        JsonCollectionFacetContext context
+        JsonCollectionFacetContext context,
+        CancellationToken cancellationToken
     ) => await context.Database.ExecuteSqlRawAsync(
         $"DROP TABLE IF EXISTS `{TableName}`;",
-        CancellationToken.None);
+        cancellationToken);
 
     /// <summary>Seeds immutable rows once per engine for independently reported queries.</summary>
     public sealed class SeededDatabaseFixture : IAsyncLifetime
@@ -44,24 +51,6 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
 
         /// <summary>Defers database setup until a selected engine needs it.</summary>
         public Task InitializeAsync() => Task.CompletedTask;
-
-        /// <summary>Returns the original seed task, including any initialization failure.</summary>
-        /// <param name="target">The selected database engine.</param>
-        /// <returns>The completion of that engine's shared seed.</returns>
-        internal Task EnsureSeededAsync(
-            IntegrationDatabaseTarget target
-        )
-        {
-            // WHY: xUnit serializes cases in this class; caching the task prevents
-            // repeated DDL and keeps a seed failure visible to every dependent case.
-            if (!_seeds.TryGetValue(target, out var seed))
-            {
-                seed = SeedAsync(target);
-                _seeds.Add(target, seed);
-            }
-
-            return seed;
-        }
 
         /// <summary>Drops each initialized table even if another engine's cleanup fails.</summary>
         public async Task DisposeAsync()
@@ -74,7 +63,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
                 {
                     await using var context = CreateContext(target);
 
-                    await DropTableAsync(context);
+                    await DropTableAsync(context, CancellationToken.None);
                 }
                 catch (Exception exception)
                 {
@@ -89,16 +78,40 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
             }
         }
 
+        /// <summary>Returns the original seed task, including any initialization failure.</summary>
+        /// <param name="target">The selected database engine.</param>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        /// <returns>The completion of that engine's shared seed.</returns>
+        internal Task EnsureSeededAsync(
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
+        )
+        {
+            // WHY: xUnit serializes cases in this class; caching the task prevents
+            // repeated DDL and keeps a seed failure visible to every dependent case.
+            if (!_seeds.TryGetValue(target, out var seed))
+            {
+                seed = SeedAsync(target, cancellationToken);
+                _seeds.Add(target, seed);
+            }
+
+            return seed;
+        }
+
+        /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
-            IntegrationDatabaseTarget target
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
         )
         {
             await using var context = CreateContext(target);
 
-            await DropTableAsync(context);
+            await DropTableAsync(context, cancellationToken);
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
-                CancellationToken.None);
+                cancellationToken);
+
             context.Owners.AddRange(
                 new JsonCollectionFacetOwner
                 {
@@ -146,7 +159,8 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
                         },
                     ],
                 });
-            await context.SaveChangesAsync(CancellationToken.None);
+
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
         }
     }

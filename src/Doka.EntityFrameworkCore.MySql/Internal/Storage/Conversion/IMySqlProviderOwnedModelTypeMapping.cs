@@ -4,5 +4,7 @@ internal interface IMySqlProviderOwnedModelTypeMapping
 {
     Type ProviderClrType { get; }
 
-    object ConvertToModelValue(object providerValue);
+    object ConvertToModelValue(
+        object providerValue
+    );
 }

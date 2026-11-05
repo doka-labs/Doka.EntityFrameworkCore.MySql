@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -16,7 +18,8 @@ public sealed class MySqlJsonCollectionFacetTests
         using var context = CreateContext();
 
         // Act
-        var sql = context.Owners
+        var sql = context
+            .Owners
             .AsNoTracking()
             .SelectMany(owner => owner.Values)
             .Where(value => value.Text == "alphabet")
@@ -65,8 +68,10 @@ public sealed class MySqlJsonCollectionFacetTests
         using var context = CreateContext();
 
         // Act
-        var sql = context.Owners
-            .Where(owner => owner.Values
+        var sql = context
+            .Owners
+            .Where(owner => owner
+                .Values
                 .GroupBy(value => value.Text)
                 .Select(group => group.Sum(value => value.Marker))
                 .Any(sum => sum == 16))
@@ -100,59 +105,72 @@ public sealed class MySqlJsonCollectionFacetTests
             modelBuilder.Entity<JsonCollectionFacetOwner>(entity =>
             {
                 entity.HasKey(owner => owner.Id);
-                entity.OwnsMany(owner => owner.Values, owned =>
-                {
-                    owned.ToJson();
-                    owned
-                        .Property(value => value.Text)
-                        .HasMaxLength(4);
-                    owned
-                        .Property(value => value.Amount)
-                        .HasPrecision(5, 1);
-                    owned
-                        .Property(value => value.OccurredAt)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.DateValue)
-                        .HasColumnType("date");
-                    owned
-                        .Property(value => value.StartsAt)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.Status)
-                        .HasConversion<string>()
-                        .HasMaxLength(4);
-                    owned
-                        .Property(value => value.ConvertedAmount)
-                        .HasConversion(
-                            value => value.Value,
-                            value => new PriceValue(value))
-                        .HasPrecision(5, 1);
-                    owned
-                        .Property(value => value.Duration)
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedDuration)
-                        .HasConversion(
-                            value => value.Value,
-                            value => new ElapsedValue(value))
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedTimestamp)
-                        .HasConversion(
-                            value => value.UtcDateTime,
-                            value => new DateTimeOffset(value, TimeSpan.Zero))
-                        .HasPrecision(0);
-                    owned
-                        .Property(value => value.ConvertedPayload)
-                        .HasConversion(
-                            value => System.Text.Encoding.UTF8.GetBytes(value.Value),
-                            value => new BinaryValue(System.Text.Encoding.UTF8.GetString(value)))
-                        .HasColumnType("varbinary(8)");
-                    owned
-                        .Property(value => value.CharGuidValue)
-                        .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-                });
+                entity.OwnsMany(
+                    owner => owner.Values,
+                    owned =>
+                    {
+                        owned.ToJson();
+                        owned
+                            .Property(value => value.Text)
+                            .HasMaxLength(4);
+
+                        owned
+                            .Property(value => value.Amount)
+                            .HasPrecision(5, 1);
+
+                        owned
+                            .Property(value => value.OccurredAt)
+                            .HasPrecision(0);
+
+                        owned
+                            .Property(value => value.DateValue)
+                            .HasColumnType("date");
+
+                        owned
+                            .Property(value => value.StartsAt)
+                            .HasPrecision(0);
+
+                        owned
+                            .Property(value => value.Status)
+                            .HasConversion<string>()
+                            .HasMaxLength(4);
+
+                        owned
+                            .Property(value => value.ConvertedAmount)
+                            .HasConversion(
+                                value => value.Value,
+                                value => new PriceValue(value))
+                            .HasPrecision(5, 1);
+
+                        owned
+                            .Property(value => value.Duration)
+                            .HasPrecision(0);
+
+                        owned
+                            .Property(value => value.ConvertedDuration)
+                            .HasConversion(
+                                value => value.Value,
+                                value => new ElapsedValue(value))
+                            .HasPrecision(0);
+
+                        owned
+                            .Property(value => value.ConvertedTimestamp)
+                            .HasConversion(
+                                value => value.UtcDateTime,
+                                value => new DateTimeOffset(value, TimeSpan.Zero))
+                            .HasPrecision(0);
+
+                        owned
+                            .Property(value => value.ConvertedPayload)
+                            .HasConversion(
+                                value => Encoding.UTF8.GetBytes(value.Value),
+                                value => new BinaryValue(Encoding.UTF8.GetString(value)))
+                            .HasColumnType("varbinary(8)");
+
+                        owned
+                            .Property(value => value.CharGuidValue)
+                            .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+                    });
             });
         }
     }

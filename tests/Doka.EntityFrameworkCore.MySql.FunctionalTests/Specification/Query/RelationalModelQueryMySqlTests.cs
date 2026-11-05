@@ -59,7 +59,7 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Executes the equivalent query-syntax contract without assigning a deterministic
@@ -69,7 +69,7 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
-    ) => AssertTakeThenOrderByRank(async);
+    ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
@@ -87,10 +87,16 @@ public sealed partial class GearsOfWarQueryMySqlTest : GearsOfWarQueryRelational
     /// sort is stable. The engine references and full rationale are documented on
     /// the equivalent TPC contract.
     /// </remarks>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
     private async Task AssertTakeThenOrderByRank(
-        bool async
+        bool async,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         await AssertQuery(
             async,
             TakeThenOrderByRankQuery.Create,

@@ -37,9 +37,9 @@ public sealed class MySqlDbContextOptionsBuilder
     /// <param name="format">The default GUID storage format.</param>
     /// <returns>The current builder instance.</returns>
     /// <remarks>
-    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <see cref="MySqlGuidFormat.Uuid" /> selects MariaDB's native
     /// <c>uuid</c> type for new models on MariaDB 10.7 or later. It does not
-    /// convert existing GUID columns or change the default <see cref="MySqlGuidFormat.Binary16"/>.
+    /// convert existing GUID columns or change the default <see cref="MySqlGuidFormat.Binary16" />.
     /// </remarks>
     public MySqlDbContextOptionsBuilder DefaultGuidFormat(
         MySqlGuidFormat format
@@ -53,8 +53,8 @@ public sealed class MySqlDbContextOptionsBuilder
     /// </summary>
     /// <remarks>
     /// Doka enables the connector capability when it owns the connection
-    /// string. Caller-owned <see cref="DbConnection"/> and
-    /// <see cref="MySqlDataSource"/> instances must already specify
+    /// string. Caller-owned <see cref="DbConnection" /> and
+    /// <see cref="MySqlDataSource" /> instances must already specify
     /// <c>AllowUserVariables=true</c>; Doka validates them without mutation or
     /// reconstruction.
     /// </remarks>
@@ -100,7 +100,7 @@ public sealed class MySqlDbContextOptionsBuilder
     /// Configures the maximum number of statements the provider packs into a single
     /// modification-command batch. The MySQL hard ceiling is 65535 placeholders + the
     /// negotiated <c>max_allowed_packet</c>; the provider further splits batches per
-    /// <see cref="MySqlEventId.BulkInsertParameterCountCapped"/> when either ceiling
+    /// <see cref="MySqlEventId.BulkInsertParameterCountCapped" /> when either ceiling
     /// would be exceeded.
     /// </summary>
     /// <param name="maxBatchSize">Maximum number of statements per batch; must be positive.</param>
@@ -155,10 +155,10 @@ public sealed class MySqlDbContextOptionsBuilder
     }
 
     /// <summary>
-    /// Configures the default <see cref="QuerySplittingBehavior"/> the provider applies
+    /// Configures the default <see cref="QuerySplittingBehavior" /> the provider applies
     /// to queries with collection includes. The EF Core default is
-    /// <see cref="QuerySplittingBehavior.SingleQuery"/>; consumers that prefer per-include
-    /// round-trips opt into <see cref="QuerySplittingBehavior.SplitQuery"/> here once
+    /// <see cref="QuerySplittingBehavior.SingleQuery" />; consumers that prefer per-include
+    /// round-trips opt into <see cref="QuerySplittingBehavior.SplitQuery" /> here once
     /// rather than per query call.
     /// </summary>
     /// <param name="querySplittingBehavior">The query splitting behavior to apply.</param>

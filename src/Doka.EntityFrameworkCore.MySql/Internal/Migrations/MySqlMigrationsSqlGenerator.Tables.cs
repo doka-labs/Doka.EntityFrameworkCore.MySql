@@ -16,6 +16,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var sourceCharSet = GetValidatedOptionalIdentifierAnnotation(
             operation.OldDatabase,
             MySqlAnnotationNames.CharSet);
+
         var sourceCollation = ValidateOptionalIdentifier(
             operation.OldDatabase.Collation,
             RelationalAnnotationNames.Collation);
@@ -23,9 +24,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         ValidateCharacterSetAndCollation(charSet, collation);
         ValidateCharacterSetAndCollation(sourceCharSet, sourceCollation);
 
-        if (charSet is null && collation is null)
+        if (charSet is null
+            && collation is null)
         {
-            if (sourceCharSet is not null || sourceCollation is not null)
+            if (sourceCharSet is not null
+                || sourceCollation is not null)
             {
                 throw new InvalidOperationException(
                     "Removing explicit database character-set or collation metadata requires an explicit target value.");
@@ -72,7 +75,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             sourceContract: false,
             out var applicationTimeContract);
 
-        if (temporalContract?.Support == ProviderSupportStatus.Emulated && !terminate)
+        if (temporalContract?.Support == ProviderSupportStatus.Emulated
+            && !terminate)
         {
             throw new InvalidOperationException(
                 "A temporal CREATE TABLE operation using MySQL emulation must terminate its commands.");
@@ -154,6 +158,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Name,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             operation.Name,
@@ -162,7 +167,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         var generatedTemporalTransition = false;
 
-        if (sourceTemporalContract is null && targetTemporalContract is not null)
+        if (sourceTemporalContract is null
+            && targetTemporalContract is not null)
         {
             if (targetTemporalContract.Support == ProviderSupportStatus.Native)
             {
@@ -184,7 +190,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             generatedTemporalTransition = true;
         }
-        else if (sourceTemporalContract is not null && targetTemporalContract is null)
+        else if (sourceTemporalContract is not null
+            && targetTemporalContract is null)
         {
             if (sourceTemporalContract.Support == ProviderSupportStatus.Native)
             {
@@ -254,14 +261,17 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var targetCharSet = GetValidatedOptionalIdentifierAnnotation(
             operation,
             MySqlAnnotationNames.CharSet);
+
         var sourceCharSet = GetValidatedOptionalIdentifierAnnotation(
             operation.OldTable,
             MySqlAnnotationNames.CharSet);
+
         var targetCollation = GetValidatedTableCollation(operation);
         var sourceCollation = GetValidatedTableCollation(operation.OldTable);
         var targetStorageEngine = GetValidatedOptionalIdentifierAnnotation(
             operation,
             MySqlAnnotationNames.StorageEngine);
+
         var sourceStorageEngine = GetValidatedOptionalIdentifierAnnotation(
             operation.OldTable,
             MySqlAnnotationNames.StorageEngine);
@@ -273,18 +283,23 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             targetCharSet,
             sourceCharSet,
             StringComparison.OrdinalIgnoreCase);
+
         var collationChanged = !string.Equals(
             targetCollation,
             sourceCollation,
             StringComparison.OrdinalIgnoreCase);
+
         var storageEngineChanged = !string.Equals(
             targetStorageEngine,
             sourceStorageEngine,
             StringComparison.OrdinalIgnoreCase);
+
         var appendCollation = collationChanged
             || (charSetChanged && targetCollation is not null);
 
-        if (!charSetChanged && !collationChanged && !storageEngineChanged)
+        if (!charSetChanged
+            && !collationChanged
+            && !storageEngineChanged)
         {
             return;
         }
@@ -363,6 +378,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var storageEngine = GetValidatedOptionalIdentifierAnnotation(
             operation,
             MySqlAnnotationNames.StorageEngine);
+
         var comment = operation.Comment;
 
         ValidateCharacterSetAndCollation(charSet, collation);
@@ -417,6 +433,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         var relationalCollation = GetValidatedOptionalIdentifierAnnotation(
             annotatable,
             RelationalAnnotationNames.Collation);
+
         var providerCollation = GetValidatedOptionalIdentifierAnnotation(
             annotatable,
             MySqlAnnotationNames.Collation);
@@ -465,13 +482,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         string? collation
     )
     {
-        if (charSet is null || collation is null)
+        if (charSet is null
+            || collation is null)
         {
             return;
         }
 
         var separator = collation.IndexOf('_');
-        var collationCharSet = separator > 0 ? collation[..separator] : collation;
+        var collationCharSet = separator > 0
+            ? collation[..separator]
+            : collation;
 
         if (string.Equals(charSet, collationCharSet, StringComparison.OrdinalIgnoreCase)
             || IsUtf8Mb3AliasPair(charSet, collationCharSet)
@@ -542,6 +562,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Name,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             newName,
@@ -590,6 +611,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 model,
                 targetTemporalContract,
                 builder);
+
             return;
         }
 
@@ -635,7 +657,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             sourceContract: true,
             out var sourceTemporalContract);
 
-        if (sourceTemporalContract?.Support == ProviderSupportStatus.Emulated && !terminate)
+        if (sourceTemporalContract?.Support == ProviderSupportStatus.Emulated
+            && !terminate)
         {
             throw new InvalidOperationException(
                 "A temporal DROP TABLE operation using MySQL emulation must terminate its commands.");
@@ -656,9 +679,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     /// MySQL 8.0+ and MariaDB 10.5.2+ accept the modern
     /// <c>ALTER TABLE ... RENAME COLUMN old TO new</c> form; older MariaDB versions
     /// require <c>ALTER TABLE ... CHANGE COLUMN old new &lt;full column definition&gt;</c>.
-    /// The engine choice is read from the active <see cref="ProviderProfile"/> via
-    /// <see cref="ProviderCapability.RenameColumn"/>; the fallback path resolves
-    /// the column definition from the post-rename <see cref="IModel"/> (post-rename
+    /// The engine choice is read from the active <see cref="ProviderProfile" /> via
+    /// <see cref="ProviderCapability.RenameColumn" />; the fallback path resolves
+    /// the column definition from the post-rename <see cref="IModel" /> (post-rename
     /// because EF Core applies the operation to the model before invoking the
     /// generator, so the column entry already carries the new name).
     /// </summary>
@@ -676,6 +699,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Table,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             operation.Table,
@@ -697,14 +721,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             builder
                 .Append("ALTER TABLE ")
-                .Append(DelimitMigrationIdentifier(
-                    targetTemporalContract.HistoryTable!,
-                    targetTemporalContract.HistorySchema))
+                .Append(
+                    DelimitMigrationIdentifier(
+                        targetTemporalContract.HistoryTable!,
+                        targetTemporalContract.HistorySchema))
                 .Append(" RENAME COLUMN ")
                 .Append(DelimitMigrationIdentifier(operation.Name))
                 .Append(" TO ")
                 .Append(DelimitMigrationIdentifier(operation.NewName))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             EndStatement(builder);
 
             AppendTemporalTriggersFromModel(
@@ -713,6 +739,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 model,
                 targetTemporalContract,
                 builder);
+
             return;
         }
 
@@ -725,7 +752,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
-
         if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.RenameColumn) == ProviderSupportStatus.Native)
         {
             builder
@@ -748,7 +774,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     /// Engine fallback for MariaDB &lt; 10.5.2: emit
     /// <c>ALTER TABLE t CHANGE COLUMN old new &lt;column definition&gt;</c>. The full
     /// column definition is required by the older syntax; we recover it from the
-    /// post-rename <see cref="IModel"/> entry.
+    /// post-rename <see cref="IModel" /> entry.
     /// </summary>
     private void AppendChangeColumnRename(
         RenameColumnOperation operation,
@@ -756,10 +782,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
-        var column = (model
+        var column = model
                 ?.GetRelationalModel()
                 .FindTable(operation.Table, operation.Schema)
-                ?.Columns.FirstOrDefault(c => string.Equals(c.Name, operation.NewName, StringComparison.Ordinal)))
+                ?.Columns
+                .FirstOrDefault(c => string.Equals(c.Name, operation.NewName, StringComparison.Ordinal))
             ?? throw new InvalidOperationException(
                 $"Could not resolve the column definition for '{operation.Table}.{operation.NewName}' from the model. "
                 + "The active engine version requires the MariaDB CHANGE COLUMN form for column rename, "
@@ -838,8 +865,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             ValidateDdlCommentSqlModeScope(column, scopeRequired: true);
         }
 
-        if (operation.CheckConstraints.Any(
-                static constraint => constraint.Sql.Contains('\\')))
+        if (operation.CheckConstraints.Any(static constraint => constraint.Sql.Contains('\\')))
         {
             throw new InvalidOperationException(
                 "DDL comments containing backslashes cannot be combined with a check constraint "

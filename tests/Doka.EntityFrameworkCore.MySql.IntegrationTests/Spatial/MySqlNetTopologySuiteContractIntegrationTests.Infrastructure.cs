@@ -1,3 +1,5 @@
+using NetTopologySuite.IO;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
@@ -78,7 +80,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         int spatialReferenceSystemId = 4326
     )
     {
-        var geometry = new NetTopologySuite.IO.WKTReader().Read(wkt);
+        var geometry = new WKTReader().Read(wkt);
         geometry.SRID = spatialReferenceSystemId;
 
         return geometry;
@@ -97,36 +99,62 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
         for (var index = 0; index < expectedValues.Length; index++)
         {
-            Assert.Equal(expectedValues[index].GetType(), actualValues[index].GetType());
+            Assert.Equal(
+                expectedValues[index]
+                    .GetType(),
+                actualValues[index]
+                    .GetType());
+
             Assert.Equal(4326, actualValues[index].SRID);
-            Assert.True(expectedValues[index].EqualsExact(actualValues[index]));
+            Assert.True(
+                expectedValues[index]
+                    .EqualsExact(actualValues[index]));
         }
     }
 
     /// <summary>Captures table DDL and row presence before the lifecycle's assertion phase.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<(bool HasRow, string? Sql)> ReadShowCreateTableAsync(
         string connectionString,
-        string tableName
-    )
-    {
-        await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"SHOW CREATE TABLE `{tableName}`;";
-        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-        var hasRow = await reader.ReadAsync().ConfigureAwait(false);
-
-        return (hasRow, hasRow ? reader.GetString(1) : null);
-    }
-
-    private static async Task DropContractTablesAsync(
-        string connectionString
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SHOW CREATE TABLE `{tableName}`;";
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var hasRow = await reader
+            .ReadAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return (hasRow, hasRow
+            ? reader.GetString(1)
+            : null);
+    }
+
+    /// <summary>Drops the spatial contract tables in foreign-key order.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static async Task DropContractTablesAsync(
+        string connectionString,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
                                DROP TABLE IF EXISTS `{MaterializationChildTable}`;
@@ -134,8 +162,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                                DROP TABLE IF EXISTS `{CrossesTable}`;
                                DROP TABLE IF EXISTS `{SridTable}`;
                                """;
+
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 }

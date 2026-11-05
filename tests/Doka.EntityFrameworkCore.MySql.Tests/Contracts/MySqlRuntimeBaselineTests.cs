@@ -1,3 +1,6 @@
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -86,11 +89,13 @@ public sealed partial class MySqlRuntimeBaselineTests
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;User ID=root;Password=password;GuidFormat=Binary16;");
 
-        Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
+        Func<X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
+
         Func<MySqlProvidePasswordContext, string> password = _ => "rotated-password";
-        System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
-            (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
+        RemoteCertificateValidationCallback remoteCertificate =
+            (_, _, _, errors) => errors == SslPolicyErrors.None;
+
         connection.ProvideClientCertificatesCallback = clientCertificates;
         connection.ProvidePasswordCallback = password;
         connection.RemoteCertificateValidationCallback = remoteCertificate;
@@ -124,10 +129,12 @@ public sealed partial class MySqlRuntimeBaselineTests
     public void Lifecycle_connection_preserves_mysql_data_source_callbacks()
     {
         // Arrange
-        Func<System.Security.Cryptography.X509Certificates.X509CertificateCollection, ValueTask>
+        Func<X509CertificateCollection, ValueTask>
             clientCertificates = _ => ValueTask.CompletedTask;
-        System.Net.Security.RemoteCertificateValidationCallback remoteCertificate =
-            (_, _, _, errors) => errors == System.Net.Security.SslPolicyErrors.None;
+
+        RemoteCertificateValidationCallback remoteCertificate =
+            (_, _, _, errors) => errors == SslPolicyErrors.None;
+
         using var dataSource = new MySqlDataSourceBuilder(
                 "Server=localhost;Database=doka;User ID=root;GuidFormat=Binary16;")
             .UseClientCertificatesCallback(clientCertificates)
@@ -202,6 +209,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         await using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         await using var context =
             new RuntimeBaselineContext(CreateOptions("Server=localhost;Database=doka;", serviceProvider));
+
         var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
 
         // Act

@@ -19,7 +19,8 @@ public sealed partial class MySqlMigrationOperationHandlerTests
 
         using var context = CreateContext(serviceProvider, MySqlServerVersion.Parse(serverVersion));
         var generator = context.GetService<IMigrationsSqlGenerator>();
-        var operation = CreateStandardOperationFixtures().Single(candidate => candidate.GetType() == operationType);
+        var operation = CreateStandardOperationFixtures()
+            .Single(candidate => candidate.GetType() == operationType);
 
         // Act
         var expected = generator.Generate([operation], context.Model);
@@ -49,13 +50,20 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         var expected = MySqlStandardMigrationOperations.Types.ToHashSet();
 
         // Act
-        var actual = CreateStandardOperationFixtures().Select(operation => operation.GetType()).ToArray();
+        var actual = CreateStandardOperationFixtures()
+            .Select(operation => operation.GetType())
+            .ToArray();
 
         // Assert
         Assert.Equal(expected.Count, actual.Length);
         Assert.True(
             expected.SetEquals(actual),
             "The baseline-renderer fixture set drifted from the reserved operation set.");
-        Assert.Equal(actual.Length, actual.Distinct().Count());
+
+        Assert.Equal(
+            actual.Length,
+            actual
+                .Distinct()
+                .Count());
     }
 }

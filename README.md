@@ -121,27 +121,25 @@ or NuGet.org package page.
 
 ### Current Stable Release
 
-`10.6.3` raises the MySqlConnector minimum to 2.6.1 for the
-[upstream TLS advisory](https://github.com/advisories/GHSA-473q-m89c-ghf8).
-Review direct driver pins against the
-[security upgrade guidance][dependency-security-upgrade].
+`10.6.4` strengthens cancellation propagation and lifecycle handling in
+Doka-owned asynchronous helpers and uses one complete qualification path for
+PRs and release candidates. Repository cleanup follows the reviewed Rider
+formatting rules. See the [changelog][changelog].
 
-The release also corrects same-run publication recovery, audit-artifact uploads
-and qualification of EF Core 10.0.14. Shared build and shipping-package
-configuration are separated, and local advisory warnings remain visible while
-CI and release audits stay strict. See the [changelog][changelog].
+The MySqlConnector requirement remains `>= 2.6.1` and `< 3.0.0`. Review direct
+driver pins against the [security upgrade guidance][dependency-security-upgrade].
 
 Public APIs, the .NET 10 requirement, EF Core 10.0.8 minimum, supported engines,
 GUID storage defaults, cache schema and multiple-parameter collection default
 are unchanged. No database schema migration is required for this update.
 SDK 10.0.403 is required to build this repository, not to consume its packages.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.3 before upgrading the provider.
+its published dependency range includes 10.6.4 before upgrading the provider.
 
 Pin the current stable version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.3
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.4
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport

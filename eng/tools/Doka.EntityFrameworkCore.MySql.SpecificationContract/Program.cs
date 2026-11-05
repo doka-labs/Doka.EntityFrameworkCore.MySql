@@ -15,7 +15,9 @@ internal static class Program
                 || args[0] is "--help" or "-h")
             {
                 WriteUsage();
-                return args.Length == 0 ? 2 : 0;
+                return args.Length == 0
+                    ? 2
+                    : 0;
             }
 
             var command = args[0];
@@ -53,11 +55,11 @@ internal static class Program
     {
         var retrievedAtText = options.RequiredSingle("--retrieved-at");
         if (!DateOnly.TryParseExact(
-                retrievedAtText,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var retrievedAt))
+            retrievedAtText,
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var retrievedAt))
         {
             throw new ArgumentException($"--retrieved-at must use yyyy-MM-dd, found '{retrievedAtText}'.");
         }
@@ -68,6 +70,7 @@ internal static class Program
         Console.WriteLine(
             $"Wrote {inventory.BaseClasses.Count} EF Core {inventory.EfCoreVersion} "
             + $"specification bases to {output}.");
+
         return 0;
     }
 
@@ -87,6 +90,7 @@ internal static class Program
         Console.WriteLine(
             $"Wrote specification baseline with {baseline.Entries.Count} bases and "
             + $"{baseline.InitialProviderGapCount} provider-debt entries to {output}.");
+
         return 0;
     }
 
@@ -136,7 +140,10 @@ internal static class Program
         Console.WriteLine(
             $"EF Core {report.EfCoreVersion}: provider suite debt "
             + $"{report.CurrentProviderGapCount}/{report.InitialProviderGapCount}.");
-        return report.IsValid ? 0 : 1;
+
+        return report.IsValid
+            ? 0
+            : 1;
     }
 
     private static int UpdateDiscovery(
@@ -151,7 +158,10 @@ internal static class Program
             .Name!;
 
         var efCoreVersion = SpecificationInventory.CurrentEfCoreVersion();
-        var existing = File.Exists(contractPath) ? DiscoveryContract.Load(contractPath) : null;
+        var existing = File.Exists(contractPath)
+            ? DiscoveryContract.Load(contractPath)
+            : null;
+
         var updated = DiscoveryContract.Update(
             existing,
             efCoreVersion,
@@ -184,7 +194,9 @@ internal static class Program
 
         Console.WriteLine($"EF Core {version} target {target}: discovered {actual.Count} " + "specification test IDs.");
 
-        return errors.Count == 0 ? 0 : 1;
+        return errors.Count == 0
+            ? 0
+            : 1;
     }
 
     private static int ValidateClassification(
@@ -206,7 +218,9 @@ internal static class Program
 
         Console.WriteLine($"Specification classification: total={all.Count}, Category=Spec={classified.Count}.");
 
-        return errors.Count == 0 ? 0 : 1;
+        return errors.Count == 0
+            ? 0
+            : 1;
     }
 
     private static int ValidateTrx(
@@ -242,7 +256,9 @@ internal static class Program
             + $"passed={report.Passed}, notExecuted={report.NotExecuted}, "
             + $"failed={report.Failed}.");
 
-        return report.IsValid ? 0 : 1;
+        return report.IsValid
+            ? 0
+            : 1;
     }
 
     private static IReadOnlyList<string> ExpandTrxPaths(

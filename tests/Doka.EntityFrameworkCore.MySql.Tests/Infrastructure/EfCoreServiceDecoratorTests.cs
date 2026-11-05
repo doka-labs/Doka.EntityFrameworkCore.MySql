@@ -3,7 +3,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the wrap contract of <see cref="EfCoreServiceDecorator"/>: after AddEntityFrameworkDokaMySql
+/// Pins the wrap contract of <see cref="EfCoreServiceDecorator" />: after AddEntityFrameworkDokaMySql
 /// and AddEntityFrameworkDokaMySqlDesignTime build their service graphs, the IMigrationsModelDiffer
 /// and IModelCodeGenerator registrations resolve to the Doka decorator types -- not the EF Core
 /// defaults. A patch release that silently breaks the wrap would surface here as a type assertion
@@ -19,7 +19,7 @@ public sealed class EfCoreServiceDecoratorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        Action act = () =>
+        var act = () =>
             EfCoreServiceDecorator.Decorate<IMigrationsModelDiffer, MySqlMigrationsModelDiffer>(
                 services,
                 (inner, _) => new MySqlMigrationsModelDiffer(inner));
@@ -45,6 +45,7 @@ public sealed class EfCoreServiceDecoratorTests
         EfCoreServiceDecorator.Decorate<IDummyService, DummyServiceDecorator>(
             services,
             (inner, _) => new DummyServiceDecorator(inner));
+
         using var provider = services.BuildServiceProvider();
 
         // Act
@@ -67,6 +68,7 @@ public sealed class EfCoreServiceDecoratorTests
         EfCoreServiceDecorator.Decorate<IDummyService, DummyServiceDecorator>(
             services,
             (inner, _) => new DummyServiceDecorator(inner));
+
         using var provider = services.BuildServiceProvider();
         using var scopeOne = provider.CreateScope();
         using var scopeTwo = provider.CreateScope();
@@ -91,6 +93,7 @@ public sealed class EfCoreServiceDecoratorTests
         EfCoreServiceDecorator.Decorate<IDummyService, DummyServiceDecorator>(
             services,
             (inner, _) => new DummyServiceDecorator(inner));
+
         using var provider = services.BuildServiceProvider();
 
         // Act
@@ -113,6 +116,7 @@ public sealed class EfCoreServiceDecoratorTests
         EfCoreServiceDecorator.Decorate<IDummyService, DummyServiceDecorator>(
             services,
             (innerService, _) => new DummyServiceDecorator(innerService));
+
         using var provider = services.BuildServiceProvider();
 
         // Act
@@ -134,6 +138,7 @@ public sealed class EfCoreServiceDecoratorTests
         services.AddDbContext<DummyContext>(options => options.UseMySql(
             "Server=localhost;Database=stub;User ID=root;Password=pwd;",
             MySqlServerVersion.MySql(new Version(8, 4, 0))));
+
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
         using var context = scope.ServiceProvider.GetRequiredService<DummyContext>();

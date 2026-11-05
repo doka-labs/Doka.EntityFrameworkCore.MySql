@@ -21,8 +21,12 @@ public sealed partial class MySqlGuidMigrationTests
         var operations = GetDifferences(source, target);
         var migrationCode = GenerateMigrationCode(operations);
         var compilation = CompileMigrationCode(migrationCode);
-        var generationFailure = Record.Exception(() => target.GetService<IMigrationsSqlGenerator>()
-            .Generate(operations, target.GetService<IDesignTimeModel>().Model));
+        var generationFailure = Record.Exception(() => target
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(
+                operations,
+                target.GetService<IDesignTimeModel>()
+                    .Model));
 
         // Assert
         var addColumn = Assert.Single(
@@ -37,6 +41,7 @@ public sealed partial class MySqlGuidMigrationTests
             $".Annotation(\"{MySqlAnnotationNames.RequiresExplicitBackfill}\", true)",
             migrationCode,
             StringComparison.Ordinal);
+
         AssertCompilationSucceeded(compilation);
         AssertExplicitMigrationFailure(generationFailure, "explicit DefaultValue or DefaultValueSql");
     }
@@ -277,7 +282,8 @@ public sealed partial class MySqlGuidMigrationTests
         Assert.Equal("binary(16)", customerId.ColumnType);
         Assert.Equal(
             MySqlGuidFormat.Binary16,
-            customerId.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value);
+            customerId.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                ?.Value);
 
         Assert.Contains("table.Column<Guid>", migrationCode, StringComparison.Ordinal);
         Assert.DoesNotContain("table.Column<byte[]>", migrationCode, StringComparison.Ordinal);
@@ -334,19 +340,26 @@ public sealed partial class MySqlGuidMigrationTests
         var compilation = CompileMigrationCode(migrationCode);
         var generationFailure = Record.Exception(() => target
             .GetService<IMigrationsSqlGenerator>()
-            .Generate(operations, target.GetService<IDesignTimeModel>().Model));
+            .Generate(
+                operations,
+                target.GetService<IDesignTimeModel>()
+                    .Model));
 
         // Assert
         var column = operationKind == "create"
             ? Assert.Single(
-                Assert.Single(operations.OfType<CreateTableOperation>()).Columns,
+                Assert.Single(operations.OfType<CreateTableOperation>())
+                    .Columns,
                 candidate => candidate.Name == "ReferenceId")
             : Assert.Single(operations.OfType<ColumnOperation>());
 
         AssertGuidColumn(column, "binary(16)", operationKind == "add", MySqlGuidFormat.Binary16);
         Assert.Equal(
-            operationKind is "create" or "add-default" ? Guid.Parse(BinaryOverrideDefault) : null,
+            operationKind is "create" or "add-default"
+                ? Guid.Parse(BinaryOverrideDefault)
+                : null,
             column.DefaultValue);
+
         Assert.Contains(expectedCode, migrationCode, StringComparison.Ordinal);
         Assert.DoesNotContain(rejectedCode, migrationCode, StringComparison.Ordinal);
 
@@ -359,7 +372,8 @@ public sealed partial class MySqlGuidMigrationTests
             Assert.Contains("oldClrType: typeof(Guid)", migrationCode, StringComparison.Ordinal);
             Assert.Contains(
                 "explicit DefaultValue or DefaultValueSql",
-                Assert.IsType<InvalidOperationException>(generationFailure).Message,
+                Assert.IsType<InvalidOperationException>(generationFailure)
+                    .Message,
                 StringComparison.OrdinalIgnoreCase);
         }
         else

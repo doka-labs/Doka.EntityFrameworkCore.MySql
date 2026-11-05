@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// A MySQL JSON type mapping that preserves the native CLR type (<see cref="JsonElement"/>,
-/// <see cref="JsonDocument"/>, <see cref="JsonNode"/>, etc.) through the EF Core pipeline
+/// A MySQL JSON type mapping that preserves the native CLR type (<see cref="JsonElement" />,
+/// <see cref="JsonDocument" />, <see cref="JsonNode" />, etc.) through the EF Core pipeline
 /// instead of collapsing to <c>string</c>. AOT and trimming suppressions are scoped per
 /// factory method so the trimmer's audit window stays limited to the call sites that
 /// genuinely touch JsonNode / JsonDocument surfaces.
@@ -35,7 +35,7 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
         ?? throw new InvalidOperationException("The JSON mapping does not expose its required value converter.");
 
     /// <summary>
-    /// Creates a JSON type mapping for <see cref="JsonElement"/>.
+    /// Creates a JSON type mapping for <see cref="JsonElement" />.
     /// </summary>
     public static MySqlJsonTypeMapping CreateJsonElementMapping() => new(
         new RelationalTypeMappingParameters(
@@ -50,14 +50,16 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
             System.Data.DbType.String));
 
     /// <summary>
-    /// Creates a JSON type mapping for <see cref="JsonDocument"/>.
+    /// Creates a JSON type mapping for <see cref="JsonDocument" />.
     /// </summary>
     public static MySqlJsonTypeMapping CreateJsonDocumentMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
                 typeof(JsonDocument),
                 new ValueConverter<JsonDocument?, string>(
-                    v => v != null ? v.RootElement.GetRawText() : "null",
+                    v => v != null
+                        ? v.RootElement.GetRawText()
+                        : "null",
                     v => JsonDocument.Parse(v, default)),
                 MySqlJsonValueComparers.JsonDocumentComparer),
             "json",
@@ -65,7 +67,7 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
             System.Data.DbType.String));
 
     /// <summary>
-    /// Creates a JSON type mapping for <see cref="JsonNode"/>.
+    /// Creates a JSON type mapping for <see cref="JsonNode" />.
     /// </summary>
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -74,21 +76,24 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping CreateJsonNodeMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
                 typeof(JsonNode),
                 new ValueConverter<JsonNode?, string>(
-                    v => v != null ? v.ToJsonString() : "null",
-                    v => JsonNode.Parse(v, default(JsonNodeOptions?))),
+                    v => v != null
+                        ? v.ToJsonString()
+                        : "null",
+                    v => JsonNode.Parse(v, default)),
                 MySqlJsonValueComparers.JsonNodeComparer),
             "json",
             StoreTypePostfix.None,
             System.Data.DbType.String));
 
     /// <summary>
-    /// Creates a JSON type mapping for <see cref="JsonObject"/>.
+    /// Creates a JSON type mapping for <see cref="JsonObject" />.
     /// </summary>
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -97,21 +102,24 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping CreateJsonObjectMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
                 typeof(JsonObject),
                 new ValueConverter<JsonObject?, string>(
-                    v => v != null ? v.ToJsonString() : "null",
-                    v => (JsonObject?)JsonNode.Parse(v, default(JsonNodeOptions?))),
+                    v => v != null
+                        ? v.ToJsonString()
+                        : "null",
+                    v => (JsonObject?)JsonNode.Parse(v, default)),
                 MySqlJsonValueComparers.JsonNodeComparer),
             "json",
             StoreTypePostfix.None,
             System.Data.DbType.String));
 
     /// <summary>
-    /// Creates a JSON type mapping for <see cref="JsonArray"/>.
+    /// Creates a JSON type mapping for <see cref="JsonArray" />.
     /// </summary>
     [UnconditionalSuppressMessage(
         "Trimming",
@@ -120,14 +128,17 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
-    public static MySqlJsonTypeMapping CreateJsonArrayMapping() => new MySqlJsonTypeMapping(
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+    public static MySqlJsonTypeMapping CreateJsonArrayMapping() => new(
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
                 typeof(JsonArray),
                 new ValueConverter<JsonArray?, string>(
-                    v => v != null ? v.ToJsonString() : "null",
-                    v => (JsonArray?)JsonNode.Parse(v, default(JsonNodeOptions?))),
+                    v => v != null
+                        ? v.ToJsonString()
+                        : "null",
+                    v => (JsonArray?)JsonNode.Parse(v, default)),
                 MySqlJsonValueComparers.JsonNodeComparer),
             "json",
             StoreTypePostfix.None,

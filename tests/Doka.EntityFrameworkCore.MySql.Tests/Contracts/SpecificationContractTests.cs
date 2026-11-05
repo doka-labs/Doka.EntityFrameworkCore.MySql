@@ -281,17 +281,19 @@ public class SpecificationContractTests
             "mysql84",
             [
                 PassedTestId,
-                SkippedTestId
+                SkippedTestId,
             ]);
 
-        var contract = violation == "duplicate-target" ? expected with
-        {
-            Targets =
-            [
-                expected.Targets[0],
-                expected.Targets[0]
-            ],
-        } : expected;
+        var contract = violation == "duplicate-target"
+            ? expected with
+            {
+                Targets =
+                [
+                    expected.Targets[0],
+                    expected.Targets[0],
+                ],
+            }
+            : expected;
 
         string[] actual = violation switch
         {
@@ -361,7 +363,8 @@ public class SpecificationContractTests
 
         // Act
         var serialized = ContractJson.Serialize(input);
-        var roundTripped = JsonSerializer.Deserialize<JsonElement>(serialized)
+        var roundTripped = JsonSerializer
+            .Deserialize<JsonElement>(serialized)
             .GetProperty("value")
             .GetString();
 
@@ -428,6 +431,7 @@ public class SpecificationContractTests
                 Trx(
                     (escapedSurrogatePairId, "Passed"),
                     (literalBmpEscapeId, "Passed")));
+
             File.WriteAllText(dispositionPath, EmptyDispositions());
 
             // Act
@@ -469,6 +473,7 @@ public class SpecificationContractTests
                     (PassedTestId, "Passed"),
                     (SkippedTestId, "NotExecuted"),
                     (UnexpectedTestId, "Passed")));
+
             File.WriteAllText(dispositionPath, Dispositions());
 
             // Act
@@ -485,9 +490,11 @@ public class SpecificationContractTests
             Assert.Contains(
                 report.Errors,
                 error => error.Contains("missing expected test ID", StringComparison.Ordinal));
+
             Assert.Contains(
                 report.Errors,
                 error => error.Contains("unexpected specification test ID", StringComparison.Ordinal));
+
             Assert.Contains(report.Errors, error => error.Contains("outcome", StringComparison.Ordinal));
             Assert.Contains(report.Errors, error => error.Contains("undeclared NotExecuted", StringComparison.Ordinal));
         }
@@ -548,7 +555,10 @@ public class SpecificationContractTests
         {
             var trxPath = Path.Combine(directory.FullName, "invalid.trx");
             var dispositionPath = Path.Combine(directory.FullName, "dispositions.json");
-            var expectedId = violation == "undeclared-not-executed" ? SkippedTestId : PassedTestId;
+            var expectedId = violation == "undeclared-not-executed"
+                ? SkippedTestId
+                : PassedTestId;
+
             (string TestId, string Outcome)[] results = violation switch
             {
                 "duplicate" => [(PassedTestId, "Passed"), (PassedTestId, "Passed")],

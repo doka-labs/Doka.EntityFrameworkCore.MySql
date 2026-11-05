@@ -41,25 +41,40 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
         var token = s_matchingGuid;
-        Guid? optionalToken = operand == "NullParameter" ? null : token;
+        Guid? optionalToken = operand == "NullParameter"
+            ? null
+            : token;
+
         var query = operand switch
         {
-            "RequiredParameter" => context.Set<GuidItem>().Where(item => EF.Functions.Like(token, item.Pattern)),
-            "NullableParameter" or "NullParameter" => context.Set<GuidItem>()
+            "RequiredParameter" => context
+                .Set<GuidItem>()
+                .Where(item => EF.Functions.Like(token, item.Pattern)),
+            "NullableParameter" or "NullParameter" => context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(optionalToken, item.Pattern)),
-            "Constant" => context.Set<GuidItem>()
+            "Constant" => context
+                .Set<GuidItem>()
                 .Where(item => EF.Functions.Like(new Guid(MatchingText), item.Pattern)),
             _ => throw new ArgumentOutOfRangeException(nameof(operand)),
         };
 
         // Act
-        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(CancellationToken.None);
+        var actual = await query
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None);
 
         // Assert
-        Assert.Equal(operand == "NullParameter" ? [] : s_allIds, actual);
+        Assert.Equal(
+            operand == "NullParameter"
+                ? []
+                : s_allIds,
+            actual);
     }
 
     /// <summary>
@@ -75,11 +90,15 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
-        var query = context.Set<GuidItem>()
+        var query = context
+            .Set<GuidItem>()
             .Where(item => item.Id == 1)
-            .Select(item => EF.Property<Guid>(item, UppercasePropertyName).ToString());
+            .Select(item => EF
+                .Property<Guid>(item, UppercasePropertyName)
+                .ToString());
 
         // Act
         var actual = await query.SingleAsync(CancellationToken.None);
@@ -102,15 +121,24 @@ public sealed partial class MySqlGuidTextIntegrationTests
         // Arrange
         await using var context = await _fixture.CreateContextAsync(
             Enum.Parse<IntegrationDatabaseTarget>(target),
-            defaultFormat);
+            defaultFormat,
+            CancellationToken.None);
 
-        var query = context.Set<GuidItem>()
+        var query = context
+            .Set<GuidItem>()
             .Where(item => EF.Functions.Like(EF.Property<Guid>(item, UppercasePropertyName), pattern));
 
         // Act
-        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(CancellationToken.None);
+        var actual = await query
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None);
 
         // Assert
-        Assert.Equal(pattern == "%AABBCCDDEEFF" ? s_matchingIds : [], actual);
+        Assert.Equal(
+            pattern == "%AABBCCDDEEFF"
+                ? s_matchingIds
+                : [],
+            actual);
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Storage.Internal;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -15,13 +16,15 @@ public sealed partial class MySqlRuntimeBaselineTests
         const string token = "Name=ConnectionStrings:Main";
         const string resolved =
             "Server=resolved;Database=doka;User ID=provider;Password=secret;";
+
         var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
         var services = new ServiceCollection();
         services.AddEntityFrameworkDokaMySql();
-        #pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
-        services.Replace(ServiceDescriptor.Singleton<
-            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
-        #pragma warning restore EF1001
+#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
+        services.Replace(
+            ServiceDescriptor.Singleton<
+                INamedConnectionStringResolver>(resolver));
+#pragma warning restore EF1001
 
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
@@ -36,7 +39,8 @@ public sealed partial class MySqlRuntimeBaselineTests
         // Act
         var extension = builder.Options.FindExtension<MySqlOptionsExtension>();
         var physical = new MySqlConnectionStringBuilder(
-            context.Database.GetDbConnection().ConnectionString);
+            context.Database.GetDbConnection()
+                .ConnectionString);
 
         // Assert
         Assert.NotNull(extension);
@@ -70,13 +74,15 @@ public sealed partial class MySqlRuntimeBaselineTests
         const string token = "Name=ConnectionStrings:Main";
         var resolved =
             $"Server=resolved;Database=doka;Password=secret-canary;{incompatibleOption};";
+
         var resolver = new RecordingNamedConnectionStringResolver(token, resolved);
         var services = new ServiceCollection();
         services.AddEntityFrameworkDokaMySql();
-        #pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
-        services.Replace(ServiceDescriptor.Singleton<
-            Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver>(resolver));
-        #pragma warning restore EF1001
+#pragma warning disable EF1001 // Replaces EF's internal named-string seam to pin provider ordering.
+        services.Replace(
+            ServiceDescriptor.Singleton<
+                INamedConnectionStringResolver>(resolver));
+#pragma warning restore EF1001
 
         using var serviceProvider = services.BuildServiceProvider(validateScopes: true);
         var builder = new DbContextOptionsBuilder<RuntimeBaselineContext>();
@@ -85,6 +91,7 @@ public sealed partial class MySqlRuntimeBaselineTests
             token,
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options => options.RequireUserVariables());
+
         using var context = new RuntimeBaselineContext(builder.Options);
         Action act = () =>
             _ = context.Database.GetDbConnection();
@@ -97,6 +104,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         Assert.Equal(
             Enum.Parse<MySqlConfigurationFailureReason>(expectedReason),
             exception.Reason);
+
         Assert.Equal(token, resolver.LastInput);
         Assert.DoesNotContain("secret-canary", exception.ToString(), StringComparison.Ordinal);
     }
@@ -134,11 +142,13 @@ public sealed partial class MySqlRuntimeBaselineTests
         optionsBuilder.UseMySql(
             configured.ConnectionString,
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         using var context = new RuntimeBaselineContext(optionsBuilder.Options);
 
         // Act
         var actual = new MySqlConnectionStringBuilder(
-            context.GetService<IRelationalConnection>().DbConnection.ConnectionString);
+            context.GetService<IRelationalConnection>()
+                .DbConnection.ConnectionString);
 
         // Assert
         Assert.Equal(configured.Server, actual.Server);

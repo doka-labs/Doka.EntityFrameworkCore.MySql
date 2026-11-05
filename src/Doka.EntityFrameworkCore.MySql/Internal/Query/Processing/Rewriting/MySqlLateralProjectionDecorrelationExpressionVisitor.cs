@@ -25,7 +25,9 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
     {
         var visited = base.VisitExtension(node);
 
-        return visited is SelectExpression selectExpression ? RewriteApplyProjections(selectExpression) : visited;
+        return visited is SelectExpression selectExpression
+            ? RewriteApplyProjections(selectExpression)
+            : visited;
     }
 
     private static SelectExpression RewriteApplyProjections(
@@ -86,7 +88,8 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
 
         var rewriter = new EquivalentColumnReplacingExpressionVisitor(replacements);
         var projections = selectExpression
-            .Projection.Select(projection => projection.Update((SqlExpression)rewriter.Visit(projection.Expression)))
+            .Projection
+            .Select(projection => projection.Update((SqlExpression)rewriter.Visit(projection.Expression)))
             .ToArray();
 
         return rewriter.ReplacementCount == 0
@@ -145,8 +148,14 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
             return;
         }
 
-        var outer = leftIsInner ? right : left;
-        var inner = leftIsInner ? left : right;
+        var outer = leftIsInner
+            ? right
+            : left;
+
+        var inner = leftIsInner
+            ? left
+            : right;
+
         var key = (outer.TableAlias, outer.Name);
 
         if (conflicts.Contains(key))

@@ -31,14 +31,14 @@ internal sealed partial class MySqlMigrationsModelDiffer
         var transitions = new List<ForeignKeyStoreTypeTransition>();
 
         foreach (var sourceForeignKey in source
-                     .Tables
-                     .SelectMany(table => table.ForeignKeyConstraints)
-                     .OrderBy(foreignKey => foreignKey.Table.Schema, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(foreignKey => foreignKey.Table.Name, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(foreignKey => foreignKey.Name, StringComparer.OrdinalIgnoreCase))
+            .Tables
+            .SelectMany(table => table.ForeignKeyConstraints)
+            .OrderBy(foreignKey => foreignKey.Table.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(foreignKey => foreignKey.Table.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(foreignKey => foreignKey.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var targetForeignKey = targetForeignKeys.SingleOrDefault(
-                candidate => ForeignKeysHaveSameShape(sourceForeignKey, candidate));
+            var targetForeignKey =
+                targetForeignKeys.SingleOrDefault(candidate => ForeignKeysHaveSameShape(sourceForeignKey, candidate));
 
             if (targetForeignKey is null
                 || HasForeignKeyLifecycleOperation(operations, sourceForeignKey, targetForeignKey))
@@ -177,7 +177,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
             return;
         }
 
-        foreach (var rename in operations.OfType<RenameTableOperation>().ToArray())
+        foreach (var rename in operations
+            .OfType<RenameTableOperation>()
+            .ToArray())
         {
             var sourceTable = FindTable(source, rename.Name);
             var targetTable = FindTable(target, rename.NewName ?? rename.Name);
@@ -207,7 +209,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
             return;
         }
 
-        foreach (var dropPrimaryKey in operations.OfType<DropPrimaryKeyOperation>().ToArray())
+        foreach (var dropPrimaryKey in operations
+            .OfType<DropPrimaryKeyOperation>()
+            .ToArray())
         {
             var primaryKey = FindTable(source, dropPrimaryKey.Table)
                 ?.PrimaryKey;
@@ -234,7 +238,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         List<MigrationOperation> operations
     )
     {
-        foreach (var addPrimaryKey in operations.OfType<AddPrimaryKeyOperation>().ToArray())
+        foreach (var addPrimaryKey in operations
+            .OfType<AddPrimaryKeyOperation>()
+            .ToArray())
         {
             var alterColumn = operations
                 .OfType<AlterColumnOperation>()
@@ -252,7 +258,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         List<MigrationOperation> operations
     )
     {
-        foreach (var dropPrimaryKey in operations.OfType<DropPrimaryKeyOperation>().ToArray())
+        foreach (var dropPrimaryKey in operations
+            .OfType<DropPrimaryKeyOperation>()
+            .ToArray())
         {
             var alterColumns = operations
                 .OfType<AlterColumnOperation>()
@@ -296,12 +304,6 @@ internal sealed partial class MySqlMigrationsModelDiffer
         string left,
         string right
     ) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-
-    private readonly record struct ForeignKeyStoreTypeTransition(
-        DropForeignKeyOperation Drop,
-        AddForeignKeyOperation Add,
-        IReadOnlyList<AlterColumnOperation> AffectedColumns
-    );
 
     private static bool IsAutoIncrement(
         ColumnOperation operation
@@ -356,4 +358,10 @@ internal sealed partial class MySqlMigrationsModelDiffer
         afterIndex = operations.IndexOf(after);
         operations.Insert(afterIndex + 1, operation);
     }
+
+    private readonly record struct ForeignKeyStoreTypeTransition(
+        DropForeignKeyOperation Drop,
+        AddForeignKeyOperation Add,
+        IReadOnlyList<AlterColumnOperation> AffectedColumns
+    );
 }

@@ -18,6 +18,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             _databaseModel = databaseModel ?? throw new ArgumentNullException(nameof(databaseModel));
             _detectedServerVersionText = detectedServerVersionText
                 ?? throw new ArgumentNullException(nameof(detectedServerVersionText));
+
             _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         }
 

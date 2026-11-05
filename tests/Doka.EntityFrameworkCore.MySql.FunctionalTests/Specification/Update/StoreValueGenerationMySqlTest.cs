@@ -17,9 +17,7 @@ public sealed class StoreValueGenerationMySqlTest
 {
     public StoreValueGenerationMySqlTest(
         StoreValueGenerationMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override bool ShouldCreateImplicitTransaction(
         EntityState firstOperationType,
@@ -37,20 +35,20 @@ public sealed class StoreValueGenerationMySqlTest
         {
             // Same-shape inserts are emitted as one multi-row INSERT RETURNING
             // command on MariaDB, so no cross-command atomicity boundary exists.
-            return generatedValues != GeneratedValues.None
-                    && firstOperationType == EntityState.Modified
-                || secondOperationType is not null
+            return (generatedValues != GeneratedValues.None
+                    && firstOperationType == EntityState.Modified)
+                || (secondOperationType is not null
                     && !(firstOperationType == secondOperationType
                         && firstOperationType == EntityState.Added
-                        && withSameEntityType);
+                        && withSameEntityType));
         }
 
-        return generatedValues != GeneratedValues.None
-                && firstOperationType != EntityState.Deleted
-            || secondOperationType is not null
+        return (generatedValues != GeneratedValues.None
+                && firstOperationType != EntityState.Deleted)
+            || (secondOperationType is not null
                 && !(firstOperationType == secondOperationType
                     && firstOperationType == EntityState.Added
-                    && withSameEntityType);
+                    && withSameEntityType));
     }
 
     protected override int ShouldExecuteInNumberOfCommands(
@@ -85,7 +83,8 @@ public sealed class StoreValueGenerationMySqlTest
         {
             var sql = new StringBuilder();
             var helper = context.GetService<ISqlGenerationHelper>();
-            var tables = context.Model
+            var tables = context
+                .Model
                 .GetEntityTypes()
                 .SelectMany(entity => entity
                     .GetTableMappings()

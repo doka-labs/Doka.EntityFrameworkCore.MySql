@@ -18,8 +18,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor
     : MySqlShapedQueryTraversingExpressionVisitor
 {
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly ParametersCacheDecorator _parametersDecorator;
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     public MySqlLimitExpressionEvaluatingExpressionVisitor(
         ISqlExpressionFactory sqlExpressionFactory,
@@ -36,14 +36,16 @@ internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor
     {
         var visited = base.VisitExtension(node);
 
-        return visited is SelectExpression selectExpression ? EvaluateLimit(selectExpression) : visited;
+        return visited is SelectExpression selectExpression
+            ? EvaluateLimit(selectExpression)
+            : visited;
     }
 
     private SelectExpression EvaluateLimit(
         SelectExpression selectExpression
     )
     {
-        if (selectExpression.Limit is not SqlFunctionExpression { Name: "LEAST", Instance: null, } least)
+        if (selectExpression.Limit is not SqlFunctionExpression { Name: "LEAST", Instance: null } least)
         {
             return selectExpression;
         }
@@ -108,7 +110,7 @@ internal sealed class MySqlLimitExpressionEvaluatingExpressionVisitor
                 when parameterValues.TryGetValue(parameter.Name, out var parameterValue) && parameterValue is not null:
                 return TryConvertToDecimal(parameterValue, out value);
 
-            case SqlFunctionExpression { Name: "LEAST", Instance: null, Arguments.Count: > 0, } least:
+            case SqlFunctionExpression { Name: "LEAST", Instance: null, Arguments.Count: > 0 } least:
                 {
                     var minimum = decimal.MaxValue;
 

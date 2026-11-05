@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Translates parameterless scalar <see cref="object.ToString"/> calls to a
+/// Translates parameterless scalar <see cref="object.ToString" /> calls to a
 /// MySQL-compatible string conversion.
 /// </summary>
 internal sealed class MySqlObjectToStringTranslator : IMethodCallTranslator
@@ -65,7 +65,7 @@ internal sealed class MySqlObjectToStringTranslator : IMethodCallTranslator
 
     /// <summary>
     /// Creates the provider's scalar string representation for an already translated
-    /// value. Shared with the static <see cref="Convert.ToString(object?)"/> path so
+    /// value. Shared with the static <see cref="Convert.ToString(object?)" /> path so
     /// boolean and null semantics have one implementation.
     /// </summary>
     internal SqlExpression? TranslateInstance(

@@ -13,7 +13,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         const string key = "expired-during-lock-wait";
@@ -40,10 +40,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Revision` FROM {store.QualifiedTableName} "
-                         + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         lockConnection,
-                         transaction))
+            $"SELECT `Revision` FROM {store.QualifiedTableName} "
+            + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            lockConnection,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
@@ -59,10 +59,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             // ReSharper disable once MethodHasAsyncOverload
             "refresh-sync" => Task.Run(() => store.Cache.Refresh(key), CancellationToken.None),
             "refresh-async" => store.Cache.RefreshAsync(key, CancellationToken.None),
+
             // WHY: This lock-wait variant exercises synchronous Get on a worker thread.
             // ReSharper disable once MethodHasAsyncOverload
             "get-sync" => Task.Run(() => store.Cache.Get(key), CancellationToken.None),
             "get-async" => store.Cache.GetAsync(key, CancellationToken.None),
+
             // WHY: This lock-wait variant exercises synchronous TryGet on a worker thread.
             // ReSharper disable once MethodHasAsyncOverload
             "try-get-sync" => Task.Run(() => store.Cache.TryGet(key, new ExactBufferWriter(1)), CancellationToken.None),
@@ -75,7 +77,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         try
         {
-            await AssertLockingStatementStartedAsync(observer, store.TableName, pending)
+            await AssertLockingStatementStartedAsync(observer, store.TableName, pending, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await using var expire = new MySqlCommand(
@@ -112,11 +114,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         var entry = await store
-            .ReadEntryAsync(key)
+            .ReadEntryAsync(key, CancellationToken.None)
             .ConfigureAwait(false);
 
         var now = await store
-            .ReadUtcNowAsync()
+            .ReadUtcNowAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert
@@ -142,7 +144,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         const string key = "sliding-refresh-lock-wait";
@@ -173,11 +175,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 $"UPDATE {store.QualifiedTableName} "
                 + "SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, 30, UTC_TIMESTAMP(6)) "
                 + "WHERE `Id` = CAST(@key AS BINARY);",
-                key)
+                key,
+                CancellationToken.None)
             .ConfigureAwait(false);
 
         var before = await store
-            .ReadEntryAsync(key)
+            .ReadEntryAsync(key, CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var transaction = await lockConnection
@@ -185,10 +188,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Revision` FROM {store.QualifiedTableName} "
-                         + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         lockConnection,
-                         transaction))
+            $"SELECT `Revision` FROM {store.QualifiedTableName} "
+            + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            lockConnection,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
@@ -213,11 +216,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .TryGetAsync(key, destination, cancellation.Token)
                 .AsTask()
             : cache.GetAsync(key, cancellation.Token);
+
         var released = false;
 
         try
         {
-            await AssertLockingStatementStartedAsync(observer, store.TableName, pending)
+            await AssertLockingStatementStartedAsync(observer, store.TableName, pending, CancellationToken.None)
                 .ConfigureAwait(false);
 
             if (cancel)
@@ -254,7 +258,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 }
             }
 
-            after = await store.ReadEntryAsync(key).ConfigureAwait(false);
+            after = await store
+                .ReadEntryAsync(key, CancellationToken.None)
+                .ConfigureAwait(false);
+
             recoveryMiss = await cache
                 .GetAsync("single-pool-recovered-miss", CancellationToken.None)
                 .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
@@ -322,7 +329,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var store = await fixture
-            .GetStoreAsync(ParseTarget(targetName))
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
         var connectionString = new MySqlConnectionStringBuilder(store.ConnectionString)
@@ -347,7 +354,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Task? pending = null;
 
         await store
-            .ExecuteAsync($"LOCK TABLES {store.QualifiedTableName} WRITE;")
+            .ExecuteAsync($"LOCK TABLES {store.QualifiedTableName} WRITE;", CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -357,7 +364,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             // pooled connection to prove that cancellation returns its lease.
             pending = InvokeLockedCacheOperation(cache, initiator, cancellation.Token);
 
-            await AssertWaitingForTableLockAsync(observer, store.TableName, pending)
+            await AssertWaitingForTableLockAsync(observer, store.TableName, pending, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await cancellation
@@ -378,7 +385,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ConfigureAwait(false);
 
             await store
-                .ExecuteAsync("UNLOCK TABLES;")
+                .ExecuteAsync("UNLOCK TABLES;", CancellationToken.None)
                 .ConfigureAwait(false);
 
             if (pending is not null

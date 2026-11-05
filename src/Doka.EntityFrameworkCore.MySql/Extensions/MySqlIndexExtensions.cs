@@ -8,7 +8,9 @@ internal static class MySqlIndexExtensions
     {
         ArgumentNullException.ThrowIfNull(index);
 
-        return (index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true;
+        return index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                ?.Value as bool?
+            == true;
     }
 
     public static void SetMySqlSpatialIndex(
@@ -33,7 +35,9 @@ internal static class MySqlIndexExtensions
     {
         ArgumentNullException.ThrowIfNull(index);
 
-        return (index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?) == true;
+        return index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?
+            == true;
     }
 
     public static void SetMySqlFullTextIndex(
@@ -84,7 +88,9 @@ internal static class MySqlIndexExtensions
     {
         ArgumentNullException.ThrowIfNull(index);
 
-        return (index.FindAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps)?.Value as bool?) == true;
+        return index.FindAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps)
+                ?.Value as bool?
+            == true;
     }
 
     public static void SetMySqlApplicationTimeWithoutOverlaps(

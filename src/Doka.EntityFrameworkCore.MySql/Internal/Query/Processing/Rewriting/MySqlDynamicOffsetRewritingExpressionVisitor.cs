@@ -102,7 +102,8 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
             new ProjectionExpression(
                 new RowNumberExpression(
                     split
-                        .Correlations.Select(static correlation => (SqlExpression)correlation.Inner)
+                        .Correlations
+                        .Select(static correlation => (SqlExpression)correlation.Inner)
                         .ToArray(),
                     selectExpression.Orderings,
                     _longTypeMapping),
@@ -228,7 +229,10 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
 
             if (leftIsInner != rightIsInner)
             {
-                correlation = leftIsInner ? new Correlation(left, right) : new Correlation(right, left);
+                correlation = leftIsInner
+                    ? new Correlation(left, right)
+                    : new Correlation(right, left);
+
                 return true;
             }
         }
@@ -283,7 +287,9 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
     private SqlExpression AndAlso(
         SqlExpression? left,
         SqlExpression right
-    ) => left is null ? right : _sqlExpressionFactory.AndAlso(left, right);
+    ) => left is null
+        ? right
+        : _sqlExpressionFactory.AndAlso(left, right);
 
     private static string[] CreateProjectionAliases(
         IReadOnlyList<ProjectionExpression> projections

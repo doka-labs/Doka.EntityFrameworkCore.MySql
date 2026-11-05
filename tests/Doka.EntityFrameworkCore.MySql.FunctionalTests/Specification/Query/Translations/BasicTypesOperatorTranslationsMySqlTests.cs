@@ -12,9 +12,7 @@ public sealed class BasicTypesArithmeticOperatorTranslationsMySqlTest
 {
     public BasicTypesArithmeticOperatorTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -27,9 +25,7 @@ public sealed class BasicTypesBitwiseOperatorTranslationsMySqlTest
 {
     public BasicTypesBitwiseOperatorTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -42,9 +38,7 @@ public sealed class BasicTypesComparisonOperatorTranslationsMySqlTest
 {
     public BasicTypesComparisonOperatorTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -57,9 +51,7 @@ public sealed class BasicTypesLogicalOperatorTranslationsMySqlTest
 {
     public BasicTypesLogicalOperatorTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -72,7 +64,5 @@ public sealed class BasicTypesMiscellaneousOperatorTranslationsMySqlTest
 {
     public BasicTypesMiscellaneousOperatorTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }

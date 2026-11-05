@@ -16,7 +16,8 @@ public sealed class MySqlQueryTranslationBaselineTests
 
         // Act
         var sql = context
-            .Entities.Select(entity => new
+            .Entities
+            .Select(entity => new
             {
                 NameLength = entity.Name.Length,
                 DatePortion = entity.CreatedAt.Date,
@@ -47,7 +48,8 @@ public sealed class MySqlQueryTranslationBaselineTests
 
         // Act
         var sql = context
-            .Entities.Where(entity =>
+            .Entities
+            .Where(entity =>
                 !string.IsNullOrEmpty(entity.OptionalName)
                 && Math.Abs(entity.Score) > 0
                 && Math.Ceiling(entity.Score) > 0
@@ -78,7 +80,8 @@ public sealed class MySqlQueryTranslationBaselineTests
 
         // Act
         var sql = context
-            .Entities.Where(entity => entity.Name == requiredName && entity.Score > minimumScore)
+            .Entities
+            .Where(entity => entity.Name == requiredName && entity.Score > minimumScore)
             .ToQueryString();
 
         // Assert
@@ -99,11 +102,19 @@ public sealed class MySqlQueryTranslationBaselineTests
     {
         // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
-        var names = new List<string> { "alpha", "beta", "gamma" };
+        var names = new List<string>
+        {
+            "alpha",
+            "beta",
+            "gamma",
+        };
 
         // Act
         var sql = context
-            .Entities.Where(entity => EF.Constant(names).Contains(entity.Name))
+            .Entities
+            .Where(entity => EF
+                .Constant(names)
+                .Contains(entity.Name))
             .ToQueryString();
 
         // Assert
@@ -122,11 +133,19 @@ public sealed class MySqlQueryTranslationBaselineTests
     {
         // Arrange
         using var context = new QueryTranslationContext(CreateOptions());
-        var names = new List<string> { "alpha", "beta", "gamma" };
+        var names = new List<string>
+        {
+            "alpha",
+            "beta",
+            "gamma",
+        };
 
         // Act
         var sql = context
-            .Entities.Where(entity => EF.Parameter(names).Contains(entity.Name))
+            .Entities
+            .Where(entity => EF
+                .Parameter(names)
+                .Contains(entity.Name))
             .ToQueryString();
 
         // Assert
@@ -136,7 +155,7 @@ public sealed class MySqlQueryTranslationBaselineTests
     }
 
     /// <summary>
-    /// Verifies that an unstored <see cref="DateTime.Kind"/> cannot silently acquire
+    /// Verifies that an unstored <see cref="DateTime.Kind" /> cannot silently acquire
     /// server semantics.
     /// </summary>
     /// <remarks>
@@ -153,7 +172,8 @@ public sealed class MySqlQueryTranslationBaselineTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Entities.Where(entity => entity.CreatedAt.Kind == DateTimeKind.Utc)
+            .Entities
+            .Where(entity => entity.CreatedAt.Kind == DateTimeKind.Utc)
             .ToQueryString());
 
         // Assert
@@ -190,6 +210,7 @@ public sealed class MySqlQueryTranslationBaselineTests
                 entity
                     .Property(item => item.Name)
                     .IsRequired();
+
                 entity.Property(item => item.OptionalName);
                 entity.Property(item => item.CreatedAt);
                 entity.Property(item => item.BirthDate);

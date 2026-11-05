@@ -10,6 +10,7 @@ global using System.IO;
 global using System.IO.Compression;
 global using System.Linq;
 global using System.Linq.Expressions;
+global using System.Net;
 global using System.Net.Sockets;
 global using System.Runtime.InteropServices;
 global using System.Text.Json;
@@ -40,5 +41,7 @@ global using CoverageContract = Doka.EntityFrameworkCore.MySql.CoverageGate.Cove
 global using DocumentationContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.DocumentationContract;
 global using EngineeringSurfaceContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.EngineeringSurfaceContract;
 global using ImagePinContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.ImagePinContract;
-global using NuGetSymbolReadbackManifestBuilder = Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback.SymbolReadbackManifestBuilder;
-global using RepositoryContractValidator = Doka.EntityFrameworkCore.MySql.RepositoryContract.RepositoryContractValidator;
+global using NuGetSymbolReadbackManifestBuilder =
+    Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback.SymbolReadbackManifestBuilder;
+global using RepositoryContractValidator =
+    Doka.EntityFrameworkCore.MySql.RepositoryContract.RepositoryContractValidator;

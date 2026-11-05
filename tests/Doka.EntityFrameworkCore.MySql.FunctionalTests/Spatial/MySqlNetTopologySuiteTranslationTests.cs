@@ -1,3 +1,6 @@
+using NetTopologySuite.Geometries.Utilities;
+using NetTopologySuite.Operation.Union;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -6,8 +9,28 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed class MySqlNetTopologySuiteTranslationTests
 {
     private static readonly (int Major, int Minor)[] s_legacyMariaDbVersions = [(10, 11), (11, 4), (11, 8)];
+
     private static readonly string[] s_unavailableFunctions =
         ["IsValid", "BufferStrategy", "Combine", "Union", "Envelope"];
+
+    /// <summary>Identifies every unavailable function for each configured MariaDB version.</summary>
+    public static IEnumerable<object[]> UnavailableMariaDbCases
+    {
+        get
+        {
+            foreach (var version in s_legacyMariaDbVersions)
+            {
+                foreach (var operation in s_unavailableFunctions)
+                {
+                    yield return [version.Major, version.Minor, operation];
+                }
+            }
+
+            // WHY: MariaDB 12 enables validity and collection aggregates, while
+            // the optional Buffer strategy overload remains unsupported.
+            yield return [12, 3, "BufferStrategy"];
+        }
+    }
 
     /// <summary>
     /// Verifies that the supported spatial CLR types resolve to the approved geometry-family store types.
@@ -28,6 +51,7 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         Assert.Equal(
             "geometrycollection",
             entityType.FindProperty(nameof(SpatialEntity.ShapeCollection))!.GetColumnType());
+
         Assert.Equal("geometry", entityType.FindProperty(nameof(SpatialEntity.Shape))!.GetColumnType());
     }
 
@@ -44,7 +68,8 @@ public sealed class MySqlNetTopologySuiteTranslationTests
 
         // Act
         var sql = context
-            .Entities.Where(entity =>
+            .Entities
+            .Where(entity =>
                 entity.Region.Contains(searchPolygon)
                 && EF.Functions.MbrIntersects(entity.Region, searchPolygon)
                 && EF.Functions.DistanceSphere(entity.Location, referencePoint) < 1000)
@@ -62,10 +87,12 @@ public sealed class MySqlNetTopologySuiteTranslationTests
                 ExteriorRingText = entity.Region.ExteriorRing.AsText(),
                 InteriorCount = entity.Region.NumInteriorRings,
                 FirstGeometryText = entity
-                    .ShapeCollection.GetGeometryN(0)
+                    .ShapeCollection
+                    .GetGeometryN(0)
                     .AsText(),
                 FirstPointText = entity
-                    .Route.GetPointN(0)
+                    .Route
+                    .GetPointN(0)
                     .AsText(),
             })
             .ToQueryString();
@@ -100,7 +127,8 @@ public sealed class MySqlNetTopologySuiteTranslationTests
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => context
-            .Entities.Where(entity => entity.Location.Reverse()
+            .Entities
+            .Where(entity => entity.Location.Reverse()
                 .IsEmpty)
             .ToQueryString());
 
@@ -136,25 +164,6 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         Assert.DoesNotContain("ELSE 0", sql, StringComparison.Ordinal);
     }
 
-    /// <summary>Identifies every unavailable function for each configured MariaDB version.</summary>
-    public static IEnumerable<object[]> UnavailableMariaDbCases
-    {
-        get
-        {
-            foreach (var version in s_legacyMariaDbVersions)
-            {
-                foreach (var operation in s_unavailableFunctions)
-                {
-                    yield return [version.Major, version.Minor, operation];
-                }
-            }
-
-            // WHY: MariaDB 12 enables validity and collection aggregates, while
-            // the optional Buffer strategy overload remains unsupported.
-            yield return [12, 3, "BufferStrategy"];
-        }
-    }
-
     /// <summary>Rejects one unavailable function before it can reach a live server.</summary>
     [Theory]
     [MemberData(nameof(UnavailableMariaDbCases))]
@@ -170,9 +179,14 @@ public sealed class MySqlNetTopologySuiteTranslationTests
 
         var query = operation switch
         {
-            "IsValid" => () => context.Entities.Where(entity => entity.Shape.IsValid).ToQueryString(),
-            "BufferStrategy" => () => context.Entities
-                .Where(entity => entity.Shape.Buffer(1, 4).IsEmpty)
+            "IsValid" => () => context
+                .Entities
+                .Where(entity => entity.Shape.IsValid)
+                .ToQueryString(),
+            "BufferStrategy" => () => context
+                .Entities
+                .Where(entity => entity.Shape.Buffer(1, 4)
+                    .IsEmpty)
                 .ToQueryString(),
             _ => CreateAggregateQueryFactory(context, operation),
         };
@@ -291,20 +305,23 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         string operation
     ) => operation switch
     {
-        "Combine" => () => context.Entities
+        "Combine" => () => context
+            .Entities
             .GroupBy(_ => 1)
-            .Select(group => NetTopologySuite.Geometries.Utilities.GeometryCombiner.Combine(
+            .Select(group => GeometryCombiner.Combine(
                 group.Select(entity => entity.Shape)))
             .Where(geometry => geometry.IsEmpty)
             .ToQueryString(),
-        "Union" => () => context.Entities
+        "Union" => () => context
+            .Entities
             .GroupBy(_ => 1)
-            .Select(group => NetTopologySuite.Operation.Union.UnaryUnionOp.Union(group.Select(entity => entity.Shape)))
+            .Select(group => UnaryUnionOp.Union(group.Select(entity => entity.Shape)))
             .Where(geometry => geometry.IsEmpty)
             .ToQueryString(),
-        "Envelope" => () => context.Entities
+        "Envelope" => () => context
+            .Entities
             .GroupBy(_ => 1)
-            .Select(group => NetTopologySuite.Geometries.Utilities.EnvelopeCombiner.CombineAsGeometry(
+            .Select(group => EnvelopeCombiner.CombineAsGeometry(
                 group.Select(entity => entity.Shape)))
             .Where(geometry => geometry.IsEmpty)
             .ToQueryString(),

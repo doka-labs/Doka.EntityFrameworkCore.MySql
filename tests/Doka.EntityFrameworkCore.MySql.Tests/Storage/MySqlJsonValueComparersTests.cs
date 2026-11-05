@@ -92,7 +92,14 @@ public sealed partial class MySqlJsonValueComparersTests
     {
         // Arrange
         // WHY: Two hundred entries exceed the initial 1024-byte buffer and exercise growth.
-        var large = "[" + string.Join(",", Enumerable.Range(0, 200).Select(i => $"\"item-{i:D6}\"")) + "]";
+        var large = "["
+            + string.Join(
+                ",",
+                Enumerable
+                    .Range(0, 200)
+                    .Select(i => $"\"item-{i:D6}\""))
+            + "]";
+
         using var docA = JsonDocument.Parse(large);
         using var docB = JsonDocument.Parse(large);
 
@@ -225,8 +232,19 @@ public sealed partial class MySqlJsonValueComparersTests
             Array.Fill(reusedBuffer, (byte)' ');
 
             // Assert
-            Assert.Equal(1, snapshot.RootElement.GetProperty("a").GetInt32());
-            Assert.Equal(3, snapshot.RootElement.GetProperty("b").GetArrayLength());
+            Assert.Equal(
+                1,
+                snapshot
+                    .RootElement
+                    .GetProperty("a")
+                    .GetInt32());
+
+            Assert.Equal(
+                3,
+                snapshot
+                    .RootElement
+                    .GetProperty("b")
+                    .GetArrayLength());
         }
         finally
         {

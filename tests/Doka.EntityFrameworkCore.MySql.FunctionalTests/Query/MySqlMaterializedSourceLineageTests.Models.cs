@@ -11,7 +11,8 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<LineageContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<LineageContext>()
             .UseMySql("Server=localhost;Database=lineage;User ID=unused;", version)
             .Options;
 
@@ -21,7 +22,8 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     /// <summary>Creates an application-time model without enabling an unsupported MySQL table feature.</summary>
     private static ApplicationContext CreateApplicationContext()
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<ApplicationContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<ApplicationContext>()
             .UseMySql(
                 "Server=localhost;Database=lineage;User ID=unused;",
                 MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
@@ -34,7 +36,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     private sealed class ApplicationContext : DbContext
     {
         /// <summary>Initializes the application-time model.</summary>
-        public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options) { }
+        public ApplicationContext(
+            DbContextOptions<ApplicationContext> options
+        ) : base(options) { }
 
         /// <summary>Gets the mutation-only application-time entity root.</summary>
         public DbSet<HistoricalParent> Parents => Set<HistoricalParent>();
@@ -47,11 +51,16 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             modelBuilder.Entity<HistoricalParent>(entity =>
             {
                 entity.ToTable("LineageApplicationParents", table => table.HasApplicationTimePeriod());
-                entity.HasOne(parent => parent.Child).WithMany().HasForeignKey(parent => parent.ChildId)
+                entity
+                    .HasOne(parent => parent.Child)
+                    .WithMany()
+                    .HasForeignKey(parent => parent.ChildId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-            modelBuilder.Entity<HistoricalChild>().ToTable("LineageApplicationChildren");
+            modelBuilder
+                .Entity<HistoricalChild>()
+                .ToTable("LineageApplicationChildren");
         }
     }
 
@@ -59,7 +68,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     private sealed class LineageContext : DbContext
     {
         /// <summary>Initializes the offline lineage model.</summary>
-        public LineageContext(DbContextOptions<LineageContext> options) : base(options) { }
+        public LineageContext(
+            DbContextOptions<LineageContext> options
+        ) : base(options) { }
 
         /// <summary>Gets temporal parents with one separately stored reference.</summary>
         public DbSet<HistoricalParent> Parents => Set<HistoricalParent>();
@@ -69,34 +80,59 @@ public sealed partial class MySqlMaterializedSourceLineageTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<SharedNode>("First", entity =>
-            {
-                entity.ToTable("LineageFirst");
-                entity.HasKey(row => row.Id);
-                entity.Property(row => row.TargetId).HasColumnName("FirstTargetId");
-                entity.HasOne(row => row.Target).WithMany().HasForeignKey(row => row.TargetId);
-            });
+            modelBuilder.SharedTypeEntity<SharedNode>(
+                "First",
+                entity =>
+                {
+                    entity.ToTable("LineageFirst");
+                    entity.HasKey(row => row.Id);
+                    entity
+                        .Property(row => row.TargetId)
+                        .HasColumnName("FirstTargetId");
 
-            modelBuilder.SharedTypeEntity<SharedNode>("Second", entity =>
-            {
-                entity.ToTable("LineageSecond");
-                entity.HasKey(row => row.Id);
-                entity.Property(row => row.TargetId).HasColumnName("SecondTargetId");
-                entity.HasOne(row => row.Target).WithMany().HasForeignKey(row => row.TargetId);
-            });
+                    entity
+                        .HasOne(row => row.Target)
+                        .WithMany()
+                        .HasForeignKey(row => row.TargetId);
+                });
 
-            modelBuilder.Entity<SharedTarget>().ToTable("LineageTargets");
+            modelBuilder.SharedTypeEntity<SharedNode>(
+                "Second",
+                entity =>
+                {
+                    entity.ToTable("LineageSecond");
+                    entity.HasKey(row => row.Id);
+                    entity
+                        .Property(row => row.TargetId)
+                        .HasColumnName("SecondTargetId");
+
+                    entity
+                        .HasOne(row => row.Target)
+                        .WithMany()
+                        .HasForeignKey(row => row.TargetId);
+                });
+
+            modelBuilder
+                .Entity<SharedTarget>()
+                .ToTable("LineageTargets");
+
             modelBuilder.Entity<HistoricalParent>(entity =>
             {
                 entity.ToTable("LineageParents", table => table.IsTemporal());
-                entity.HasOne(parent => parent.Child).WithMany().HasForeignKey(parent => parent.ChildId)
+                entity
+                    .HasOne(parent => parent.Child)
+                    .WithMany()
+                    .HasForeignKey(parent => parent.ChildId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<HistoricalChild>(entity =>
             {
                 entity.ToTable("LineageChildren", table => table.IsTemporal());
-                entity.HasOne(child => child.Next).WithMany().HasForeignKey(child => child.NextId)
+                entity
+                    .HasOne(child => child.Next)
+                    .WithMany()
+                    .HasForeignKey(child => child.NextId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
         }

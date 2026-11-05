@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.TestModels.BasicTypesModel;
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Translations;
 
 /// <summary>
-/// Executes the official <see cref="DateOnly"/> translation contract against the provider.
+/// Executes the official <see cref="DateOnly" /> translation contract against the provider.
 /// </summary>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
@@ -13,13 +13,11 @@ public sealed class BasicTypesDateOnlyTranslationsMySqlTest
 {
     public BasicTypesDateOnlyTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
-/// Executes the official <see cref="DateTimeOffset"/> translation contract against the provider.
+/// Executes the official <see cref="DateTimeOffset" /> translation contract against the provider.
 /// </summary>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
@@ -28,13 +26,11 @@ public sealed class BasicTypesDateTimeOffsetTranslationsMySqlTest
 {
     public BasicTypesDateTimeOffsetTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
-/// Executes the official <see cref="DateTime"/> translation contract against the provider.
+/// Executes the official <see cref="DateTime" /> translation contract against the provider.
 /// </summary>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
@@ -43,30 +39,40 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
 {
     public BasicTypesDateTimeTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     /// <inheritdoc />
     public override Task Parse_with_constant()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant());
+            () => base.Parse_with_constant(),
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Parse_with_parameter()
         => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter());
+            () => base.Parse_with_parameter(),
+            cancellationToken: CancellationToken.None);
 
+    /// <summary>
+    /// Runs the upstream temporal assertion under a stable English culture.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="test">The upstream assertion to execute under the selected culture.</param>
     private static async Task ExecuteWithUsEnglishCulture(
-        Func<Task> test
+        Func<Task> test,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var previousCulture = CultureInfo.CurrentCulture;
 
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
-            await test().ConfigureAwait(false);
+            await test()
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -76,7 +82,7 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
 }
 
 /// <summary>
-/// Executes the official <see cref="TimeOnly"/> translation contract against the provider.
+/// Executes the official <see cref="TimeOnly" /> translation contract against the provider.
 /// </summary>
 /// <remarks>
 /// MySQL and MariaDB preserve at most six fractional-second digits, so stored values
@@ -94,23 +100,20 @@ public sealed class BasicTypesTimeOnlyTranslationsMySqlTest
 {
     public BasicTypesTimeOnlyTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     /// <summary>
-    /// Verifies that engine-stored <see cref="TimeOnly"/> values expose zero
+    /// Verifies that engine-stored <see cref="TimeOnly" /> values expose zero
     /// nanoseconds beyond their preserved microsecond component.
     /// </summary>
     public override Task Nanosecond()
-        => AssertQuery(
-            source => source
-                .Set<BasicTypesEntity>()
-                .Where(entity => entity.TimeOnly.Nanosecond == 0));
+        => AssertQuery(source => source
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.TimeOnly.Nanosecond == 0));
 }
 
 /// <summary>
-/// Executes the official <see cref="TimeSpan"/> translation contract against the provider.
+/// Executes the official <see cref="TimeSpan" /> translation contract against the provider.
 /// </summary>
 /// <remarks>
 /// MySQL and MariaDB preserve at most six fractional-second digits, so stored values
@@ -128,19 +131,16 @@ public sealed class BasicTypesTimeSpanTranslationsMySqlTest
 {
     public BasicTypesTimeSpanTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     /// <summary>
-    /// Verifies that engine-stored <see cref="TimeSpan"/> values expose zero
+    /// Verifies that engine-stored <see cref="TimeSpan" /> values expose zero
     /// nanoseconds beyond their preserved microsecond component.
     /// </summary>
     public override Task Nanoseconds()
-        => AssertQuery(
-            source => source
-                .Set<BasicTypesEntity>()
-                .Where(entity => entity.TimeSpan.Nanoseconds == 0));
+        => AssertQuery(source => source
+            .Set<BasicTypesEntity>()
+            .Where(entity => entity.TimeSpan.Nanoseconds == 0));
 
     /// <summary>
     /// Verifies that adding two stored-duration expressions executes through

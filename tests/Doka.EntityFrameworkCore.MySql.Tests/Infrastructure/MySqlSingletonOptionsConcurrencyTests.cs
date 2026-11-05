@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the thread-safety contract of <see cref="MySqlSingletonOptions.Initialize"/>:
+/// Pins the thread-safety contract of <see cref="MySqlSingletonOptions.Initialize" />:
 /// under <c>AddDbContextPool</c> the framework can resolve a singleton service from
 /// many threads before the first Initialize completes. The double-checked-lock guard
 /// must ensure that no consumer ever observes a torn property snapshot, and that
@@ -63,11 +63,14 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         // Profile appeared set on one thread while the remaining snapshot fields
         // were still stale on another. Running them back-to-back from many threads
         // exercises exactly that ordering.
-        Parallel.For(0, 1000, _ =>
-        {
-            singletonOptions.Initialize(options);
-            singletonOptions.Validate(options);
-        });
+        Parallel.For(
+            0,
+            1000,
+            _ =>
+            {
+                singletonOptions.Initialize(options);
+                singletonOptions.Validate(options);
+            });
 
         // Assert
         Assert.NotNull(singletonOptions.Profile);
@@ -84,7 +87,7 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         var singletonOptions = new MySqlSingletonOptions();
         singletonOptions.Initialize(originalOptions);
         var mutatedOptions = BuildOptions(MySqlGuidFormat.Char36);
-        Action act = () => singletonOptions.Validate(mutatedOptions);
+        var act = () => singletonOptions.Validate(mutatedOptions);
 
         // Act
         var recordedException = Record.Exception(act);

@@ -96,6 +96,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+
         Assert.Equal(
             "SET @first = 1;\n"
             + "SET @second = 2;\n"
@@ -103,6 +104,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             + "SET @second = NULL;\n"
             + "SET @first = NULL;\n",
             command.CommandText);
+
         Assert.True(command.TransactionSuppressed);
         foreach (var fragment in command.Fragments)
         {
@@ -125,9 +127,18 @@ public sealed partial class MySqlMigrationOperationContractTests
     )
     {
         // Arrange
-        var setup = emptySetup ? Array.Empty<string>() : ["SET @scope = 1;"];
-        var body = emptyBody ? " " : "SELECT @scope;";
-        var cleanup = emptyCleanup ? Array.Empty<string>() : ["SET @scope = NULL;"];
+        var setup = emptySetup
+            ? Array.Empty<string>()
+            : ["SET @scope = 1;"];
+
+        var body = emptyBody
+            ? " "
+            : "SELECT @scope;";
+
+        var cleanup = emptyCleanup
+            ? Array.Empty<string>()
+            : ["SET @scope = NULL;"];
+
         Action act = () => MySqlMigrationCommandSpec.CreateScoped(setup, body, cleanup);
 
         // Act
@@ -149,8 +160,14 @@ public sealed partial class MySqlMigrationOperationContractTests
     )
     {
         // Arrange
-        string[] setup = invalidSetup ? [" "] : ["SET @scope = 1;"];
-        string[] cleanup = invalidCleanup ? [" "] : ["SET @scope = NULL;"];
+        string[] setup = invalidSetup
+            ? [" "]
+            : ["SET @scope = 1;"];
+
+        string[] cleanup = invalidCleanup
+            ? [" "]
+            : ["SET @scope = NULL;"];
+
         Action act = () =>
             MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
 
@@ -173,8 +190,14 @@ public sealed partial class MySqlMigrationOperationContractTests
     )
     {
         // Arrange
-        string[] setup = invalidSetup ? [null!] : ["SET @scope = 1;"];
-        string[] cleanup = invalidCleanup ? [null!] : ["SET @scope = NULL;"];
+        string[] setup = invalidSetup
+            ? [null!]
+            : ["SET @scope = 1;"];
+
+        string[] cleanup = invalidCleanup
+            ? [null!]
+            : ["SET @scope = NULL;"];
+
         Action act = () =>
             MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
 
@@ -194,11 +217,13 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var setupEnumerations = 0;
         var cleanupEnumerations = 0;
+
         IEnumerable<string> Setup()
         {
             setupEnumerations++;
             yield return "SET @scope = 1;";
         }
+
         IEnumerable<string> Cleanup()
         {
             cleanupEnumerations++;
@@ -229,6 +254,7 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         const string sensitivePayload = "server=private;password=do-not-log";
+
         static IEnumerable<string> ThrowingCommands(
             string message
         )
@@ -236,17 +262,27 @@ public sealed partial class MySqlMigrationOperationContractTests
             yield return "SET @scope = 1;";
             throw new InvalidOperationException(message);
         }
+
         Action act = () => MySqlMigrationCommandSpec.CreateScoped(
-            failSetup ? ThrowingCommands(sensitivePayload) : ["SET @scope = 1;"],
+            failSetup
+                ? ThrowingCommands(sensitivePayload)
+                : ["SET @scope = 1;"],
             "SELECT @scope;",
-            failSetup ? ["SET @scope = NULL;"] : ThrowingCommands(sensitivePayload));
+            failSetup
+                ? ["SET @scope = NULL;"]
+                : ThrowingCommands(sensitivePayload));
 
         // Act
         var recordedException = Record.Exception(act);
 
         // Assert
         var exception = Assert.IsType<ArgumentException>(recordedException);
-        Assert.Equal(failSetup ? "setupCommands" : "cleanupCommands", exception.ParamName);
+        Assert.Equal(
+            failSetup
+                ? "setupCommands"
+                : "cleanupCommands",
+            exception.ParamName);
+
         Assert.DoesNotContain(sensitivePayload, exception.Message, StringComparison.Ordinal);
         Assert.IsType<InvalidOperationException>(exception.InnerException);
     }
@@ -285,6 +321,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Assert
         var exception =
             Assert.IsType<ArgumentException>(recordedException);
+
         Assert.Equal("setupCommands", exception.ParamName);
         Assert.Contains("128 total fragments", exception.Message, StringComparison.Ordinal);
     }

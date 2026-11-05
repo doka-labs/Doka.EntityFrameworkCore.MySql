@@ -18,24 +18,35 @@ public class BulkInsertBenchmark
 
     private string _connectionString = string.Empty;
 
+    /// <summary>
+    /// Creates the isolated table before BenchmarkDotNet starts measuring inserts.
+    /// </summary>
     [GlobalSetup]
     public async Task GlobalSetup()
     {
         BenchmarkEnvironment.EnsureInitialized();
         _connectionString = BenchmarkEnvironment.CreateConnectionString(BenchmarkEnvironment.DatabaseNameValue);
 
-        await PrepareSchemaAsync()
+        // WHY: BenchmarkDotNet does not supply a cancellation token to setup hooks.
+        await PrepareSchemaAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Clears the table before each measurement iteration.
+    /// </summary>
     [IterationSetup]
     public void IterationSetup()
     {
-        TruncateTableAsync()
+        // WHY: BenchmarkDotNet does not supply a cancellation token to iteration hooks.
+        TruncateTableAsync(CancellationToken.None)
             .GetAwaiter()
             .GetResult();
     }
 
+    /// <summary>
+    /// Removes the isolated table after the insert measurements finish.
+    /// </summary>
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
@@ -43,9 +54,13 @@ public class BulkInsertBenchmark
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Measures inserting each row through a separate save operation.
+    /// </summary>
     [Benchmark(Baseline = true)]
     public async Task PerRowSaveChanges()
     {
+        // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
         await using var context = new BulkBenchContext(BuildOptions());
         for (var index = 0; index < RowsPerIteration; index++)
         {
@@ -55,15 +70,20 @@ public class BulkInsertBenchmark
                     Name = $"per-row-{index}",
                     Score = index,
                 });
+
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Measures inserting the complete batch through one save operation.
+    /// </summary>
     [Benchmark]
     public async Task MultiRowAddRangeSaveChanges()
     {
+        // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
         await using var context = new BulkBenchContext(BuildOptions());
         var batch = Enumerable
             .Range(0, RowsPerIteration)
@@ -76,7 +96,7 @@ public class BulkInsertBenchmark
 
         context.Items.AddRange(batch);
         await context
-            .SaveChangesAsync()
+            .SaveChangesAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -87,12 +107,19 @@ public class BulkInsertBenchmark
         return builder.Options;
     }
 
-    private async Task PrepareSchemaAsync()
+    /// <summary>
+    /// Creates the table used by the insert workloads.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while preparing the database.</param>
+    private async Task PrepareSchemaAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"CREATE TABLE `{TableName}` ("
@@ -101,34 +128,47 @@ public class BulkInsertBenchmark
             + "  `Score` INT NOT NULL,"
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
+
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private async Task TruncateTableAsync()
+    /// <summary>
+    /// Removes the previous iteration's rows before the next measurement.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while clearing the table.</param>
+    private async Task TruncateTableAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"TRUNCATE TABLE `{TableName}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Removes the benchmark-owned table independently of workload cancellation.
+    /// </summary>
     private async Task TearDownSchemaAsync()
     {
+        // WHY: Teardown must remove the owned table even after the workload is canceled.
         await using var connection = new MySqlConnection(_connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
     }
 

@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Reads and writes <see cref="TimeSpan"/> JSON values within the
+/// Reads and writes <see cref="TimeSpan" /> JSON values within the
 /// MySQL-family <c>TIME</c> domain.
 /// </summary>
 internal sealed class MySqlTimeSpanJsonValueReaderWriter : JsonValueReaderWriter<TimeSpan>
@@ -9,12 +9,15 @@ internal sealed class MySqlTimeSpanJsonValueReaderWriter : JsonValueReaderWriter
     private static readonly PropertyInfo s_instanceProperty =
         typeof(MySqlTimeSpanJsonValueReaderWriter).GetProperty(nameof(Instance))!;
 
+    private MySqlTimeSpanJsonValueReaderWriter() { }
+
     /// <summary>
     /// Gets the reusable JSON reader/writer.
     /// </summary>
     public static MySqlTimeSpanJsonValueReaderWriter Instance { get; } = new();
 
-    private MySqlTimeSpanJsonValueReaderWriter() { }
+    /// <inheritdoc />
+    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 
     /// <inheritdoc />
     public override TimeSpan FromJsonTyped(
@@ -34,7 +37,4 @@ internal sealed class MySqlTimeSpanJsonValueReaderWriter : JsonValueReaderWriter
 
         JsonTimeSpanReaderWriter.Instance.ToJsonTyped(writer, value);
     }
-
-    /// <inheritdoc />
-    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 }

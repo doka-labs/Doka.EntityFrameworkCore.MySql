@@ -19,9 +19,7 @@ public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
     /// </param>
     public DirectTheoryDiscoverer(
         IMessageSink diagnosticMessageSink
-    ) : base(diagnosticMessageSink)
-    {
-    }
+    ) : base(diagnosticMessageSink) { }
 
     /// <summary>
     /// Produces one skipped case when the current engine target is unsupported. On supported
@@ -72,6 +70,7 @@ public sealed class DirectTheoryDiscoverer : TheoryDiscoverer
         {
             dataMethod = TheoryDataInheritance.FindNearestDataDeclaration(methodInfo)
                 ?? methodInfo;
+
             dataAttributes = dataMethod
                 .GetCustomAttributes<DataAttribute>(inherit: false)
                 .ToArray();

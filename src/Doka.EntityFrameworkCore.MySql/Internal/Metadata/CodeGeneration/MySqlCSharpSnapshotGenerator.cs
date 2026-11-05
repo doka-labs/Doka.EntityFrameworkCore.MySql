@@ -28,7 +28,10 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         // CSharpSnapshotGenerator.GenerateProperty except for that CLR-type choice.
         // Diff it against upstream whenever the supported EF Core range changes.
         var clrType = MakeNullable(property.ClrType, property.IsNullable);
-        var propertyCall = property.IsPrimitiveCollection ? "PrimitiveCollection" : "Property";
+        var propertyCall = property.IsPrimitiveCollection
+            ? "PrimitiveCollection"
+            : "Property";
+
         var code = Dependencies.CSharpHelper;
         var propertyBuilderName =
             $"{entityTypeBuilderName}.{propertyCall}<{code.Reference(clrType, fullName: true)}>({code.Literal(property.Name)})";
@@ -36,6 +39,7 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         stringBuilder
             .AppendLine()
             .Append(propertyBuilderName);
+
         stringBuilder.IncrementIndent();
 
         var isInComplexCollection = property.DeclaringType is IComplexType { ComplexProperty.IsCollection: true };
@@ -61,10 +65,13 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
             stringBuilder
                 .AppendLine()
                 .Append(
-                    property.ValueGenerated == ValueGenerated.OnAdd ? ".ValueGeneratedOnAdd()" :
-                    property.ValueGenerated == ValueGenerated.OnUpdate ? ".ValueGeneratedOnUpdate()" :
-                    property.ValueGenerated == ValueGenerated.OnUpdateSometimes ? ".ValueGeneratedOnUpdateSometimes()" :
-                    ".ValueGeneratedOnAddOrUpdate()");
+                    property.ValueGenerated == ValueGenerated.OnAdd
+                        ? ".ValueGeneratedOnAdd()"
+                        : property.ValueGenerated == ValueGenerated.OnUpdate
+                            ? ".ValueGeneratedOnUpdate()"
+                            : property.ValueGenerated == ValueGenerated.OnUpdateSometimes
+                                ? ".ValueGeneratedOnUpdateSometimes()"
+                                : ".ValueGeneratedOnAddOrUpdate()");
         }
 
         GeneratePropertyAnnotations(propertyBuilderName, property, stringBuilder);
@@ -87,13 +94,16 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
                 PropertyName: property.Name,
                 ModelClrType: Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType,
                 TypeMapping: property.GetTypeMapping() as IMySqlProviderOwnedModelTypeMapping,
-                Converter: property.GetTypeMapping().Converter))
+                property.GetTypeMapping()
+                    .Converter))
             .ToArray();
 
         base.GenerateData(
             entityTypeBuilderName,
             propertyList,
-            converters.Length == 0 ? data : ConvertProviderSeedValues(data, converters),
+            converters.Length == 0
+                ? data
+                : ConvertProviderSeedValues(data, converters),
             stringBuilder);
     }
 
@@ -142,7 +152,8 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
 
         return modelClrType == typeof(Guid)
             && property.GetMySqlGuidFormat() is not null
-            && property.GetTypeMapping().Converter is not null;
+            && property.GetTypeMapping()
+                .Converter is not null;
     }
 
     private static Type MakeNullable(

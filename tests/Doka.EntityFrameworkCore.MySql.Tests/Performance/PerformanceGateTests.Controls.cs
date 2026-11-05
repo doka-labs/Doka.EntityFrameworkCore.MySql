@@ -1,3 +1,5 @@
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -113,17 +115,31 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var document = LoadCheckedInPerformanceContract();
         var contract = document.RootElement;
-        var controls = contract.GetProperty("benchmarkDotNetControls").EnumerateArray().ToArray();
+        var controls = contract
+            .GetProperty("benchmarkDotNetControls")
+            .EnumerateArray()
+            .ToArray();
+
         var throughput = controls.Single(control =>
-            control.GetProperty("id").GetString() == "cache-parallel-sliding-buffer-throughput");
+            control
+                .GetProperty("id")
+                .GetString()
+            == "cache-parallel-sliding-buffer-throughput");
 
         var allocation = controls.Single(control =>
-            control.GetProperty("id").GetString() == "cache-parallel-sliding-buffer-allocation");
+            control
+                .GetProperty("id")
+                .GetString()
+            == "cache-parallel-sliding-buffer-allocation");
 
-        var type = nameof(Benchmarks.DistributedCacheBenchmark);
-        var measuredMethod = nameof(Benchmarks.DistributedCacheBenchmark.ParallelSlidingBufferReadsAsync);
-        var baselineMethod = nameof(Benchmarks.DistributedCacheBenchmark.ParallelBufferReadsAsync);
-        var maximum = throughput.GetProperty("maximumByTarget").GetProperty(target).GetDouble();
+        var type = nameof(DistributedCacheBenchmark);
+        var measuredMethod = nameof(DistributedCacheBenchmark.ParallelSlidingBufferReadsAsync);
+        var baselineMethod = nameof(DistributedCacheBenchmark.ParallelBufferReadsAsync);
+        var maximum = throughput
+            .GetProperty("maximumByTarget")
+            .GetProperty(target)
+            .GetDouble();
+
         using var fixture = PerformanceGateFixture.Create(
             reportTarget: target,
             controlsJson: JsonSerializer.Serialize(new[] { throughput, allocation }),
@@ -139,14 +155,54 @@ public sealed partial class PerformanceGateTests
         var exitCode = fixture.Run(target);
 
         // Assert
-        Assert.Equal(11, contract.GetProperty("schemaVersion").GetInt32());
-        Assert.Equal(type, throughput.GetProperty("type").GetString());
-        Assert.Equal(measuredMethod, throughput.GetProperty("method").GetString());
-        Assert.Equal(baselineMethod, throughput.GetProperty("baselineMethod").GetString());
-        Assert.Equal("meanRatio", throughput.GetProperty("metric").GetString());
-        Assert.Equal(type, allocation.GetProperty("type").GetString());
-        Assert.Equal(measuredMethod, allocation.GetProperty("method").GetString());
-        Assert.Equal("allocatedBytes", allocation.GetProperty("metric").GetString());
+        Assert.Equal(
+            11,
+            contract
+                .GetProperty("schemaVersion")
+                .GetInt32());
+
+        Assert.Equal(
+            type,
+            throughput
+                .GetProperty("type")
+                .GetString());
+
+        Assert.Equal(
+            measuredMethod,
+            throughput
+                .GetProperty("method")
+                .GetString());
+
+        Assert.Equal(
+            baselineMethod,
+            throughput
+                .GetProperty("baselineMethod")
+                .GetString());
+
+        Assert.Equal(
+            "meanRatio",
+            throughput
+                .GetProperty("metric")
+                .GetString());
+
+        Assert.Equal(
+            type,
+            allocation
+                .GetProperty("type")
+                .GetString());
+
+        Assert.Equal(
+            measuredMethod,
+            allocation
+                .GetProperty("method")
+                .GetString());
+
+        Assert.Equal(
+            "allocatedBytes",
+            allocation
+                .GetProperty("metric")
+                .GetString());
+
         Assert.Empty(result.InvalidEvidence);
         Assert.Equal(2, result.ControlCount);
         Assert.Equal(expectedExitCode, result.Regressions.Count);
@@ -247,23 +303,40 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         using var document = LoadCheckedInPerformanceContract();
-        var controls = document.RootElement
+        var controls = document
+            .RootElement
             .GetProperty("benchmarkDotNetControls")
             .EnumerateArray()
-            .Where(control => control.GetProperty("type").GetString() == nameof(Benchmarks.GenericLikeBenchmark))
+            .Where(control => control
+                    .GetProperty("type")
+                    .GetString()
+                == nameof(GenericLikeBenchmark))
             .ToArray();
 
-        var control = controls.Single(candidate => candidate.GetProperty("id").GetString() == controlId);
-        var method = control.GetProperty("method").GetString()!;
-        var maximum = control.GetProperty("maximum").GetDouble();
+        var control = controls.Single(candidate => candidate
+                .GetProperty("id")
+                .GetString()
+            == controlId);
+
+        var method = control
+            .GetProperty("method")
+            .GetString()!;
+
+        var maximum = control
+            .GetProperty("maximum")
+            .GetDouble();
+
         using var fixture = PerformanceGateFixture.Create(
             controlsJson: JsonSerializer.Serialize(new[] { control }),
             controlObservations: includeObservation
-                ? [PerformanceGateFixture.ControlObservation(
-                    method,
-                    mean: 1,
-                    allocatedBytes: maximum + allocationExcess,
-                    type: nameof(Benchmarks.GenericLikeBenchmark))]
+                ?
+                [
+                    PerformanceGateFixture.ControlObservation(
+                        method,
+                        mean: 1,
+                        allocatedBytes: maximum + allocationExcess,
+                        type: nameof(GenericLikeBenchmark)),
+                ]
                 : []);
 
         // Act
@@ -272,8 +345,18 @@ public sealed partial class PerformanceGateTests
 
         // Assert
         Assert.Equal(2, controls.Length);
-        Assert.Equal("allocatedBytes", control.GetProperty("metric").GetString());
-        Assert.Equal(includeObservation ? 0 : 1, result.InvalidEvidence.Count);
+        Assert.Equal(
+            "allocatedBytes",
+            control
+                .GetProperty("metric")
+                .GetString());
+
+        Assert.Equal(
+            includeObservation
+                ? 0
+                : 1,
+            result.InvalidEvidence.Count);
+
         Assert.Equal(allocationExcess, result.Regressions.Count);
         Assert.All(result.Regressions, error => Assert.Contains($"{controlId} allocatedBytes", error));
         Assert.Equal(expectedExitCode, exitCode);

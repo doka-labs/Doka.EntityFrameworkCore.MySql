@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class MySqlTypeExtensions
 {
     /// <summary>
-    /// Returns the underlying value type for <see cref="Nullable{T}"/> or the
+    /// Returns the underlying value type for <see cref="Nullable{T}" /> or the
     /// supplied type when it is not nullable.
     /// </summary>
     internal static Type UnwrapNullableType(

@@ -13,7 +13,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         // Arrange
         await using var connection = CreateConnection(Enum.Parse<IntegrationDatabaseTarget>(targetName));
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         var tableName = $"InvalidTemporalDefault_{Guid.NewGuid():N}";
         command.CommandText = $"CREATE TABLE `{tableName}` (`Value` {storeType} DEFAULT {literal});";
@@ -22,7 +25,9 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         {
             // Act
             var exception = await Assert.ThrowsAsync<MySqlException>(async () =>
-                await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false));
+                await command
+                    .ExecuteNonQueryAsync(CancellationToken.None)
+                    .ConfigureAwait(false));
 
             // Assert
             Assert.Equal(1067, exception.Number);
@@ -30,7 +35,9 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         finally
         {
             command.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
-            _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await command
+                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 }

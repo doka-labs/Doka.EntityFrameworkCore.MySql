@@ -65,6 +65,7 @@ public sealed class MySqlFunctionalTestOptionsTests
         Assert.Equal(
             WarningBehavior.Log,
             loggingOptions.WarningsConfiguration.GetBehavior(CoreEventId.ManyServiceProvidersCreatedWarning));
+
         Assert.Equal(
             WarningBehavior.Throw,
             loggingOptions.WarningsConfiguration.GetBehavior(CoreEventId.DetachedLazyLoadingWarning));
@@ -95,6 +96,7 @@ public sealed class MySqlFunctionalTestOptionsTests
         Assert.Equal(
             WarningBehavior.Log,
             coreOptions.WarningsConfiguration.GetBehavior(CoreEventId.ManyServiceProvidersCreatedWarning));
+
         Assert.Equal(
             WarningBehavior.Throw,
             coreOptions.WarningsConfiguration.GetBehavior(CoreEventId.DetachedLazyLoadingWarning));
@@ -109,7 +111,9 @@ public sealed class MySqlFunctionalTestOptionsTests
     {
         // Arrange
         var projectRoot = Path.Combine(FindRepositoryRoot(), "tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests");
-        var expected = s_expectedRawBuilderSites.Order(StringComparer.Ordinal).ToArray();
+        var expected = s_expectedRawBuilderSites
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
         // Act
         var actual = EnumerateSourceTrees(projectRoot)
@@ -177,7 +181,9 @@ public sealed class MySqlFunctionalTestOptionsTests
     {
         // Arrange
         var projectRoot = Path.Combine(FindRepositoryRoot(), "tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests");
-        var expected = s_expectedNonTransientUseMySqlSites.Order(StringComparer.Ordinal).ToArray();
+        var expected = s_expectedNonTransientUseMySqlSites
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
         // Act
         var actual = EnumerateSourceTrees(projectRoot)
@@ -249,11 +255,7 @@ public sealed class MySqlFunctionalTestOptionsTests
             return Path.GetFullPath(configuredRoot);
         }
 
-        foreach (var startPath in new[]
-                 {
-                     Directory.GetCurrentDirectory(),
-                     AppContext.BaseDirectory
-                 })
+        foreach (var startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
         {
             var directory = new DirectoryInfo(startPath);
 

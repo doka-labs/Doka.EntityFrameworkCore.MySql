@@ -1,3 +1,5 @@
+using System.Data;
+
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 /// <summary>
@@ -9,8 +11,15 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 public class ParameterSizeInterceptorBenchmark : IDisposable
 {
     private readonly MySqlParameterSizeCommandInterceptor _interceptor = new();
-    private readonly MySqlCommand _withinSizeCommand = CreateCommand(size: 128);
     private readonly MySqlCommand _unsizedCommand = CreateCommand(size: 0);
+    private readonly MySqlCommand _withinSizeCommand = CreateCommand(size: 128);
+
+    public void Dispose()
+    {
+        _withinSizeCommand.Dispose();
+        _unsizedCommand.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Benchmark]
     public int Process1000WithinSizeParameters() => Process(_withinSizeCommand);
@@ -27,13 +36,6 @@ public class ParameterSizeInterceptorBenchmark : IDisposable
         }
 
         return _withinSizeCommand.Parameters.Count;
-    }
-
-    public void Dispose()
-    {
-        _withinSizeCommand.Dispose();
-        _unsizedCommand.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private int Process(
@@ -55,7 +57,7 @@ public class ParameterSizeInterceptorBenchmark : IDisposable
             command.Parameters.Add(
                 new MySqlParameter($"p{index}", "within-size")
                 {
-                    Direction = System.Data.ParameterDirection.Input,
+                    Direction = ParameterDirection.Input,
                     Size = size,
                 });
         }

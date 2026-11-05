@@ -233,8 +233,14 @@ public sealed class MySqlJsonTypeMappingTests
     {
         // Arrange
         var (leftJson, rightJson) = GetComparisonPayloads(scenario);
-        var left = leftJson is null ? null : JsonNode.Parse(leftJson);
-        var right = rightJson is null ? null : JsonNode.Parse(rightJson);
+        var left = leftJson is null
+            ? null
+            : JsonNode.Parse(leftJson);
+
+        var right = rightJson is null
+            ? null
+            : JsonNode.Parse(rightJson);
+
         var comparer = MySqlJsonValueComparers.JsonNodeComparer;
 
         // Act
@@ -280,13 +286,15 @@ public sealed class MySqlJsonTypeMappingTests
         entity.Data = JsonNode.Parse("""{"nested":{"value":1},"id":1}""");
         context.ChangeTracker.DetectChanges();
 
-        var equalReplacementModified = entry.Property(candidate => candidate.Data).IsModified;
+        var equalReplacementModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // WHY: Keep the original snapshot alive across replacement and mutation.
         // Reattaching between these transitions would no longer test snapshot isolation.
         entity.Data!["nested"]!["value"] = 2;
         context.ChangeTracker.DetectChanges();
-        var nestedMutationModified = entry.Property(candidate => candidate.Data).IsModified;
+        var nestedMutationModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // Assert
         Assert.False(equalReplacementModified);
@@ -312,13 +320,15 @@ public sealed class MySqlJsonTypeMappingTests
         entity.Data = JsonNode.Parse("""{"nested":{"value":1},"id":1}""")!.AsObject();
         context.ChangeTracker.DetectChanges();
 
-        var equalReplacementModified = entry.Property(candidate => candidate.Data).IsModified;
+        var equalReplacementModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // WHY: The same tracked snapshot must survive a content-equal replacement
         // before a nested mutation is checked.
         entity.Data["nested"]!["value"] = 2;
         context.ChangeTracker.DetectChanges();
-        var nestedMutationModified = entry.Property(candidate => candidate.Data).IsModified;
+        var nestedMutationModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // Assert
         Assert.False(equalReplacementModified);
@@ -344,13 +354,15 @@ public sealed class MySqlJsonTypeMappingTests
         entity.Data = JsonNode.Parse("""[1,{"value":1},3]""")!.AsArray();
         context.ChangeTracker.DetectChanges();
 
-        var equalReplacementModified = entry.Property(candidate => candidate.Data).IsModified;
+        var equalReplacementModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // WHY: The same tracked snapshot must survive a content-equal replacement
         // before a nested mutation is checked.
         entity.Data[1]!["value"] = 2;
         context.ChangeTracker.DetectChanges();
-        var nestedMutationModified = entry.Property(candidate => candidate.Data).IsModified;
+        var nestedMutationModified = entry.Property(candidate => candidate.Data)
+            .IsModified;
 
         // Assert
         Assert.False(equalReplacementModified);
@@ -371,8 +383,14 @@ public sealed class MySqlJsonTypeMappingTests
     {
         // Arrange
         var (leftJson, rightJson) = GetComparisonPayloads(scenario);
-        using var left = leftJson is null ? null : JsonDocument.Parse(leftJson);
-        using var right = rightJson is null ? null : JsonDocument.Parse(rightJson);
+        using var left = leftJson is null
+            ? null
+            : JsonDocument.Parse(leftJson);
+
+        using var right = rightJson is null
+            ? null
+            : JsonDocument.Parse(rightJson);
+
         var comparer = MySqlJsonValueComparers.JsonDocumentComparer;
 
         // Act

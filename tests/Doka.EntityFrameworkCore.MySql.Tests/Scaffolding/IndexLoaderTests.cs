@@ -167,8 +167,14 @@ public sealed class IndexLoaderTests
         var fullTextIndex = table.Indexes.Single(index => index.Name == "IX_FullText");
         var spatialIndex = table.Indexes.Single(index => index.Name == "IX_Spatial");
         var uniqueIndex = table.Indexes.Single(index => index.Name == "IX_Unique");
-        Assert.True(fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?);
-        Assert.True(spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?);
+        Assert.True(
+            fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?);
+
+        Assert.True(
+            spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                ?.Value as bool?);
+
         Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
         Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
         Assert.True(uniqueIndex.IsUnique);
@@ -201,7 +207,8 @@ public sealed class IndexLoaderTests
         var table = Assert.Single(context.DatabaseModel.Tables);
         var index = Assert.Single(table.Indexes);
         var parts = Assert.IsType<MySqlScaffoldedIndexPart[]>(
-            index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)?.Value);
+            index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)
+                ?.Value);
 
         var part = Assert.Single(parts);
         Assert.Empty(index.Columns);
@@ -221,7 +228,9 @@ public sealed class IndexLoaderTests
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0)).Profile;
+        var capabilities = MySqlServerVersion.MySql(new Version(8, 4, 0))
+            .Profile;
+
         var context = new ScaffoldingPipelineContext(
             new IndexStubConnection(rows),
             databaseModel,
@@ -236,16 +245,21 @@ public sealed class IndexLoaderTests
 
         foreach (var tableName in tableNames)
         {
-            var table = new DatabaseTable { Database = databaseModel, Name = tableName };
+            var table = new DatabaseTable
+            {
+                Database = databaseModel,
+                Name = tableName,
+            };
+
             databaseModel.Tables.Add(table);
             context.TableLookup[tableName] = table;
 
             foreach (var columnName in rows
-                         .Where(row => row.TableName == tableName)
-                         .Select(row => row.ColumnName)
-                         .Where(columnName => columnName is not null)
-                         .Select(columnName => columnName!)
-                         .Distinct(StringComparer.Ordinal))
+                .Where(row => row.TableName == tableName)
+                .Select(row => row.ColumnName)
+                .Where(columnName => columnName is not null)
+                .Select(columnName => columnName!)
+                .Distinct(StringComparer.Ordinal))
             {
                 var column = new DatabaseColumn
                 {
@@ -304,8 +318,8 @@ public sealed class IndexLoaderTests
     private sealed class IndexStubCommand : DbCommand
     {
         private readonly IndexStubConnection _connection;
-        private readonly IndexRow[] _rows;
         private readonly IndexStubParameterCollection _parameters = new();
+        private readonly IndexRow[] _rows;
 
         public IndexStubCommand(
             IndexStubConnection connection,
@@ -372,8 +386,12 @@ public sealed class IndexLoaderTests
                     row.Collation,
                     row.SeqInIndex,
                     row.IndexType,
-                    row.SubPart.HasValue ? row.SubPart.Value : DBNull.Value,
-                    row.Expression is null ? DBNull.Value : row.Expression);
+                    row.SubPart.HasValue
+                        ? row.SubPart.Value
+                        : DBNull.Value,
+                    row.Expression is null
+                        ? DBNull.Value
+                        : row.Expression);
             }
 
             return table.CreateDataReader();

@@ -13,6 +13,7 @@ internal static class Program
                 var errors = CoverageContract.EvaluateFreshness(
                     new[] { reportPath }.Concat(additionalReports),
                     policyPath);
+
                 foreach (var error in errors)
                 {
                     Console.Error.WriteLine(error);
@@ -55,11 +56,11 @@ internal static class Program
             return 2;
         }
         catch (Exception exception) when (exception is IOException
-                                              or InvalidDataException
-                                              or InvalidOperationException
-                                              or JsonException
-                                              or FormatException
-                                              or OverflowException)
+            or InvalidDataException
+            or InvalidOperationException
+            or JsonException
+            or FormatException
+            or OverflowException)
         {
             Console.Error.WriteLine($"Coverage contract is malformed: {exception.Message}");
             return 2;

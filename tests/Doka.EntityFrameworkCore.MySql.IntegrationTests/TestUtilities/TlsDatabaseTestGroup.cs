@@ -28,7 +28,7 @@ public sealed class TlsDatabaseFixture : IAsyncLifetime
             .ToArray();
 
         _session = await TestDatabaseSession
-            .StartAsync(requests, evidenceScope: "tls")
+            .StartAsync(requests, CancellationToken.None, evidenceScope: "tls")
             .ConfigureAwait(false);
     }
 

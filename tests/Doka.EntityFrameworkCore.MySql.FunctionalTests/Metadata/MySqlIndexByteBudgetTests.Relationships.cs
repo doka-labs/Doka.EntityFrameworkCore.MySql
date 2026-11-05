@@ -24,7 +24,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateRelationshipContext(scenario);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var entity = model.FindEntityType(typeof(RelationshipBudgetNode))!;
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
@@ -37,9 +39,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(
             ConfigurationSource.Convention,
             ((IConventionProperty)principal).GetMaxLengthConfigurationSource());
+
         Assert.Equal(
             ConfigurationSource.Convention,
             ((IConventionProperty)dependent).GetMaxLengthConfigurationSource());
+
         Assert.Contains("FOREIGN KEY", ddl, StringComparison.Ordinal);
 
         if (scenario == "transitive")
@@ -69,7 +73,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateRelationshipContext(scenario);
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType(typeof(RelationshipBudgetNode))!;
+
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
 
@@ -94,12 +102,21 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateRelationshipContext(scenario);
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType(typeof(RelationshipBudgetNode))!;
+
         var principal = entity.FindProperty(nameof(RelationshipBudgetNode.Id))!;
         var dependent = entity.FindProperty(nameof(RelationshipBudgetNode.ParentId))!;
 
         // Assert
-        Assert.Equal(scenario == "explicit-principal" ? 100 : null, principal.GetMaxLength());
+        Assert.Equal(
+            scenario == "explicit-principal"
+                ? 100
+                : null,
+            principal.GetMaxLength());
+
         Assert.Equal("varchar(100)", principal.GetColumnType());
         Assert.Equal("varchar(100)", dependent.GetColumnType());
     }
@@ -115,7 +132,10 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateRelationshipContext("explicit-both");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(RelationshipBudgetNode))!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType(typeof(RelationshipBudgetNode))!;
 
         // Assert
         Assert.Equal(120, entity.FindProperty(nameof(RelationshipBudgetNode.Id))!.GetMaxLength());
@@ -147,7 +167,8 @@ public sealed partial class MySqlIndexByteBudgetTests
         string scenario
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<RelationshipBudgetContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<RelationshipBudgetContext>()
             .UseMySql(
                 "Server=localhost;Database=not_used;User Id=not_used;Password=not_used",
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
@@ -155,6 +176,41 @@ public sealed partial class MySqlIndexByteBudgetTests
             .Options;
 
         return new RelationshipBudgetContext(options, scenario);
+    }
+
+    /// <summary>
+    /// Applies complete indexes that expose either a tighter principal cap or
+    /// the repeated coefficient of two linked columns in one physical index.
+    /// </summary>
+    private static void ConfigureRelationshipBudgetIndex(
+        EntityTypeBuilder<RelationshipBudgetNode> entity,
+        string scenario
+    )
+    {
+        if (scenario == "both-ends")
+        {
+            entity.HasIndex(node => new
+            {
+                node.Id,
+                node.ParentId,
+                node.Scope,
+                node.TreeId,
+                node.Left,
+                node.Flag,
+            });
+        }
+        else
+        {
+            entity.HasIndex(node => new
+            {
+                node.Scope,
+                node.Flag,
+                node.TreeId,
+                node.Right,
+                node.Left,
+                node.Id,
+            });
+        }
     }
 
     /// <summary>
@@ -180,20 +236,36 @@ public sealed partial class MySqlIndexByteBudgetTests
             modelBuilder.HasCharSet("utf8mb4");
             var entity = modelBuilder.Entity<RelationshipBudgetNode>();
             entity.HasKey(node => node.Id);
-            entity.Property(node => node.Id).ValueGeneratedNever();
+            entity
+                .Property(node => node.Id)
+                .ValueGeneratedNever();
 
             if (scenario == "owned-principal")
             {
                 entity.ToTable("RelationshipBudgetNodes");
-                entity.Property(node => node.Id).HasColumnName("Id");
-                entity.OwnsOne(node => node.Detail, detail =>
-                {
-                    detail.ToTable("RelationshipBudgetNodes");
-                    detail.WithOwner().HasForeignKey("OwnerId");
-                    detail.HasKey("OwnerId");
-                    detail.Property<string>("OwnerId").HasColumnName("Id").HasMaxLength(120);
-                });
-                entity.Navigation(node => node.Detail).IsRequired();
+                entity
+                    .Property(node => node.Id)
+                    .HasColumnName("Id");
+
+                entity.OwnsOne(
+                    node => node.Detail,
+                    detail =>
+                    {
+                        detail.ToTable("RelationshipBudgetNodes");
+                        detail
+                            .WithOwner()
+                            .HasForeignKey("OwnerId");
+
+                        detail.HasKey("OwnerId");
+                        detail
+                            .Property<string>("OwnerId")
+                            .HasColumnName("Id")
+                            .HasMaxLength(120);
+                    });
+
+                entity
+                    .Navigation(node => node.Detail)
+                    .IsRequired();
             }
             else
             {
@@ -207,13 +279,26 @@ public sealed partial class MySqlIndexByteBudgetTests
 
             if (scenario == "composite")
             {
-                entity.HasOne<RelationshipBudgetNode>().WithMany()
-                    .HasForeignKey(node => new { node.Scope, node.ParentId })
-                    .HasPrincipalKey(node => new { node.Scope, node.Id });
+                entity
+                    .HasOne<RelationshipBudgetNode>()
+                    .WithMany()
+                    .HasForeignKey(node => new
+                    {
+                        node.Scope,
+                        node.ParentId,
+                    })
+                    .HasPrincipalKey(node => new
+                    {
+                        node.Scope,
+                        node.Id,
+                    });
             }
             else
             {
-                entity.HasOne<RelationshipBudgetNode>().WithMany().HasForeignKey(node => node.ParentId);
+                entity
+                    .HasOne<RelationshipBudgetNode>()
+                    .WithMany()
+                    .HasForeignKey(node => node.ParentId);
             }
 
             if (scenario != "reverse")
@@ -223,20 +308,31 @@ public sealed partial class MySqlIndexByteBudgetTests
 
             if (scenario is "explicit-dependent" or "explicit-both")
             {
-                entity.Property(node => node.ParentId).HasMaxLength(100);
+                entity
+                    .Property(node => node.ParentId)
+                    .HasMaxLength(100);
             }
             else if (scenario == "store-dependent")
             {
-                entity.Property(node => node.ParentId).HasColumnType("varchar(100)");
+                entity
+                    .Property(node => node.ParentId)
+                    .HasColumnType("varchar(100)");
             }
             else if (scenario == "store-principal")
             {
-                entity.Property(node => node.Id).HasColumnType("varchar(100)");
+                entity
+                    .Property(node => node.Id)
+                    .HasColumnType("varchar(100)");
             }
 
             if (scenario is "explicit-principal" or "explicit-both")
             {
-                entity.Property(node => node.Id).HasMaxLength(scenario == "explicit-both" ? 120 : 100);
+                entity
+                    .Property(node => node.Id)
+                    .HasMaxLength(
+                        scenario == "explicit-both"
+                            ? 120
+                            : 100);
             }
 
             if (scenario == "transitive")
@@ -245,12 +341,18 @@ public sealed partial class MySqlIndexByteBudgetTests
                 {
                     link.HasKey(value => value.Id);
                     link.HasAlternateKey(value => value.NodeId);
-                    link.HasOne<RelationshipBudgetNode>().WithMany().HasForeignKey(value => value.NodeId);
+                    link
+                        .HasOne<RelationshipBudgetNode>()
+                        .WithMany()
+                        .HasForeignKey(value => value.NodeId);
                 });
+
                 modelBuilder.Entity<RelationshipBudgetFollower>(follower =>
                 {
                     follower.HasKey(value => value.Id);
-                    follower.HasOne<RelationshipBudgetLink>().WithMany()
+                    follower
+                        .HasOne<RelationshipBudgetLink>()
+                        .WithMany()
                         .HasForeignKey(value => value.NodeId)
                         .HasPrincipalKey(value => value.NodeId);
                 });
@@ -258,29 +360,18 @@ public sealed partial class MySqlIndexByteBudgetTests
 
             if (scenario == "impossible")
             {
-                entity.HasIndex(node => node.Scope).HasPrefixLength(255);
-                entity.HasIndex(node => node.TreeId).HasPrefixLength(255);
-                entity.HasIndex(node => node.ParentId).HasPrefixLength(255);
-            }
-        }
-    }
+                entity
+                    .HasIndex(node => node.Scope)
+                    .HasPrefixLength(255);
 
-    /// <summary>
-    /// Applies complete indexes that expose either a tighter principal cap or
-    /// the repeated coefficient of two linked columns in one physical index.
-    /// </summary>
-    private static void ConfigureRelationshipBudgetIndex(
-        EntityTypeBuilder<RelationshipBudgetNode> entity,
-        string scenario
-    )
-    {
-        if (scenario == "both-ends")
-        {
-            entity.HasIndex(node => new { node.Id, node.ParentId, node.Scope, node.TreeId, node.Left, node.Flag });
-        }
-        else
-        {
-            entity.HasIndex(node => new { node.Scope, node.Flag, node.TreeId, node.Right, node.Left, node.Id });
+                entity
+                    .HasIndex(node => node.TreeId)
+                    .HasPrefixLength(255);
+
+                entity
+                    .HasIndex(node => node.ParentId)
+                    .HasPrefixLength(255);
+            }
         }
     }
 

@@ -277,8 +277,19 @@ publication authorization, and public package and GitHub release readback. Never
 
 - Follow the existing naming, formatting, and layout conventions in the codebase.
 - Use the repository `.editorconfig` and existing Rider-formatted code as the layout reference. Do not run `dotnet format whitespace`; its output does not match the repository's Rider layout.
+- Treat IDE cleanup as a semantic change when it modifies members. Keep
+  convention-mapped EF scalar properties writable in translation-only fixtures:
+  their setters can be required for model discovery even without test writes.
 - All code comments must be in English.
 - Document public APIs with XML comments and add documentation for internal APIs when it helps IDE users understand a non-obvious contract. Explain non-obvious implementation choices with short WHY comments rather than narrating the code.
+- Require an explicit `CancellationToken` argument on Doka-owned asynchronous
+  operations and forward the caller's token through cancellable work. Use
+  `CancellationToken.None` explicitly only when the entry point supplies no token
+  or the operation must deliberately finish without cancellation. Preserve the
+  upstream signatures of EF Core and .NET overrides, interface implementations,
+  test entry points and benchmark hooks. Cleanup-only helpers that must finish
+  despite cancellation remain token-less with a short WHY comment. Synchronous
+  deferred async-query factories receive the token at enumeration instead.
 - Leave a blank line after control-flow blocks and multiline variable
   initializations. Leave a blank line before `return`, except in a block
   containing only two lines of code. Use blank lines to separate logical groups.

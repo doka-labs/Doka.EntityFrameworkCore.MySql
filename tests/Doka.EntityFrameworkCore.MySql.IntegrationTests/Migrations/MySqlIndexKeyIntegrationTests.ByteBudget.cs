@@ -15,7 +15,10 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_implicit_composite_indexes_share_the_physical_byte_budget() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertImplicitCompositeBudgetAsync);
+        WithBudgetDatabaseAsync(
+            IntegrationDatabaseTarget.MySql84,
+            AssertImplicitCompositeBudgetAsync,
+            CancellationToken.None);
 
     /// <summary>
     /// The same implicit allocation preserves full native index semantics on
@@ -23,7 +26,10 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_implicit_composite_indexes_share_the_physical_byte_budget() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MariaDb118, AssertImplicitCompositeBudgetAsync);
+        WithBudgetDatabaseAsync(
+            IntegrationDatabaseTarget.MariaDb118,
+            AssertImplicitCompositeBudgetAsync,
+            CancellationToken.None);
 
     /// <summary>
     /// An owned MySQL index honors the owner's actual shared-table charset and
@@ -31,14 +37,17 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_owned_indexes_use_the_owner_physical_table_character_set() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertOwnedTableBudgetAsync);
+        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertOwnedTableBudgetAsync, CancellationToken.None);
 
     /// <summary>
     /// MariaDB uses the same physical owner-table default for owned key parts.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_owned_indexes_use_the_owner_physical_table_character_set() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MariaDb118, AssertOwnedTableBudgetAsync);
+        WithBudgetDatabaseAsync(
+            IntegrationDatabaseTarget.MariaDb118,
+            AssertOwnedTableBudgetAsync,
+            CancellationToken.None);
 
     /// <summary>
     /// MySQL accepts the complete index when the default DECIMAL consumes its
@@ -46,23 +55,31 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_decimal_index_uses_the_native_packed_width() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertDecimalBudgetAsync);
+        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertDecimalBudgetAsync, CancellationToken.None);
 
     /// <summary>
     /// MariaDB accepts the same complete key without a hidden index prefix.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_decimal_index_uses_the_native_packed_width() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MariaDb118, AssertDecimalBudgetAsync);
+        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MariaDb118, AssertDecimalBudgetAsync, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies implicit composite budget for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
     private static async Task AssertImplicitCompositeBudgetAsync(
         MySqlConnection connection,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var context = new ImplicitBudgetContext(
-            IntegrationTestDbContextOptions.Create<ImplicitBudgetContext>()
+            IntegrationTestDbContextOptions
+                .Create<ImplicitBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
 
@@ -83,19 +100,35 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             // Act
             await using var create = connection.CreateCommand();
             create.CommandText = context.Database.GenerateCreateScript();
-            _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
-            context.Set<Dictionary<string, object>>("Budget").Add(row);
+            _ = await create
+                .ExecuteNonQueryAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            _ = await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-            var persisted = await context.Set<Dictionary<string, object>>("Budget")
+            context
+                .Set<Dictionary<string, object>>("Budget")
+                .Add(row);
+
+            _ = await context
+                .SaveChangesAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var persisted = await context
+                .Set<Dictionary<string, object>>("Budget")
                 .AsNoTracking()
-                .SingleAsync(CancellationToken.None)
+                .SingleAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var indexedColumns = await ReadBudgetIndexAsync(connection, ImplicitBudgetTable, ImplicitBudgetIndex)
+            var indexedColumns = await ReadBudgetIndexAsync(
+                    connection,
+                    ImplicitBudgetTable,
+                    ImplicitBudgetIndex,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            var model = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+            var model = context
+                .GetService<IDesignTimeModel>()
+                .Model
+                .FindEntityType("Budget")!;
 
             // Assert
             Assert.Equal(value, persisted["Id"]);
@@ -111,54 +144,83 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         }
         finally
         {
-            await DropImplicitBudgetTableAsync(connection).ConfigureAwait(false);
+            await DropImplicitBudgetTableAsync(connection)
+                .ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Reads budget index for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="table">The table.</param>
+    /// <param name="index">The index.</param>
     private static async Task<List<(string Name, long? Prefix)>> ReadBudgetIndexAsync(
         MySqlConnection connection,
         string table,
-        string index
+        string index,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COLUMN_NAME, SUB_PART FROM information_schema.STATISTICS "
             + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND INDEX_NAME = @index "
             + "ORDER BY SEQ_IN_INDEX;";
+
         command.Parameters.AddWithValue("@table", table);
         command.Parameters.AddWithValue("@index", index);
-        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var columns = new List<(string Name, long? Prefix)>();
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
-            columns.Add((
-                reader.GetString(0),
-                await reader.IsDBNullAsync(1, CancellationToken.None).ConfigureAwait(false)
-                    ? null
-                    : reader.GetInt64(1)));
+            columns.Add(
+                (
+                    reader.GetString(0),
+                    await reader
+                        .IsDBNullAsync(1, cancellationToken)
+                        .ConfigureAwait(false)
+                        ? null
+                        : reader.GetInt64(1)));
         }
 
         return columns;
     }
 
+    // WHY: Cleanup must finish after caller cancellation to leave no test resources behind.
     private static async Task DropImplicitBudgetTableAsync(
         MySqlConnection connection
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{ImplicitBudgetTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Verifies owned table budget for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
     private static async Task AssertOwnedTableBudgetAsync(
         MySqlConnection connection,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var context = new OwnedBudgetContext(
-            IntegrationTestDbContextOptions.Create<OwnedBudgetContext>()
+            IntegrationTestDbContextOptions
+                .Create<OwnedBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
 
@@ -176,28 +238,45 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         // Act
         await using var create = connection.CreateCommand();
         create.CommandText = context.Database.GenerateCreateScript();
-        _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
-        context.Add(row);
-
-        _ = await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-        var persisted = await context.Set<OwnedBudgetOwner>()
-            .AsNoTracking()
-            .SingleAsync(CancellationToken.None)
+        _ = await create
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var indexedColumns = await ReadBudgetIndexAsync(connection, OwnedBudgetTable, OwnedBudgetIndex)
+        context.Add(row);
+
+        _ = await context
+            .SaveChangesAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var persisted = await context
+            .Set<OwnedBudgetOwner>()
+            .AsNoTracking()
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var indexedColumns = await ReadBudgetIndexAsync(
+                connection,
+                OwnedBudgetTable,
+                OwnedBudgetIndex,
+                cancellationToken)
             .ConfigureAwait(false);
 
         await using var schema = connection.CreateCommand();
         schema.CommandText = "SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_SET_NAME "
             + "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table "
             + "AND COLUMN_NAME IN ('Detail_A', 'Detail_B') ORDER BY COLUMN_NAME;";
+
         schema.Parameters.AddWithValue("@table", OwnedBudgetTable);
 
-        await using var reader = await schema.ExecuteReaderAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var reader = await schema
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var columns = new List<(string Name, long Length, string CharSet)>();
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             columns.Add((reader.GetString(0), reader.GetInt64(1), reader.GetString(2)));
         }
@@ -210,14 +289,22 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         Assert.Equal([("Detail_A", 700L, "utf8mb4"), ("Detail_B", 68L, "utf8mb4")], columns);
     }
 
+    /// <summary>
+    /// Verifies decimal budget for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
     private static async Task AssertDecimalBudgetAsync(
         MySqlConnection connection,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var context = new DecimalBudgetContext(
-            IntegrationTestDbContextOptions.Create<DecimalBudgetContext>()
+            IntegrationTestDbContextOptions
+                .Create<DecimalBudgetContext>()
                 .UseMySql(connection, serverVersion)
                 .Options);
 
@@ -235,16 +322,29 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         // Act
         await using var create = connection.CreateCommand();
         create.CommandText = context.Database.GenerateCreateScript();
-        _ = await create.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
-        context.Set<Dictionary<string, object>>("DecimalBudget").Add(row);
-
-        _ = await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
-        var persisted = await context.Set<Dictionary<string, object>>("DecimalBudget")
-            .AsNoTracking()
-            .SingleAsync(CancellationToken.None)
+        _ = await create
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var indexedColumns = await ReadBudgetIndexAsync(connection, DecimalBudgetTable, DecimalBudgetIndex)
+        context
+            .Set<Dictionary<string, object>>("DecimalBudget")
+            .Add(row);
+
+        _ = await context
+            .SaveChangesAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var persisted = await context
+            .Set<Dictionary<string, object>>("DecimalBudget")
+            .AsNoTracking()
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var indexedColumns = await ReadBudgetIndexAsync(
+                connection,
+                DecimalBudgetTable,
+                DecimalBudgetIndex,
+                cancellationToken)
             .ConfigureAwait(false);
 
         // Assert
@@ -260,12 +360,20 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Applies complete generated DDL inside one disposable native database.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
+    /// <param name="assertion">The assertion callback, supplied with the database and caller token.</param>
     private static async Task WithBudgetDatabaseAsync(
         IntegrationDatabaseTarget target,
-        Func<MySqlConnection, MySqlServerVersion, Task> assertion
+        Func<MySqlConnection, MySqlServerVersion, CancellationToken, Task> assertion,
+        CancellationToken cancellationToken
     )
     {
-        var databaseName = "doka_index_budget_" + Guid.NewGuid().ToString("N");
+        var databaseName = "doka_index_budget_"
+            + Guid
+                .NewGuid()
+                .ToString("N");
+
         var connectionString = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
         {
             Database = string.Empty,
@@ -274,10 +382,15 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         };
 
         await using var administration = new MySqlConnection(connectionString.ConnectionString);
-        await administration.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await administration
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         await using var command = administration.CreateCommand();
         command.CommandText = $"CREATE DATABASE `{databaseName}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -285,13 +398,19 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             // preserves that exact DDL without changing another test's defaults.
             connectionString.Database = databaseName;
             await using var connection = new MySqlConnection(connectionString.ConnectionString);
-            await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-            await assertion(connection, IntegrationTestEnvironment.GetServerVersion(target)).ConfigureAwait(false);
+            await connection
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            await assertion(connection, IntegrationTestEnvironment.GetServerVersion(target), cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
             command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-            _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await command
+                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -333,14 +452,31 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             modelBuilder.HasCharSet("latin1");
             modelBuilder.Entity<OwnedBudgetOwner>(owner =>
             {
-                owner.ToTable(OwnedBudgetTable).HasCharSet("utf8mb4");
-                owner.OwnsOne(value => value.Detail, detail =>
-                {
-                    detail.ToTable(OwnedBudgetTable);
-                    detail.Property(value => value.A).HasMaxLength(700);
-                    detail.HasIndex(value => new { value.A, value.B }).HasDatabaseName(OwnedBudgetIndex);
-                });
-                owner.Navigation(value => value.Detail).IsRequired();
+                owner
+                    .ToTable(OwnedBudgetTable)
+                    .HasCharSet("utf8mb4");
+
+                owner.OwnsOne(
+                    value => value.Detail,
+                    detail =>
+                    {
+                        detail.ToTable(OwnedBudgetTable);
+                        detail
+                            .Property(value => value.A)
+                            .HasMaxLength(700);
+
+                        detail
+                            .HasIndex(value => new
+                            {
+                                value.A,
+                                value.B,
+                            })
+                            .HasDatabaseName(OwnedBudgetIndex);
+                    });
+
+                owner
+                    .Navigation(value => value.Detail)
+                    .IsRequired();
             });
         }
     }
@@ -357,20 +493,34 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             modelBuilder.HasCharSet("utf8mb4");
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>("Budget");
             entity.ToTable(ImplicitBudgetTable);
-            entity.Property<string>("Id").IsRequired();
-            entity.Property<string>("Scope").IsRequired();
-            entity.Property<string>("Tree").IsRequired();
+            entity
+                .Property<string>("Id")
+                .IsRequired();
+
+            entity
+                .Property<string>("Scope")
+                .IsRequired();
+
+            entity
+                .Property<string>("Tree")
+                .IsRequired();
+
             entity.Property<string>("Parent");
             entity.Property<long>("L");
             entity.Property<long>("R");
             entity.Property<long>("Position");
             entity.Property<int>("Depth");
-            entity.Property<bool>("Flag").HasComputedColumnSql("`R` > `L` + 1", stored: false);
+            entity
+                .Property<bool>("Flag")
+                .HasComputedColumnSql("`R` > `L` + 1", stored: false);
+
             entity.HasKey("Id");
             entity.HasIndex("Scope", "Tree", "L");
             entity.HasIndex("Scope", "Tree", "R");
             entity.HasIndex("Scope", "Tree", "Parent", "Position");
-            entity.HasIndex("Scope", "Flag", "Tree", "R", "L", "Id").HasDatabaseName(ImplicitBudgetIndex);
+            entity
+                .HasIndex("Scope", "Flag", "Tree", "R", "L", "Id")
+                .HasDatabaseName(ImplicitBudgetIndex);
         }
     }
 
@@ -387,13 +537,30 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>("DecimalBudget");
             entity.ToTable(DecimalBudgetTable);
             entity.Property<int>("Id");
-            entity.Property<string>("A").HasMaxLength(255).IsRequired();
-            entity.Property<string>("B").HasMaxLength(255).IsRequired();
-            entity.Property<string>("C").HasMaxLength(254).IsRequired();
+            entity
+                .Property<string>("A")
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity
+                .Property<string>("B")
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity
+                .Property<string>("C")
+                .HasMaxLength(254)
+                .IsRequired();
+
             entity.Property<decimal>("D");
-            entity.Property<string>("E").IsRequired();
+            entity
+                .Property<string>("E")
+                .IsRequired();
+
             entity.HasKey("Id");
-            entity.HasIndex("A", "B", "C", "D", "E").HasDatabaseName(DecimalBudgetIndex);
+            entity
+                .HasIndex("A", "B", "C", "D", "E")
+                .HasDatabaseName(DecimalBudgetIndex);
         }
     }
 }

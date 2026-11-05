@@ -20,9 +20,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Verifies that lifting a simple correlated CROSS APPLY to an inner join
@@ -36,10 +34,9 @@ public sealed class NorthwindBulkUpdatesMySqlTest
             (NorthwindBulkUpdatesMySqlContext)createContext();
 
         var customerCount = await context.Customers
-            .CountAsync(
-                customer => EF.Functions.Like(
-                    customer.CustomerID,
-                    "F%"));
+            .CountAsync(customer => EF.Functions.Like(
+                customer.CustomerID,
+                "F%"));
 
         var orderCount = await context.Orders
             .CountAsync(order => order.OrderID > 5);
@@ -47,8 +44,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
         var rows = await (
                 from customer in context.Customers
                 where EF.Functions.Like(customer.CustomerID, "F%")
-                from order in context.Orders.Where(
-                    order => order.OrderID > customer.CustomerID.Length)
+                from order in context.Orders.Where(order => order.OrderID > customer.CustomerID.Length)
                 select new
                 {
                     customer.CustomerID,
@@ -71,18 +67,17 @@ public sealed class NorthwindBulkUpdatesMySqlTest
             (NorthwindBulkUpdatesMySqlContext)createContext();
 
         var expectedCount = await context.Customers
-            .CountAsync(
-                customer => EF.Functions.Like(
-                    customer.CustomerID,
-                    "F%"));
+            .CountAsync(customer => EF.Functions.Like(
+                customer.CustomerID,
+                "F%"));
 
         var rows = await (
                 from customer in context.Customers
                 where EF.Functions.Like(customer.CustomerID, "F%")
-                from order in context.Orders
-                    .Where(
-                        order =>
-                            order.OrderID < customer.CustomerID.Length)
+                from order in context
+                    .Orders
+                    .Where(order =>
+                        order.OrderID < customer.CustomerID.Length)
                     .DefaultIfEmpty()
                 select new
                 {
@@ -146,9 +141,7 @@ public sealed class NorthwindBulkUpdatesMySqlContext : NorthwindRelationalContex
 {
     public NorthwindBulkUpdatesMySqlContext(
         DbContextOptions options
-    ) : base(options)
-    {
-    }
+    ) : base(options) { }
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder
@@ -158,29 +151,49 @@ public sealed class NorthwindBulkUpdatesMySqlContext : NorthwindRelationalContex
 
         modelBuilder.Entity<Employee>(builder =>
         {
-            builder.Property(entity => entity.EmployeeID).HasColumnType("int");
-            builder.Property(entity => entity.ReportsTo).HasColumnType("int");
+            builder
+                .Property(entity => entity.EmployeeID)
+                .HasColumnType("int");
+
+            builder
+                .Property(entity => entity.ReportsTo)
+                .HasColumnType("int");
         });
 
-        modelBuilder.Entity<Customer>()
+        modelBuilder
+            .Entity<Customer>()
             .Property(entity => entity.CustomerID)
             .IsFixedLength();
 
         modelBuilder.Entity<Order>(builder =>
         {
-            builder.Property(entity => entity.CustomerID).IsFixedLength();
-            builder.Property(entity => entity.EmployeeID).HasColumnType("int");
-            builder.Property(entity => entity.OrderDate).HasColumnType("datetime");
+            builder
+                .Property(entity => entity.CustomerID)
+                .IsFixedLength();
+
+            builder
+                .Property(entity => entity.EmployeeID)
+                .HasColumnType("int");
+
+            builder
+                .Property(entity => entity.OrderDate)
+                .HasColumnType("datetime");
         });
 
-        modelBuilder.Entity<Product>()
+        modelBuilder
+            .Entity<Product>()
             .Property(entity => entity.UnitsInStock)
             .HasColumnType("smallint");
 
         modelBuilder.Entity<OrderDetail>(builder =>
         {
-            builder.Property(entity => entity.Quantity).HasColumnType("smallint");
-            builder.Property(entity => entity.Discount).HasColumnType("float");
+            builder
+                .Property(entity => entity.Quantity)
+                .HasColumnType("smallint");
+
+            builder
+                .Property(entity => entity.Discount)
+                .HasColumnType("float");
         });
     }
 }
@@ -196,9 +209,7 @@ public sealed class NonSharedModelBulkUpdatesMySqlTest
 {
     public NonSharedModelBulkUpdatesMySqlTest(
         NonSharedFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override ITestStoreFactory TestStoreFactory =>
         MySqlTestStoreFactory.Instance;
@@ -218,9 +229,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
@@ -282,9 +291,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
@@ -346,9 +353,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
@@ -419,9 +424,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Activates the upstream-skipped grouped delete projection.
@@ -483,9 +486,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 
     /// <summary>
     /// Activates both upstream-skipped hierarchy delete predicates.

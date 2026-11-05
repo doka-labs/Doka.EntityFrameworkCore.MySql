@@ -38,10 +38,15 @@ public sealed partial class MySqlCacheRegistrationTests
         // Act
         // WHY: Disposing both synchronous aliases must be safe even though they share one owner.
         // ReSharper disable once MethodHasAsyncOverload
-        Assert.IsAssignableFrom<IDisposable>(cache).Dispose();
+        Assert
+            .IsAssignableFrom<IDisposable>(cache)
+            .Dispose();
+
         // WHY: The second alias must exercise the same synchronous disposal contract.
         // ReSharper disable once MethodHasAsyncOverload
-        Assert.IsAssignableFrom<IDisposable>(bufferCache).Dispose();
+        Assert
+            .IsAssignableFrom<IDisposable>(bufferCache)
+            .Dispose();
 
         // WHY: This assertion protects the synchronous API after both aliases have been disposed.
         // ReSharper disable once MethodHasAsyncOverload
@@ -139,6 +144,13 @@ public sealed partial class MySqlCacheRegistrationTests
         options.DataSource = dataSource;
     });
 
+    /// <summary>
+    /// Disposes the cache through the lifecycle contract selected by the test case.
+    /// </summary>
+    /// <param name="cache">The cache whose lifecycle ownership is under test.</param>
+    /// <param name="asynchronousDisposal">Whether to invoke asynchronous disposal.</param>
+
+    // WHY: IDisposable and IAsyncDisposable intentionally expose no cancellation contract.
     private static async ValueTask DisposeCacheAsync(
         IBufferDistributedCache cache,
         bool asynchronousDisposal
@@ -146,13 +158,17 @@ public sealed partial class MySqlCacheRegistrationTests
     {
         if (asynchronousDisposal)
         {
-            await Assert.IsAssignableFrom<IAsyncDisposable>(cache).DisposeAsync();
+            await Assert
+                .IsAssignableFrom<IAsyncDisposable>(cache)
+                .DisposeAsync();
         }
         else
         {
             // WHY: Disposal mode is a test dimension; substituting DisposeAsync would omit its synchronous half.
             // ReSharper disable once MethodHasAsyncOverload
-            Assert.IsAssignableFrom<IDisposable>(cache).Dispose();
+            Assert
+                .IsAssignableFrom<IDisposable>(cache)
+                .Dispose();
         }
     }
 
@@ -164,18 +180,23 @@ public sealed partial class MySqlCacheRegistrationTests
         // WHY: Each delegate must exercise the synchronous API's disposed-owner guard directly.
         // ReSharper disable once MethodHasAsyncOverload
         "Get" => () => cache.Get("key"),
+
         // WHY: The byte-array overload has its own disposed-owner guard.
         // ReSharper disable once MethodHasAsyncOverload
         "SetBytes" => () => cache.Set("key", new byte[] { 1 }, new DistributedCacheEntryOptions()),
+
         // WHY: The buffer overload must reject a disposed owner independently of the byte-array overload.
         // ReSharper disable once MethodHasAsyncOverload
         "SetBuffer" => () => cache.Set("key", ReadOnlySequence<byte>.Empty, new DistributedCacheEntryOptions()),
+
         // WHY: This delegate covers the synchronous buffer-read contract.
         // ReSharper disable once MethodHasAsyncOverload
         "TryGet" => () => cache.TryGet("key", new ArrayBufferWriter<byte>()),
+
         // WHY: This delegate covers the synchronous refresh contract.
         // ReSharper disable once MethodHasAsyncOverload
         "Refresh" => () => cache.Refresh("key"),
+
         // WHY: This delegate covers the synchronous removal contract.
         // ReSharper disable once MethodHasAsyncOverload
         "Remove" => () => cache.Remove("key"),
@@ -189,10 +210,20 @@ public sealed partial class MySqlCacheRegistrationTests
     {
         "Get" => () => cache.GetAsync("key", CancellationToken.None),
         "SetBytes" => () => cache.SetAsync(
-            "key", new byte[] { 1 }, new DistributedCacheEntryOptions(), CancellationToken.None),
-        "SetBuffer" => () => cache.SetAsync(
-            "key", ReadOnlySequence<byte>.Empty, new DistributedCacheEntryOptions(), CancellationToken.None).AsTask(),
-        "TryGet" => () => cache.TryGetAsync("key", new ArrayBufferWriter<byte>(), CancellationToken.None).AsTask(),
+            "key",
+            new byte[] { 1 },
+            new DistributedCacheEntryOptions(),
+            CancellationToken.None),
+        "SetBuffer" => () => cache
+            .SetAsync(
+                "key",
+                ReadOnlySequence<byte>.Empty,
+                new DistributedCacheEntryOptions(),
+                CancellationToken.None)
+            .AsTask(),
+        "TryGet" => () => cache
+            .TryGetAsync("key", new ArrayBufferWriter<byte>(), CancellationToken.None)
+            .AsTask(),
         "Refresh" => () => cache.RefreshAsync("key", CancellationToken.None),
         "Remove" => () => cache.RemoveAsync("key", CancellationToken.None),
         _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown cache operation."),

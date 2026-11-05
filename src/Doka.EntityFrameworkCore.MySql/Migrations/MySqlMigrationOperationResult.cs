@@ -7,6 +7,7 @@ public sealed class MySqlMigrationOperationResult
 {
     private static readonly IReadOnlyList<MySqlMigrationCommandSpec> s_emptyCommands =
         Array.Empty<MySqlMigrationCommandSpec>();
+
     private static readonly Regex s_outcomeCodePattern = new(
         "^[a-z][a-z0-9_]{0,63}$",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
@@ -46,13 +47,13 @@ public sealed class MySqlMigrationOperationResult
     /// </param>
     /// <returns>The immutable generated result.</returns>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="commands"/> or <paramref name="outcomeCode"/> is
-    /// <see langword="null"/>.
+    /// <paramref name="commands" /> or <paramref name="outcomeCode" /> is
+    /// <see langword="null" />.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="outcomeCode"/> does not satisfy the bounded contract, or
-    /// <paramref name="commands"/> is empty or contains a
-    /// <see langword="null"/> element.
+    /// <paramref name="outcomeCode" /> does not satisfy the bounded contract, or
+    /// <paramref name="commands" /> is empty or contains a
+    /// <see langword="null" /> element.
     /// </exception>
     public static MySqlMigrationOperationResult Generated(
         IEnumerable<MySqlMigrationCommandSpec> commands,
@@ -64,7 +65,8 @@ public sealed class MySqlMigrationOperationResult
 
         var snapshot = commands.ToArray();
 
-        if (snapshot.Length == 0 || snapshot.Any(command => command is null))
+        if (snapshot.Length == 0
+            || snapshot.Any(command => command is null))
         {
             throw new ArgumentException(
                 "A generated result must contain at least one non-null command.",
@@ -87,10 +89,10 @@ public sealed class MySqlMigrationOperationResult
     /// </param>
     /// <returns>The commandless consumed result.</returns>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="outcomeCode"/> is <see langword="null"/>.
+    /// <paramref name="outcomeCode" /> is <see langword="null" />.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="outcomeCode"/> does not satisfy the bounded contract.
+    /// <paramref name="outcomeCode" /> does not satisfy the bounded contract.
     /// </exception>
     public static MySqlMigrationOperationResult Consumed(
         string outcomeCode
@@ -104,7 +106,9 @@ public sealed class MySqlMigrationOperationResult
             MySqlMigrationOperationResultKind.Consumed);
     }
 
-    internal static bool IsValidOutcomeCode(string outcomeCode)
+    internal static bool IsValidOutcomeCode(
+        string outcomeCode
+    )
         => s_outcomeCodePattern.IsMatch(outcomeCode);
 
     private static void ValidateOutcomeCode(

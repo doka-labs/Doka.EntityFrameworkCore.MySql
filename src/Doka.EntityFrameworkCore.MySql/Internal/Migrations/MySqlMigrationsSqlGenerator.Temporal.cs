@@ -21,7 +21,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             : MySqlAnnotationNames.IsTemporal;
 
         if (operation.FindAnnotation(isTemporalAnnotation)
-                ?.Value is not true)
+            ?.Value is not true)
         {
             contract = null;
             return false;
@@ -101,17 +101,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         builder
             .Append(DelimitMigrationIdentifier(name))
-            .Append(support == ProviderSupportStatus.Native ? " timestamp(6)" : " datetime(6)");
+            .Append(
+                support == ProviderSupportStatus.Native
+                    ? " timestamp(6)"
+                    : " datetime(6)");
 
         if (support == ProviderSupportStatus.Native)
         {
-            builder.Append(isPeriodStart ? " GENERATED ALWAYS AS ROW START" : " GENERATED ALWAYS AS ROW END");
+            builder.Append(
+                isPeriodStart
+                    ? " GENERATED ALWAYS AS ROW START"
+                    : " GENERATED ALWAYS AS ROW END");
         }
         else
         {
             builder
                 .Append(" NOT NULL DEFAULT ")
-                .Append(isPeriodStart ? "CURRENT_TIMESTAMP(6)" : $"'{TemporalInfinity}'");
+                .Append(
+                    isPeriodStart
+                        ? "CURRENT_TIMESTAMP(6)"
+                        : $"'{TemporalInfinity}'");
         }
     }
 
@@ -159,7 +168,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
 
         if (operation.FindAnnotation(MySqlAnnotationNames.StorageEngine)
-                ?.Value is null)
+            ?.Value is null)
         {
             // Trigger side effects roll back with the source statement only when
             // both the current and history tables use a transactional engine.
@@ -262,10 +271,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 column.IsStored,
                 column.IsNullable,
                 builder);
+
             return;
         }
 
-        builder.Append(column.IsNullable ? " NULL" : " NOT NULL");
+        builder.Append(
+            column.IsNullable
+                ? " NULL"
+                : " NOT NULL");
     }
 
     private void AppendTemporalEmulation(
@@ -373,10 +386,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 column.IsStored,
                 column.IsNullable,
                 builder);
+
             return;
         }
 
-        builder.Append(column.IsNullable ? " NULL" : " NOT NULL");
+        builder.Append(
+            column.IsNullable
+                ? " NULL"
+                : " NOT NULL");
     }
 
     private void AppendTemporalGeneratedColumnExpression(
@@ -390,7 +407,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" GENERATED ALWAYS AS (")
             .Append(computedColumnSql)
             .Append(") ")
-            .Append(isStored == true ? GetStoredGeneratedColumnKeyword() : "VIRTUAL");
+            .Append(
+                isStored == true
+                    ? GetStoredGeneratedColumnKeyword()
+                    : "VIRTUAL");
 
         if (!isNullable
             && Profile.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause) == ProviderSupportStatus.Native)
@@ -402,6 +422,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     private static string[] GetTemporalTriggerColumns(
         IEnumerable<AddColumnOperation> columns
     ) => columns
+
         // MySQL prohibits OLD and NEW references to generated columns. The
         // history table recomputes them from the copied historical base values.
         .Where(column => string.IsNullOrWhiteSpace(column.ComputedColumnSql))
@@ -457,7 +478,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         if (hasTemporaryDefault)
         {
             var storeType = operation.ColumnType
-                ?? Dependencies.TypeMappingSource.FindMapping(operation.ClrType)?.StoreType
+                ?? Dependencies.TypeMappingSource.FindMapping(operation.ClrType)
+                    ?.StoreType
                 ?? throw new InvalidOperationException(
                     $"Could not resolve the store type for temporal history column '{operation.Name}'.");
 
@@ -476,6 +498,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(DelimitMigrationIdentifier(operation.Name))
                 .Append(" DROP DEFAULT")
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             EndStatement(builder);
         }
     }
@@ -495,6 +518,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(" DROP COLUMN ")
                 .Append(DelimitMigrationIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             EndStatement(builder);
 
             builder
@@ -532,6 +556,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" DROP COLUMN ")
             .Append(DelimitMigrationIdentifier(operation.Name))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -564,6 +589,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append("DROP TRIGGER IF EXISTS ")
             .Append(DelimitMigrationIdentifier(triggerName, schema))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -576,6 +602,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append("DROP TABLE ")
             .Append(DelimitMigrationIdentifier(contract.HistoryTable!, contract.HistorySchema))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -590,17 +617,20 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append("ALTER TABLE ")
             .Append(DelimitMigrationIdentifier(tableName, schema))
             .Append(" ADD ");
+
         AppendTemporalPeriodColumnDefinition(
             contract.PeriodStartColumn,
             isPeriodStart: true,
             ProviderSupportStatus.Native,
             builder);
+
         builder.Append(", ADD ");
         AppendTemporalPeriodColumnDefinition(
             contract.PeriodEndColumn,
             isPeriodStart: false,
             ProviderSupportStatus.Native,
             builder);
+
         builder
             .Append(", ADD PERIOD FOR SYSTEM_TIME (")
             .Append(DelimitMigrationIdentifier(contract.PeriodStartColumn))
@@ -608,6 +638,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(DelimitMigrationIdentifier(contract.PeriodEndColumn))
             .Append("), ADD SYSTEM VERSIONING")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -619,6 +650,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     )
     {
         builder
+
             // MariaDB rejects structural changes to a system-versioned table in
             // its safe default mode. SET STATEMENT confines KEEP to this one
             // destructive deactivation statement and restores the session value
@@ -630,6 +662,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(", DROP COLUMN ")
             .Append(DelimitMigrationIdentifier(contract.PeriodEndColumn))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -711,6 +744,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         using (builder.Indent())
         {
             builder
+
                 // Reverse engineering recognizes only this provider-owned marker;
                 // user triggers with similar SQL remain ordinary database objects.
                 .Append("/* ")
@@ -731,6 +765,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 builder
                     .AppendLine("DECLARE __doka_temporal_timestamp datetime(6);")
                     .AppendLine("SET __doka_temporal_timestamp = UTC_TIMESTAMP(6);");
+
                 AppendTemporalHistoryInsert(columns, contract, builder);
 
                 if (triggerEvent == TemporalTriggerEvent.Update)
@@ -743,6 +778,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         builder
             .Append("END")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 

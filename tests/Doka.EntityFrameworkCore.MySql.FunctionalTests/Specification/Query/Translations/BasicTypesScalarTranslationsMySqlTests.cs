@@ -12,9 +12,7 @@ public sealed class BasicTypesByteArrayTranslationsMySqlTest
 {
     public BasicTypesByteArrayTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -27,9 +25,7 @@ public sealed class BasicTypesEnumTranslationsMySqlTest
 {
     public BasicTypesEnumTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -42,9 +38,7 @@ public sealed class BasicTypesGuidTranslationsMySqlTest
 {
     public BasicTypesGuidTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }
 
 /// <summary>
@@ -57,7 +51,5 @@ public sealed class BasicTypesMathTranslationsMySqlTest
 {
     public BasicTypesMathTranslationsMySqlTest(
         BasicTypesQueryMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 }

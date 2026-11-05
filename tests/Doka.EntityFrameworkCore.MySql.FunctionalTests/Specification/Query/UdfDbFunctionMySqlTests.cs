@@ -102,30 +102,6 @@ public sealed partial class UdfDbFunctionMySqlTest : UdfDbFunctionTestBase<UdfDb
 
     public sealed class MySqlUdfFixture : UdfFixtureBase
     {
-        protected override string StoreName => "UDFDbFunctionMySqlTests";
-
-        protected override Type ContextType { get; } = typeof(MySqlUdfContext);
-
-        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
-
-        protected override async Task SeedAsync(
-            DbContext context
-        )
-        {
-            await base.SeedAsync(context);
-            await context.SaveChangesAsync();
-
-            foreach (var commandText in s_dropFunctionCommands)
-            {
-                await context.Database.ExecuteSqlRawAsync(commandText);
-            }
-
-            foreach (var commandText in s_createFunctionCommands)
-            {
-                await context.Database.ExecuteSqlRawAsync(commandText);
-            }
-        }
-
         private static readonly string[] s_dropFunctionCommands =
         [
             "DROP FUNCTION IF EXISTS `AddValues`",
@@ -227,6 +203,30 @@ public sealed partial class UdfDbFunctionMySqlTest : UdfDbFunctionTestBase<UdfDb
             RETURN CHAR_LENGTH(`value`)
             """,
         ];
+
+        protected override string StoreName => "UDFDbFunctionMySqlTests";
+
+        protected override Type ContextType { get; } = typeof(MySqlUdfContext);
+
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
+        protected override async Task SeedAsync(
+            DbContext context
+        )
+        {
+            await base.SeedAsync(context);
+            await context.SaveChangesAsync();
+
+            foreach (var commandText in s_dropFunctionCommands)
+            {
+                await context.Database.ExecuteSqlRawAsync(commandText);
+            }
+
+            foreach (var commandText in s_createFunctionCommands)
+            {
+                await context.Database.ExecuteSqlRawAsync(commandText);
+            }
+        }
     }
 
     private sealed class MySqlUdfContext : UDFSqlContext

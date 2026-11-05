@@ -1,3 +1,6 @@
+using NetTopologySuite.Geometries.Utilities;
+using NetTopologySuite.Operation.Union;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
@@ -14,12 +17,15 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateFunctionContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var query = context.Rows.Select(row => row.LeftGeometry!.IsValid);
 
         // Act
-        var actual = await query.SingleAsync().ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync()
+            .ConfigureAwait(false);
 
         // Assert
         Assert.True(actual);
@@ -38,26 +44,34 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
-        await using var context = await _fixture.CreateFunctionContextAsync(engine);
+        await using var context = await _fixture.CreateFunctionContextAsync(engine, CancellationToken.None);
         var query = function switch
         {
             "Buffer" when engine == IntegrationDatabaseTarget.MariaDb123 =>
                 context.Rows.Select(row => row.LeftGeometry!.Buffer(1)),
             "Buffer" => context.Rows.Select(row => row.LeftGeometry!.Buffer(1, 4)),
-            "Combine" => context.Rows.GroupBy(_ => 1)
-                .Select(group => NetTopologySuite.Geometries.Utilities.GeometryCombiner.Combine(
+            "Combine" => context
+                .Rows
+                .GroupBy(_ => 1)
+                .Select(group => GeometryCombiner.Combine(
                     group.Select(row => row.LeftGeometry))),
-            "Union" => context.Rows.GroupBy(_ => 1)
-                .Select(group => NetTopologySuite.Operation.Union.UnaryUnionOp.Union(
+            "Union" => context
+                .Rows
+                .GroupBy(_ => 1)
+                .Select(group => UnaryUnionOp.Union(
                     group.Select(row => row.LeftGeometry))),
-            "Envelope" => context.Rows.GroupBy(_ => 1)
-                .Select(group => NetTopologySuite.Geometries.Utilities.EnvelopeCombiner.CombineAsGeometry(
+            "Envelope" => context
+                .Rows
+                .GroupBy(_ => 1)
+                .Select(group => EnvelopeCombiner.CombineAsGeometry(
                     group.Select(row => row.LeftGeometry))),
             _ => throw new ArgumentOutOfRangeException(nameof(function)),
         };
 
         // Act
-        var actual = await query.SingleAsync().ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync()
+            .ConfigureAwait(false);
 
         // Assert
         Assert.False(actual.IsEmpty);
@@ -76,18 +90,26 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateCrossesContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var cases = CreateCrossesCases();
-        var expected = cases.Select(pair => (bool?)pair.Left.Crosses(pair.Right))
-            .Concat([null, null, null]).ToArray();
-        var query = context.Rows.OrderBy(row => row.Id)
+        var expected = cases
+            .Select(pair => (bool?)pair.Left.Crosses(pair.Right))
+            .Concat([null, null, null])
+            .ToArray();
+
+        var query = context
+            .Rows
+            .OrderBy(row => row.Id)
             .Select(row => (bool?)row.LeftGeometry!.Crosses(row.RightGeometry!));
 
         // WHY: One server projection dispatches over all dimension orders and
         // both nullable operands; the complete result vector is the contract.
         // Act
-        var actual = await query.ToListAsync().ConfigureAwait(false);
+        var actual = await query
+            .ToListAsync()
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Contains(true, expected);

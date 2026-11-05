@@ -9,7 +9,8 @@ internal sealed class RequiresDatabaseTargetsTheoryAttribute : TheoryAttribute
         params IntegrationDatabaseTarget[] targets
     )
     {
-        if (targets is null || targets.Length == 0)
+        if (targets is null
+            || targets.Length == 0)
         {
             throw new ArgumentException("At least one integration database target must be provided.", nameof(targets));
         }

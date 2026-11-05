@@ -29,11 +29,12 @@ public sealed partial class MySqlDatabaseModelFactoryTests
             index.Columns,
             column => Assert.Equal("First", column.Name),
             column => Assert.Equal("Second", column.Name));
+
         Assert.NotNull(index.IsDescending);
         Assert.Equal(
             [
                 false,
-                true
+                true,
             ],
             index.IsDescending);
     }
@@ -61,6 +62,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
             4326,
             spatialColumn.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
                 ?.Value);
+
         Assert.True(
             spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
                 ?.Value as bool?);
@@ -94,6 +96,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
             4326,
             spatialColumn.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
                 ?.Value);
+
         Assert.Equal("CK_spatial_location_not_null", userCheck.Name);
         Assert.Equal("`Location` IS NOT NULL", userCheck.Sql);
         Assert.Single(
@@ -158,7 +161,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
         Assert.Equal(
             [
                 "tenant_database",
-                "phase2"
+                "phase2",
             ],
             connection.DatabaseChanges);
     }
@@ -181,7 +184,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 [],
                 [
                     "principal_database",
-                    "dependent_database"
+                    "dependent_database",
                 ]));
 
         // Assert
@@ -198,9 +201,11 @@ public sealed partial class MySqlDatabaseModelFactoryTests
         Assert.Same(
             dependentTable.Columns.Single(column => column.Name == "PrincipalId"),
             Assert.Single(foreignKey.Columns));
+
         Assert.Same(
             principalTable.Columns.Single(column => column.Name == "Id"),
             Assert.Single(foreignKey.PrincipalColumns));
+
         Assert.Equal(ReferentialAction.Cascade, foreignKey.OnDelete);
         Assert.Equal("phase2", connection.Database);
         Assert.Equal(
@@ -209,7 +214,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "dependent_database",
                 "principal_database",
                 "dependent_database",
-                "phase2"
+                "phase2",
             ],
             connection.DatabaseChanges);
     }

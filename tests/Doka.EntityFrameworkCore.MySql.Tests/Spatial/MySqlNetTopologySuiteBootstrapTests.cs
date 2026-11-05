@@ -105,7 +105,10 @@ public sealed class MySqlNetTopologySuiteBootstrapTests
         Assert.Equal(geometryType, mapping?.ClrType);
         Assert.Equal(typeof(MySqlGeometry), providerOwnedMapping.ProviderClrType);
         Assert.True(geometryType.IsInstanceOfType(modelValue));
-        Assert.Equal(4326, Assert.IsAssignableFrom<Geometry>(modelValue).SRID);
+        Assert.Equal(
+            4326,
+            Assert.IsAssignableFrom<Geometry>(modelValue)
+                .SRID);
     }
 
     /// <summary>

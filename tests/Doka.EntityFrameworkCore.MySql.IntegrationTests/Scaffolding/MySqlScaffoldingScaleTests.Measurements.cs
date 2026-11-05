@@ -22,7 +22,14 @@ public sealed partial class MySqlScaffoldingScaleTests
                 IsBackground = true,
                 Name = "Doka scaffolding managed-heap sampler",
             };
+
             _thread.Start();
+        }
+
+        public void Dispose()
+        {
+            Stop();
+            _stop.Dispose();
         }
 
         public long Stop()
@@ -34,12 +41,6 @@ public sealed partial class MySqlScaffoldingScaleTests
             }
 
             return Math.Max(0, Volatile.Read(ref _peakBytes) - _baselineBytes);
-        }
-
-        public void Dispose()
-        {
-            Stop();
-            _stop.Dispose();
         }
 
         private void Sample()
@@ -82,7 +83,9 @@ public sealed partial class MySqlScaffoldingScaleTests
     {
         public static RestrictedAccount Create()
         {
-            var token = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..12];
+            var token = Guid
+                .NewGuid()
+                .ToString("N", CultureInfo.InvariantCulture)[..12];
 
             return new RestrictedAccount(
                 "doka_scale_" + token,
@@ -125,8 +128,6 @@ public sealed partial class MySqlScaffoldingScaleTests
     private sealed class ScaffoldingPerformanceBudgets
     {
         public required int MaximumSetBasedMetadataCommandsPerRun { get; init; }
-
-        public required int MaximumElapsedMillisecondsPerRun { get; init; }
 
         public required long MaximumAllocatedBytesPerRun { get; init; }
 

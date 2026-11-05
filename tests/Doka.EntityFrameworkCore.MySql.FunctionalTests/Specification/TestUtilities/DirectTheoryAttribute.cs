@@ -11,7 +11,5 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
     "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities."
     + "DirectTheoryDiscoverer",
     "Doka.EntityFrameworkCore.MySql.FunctionalTests")]
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class DirectTheoryAttribute : TheoryAttribute
-{
-}
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class DirectTheoryAttribute : TheoryAttribute { }

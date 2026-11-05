@@ -2,12 +2,22 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlColumnDefaultIntegrationTests
 {
+    /// <summary>
+    /// Verifies nullable temporal repair for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="generator">The generator.</param>
+    /// <param name="model">The model.</param>
+    /// <param name="relationalConnection">The relational connection.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task AssertNullableTemporalRepairAsync(
         IMigrationsSqlGenerator generator,
         IModel model,
         IRelationalConnection relationalConnection,
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -34,7 +44,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         ];
 
         // Act
-        await ExecuteAsync(generator, model, relationalConnection, operations)
+        await ExecuteAsync(generator, model, relationalConnection, operations, cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -44,8 +54,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND `RepairTimestamp` IS NOT NULL;";
 
         var repairedRows = Convert.ToInt64(
-                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
         var invalidRepair = CreateRequiredColumnRepair<DateTime>(
             tableName,
@@ -55,7 +67,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         invalidRepair.DefaultValueSql = "TIMESTAMP '0001-01-01 00:00:00'";
 
         var exception = await Assert.ThrowsAsync<MySqlException>(() =>
-            ExecuteAsync(generator, model, relationalConnection, [invalidRepair]));
+            ExecuteAsync(generator, model, relationalConnection, [invalidRepair], cancellationToken));
 
         command.CommandText = "SELECT IS_NULLABLE FROM information_schema.COLUMNS "
             + "WHERE TABLE_SCHEMA = DATABASE() "
@@ -63,8 +75,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND COLUMN_NAME = 'InvalidRepairTimestamp';";
 
         var invalidColumnNullability = Convert.ToString(
-                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
         // Assert
         Assert.Equal(2L, repairedRows);
@@ -72,12 +86,22 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
         Assert.Equal("YES", invalidColumnNullability);
     }
 
+    /// <summary>
+    /// Verifies constrained nullable repair for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="generator">The generator.</param>
+    /// <param name="model">The model.</param>
+    /// <param name="relationalConnection">The relational connection.</param>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="tableName">The table name.</param>
     private static async Task AssertConstrainedNullableRepairAsync(
         IMigrationsSqlGenerator generator,
         IModel model,
         IRelationalConnection relationalConnection,
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -127,7 +151,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 generator,
                 model,
                 relationalConnection,
-                [jsonRepair, spatialRepair, enumRepair, checkedRepair])
+                [jsonRepair, spatialRepair, enumRepair, checkedRepair],
+                cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -139,15 +164,20 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND `RepairChecked` = 1;";
 
         // Assert
-        Assert.All(implicitFailures, failure =>
-        {
-            Assert.Contains("application contract", failure.Exception.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain(failure.Name, failure.Exception.Message, StringComparison.Ordinal);
-        });
+        Assert.All(
+            implicitFailures,
+            failure =>
+            {
+                Assert.Contains("application contract", failure.Exception.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain(failure.Name, failure.Exception.Message, StringComparison.Ordinal);
+            });
+
         Assert.Equal(
             2L,
             Convert.ToInt64(
-                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
                 CultureInfo.InvariantCulture));
     }
 

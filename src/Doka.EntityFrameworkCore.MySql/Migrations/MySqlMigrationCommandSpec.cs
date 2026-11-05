@@ -8,6 +8,7 @@ public sealed class MySqlMigrationCommandSpec
 {
     private const int MaximumScopedCommandCount = 128;
     private const int MaximumScopedCommandTextLength = 1_048_576;
+
     private static readonly IReadOnlyList<MySqlMigrationCommandFragment> s_opaqueFragments =
         Array.Empty<MySqlMigrationCommandFragment>();
 
@@ -48,11 +49,11 @@ public sealed class MySqlMigrationCommandSpec
     /// Gets the immutable provider-validated structure of this command.
     /// </summary>
     /// <remarks>
-    /// Commands returned by <see cref="MySqlMigrationOperationContext.RenderStandardOperation"/>
+    /// Commands returned by <see cref="MySqlMigrationOperationContext.RenderStandardOperation" />
     /// contain setup, body, and cleanup semantics. Commands created by an
-    /// external handler through <see cref="Create"/> are intentionally opaque
+    /// external handler through <see cref="Create" /> are intentionally opaque
     /// and return an empty collection. Commands created through
-    /// <see cref="CreateScoped"/> expose their validated execution roles.
+    /// <see cref="CreateScoped" /> expose their validated execution roles.
     /// </remarks>
     public IReadOnlyList<MySqlMigrationCommandFragment> Fragments { get; }
 
@@ -67,7 +68,7 @@ public sealed class MySqlMigrationCommandSpec
     /// </param>
     /// <returns>The validated command specification.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="commandText"/> is empty or contains only whitespace.
+    /// <paramref name="commandText" /> is empty or contains only whitespace.
     /// </exception>
     public static MySqlMigrationCommandSpec Create(
         string commandText,
@@ -97,8 +98,8 @@ public sealed class MySqlMigrationCommandSpec
     /// </param>
     /// <returns>An immutable, validated command specification.</returns>
     /// <exception cref="ArgumentNullException">
-    /// A command collection or <paramref name="bodyCommand"/> is
-    /// <see langword="null"/>.
+    /// A command collection or <paramref name="bodyCommand" /> is
+    /// <see langword="null" />.
     /// </exception>
     /// <exception cref="ArgumentException">
     /// A collection is empty, a command contains only whitespace, or the
@@ -108,7 +109,7 @@ public sealed class MySqlMigrationCommandSpec
     /// The provider snapshots every input before returning. Cleanup runs with
     /// an independent cancellation token and must therefore be idempotent.
     /// Setup, body, and cleanup form one EF migration command boundary and
-    /// share one <paramref name="transactionSuppressed"/> value. One scope is
+    /// share one <paramref name="transactionSuppressed" /> value. One scope is
     /// limited to 128 fragments and 1,048,576 characters of SQL text so an
     /// external handler cannot create an unbounded provider-executed
     /// object.

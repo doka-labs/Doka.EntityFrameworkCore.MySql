@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// In-process smoke coverage for the Backbone-4 diagnostic triple. Each test
-/// subscribes an <see cref="ActivityListener"/> + <see cref="MeterListener"/>
+/// subscribes an <see cref="ActivityListener" /> + <see cref="MeterListener" />
 /// to the provider-owned source / meter, triggers the operation that should
 /// emit the span and the counter (or histogram), then asserts both surfaces
 /// captured the expected entry. The tests stay free of any live DB or live
@@ -94,10 +94,10 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
 
         // Act
         using (var activity = MySqlActivitySource.StartMigrationOperationHandler(
-                   "tests.handler",
-                   "Tests.CustomOperation",
-                   "default",
-                   EngineFamily.MySql))
+            "tests.handler",
+            "Tests.CustomOperation",
+            "default",
+            EngineFamily.MySql))
         {
             activity?.SetTag(MySqlDiagnosticTags.MigrationHandlerOutcome, "generated");
         }
@@ -165,12 +165,18 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.outcome"));
 
         Assert.Equal(expectedOutcome, activity.GetTagItem(MySqlDiagnosticTags.MigrationHandlerOutcome));
-        Assert.Equal(consumeOperation ? 0 : 1, commands.Count);
+        Assert.Equal(
+            consumeOperation
+                ? 0
+                : 1,
+            commands.Count);
+
         Assert.True(calls.TotalDelta >= 1);
         Assert.Contains(
             calls.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.outcome")
                 && Equals(tags[MySqlDiagnosticTags.MigrationHandlerOutcome], expectedOutcome));
+
         Assert.NotEmpty(duration.Measurements);
         Assert.Contains(
             duration.TagSets,
@@ -224,26 +230,32 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         var log = Assert.Single(
             logSink.Entries,
             entry => entry.EventId == MySqlEventId.MigrationOperationHandlerFailed);
+
         Assert.Null(log.ExceptionType);
         Assert.Contains(nameof(InvalidOperationException), log.Message, StringComparison.Ordinal);
         var activity = Assert.Single(
             activitySink.Activities,
             candidate => candidate.OperationName == MySqlDiagnostics.MigrationOperationHandlerSpanName
                 && Equals(candidate.GetTagItem(MySqlDiagnosticTags.MigrationHandlerId), "tests.failure"));
+
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
             activity.GetTagItem(MySqlDiagnosticTags.ErrorType));
+
         var failureTags = Assert.Single(
             failures.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure"));
+
         Assert.Equal(
             nameof(MySqlMigrationHandlerFailureCode.HandlerFailed),
             failureTags[MySqlDiagnosticTags.ErrorType]);
+
         Assert.Contains(
             duration.TagSets,
             tags => Equals(tags[MySqlDiagnosticTags.MigrationHandlerId], "tests.failure")
                 && Equals(tags[MySqlDiagnosticTags.ErrorType], nameof(MySqlMigrationHandlerFailureCode.HandlerFailed)));
+
         var serializedTelemetry = string.Join(
             Environment.NewLine,
             log.Message,
@@ -257,9 +269,11 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             string.Join(
                 Environment.NewLine,
                 failures
-                    .TagSets.Concat(duration.TagSets)
+                    .TagSets
+                    .Concat(duration.TagSets)
                     .SelectMany(tags => tags)
                     .Select(tag => $"{tag.Key}={tag.Value}")));
+
         Assert.DoesNotContain(sensitiveMessage, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain(sensitiveData, serializedTelemetry, StringComparison.Ordinal);
         Assert.DoesNotContain("private-context", serializedTelemetry, StringComparison.Ordinal);
@@ -378,8 +392,10 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
 
         Assert.Equal(ActivityStatusCode.Error, recordedActivity.Status);
         Assert.Equal(
-            exception.GetType().FullName,
+            exception.GetType()
+                .FullName,
             recordedActivity.GetTagItem(MySqlDiagnosticTags.ErrorType));
+
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
@@ -410,6 +426,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             activitySink.Activities,
             activity => activity.OperationName == MySqlDiagnostics.MigrationLockReleaseFailedSpanName
                 && activity.Status == ActivityStatusCode.Error);
+
         Assert.True(meterSink.TotalDelta >= 1);
         AssertEngineTags(meterSink.TagSets, MySqlDiagnosticTags.MySql);
     }
@@ -434,15 +451,19 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
 
         // Act
         using (operation switch
-        {
-            "cancellation" => MySqlActivitySource.StartCancellation(
-                MySqlDiagnosticTags.Soft, "Open", EngineFamily.MySql, exception),
-            "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
-            "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception),
-            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
-        }) { }
+            {
+                "cancellation" => MySqlActivitySource.StartCancellation(
+                    MySqlDiagnosticTags.Soft,
+                    "Open",
+                    EngineFamily.MySql,
+                    exception),
+                "command_timeout" => MySqlActivitySource.StartCommandTimeout("Open", EngineFamily.MySql, exception),
+                "commit_unknown" => MySqlActivitySource.StartCommitUnknown("Broken", EngineFamily.MySql, exception),
+                _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            }) { }
 
-        var operationNames = activitySink.Activities
+        var operationNames = activitySink
+            .Activities
             .Select(activity => activity.OperationName)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -502,11 +523,14 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         using var activitySink = new ActivitySink();
 
         // Act
-        Parallel.For(0, activityCount, attemptNumber =>
-        {
-            using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber, EngineFamily.MySql);
-            activity?.Stop();
-        });
+        Parallel.For(
+            0,
+            activityCount,
+            attemptNumber =>
+            {
+                using var activity = MySqlActivitySource.StartRetryAttempt(attemptNumber, EngineFamily.MySql);
+                activity?.Stop();
+            });
 
         // Assert
         Assert.True(activitySink.Activities.Count >= activityCount);

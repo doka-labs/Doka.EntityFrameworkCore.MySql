@@ -1,14 +1,14 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// MySQL-specific <see cref="Guid"/> type mapping that stores the value as a fixed 16-byte
-/// binary column. The base <see cref="GuidTypeMapping"/> emits literals as
+/// MySQL-specific <see cref="Guid" /> type mapping that stores the value as a fixed 16-byte
+/// binary column. The base <see cref="GuidTypeMapping" /> emits literals as
 /// <c>'00000000-0000-0000-0000-000000000000'</c> (38 chars including the quotes); inserting
 /// that string into a <c>binary(16)</c> column produces the engine error "Data too long for
 /// column ..." on every <c>HasData</c>-style seed or other literal-emission path. This
 /// mapping overrides only the literal-emission path to produce MySQL's hex-binary form
 /// <c>X'00112233445566778899AABBCCDDEEFF'</c>. Parameter binding stays on the base
-/// <see cref="System.Data.DbType.Guid"/> code path; for parameter-bound writes against
+/// <see cref="System.Data.DbType.Guid" /> code path; for parameter-bound writes against
 /// <c>binary(16)</c> columns the connection-string-level <c>GuidFormat=Binary16</c> setting
 /// makes MySqlConnector ship the Guid as 16 bytes instead of the 36-char string default.
 /// Without that connection-string setting, parameter-bound writes against binary(16) Guid
@@ -17,11 +17,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 public sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
 {
-    /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlGuidBinaryTypeMapping Default { get; } = new();
-
     /// <summary>
     /// Creates a fixed-width binary GUID mapping.
     /// </summary>
@@ -33,6 +28,11 @@ public sealed class MySqlGuidBinaryTypeMapping : GuidTypeMapping
     private MySqlGuidBinaryTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlGuidBinaryTypeMapping Default { get; } = new();
 
     /// <inheritdoc />
     protected override RelationalTypeMapping Clone(

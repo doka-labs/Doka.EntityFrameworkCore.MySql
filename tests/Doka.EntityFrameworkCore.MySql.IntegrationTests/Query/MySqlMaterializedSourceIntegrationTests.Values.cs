@@ -2,15 +2,20 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
+    /// <summary>Verifies the volatile values shared contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertVolatileValuesSharedAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Where(item => item.Id <= 8)
             .Select(item => new BoundSample
             {
@@ -32,33 +37,48 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                     RightSample = right.Sample,
                 }));
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal(8, actual.Length);
-        Assert.Equal(8, actual.Select(pair => pair.LeftStamp).Distinct().Count());
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftId, pair.RightId);
-            Assert.NotEqual(Guid.Empty, pair.LeftStamp);
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-            Assert.Equal(pair.LeftSample, pair.RightSample);
-        });
+        Assert.Equal(
+            8,
+            actual
+                .Select(pair => pair.LeftStamp)
+                .Distinct()
+                .Count());
+
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftId, pair.RightId);
+                Assert.NotEqual(Guid.Empty, pair.LeftStamp);
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+                Assert.Equal(pair.LeftSample, pair.RightSample);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the disjoint arms share random page contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDisjointArmsShareRandomPageAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
+
         // WHY: The second join makes differing random pages or recomputed source values observable
         // even when the two UNION ALL arms select disjoint rows. Nine guaranteed candidates
         // keep the page size deterministic while the remaining eligibility is volatile.
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Where(item => item.Id <= 9 || EF.Functions.Random() < 0.5)
             .OrderBy(_ => EF.Functions.Random())
             .Skip(2)
@@ -69,7 +89,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 Stamp = Guid.NewGuid(),
                 Sample = EF.Functions.Random(),
             })
-            .WithMaterializedSource(source => source.Where(item => item.Id % 2 == 0)
+            .WithMaterializedSource(source => source
+                .Where(item => item.Id % 2 == 0)
                 .Concat(source.Where(item => item.Id % 2 != 0))
                 .Join(
                     source,
@@ -85,57 +106,83 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                         RightSample = right.Sample,
                     }));
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal(7, actual.Length);
-        Assert.Equal(7, actual.Select(pair => pair.LeftId).Distinct().Count());
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-            Assert.Equal(pair.LeftSample, pair.RightSample);
-        });
+        Assert.Equal(
+            7,
+            actual
+                .Select(pair => pair.LeftId)
+                .Distinct()
+                .Count());
+
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+                Assert.Equal(pair.LeftSample, pair.RightSample);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the duplicate occurrences contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDuplicateOccurrencesAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
-        var occurrence = fixture.Context.Items.Where(item => item.Id == 1).Select(_ => 7);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
+        var occurrence = fixture
+            .Context
+            .Items
+            .Where(item => item.Id == 1)
+            .Select(_ => 7);
 
         // Act
-        var query = occurrence.Concat(occurrence)
+        var query = occurrence
+            .Concat(occurrence)
             .WithMaterializedSource(source => source.Join(source, left => left, right => right, (left, _) => left));
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([7, 7, 7, 7], actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the reference filters independent contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertReferenceFiltersIndependentAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 4)
-            .WithMaterializedSource(source => source.Where(left => left.Id <= 2)
-                .SelectMany(_ => source.Where(right => right.Id >= 2), (left, right) => new BoundPair
-                {
-                    LeftId = left.Id,
-                    RightId = right.Id,
-                }))
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 4)
+            .WithMaterializedSource(source => source
+                .Where(left => left.Id <= 2)
+                .SelectMany(
+                    _ => source.Where(right => right.Id >= 2),
+                    (left, right) => new BoundPair
+                    {
+                        LeftId = left.Id,
+                        RightId = right.Id,
+                    }))
             .OrderBy(pair => pair.LeftId)
             .ThenBy(pair => pair.RightId);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([1, 1, 1, 2, 2, 2], actual.Select(pair => pair.LeftId));
@@ -143,40 +190,60 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the empty envelope contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertEmptyEnvelopeAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
 
         // Act
-        var query = context.Items.Where(item => item.Id < 0)
+        var query = context
+            .Items
+            .Where(item => item.Id < 0)
             .WithMaterializedSource(source => context.Items.Where(item =>
                 item.Id >= source.Min(row => (int?)row.Id)
                 && item.Id <= source.Max(row => (int?)row.Id)));
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Empty(actual);
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the independent bindings contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertIndependentBindingsAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
 
         // Act
-        var query = context.Items.Where(item => item.Id == 1)
-            .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
-            .WithMaterializedSource(left => context.Items.Where(item => item.Id == 1)
-                .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
+        var query = context
+            .Items
+            .Where(item => item.Id == 1)
+            .Select(item => new BoundSample
+            {
+                Id = item.Id,
+                Stamp = Guid.NewGuid(),
+            })
+            .WithMaterializedSource(left => context
+                .Items
+                .Where(item => item.Id == 1)
+                .Select(item => new BoundSample
+                {
+                    Id = item.Id,
+                    Stamp = Guid.NewGuid(),
+                })
                 .WithMaterializedSource(right => left.Join(
                     right,
                     first => first.Id,
@@ -187,7 +254,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                         RightStamp = second.Stamp,
                     })));
 
-        var actual = await query.SingleAsync(CancellationToken.None);
+        var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
         Assert.NotEqual(Guid.Empty, actual.LeftStamp);
@@ -196,16 +263,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal(1, fixture.Probe.Count);
     }
 
+    /// <summary>Verifies the native values contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertNativeValuesAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
         var expectedCode = new BoundCode("code-1");
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Select(item => new
             {
                 item.Id,
@@ -220,7 +292,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 && item.Name == "alpha"
                 && item.Code == expectedCode));
 
-        var actual = await query.SingleAsync(CancellationToken.None);
+        var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
         Assert.Equal(1, actual.Id);
@@ -232,17 +304,28 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.DoesNotContain("JSON_TABLE", fixture.Probe.CommandText, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Verifies the dependent binding contract against the live database.</summary>
+    /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDependentBindingAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
-        await using var fixture = await CreateFixtureAsync(target);
+        await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 4)
-            .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
-            .WithMaterializedSource(outer => outer.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 4)
+            .Select(item => new BoundSample
+            {
+                Id = item.Id,
+                Stamp = Guid.NewGuid(),
+            })
+            .WithMaterializedSource(outer => outer
+                .Where(item => item.Id <= 2)
                 .WithMaterializedSource(inner => outer.Join(
                     inner,
                     left => left.Id,
@@ -256,16 +339,19 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                     })))
             .OrderBy(pair => pair.LeftId);
 
-        var actual = await query.ToArrayAsync(CancellationToken.None);
+        var actual = await query.ToArrayAsync(cancellationToken);
 
         // Assert
         Assert.Equal([1, 2], actual.Select(pair => pair.LeftId));
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftId, pair.RightId);
-            Assert.NotEqual(Guid.Empty, pair.LeftStamp);
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-        });
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftId, pair.RightId);
+                Assert.NotEqual(Guid.Empty, pair.LeftStamp);
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 }

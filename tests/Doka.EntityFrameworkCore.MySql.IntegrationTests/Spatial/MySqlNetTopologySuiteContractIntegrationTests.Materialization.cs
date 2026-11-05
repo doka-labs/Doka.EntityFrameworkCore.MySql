@@ -12,7 +12,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         var connectionString = GetConnectionString(engine, "TrackedLifecycle");
-        await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+        await DropContractTablesAsync(connectionString, CancellationToken.None)
+            .ConfigureAwait(false);
+
         var expected = CreateGeometrySet();
         await using var context = new SpatialMaterializationContext(
             CreateOptions<SpatialMaterializationContext>(connectionString, engine));
@@ -21,7 +23,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
         try
         {
-            await CreateMaterializationTablesAsync(context).ConfigureAwait(false);
+            await CreateMaterializationTablesAsync(context, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // WHY: This case intentionally retains tracking across SaveChanges
             // and readback; independent cases exercise the fresh-reader shapes.
@@ -29,8 +32,15 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             // WHY: Explicit fixture keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
             context.Entities.Add(entity);
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            var actual = await context.Entities.SingleAsync().ConfigureAwait(false);
+            await context
+                .SaveChangesAsync()
+                .ConfigureAwait(false);
+
+            var actual = await context
+                .Entities
+                .SingleAsync()
+                .ConfigureAwait(false);
+
             var geometry = ToGeometrySet(actual);
 
             // Assert
@@ -38,7 +48,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         }
         finally
         {
-            await DropContractTablesAsync(connectionString).ConfigureAwait(false);
+            await DropContractTablesAsync(connectionString, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -52,7 +63,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateMaterializationContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target));
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var expected = CreateGeometrySet();
         var query = context.Entities.AsNoTracking();
 
@@ -62,15 +75,18 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
         if (shape == "Scalar")
         {
-            actual = await query.Select(entity => new SpatialGeometrySet(
-                entity.Point,
-                entity.LineString,
-                entity.Polygon,
-                entity.MultiPoint,
-                entity.MultiLineString,
-                entity.MultiPolygon,
-                entity.GeometryCollection,
-                entity.Geometry)).SingleAsync().ConfigureAwait(false);
+            actual = await query
+                .Select(entity => new SpatialGeometrySet(
+                    entity.Point,
+                    entity.LineString,
+                    entity.Polygon,
+                    entity.MultiPoint,
+                    entity.MultiLineString,
+                    entity.MultiPolygon,
+                    entity.GeometryCollection,
+                    entity.Geometry))
+                .SingleAsync()
+                .ConfigureAwait(false);
         }
         else
         {
@@ -78,11 +94,16 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             {
                 "Untracked" => query,
                 "Include" => query.Include(entity => entity.Children),
-                "SplitInclude" => query.AsSplitQuery().Include(entity => entity.Children),
+                "SplitInclude" => query
+                    .AsSplitQuery()
+                    .Include(entity => entity.Children),
                 _ => throw new ArgumentOutOfRangeException(nameof(shape)),
             };
 
-            var entity = await shapedQuery.SingleAsync().ConfigureAwait(false);
+            var entity = await shapedQuery
+                .SingleAsync()
+                .ConfigureAwait(false);
+
             actual = ToGeometrySet(entity);
             childCount = entity.Children.Count;
         }

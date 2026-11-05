@@ -12,10 +12,11 @@ internal sealed class MySqlGuidMethodTranslator : IMethodCallTranslator
         nameof(Guid.NewGuid),
         Type.EmptyTypes)!;
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
-    private readonly RelationalTypeMapping _guidTypeMapping;
-    private readonly RelationalTypeMapping _stringTypeMapping;
     private readonly MySqlGuidTextExpressionFactory _guidTextExpressionFactory;
+    private readonly RelationalTypeMapping _guidTypeMapping;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
+    private readonly RelationalTypeMapping _stringTypeMapping;
 
     public MySqlGuidMethodTranslator(
         ISqlExpressionFactory sqlExpressionFactory,

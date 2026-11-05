@@ -18,8 +18,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
     public MySqlRelationalDatabaseCreator(
         RelationalDatabaseCreatorDependencies dependencies
-    ) : base(dependencies)
-    { }
+    ) : base(dependencies) { }
 
     public override bool Exists()
     {
@@ -60,6 +59,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             await lease
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
+
             var connection = lease.Connection;
             return await SchemaExistsAsync(connection, databaseName, cancellationToken)
                 .ConfigureAwait(false);
@@ -83,6 +83,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         using var command = connection.CreateCommand();
         command.CommandText =
             "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name";
+
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@name";
         parameter.Value = databaseName;
@@ -133,6 +134,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
@@ -163,6 +165,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
@@ -194,6 +197,7 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         await lease
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var connection = lease.Connection;
 
         await using var command = connection.CreateCommand();
@@ -207,10 +211,12 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
     }
 
     private MySqlLifecycleConnection CreateDatabaseConnection()
-        => GetProviderConnection().CreateLifecycleConnection(GetConnectionString());
+        => GetProviderConnection()
+            .CreateLifecycleConnection(GetConnectionString());
 
     private MySqlLifecycleConnection CreateServerConnection()
-        => GetProviderConnection().CreateLifecycleConnection(CreateServerConnectionString());
+        => GetProviderConnection()
+            .CreateLifecycleConnection(CreateServerConnectionString());
 
     private MySqlRelationalConnection GetProviderConnection()
         => Dependencies.Connection as MySqlRelationalConnection

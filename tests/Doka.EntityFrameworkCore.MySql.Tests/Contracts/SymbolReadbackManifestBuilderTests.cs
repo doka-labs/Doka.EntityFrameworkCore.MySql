@@ -1,3 +1,5 @@
+using Doka.Caching.MySql;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Verifies candidate package symbols remain bound to their assembly checksums.</summary>
@@ -93,15 +95,17 @@ public sealed class SymbolReadbackManifestBuilderTests
             "Doka.EntityFrameworkCore.MySql",
             typeof(MySqlDbContextOptionsBuilderExtensions).Assembly.Location,
             corruptSymbols: corruptPackageId == "Doka.EntityFrameworkCore.MySql");
+
         WritePackagePair(
             candidateRoot,
             "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
             typeof(MySqlNetTopologySuiteDbContextOptionsBuilderExtensions).Assembly.Location,
             corruptSymbols: corruptPackageId == "Doka.EntityFrameworkCore.MySql.NetTopologySuite");
+
         WritePackagePair(
             candidateRoot,
             "Doka.Caching.MySql",
-            typeof(Caching.MySql.MySqlCacheSchema).Assembly.Location,
+            typeof(MySqlCacheSchema).Assembly.Location,
             corruptSymbols: corruptPackageId == "Doka.Caching.MySql");
     }
 
@@ -126,8 +130,8 @@ public sealed class SymbolReadbackManifestBuilderTests
         var packagesRoot = Path.Combine(candidateRoot, "packages");
 
         using (var package = ZipFile.Open(
-                   Path.Combine(packagesRoot, $"{packageId}.{Version}.nupkg"),
-                   ZipArchiveMode.Create))
+            Path.Combine(packagesRoot, $"{packageId}.{Version}.nupkg"),
+            ZipArchiveMode.Create))
         {
             package.CreateEntryFromFile(assemblyPath, assemblyEntry);
         }

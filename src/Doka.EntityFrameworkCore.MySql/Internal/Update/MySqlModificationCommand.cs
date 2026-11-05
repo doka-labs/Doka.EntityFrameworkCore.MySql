@@ -49,7 +49,7 @@ internal sealed class MySqlModificationCommand : ModificationCommand
                 continue;
             }
 
-            if (modification is { IsRead: true, Property: not null, })
+            if (modification is { IsRead: true, Property: not null })
             {
                 modification.Value = modification.Property.GetReaderFieldValue(
                     reader,

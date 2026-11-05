@@ -18,45 +18,51 @@ public sealed class MigrationProcessRecoveryTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql84() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql84);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql97() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql97);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb1011() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb1011);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb114() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb114);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb118() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb118);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb123() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb123);
+        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>
+    /// Verifies process recovery for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task VerifyProcessRecoveryAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -70,28 +76,30 @@ public sealed class MigrationProcessRecoveryTests
         var lockName = MySqlAdvisoryLockNaming.BuildLockName(connectionString);
 
         await IntegrationDatabaseUtilities
-            .EnsureDatabaseExistsAsync(connectionString)
+            .EnsureDatabaseExistsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
         {
             // WHY: Recovery and repeat application must consume the state left by the killed migrator process.
             // Act
-            await InterruptMigratorAsync(connectionString, serverVersion, pauseFile, lockName)
+            await InterruptMigratorAsync(connectionString, serverVersion, pauseFile, lockName, cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertLockBecomesFreeAsync(connectionString, lockName)
+            await AssertLockBecomesFreeAsync(connectionString, lockName, cancellationToken)
                 .ConfigureAwait(false);
 
-            await RunMigratorAsync(connectionString, serverVersion, "migrate")
+            await RunMigratorAsync(connectionString, serverVersion, "migrate", cancellationToken)
                 .ConfigureAwait(false);
-            await RunMigratorAsync(connectionString, serverVersion, "migrate")
+
+            await RunMigratorAsync(connectionString, serverVersion, "migrate", cancellationToken)
                 .ConfigureAwait(false);
-            await RunMigratorAsync(connectionString, serverVersion, "verify-latest")
+
+            await RunMigratorAsync(connectionString, serverVersion, "verify-latest", cancellationToken)
                 .ConfigureAwait(false);
 
             // Assert
-            await AssertMigratedStateAsync(connectionString)
+            await AssertMigratedStateAsync(connectionString, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -104,25 +112,39 @@ public sealed class MigrationProcessRecoveryTests
         }
     }
 
+    /// <summary>
+    /// Interrupts migrator for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
+    /// <param name="pauseFile">The pause file.</param>
+    /// <param name="lockName">The lock name.</param>
     private static async Task InterruptMigratorAsync(
         string connectionString,
         string serverVersion,
         string pauseFile,
-        string lockName
+        string lockName,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var process = StartMigrator(connectionString, serverVersion, "migrate", pauseFile);
+
+        // WHY: Redirected pipes must drain while termination reaps the child,
+        // including when the caller cancels the fault-injection scenario.
         var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
         try
         {
-            var pauseObserved = await WaitForPauseMarkerAsync(process, pauseFile)
+            var pauseObserved = await WaitForPauseMarkerAsync(process, pauseFile, cancellationToken)
                 .ConfigureAwait(false);
 
             if (!pauseObserved)
             {
-                await TerminateProcessAsync(process)
+                await TerminateProcessAsync(process, cancellationToken)
                     .ConfigureAwait(false);
 
                 throw new InvalidOperationException(
@@ -133,9 +155,10 @@ public sealed class MigrationProcessRecoveryTests
                     + $"stderr: {await standardError.ConfigureAwait(false)}");
             }
 
-            await AssertLockIsHeldAsync(connectionString, lockName)
+            await AssertLockIsHeldAsync(connectionString, lockName, cancellationToken)
                 .ConfigureAwait(false);
-            await TerminateProcessAsync(process)
+
+            await TerminateProcessAsync(process, cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.NotEqual(0, process.ExitCode);
@@ -144,7 +167,7 @@ public sealed class MigrationProcessRecoveryTests
         {
             if (!process.HasExited)
             {
-                await TerminateProcessAsync(process)
+                await TerminateProcessAsync(process, CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
@@ -153,39 +176,64 @@ public sealed class MigrationProcessRecoveryTests
         }
     }
 
+    /// <summary>
+    /// Runs migrator for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="serverVersion">The configured database server version.</param>
+    /// <param name="command">The command.</param>
     private static async Task RunMigratorAsync(
         string connectionString,
         string serverVersion,
-        string command
+        string command,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var process = StartMigrator(connectionString, serverVersion, command, pauseFile: null);
+
+        // WHY: Cancellation stops the command, but output draining belongs to
+        // process cleanup and must not leave a child blocked on a full pipe.
         var standardOutput = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
         var standardError = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        var exited = process.WaitForExitAsync(CancellationToken.None);
+        var output = string.Empty;
+        var error = string.Empty;
 
         try
         {
-            await process
-                .WaitForExitAsync(CancellationToken.None)
-                .WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None)
-                .ConfigureAwait(false);
+            try
+            {
+                // WHY: Keep timeout and caller cancellation distinct while the
+                // owned process and its exit task are always completed in finally.
+                await exited
+                    .WaitAsync(TimeSpan.FromSeconds(30), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                // WHY: Cancellation must not detach a live migrator that still
+                // owns a database lock or the redirected output streams.
+                await TerminateProcessAsync(process, CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                await exited.ConfigureAwait(false);
+                output = await standardOutput.ConfigureAwait(false);
+                error = await standardError.ConfigureAwait(false);
+            }
         }
         catch (TimeoutException exception)
         {
-            await TerminateProcessAsync(process)
-                .ConfigureAwait(false);
-
             throw new TimeoutException(
                 $"Migration workflow command '{command}' did not exit within 30 seconds."
                 + Environment.NewLine
-                + $"stdout: {await standardOutput.ConfigureAwait(false)}"
+                + $"stdout: {output}"
                 + Environment.NewLine
-                + $"stderr: {await standardError.ConfigureAwait(false)}",
+                + $"stderr: {error}",
                 exception);
         }
-
-        var output = await standardOutput.ConfigureAwait(false);
-        var error = await standardError.ConfigureAwait(false);
 
         Assert.True(
             process.ExitCode == 0,
@@ -250,11 +298,20 @@ public sealed class MigrationProcessRecoveryTests
             ?? throw new InvalidOperationException("The migration workflow process could not be started.");
     }
 
+    /// <summary>
+    /// Waits for pause marker for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="process">The process.</param>
+    /// <param name="pauseFile">The pause file.</param>
     private static async Task<bool> WaitForPauseMarkerAsync(
         Process process,
-        string pauseFile
+        string pauseFile,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var timeout = Stopwatch.StartNew();
 
         while (timeout.Elapsed < TimeSpan.FromSeconds(15))
@@ -270,37 +327,60 @@ public sealed class MigrationProcessRecoveryTests
             }
 
             await Task
-                .Delay(TimeSpan.FromMilliseconds(50))
+                .Delay(TimeSpan.FromMilliseconds(50), cancellationToken)
                 .ConfigureAwait(false);
         }
 
         return File.Exists(pauseFile);
     }
 
+    /// <summary>
+    /// Terminates the migrator and waits until its operating-system process exits.
+    /// </summary>
+    /// <param name="process">The started migrator process.</param>
+    /// <param name="cancellationToken">The token checked before termination begins.</param>
     private static async Task TerminateProcessAsync(
-        Process process
+        Process process,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // WHY: Once termination begins it must finish even if the caller cancels;
+        // leaving a live child would leak its migration lock into later tests.
         if (!process.HasExited)
         {
-            process.Kill(entireProcessTree: true);
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException) when (process.HasExited)
+            {
+                // The child can exit between the status check and Kill.
+            }
         }
 
         await process
             .WaitForExitAsync(CancellationToken.None)
-            .WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Verifies lock is held for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="lockName">The lock name.</param>
     private static async Task AssertLockIsHeldAsync(
         string connectionString,
-        string lockName
+        string lockName,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -308,15 +388,24 @@ public sealed class MigrationProcessRecoveryTests
         command.Parameters.AddWithValue("@name", lockName);
 
         // Act
-        var lockOwner = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+        var lockOwner = await command
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.NotNull(lockOwner);
     }
 
+    /// <summary>
+    /// Verifies lock becomes free for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
+    /// <param name="lockName">The lock name.</param>
     private static async Task AssertLockBecomesFreeAsync(
         string connectionString,
-        string lockName
+        string lockName,
+        CancellationToken cancellationToken
     )
     {
         var timeout = Stopwatch.StartNew();
@@ -325,7 +414,7 @@ public sealed class MigrationProcessRecoveryTests
         {
             await using var connection = new MySqlConnection(connectionString);
             await connection
-                .OpenAsync(CancellationToken.None)
+                .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             await using var command = connection.CreateCommand();
@@ -333,7 +422,7 @@ public sealed class MigrationProcessRecoveryTests
             command.Parameters.AddWithValue("@name", lockName);
 
             var result = await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             if (Convert.ToInt64(result, CultureInfo.InvariantCulture) == 1L)
@@ -342,7 +431,7 @@ public sealed class MigrationProcessRecoveryTests
             }
 
             await Task
-                .Delay(TimeSpan.FromMilliseconds(50))
+                .Delay(TimeSpan.FromMilliseconds(50), cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -350,13 +439,19 @@ public sealed class MigrationProcessRecoveryTests
             "The database server did not release the migration lock after the migrator process terminated.");
     }
 
+    /// <summary>
+    /// Verifies migrated state for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="connectionString">The target database connection string.</param>
     private static async Task AssertMigratedStateAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using (var historyCommand = connection.CreateCommand())
@@ -367,7 +462,7 @@ public sealed class MigrationProcessRecoveryTests
                 3L,
                 Convert.ToInt64(
                     await historyCommand
-                        .ExecuteScalarAsync(CancellationToken.None)
+                        .ExecuteScalarAsync(cancellationToken)
                         .ConfigureAwait(false),
                     CultureInfo.InvariantCulture));
         }
@@ -386,7 +481,7 @@ public sealed class MigrationProcessRecoveryTests
                 3L,
                 Convert.ToInt64(
                     await dataCommand
-                        .ExecuteScalarAsync(CancellationToken.None)
+                        .ExecuteScalarAsync(cancellationToken)
                         .ConfigureAwait(false),
                     CultureInfo.InvariantCulture));
         }
@@ -395,8 +490,8 @@ public sealed class MigrationProcessRecoveryTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

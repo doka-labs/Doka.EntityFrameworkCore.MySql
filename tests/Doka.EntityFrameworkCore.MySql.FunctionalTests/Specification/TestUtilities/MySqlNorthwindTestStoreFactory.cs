@@ -9,11 +9,9 @@ public class MySqlNorthwindTestStoreFactory : MySqlTestStoreFactory
 {
     public const string DatabaseName = "Northwind";
 
-    public static new MySqlNorthwindTestStoreFactory Instance { get; } = new();
+    protected MySqlNorthwindTestStoreFactory() { }
 
-    protected MySqlNorthwindTestStoreFactory()
-    {
-    }
+    public static new MySqlNorthwindTestStoreFactory Instance { get; } = new();
 
     public override TestStore GetOrCreate(
         string storeName
@@ -28,12 +26,10 @@ public sealed class MySqlNorthwindBulkUpdatesTestStoreFactory
 {
     private const string BulkDatabaseName = "NorthwindBulkUpdates";
 
+    private MySqlNorthwindBulkUpdatesTestStoreFactory() { }
+
     public static new MySqlNorthwindBulkUpdatesTestStoreFactory Instance { get; } =
         new();
-
-    private MySqlNorthwindBulkUpdatesTestStoreFactory()
-    {
-    }
 
     public override TestStore GetOrCreate(
         string storeName

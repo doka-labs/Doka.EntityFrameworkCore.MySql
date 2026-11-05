@@ -2,6 +2,21 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationDslTests
 {
+    /// <summary>
+    /// Identifies changes to the provider-owned indexed-prefix metadata.
+    /// </summary>
+    public enum IndexPrefixTransition
+    {
+        /// <summary>Changes an existing prefix length.</summary>
+        Change,
+
+        /// <summary>Adds a bounded prefix to a previously complete value.</summary>
+        Add,
+
+        /// <summary>Removes the bounded prefix.</summary>
+        Remove,
+    }
+
     private static DbContext CreateIndexPrefixContext(
         IndexPrefixTransition transition,
         bool source
@@ -17,6 +32,29 @@ public sealed partial class MySqlMigrationDslTests
             new TargetIndexPrefixContext(CreateOptions<TargetIndexPrefixContext>()),
         _ => throw new ArgumentOutOfRangeException(nameof(transition), transition, null),
     };
+
+    private static void ConfigureIndexPrefix(
+        ModelBuilder modelBuilder,
+        int[]? prefixLengths,
+        string tableName = IndexPrefixContract.TableName,
+        string indexName = IndexPrefixContract.IndexName
+    )
+    {
+        var index = modelBuilder
+            .Entity<IndexPrefixEntity>()
+            .ToTable(tableName)
+            .HasIndex(entity => new
+            {
+                entity.TenantId,
+                entity.Code,
+            })
+            .HasDatabaseName(indexName);
+
+        if (prefixLengths is not null)
+        {
+            index.HasPrefixLength(prefixLengths);
+        }
+    }
 
     private sealed class SourceIndexPrefixContext : DbContext
     {
@@ -154,29 +192,6 @@ public sealed partial class MySqlMigrationDslTests
             tableName: IndexPrefixContract.RenamedTableName);
     }
 
-    private static void ConfigureIndexPrefix(
-        ModelBuilder modelBuilder,
-        int[]? prefixLengths,
-        string tableName = IndexPrefixContract.TableName,
-        string indexName = IndexPrefixContract.IndexName
-    )
-    {
-        var index = modelBuilder
-            .Entity<IndexPrefixEntity>()
-            .ToTable(tableName)
-            .HasIndex(entity => new
-            {
-                entity.TenantId,
-                entity.Code,
-            })
-            .HasDatabaseName(indexName);
-
-        if (prefixLengths is not null)
-        {
-            index.HasPrefixLength(prefixLengths);
-        }
-    }
-
     private sealed class IndexPrefixEntity
     {
         /// <summary>
@@ -201,38 +216,30 @@ public sealed partial class MySqlMigrationDslTests
         /// The table name used by the migration fixture.
         /// </summary>
         public const string TableName = "IndexPrefixRecords";
+
         /// <summary>
         /// The renamed table name used by the migration fixture.
         /// </summary>
         public const string RenamedTableName = "RenamedIndexPrefixRecords";
+
         /// <summary>
         /// The index name used by the migration fixture.
         /// </summary>
         public const string IndexName = "IX_IndexPrefixRecords_TenantId_Code";
+
         /// <summary>
         /// The renamed index name used by the migration fixture.
         /// </summary>
         public const string RenamedIndexName = "IX_IndexPrefixRecords_TenantId_Code_Renamed";
+
         /// <summary>
         /// Gets or sets the readonly.
         /// </summary>
         public static readonly int[] SourcePrefixLengths = [0, 24];
+
         /// <summary>
         /// Gets or sets the readonly.
         /// </summary>
         public static readonly int[] TargetPrefixLengths = [0, 48];
-    }
-
-    /// <summary>
-    /// Identifies changes to the provider-owned indexed-prefix metadata.
-    /// </summary>
-    public enum IndexPrefixTransition
-    {
-        /// <summary>Changes an existing prefix length.</summary>
-        Change,
-        /// <summary>Adds a bounded prefix to a previously complete value.</summary>
-        Add,
-        /// <summary>Removes the bounded prefix.</summary>
-        Remove,
     }
 }

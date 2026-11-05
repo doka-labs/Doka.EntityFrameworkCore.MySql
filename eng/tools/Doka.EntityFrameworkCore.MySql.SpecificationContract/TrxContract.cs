@@ -92,15 +92,16 @@ internal static class TrxContract
                     errors.Add(
                         $"TRX outcome for '{testId}' is '{result.Outcome}', expected Passed "
                         + "or a declared NotExecuted disposition.");
+
                     break;
             }
         }
 
         foreach (var dispositionedId in permittedNotExecuted.Except(
-                     uniqueResults
-                         .Where(pair => pair.Value.Outcome is "NotExecuted" or "Skipped")
-                         .Select(pair => pair.Key),
-                     StringComparer.Ordinal))
+            uniqueResults
+                .Where(pair => pair.Value.Outcome is "NotExecuted" or "Skipped")
+                .Select(pair => pair.Key),
+            StringComparer.Ordinal))
         {
             errors.Add($"Dispositioned test '{dispositionedId}' was not reported as NotExecuted.");
         }
@@ -187,10 +188,10 @@ internal static class TrxContract
         }
 
         if (!ushort.TryParse(
-                value.AsSpan(index + 2, 4),
-                NumberStyles.AllowHexSpecifier,
-                CultureInfo.InvariantCulture,
-                out var codeUnit))
+            value.AsSpan(index + 2, 4),
+            NumberStyles.AllowHexSpecifier,
+            CultureInfo.InvariantCulture,
+            out var codeUnit))
         {
             return false;
         }
@@ -216,8 +217,8 @@ internal static class TrxContract
         }
 
         foreach (var disposition in root
-                     .GetProperty("activeDispositions")
-                     .EnumerateArray())
+            .GetProperty("activeDispositions")
+            .EnumerateArray())
         {
             var targets = disposition
                 .GetProperty("targets")
@@ -261,9 +262,9 @@ internal static class TrxContract
             }
 
             foreach (var duplicate in ids
-                         .GroupBy(id => id, StringComparer.Ordinal)
-                         .Where(group => group.Count() > 1)
-                         .Select(group => group.Key))
+                .GroupBy(id => id, StringComparer.Ordinal)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key))
             {
                 errors.Add($"Disposition '{dispositionId}' repeats discovery ID '{duplicate}'.");
             }

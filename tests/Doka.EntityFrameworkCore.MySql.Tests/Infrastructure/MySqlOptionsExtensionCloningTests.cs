@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the cloning contract of <see cref="MySqlOptionsExtension"/>: every
+/// Pins the cloning contract of <see cref="MySqlOptionsExtension" />: every
 /// <c>With*</c> method routes through <c>Clone()</c> (the copy-constructor)
 /// plus, for the three mutex connection paths, the
 /// <c>ResetOtherConnectionPaths</c> helper that nulls the inactive paths.
@@ -137,7 +137,9 @@ public sealed class MySqlOptionsExtensionCloningTests
         var versionA = MySqlServerVersion.MySql(new Version(8, 4, 0));
         var versionB = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         var seeded = new MySqlOptionsExtension().WithConnectionString(ConnectionStringA);
-        var twoStep = seeded.WithServerVersion(versionA).WithDefaultGuidFormat(MySqlGuidFormat.Char36);
+        var twoStep = seeded
+            .WithServerVersion(versionA)
+            .WithDefaultGuidFormat(MySqlGuidFormat.Char36);
 
         // Act
         var threeStep = seeded

@@ -8,6 +8,14 @@ public class GenericLikeBenchmark : IDisposable
     private BenchmarkContext _cachedContext = null!;
     private BenchmarkContext _compilationContext = null!;
 
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _compilationContext?.Dispose();
+        _cachedContext?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     [GlobalSetup]
     public void Setup() => Initialize(BenchmarkEnvironment.CreateOptions<BenchmarkContext>());
 
@@ -39,14 +47,6 @@ public class GenericLikeBenchmark : IDisposable
     {
         return ScalarQuery(_compilationContext)
             .ToQueryString();
-    }
-
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _compilationContext?.Dispose();
-        _cachedContext?.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private static IQueryable<TranslationBenchmarkEntity> ScalarQuery(
@@ -81,13 +81,9 @@ public class GenericLikeBenchmark : IDisposable
 
         public void Remove(
             object key
-        )
-        {
-        }
+        ) { }
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() { }
 
         private sealed class UnstoredEntry : ICacheEntry
         {
@@ -108,9 +104,7 @@ public class GenericLikeBenchmark : IDisposable
             public CacheItemPriority Priority { get; set; }
             public long? Size { get; set; }
 
-            public void Dispose()
-            {
-            }
+            public void Dispose() { }
         }
     }
 }

@@ -14,22 +14,26 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task MySql84_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84);
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MySQL 9.7 runtime can persist, query, and materialize the spatial baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public Task MySql97_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97);
+        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
+    /// <summary>Verifies MySQL spatial query translation and geometry materialization.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMySqlSpatialQueriesAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -37,14 +41,16 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
                          `Location` point NOT NULL,
                          CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
                      );
-                     """)
+                     """,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             context.PointEntities.AddRange(
@@ -60,18 +66,20 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 });
 
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var berlin = CreatePoint(13.4050, 52.5200);
             var matchingIds = await context
-                .PointEntities.Where(entity => EF.Functions.DistanceSphere(entity.Location, berlin) < 500)
+                .PointEntities
+                .Where(entity => EF.Functions.DistanceSphere(entity.Location, berlin) < 500)
                 .Select(entity => entity.Id)
-                .ToListAsync()
+                .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedBerlin = await context
-                .PointEntities.SingleAsync(entity => entity.Id == 1)
+                .PointEntities
+                .SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -81,7 +89,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -91,36 +99,40 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public Task MariaDb118_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 10.11 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public Task MariaDb1011_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 11.4 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public Task MariaDb114_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 12.3 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public Task MariaDb123_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123);
+        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
+    /// <summary>Verifies the supported MariaDB spatial query helpers.</summary>
+    /// <param name="target">The database target used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task RunMariaDbSpatialHelpersAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -128,14 +140,16 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PolygonTableName}` (
                          `Id` int NOT NULL,
                          `Region` polygon NOT NULL,
                          CONSTRAINT `PK_{PolygonTableName}` PRIMARY KEY (`Id`)
                      );
-                     """)
+                     """,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             context.PolygonEntities.AddRange(
@@ -151,19 +165,21 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 });
 
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var searchPolygon = CreatePolygon(13.4045, 52.5195, 13.4055, 52.5205);
 
             var matchingIds = await context
-                .PolygonEntities.Where(entity => EF.Functions.MbrIntersects(entity.Region, searchPolygon))
+                .PolygonEntities
+                .Where(entity => EF.Functions.MbrIntersects(entity.Region, searchPolygon))
                 .Select(entity => entity.Id)
-                .ToListAsync()
+                .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedRegion = await context
-                .PolygonEntities.SingleAsync(entity => entity.Id == 1)
+                .PolygonEntities
+                .SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -172,7 +188,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -189,7 +205,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -198,7 +214,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
@@ -215,6 +232,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                     Id = 1,
                     Location = berlin,
                 });
+
             await context
                 .SaveChangesAsync()
                 .ConfigureAwait(false);
@@ -223,7 +241,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
             // Act
             var roundtripped = await context
-                .PointEntities.SingleAsync(entity => entity.Id == 1)
+                .PointEntities
+                .SingleAsync(entity => entity.Id == 1)
                 .ConfigureAwait(false);
 
             // Assert
@@ -233,7 +252,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -250,7 +269,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MariaDb118);
 
-        await ResetSpatialObjectsAsync(connectionString)
+        await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -259,7 +278,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
@@ -282,15 +302,24 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             // Act
             var commands = generator.Generate([indexOperation], context.Model);
             await context
-                .Database.ExecuteSqlRawAsync(commands[0].CommandText)
+                .Database
+                .ExecuteSqlRawAsync(commands[0].CommandText)
                 .ConfigureAwait(false);
 
             await using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync().ConfigureAwait(false);
+            await connection
+                .OpenAsync()
+                .ConfigureAwait(false);
+
             await using var verify = connection.CreateCommand();
             verify.CommandText =
                 $"SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '{PointTableName}' AND index_name = 'IX_Spatial_Location';";
-            var indexCount = Convert.ToInt32(await verify.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
+
+            var indexCount = Convert.ToInt32(
+                await verify
+                    .ExecuteScalarAsync()
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             // Assert
             Assert.Single(commands);
@@ -299,7 +328,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         }
         finally
         {
-            await ResetSpatialObjectsAsync(connectionString)
+            await ResetSpatialObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -318,7 +347,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     {
         // Arrange
         var sink = new SridWarningSink();
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
+        using var loggerFactory =
+            LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
         var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
@@ -332,7 +362,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
-            .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 0 }))
+            .Points
+            .Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 0 }))
             .ToQueryString();
 
         // Assert
@@ -344,7 +375,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     {
         // Arrange
         var sink = new SridWarningSink();
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
+        using var loggerFactory =
+            LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
         var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
@@ -358,104 +390,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
-            .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 4326 }))
+            .Points
+            .Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 4326 }))
             .ToQueryString();
 
         // Assert
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SpatialSridMismatchDetected.Id);
-    }
-
-    private sealed class SridWarningContext : DbContext
-    {
-        public SridWarningContext(
-            DbContextOptions<SridWarningContext> options
-        ) : base(options) { }
-
-        public DbSet<SpatialPointEntity> Points => Set<SpatialPointEntity>();
-
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<SpatialPointEntity>(entity =>
-            {
-                entity.ToTable("SridWarningPoints");
-                entity.HasKey(item => item.Id);
-                entity
-                    .Property(item => item.Location)
-                    .HasColumnType("point")
-                    .HasSrid(4326);
-            });
-        }
-    }
-
-    private sealed record SridWarningEntry(EventId EventId, string Category, string Message);
-
-    private sealed class SridWarningSink
-    {
-        public List<SridWarningEntry> Entries { get; } = new();
-    }
-
-    private sealed class SridWarningLoggerProvider : ILoggerProvider
-    {
-        private readonly SridWarningSink _sink;
-
-        public SridWarningLoggerProvider(
-            SridWarningSink sink
-        )
-        {
-            _sink = sink;
-        }
-
-        public ILogger CreateLogger(
-            string categoryName
-        ) => new SridWarningLogger(_sink, categoryName);
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class SridWarningLogger : ILogger
-    {
-        private readonly SridWarningSink _sink;
-        private readonly string _category;
-
-        public SridWarningLogger(
-            SridWarningSink sink,
-            string category
-        )
-        {
-            _sink = sink;
-            _category = category;
-        }
-
-        public IDisposable BeginScope<TState>(
-            TState state
-        ) where TState : notnull => new NullScope();
-
-        public bool IsEnabled(
-            LogLevel logLevel
-        ) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter
-        )
-        {
-            ArgumentNullException.ThrowIfNull(formatter);
-            _sink.Entries.Add(new SridWarningEntry(eventId, _category, formatter(state, exception)));
-        }
-
-        private sealed class NullScope : IDisposable
-        {
-            public void Dispose()
-            {
-            }
-        }
     }
 
     private static DbContextOptions<SpatialDbContext> CreateSpatialOptions(
@@ -473,13 +413,17 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         return builder.Options;
     }
 
+    /// <summary>Drops the spatial tables before setup or during explicit teardown.</summary>
+    /// <param name="connectionString">The connection string used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task ResetSpatialObjectsAsync(
-        string connectionString
+        string connectionString,
+        CancellationToken cancellationToken
     )
     {
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync()
+            .OpenAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
@@ -489,7 +433,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                                """;
 
         await command
-            .ExecuteNonQueryAsync()
+            .ExecuteNonQueryAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -525,6 +469,100 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         };
 
         return polygon;
+    }
+
+    private sealed class SridWarningContext : DbContext
+    {
+        public SridWarningContext(
+            DbContextOptions<SridWarningContext> options
+        ) : base(options) { }
+
+        public DbSet<SpatialPointEntity> Points => Set<SpatialPointEntity>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<SpatialPointEntity>(entity =>
+            {
+                entity.ToTable("SridWarningPoints");
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.Location)
+                    .HasColumnType("point")
+                    .HasSrid(4326);
+            });
+        }
+    }
+
+    private sealed record SridWarningEntry(
+        EventId EventId,
+        string Category,
+        string Message
+    );
+
+    private sealed class SridWarningSink
+    {
+        public List<SridWarningEntry> Entries { get; } = new();
+    }
+
+    private sealed class SridWarningLoggerProvider : ILoggerProvider
+    {
+        private readonly SridWarningSink _sink;
+
+        public SridWarningLoggerProvider(
+            SridWarningSink sink
+        )
+        {
+            _sink = sink;
+        }
+
+        public ILogger CreateLogger(
+            string categoryName
+        ) => new SridWarningLogger(_sink, categoryName);
+
+        public void Dispose() { }
+    }
+
+    private sealed class SridWarningLogger : ILogger
+    {
+        private readonly string _category;
+        private readonly SridWarningSink _sink;
+
+        public SridWarningLogger(
+            SridWarningSink sink,
+            string category
+        )
+        {
+            _sink = sink;
+            _category = category;
+        }
+
+        public IDisposable BeginScope<TState>(
+            TState state
+        )
+            where TState : notnull => new NullScope();
+
+        public bool IsEnabled(
+            LogLevel logLevel
+        ) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+            _sink.Entries.Add(new SridWarningEntry(eventId, _category, formatter(state, exception)));
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public void Dispose() { }
+        }
     }
 
     private sealed class SpatialDbContext : DbContext

@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Translates LINQ operations over relational <see cref="byte"/> arrays.
+/// Translates LINQ operations over relational <see cref="byte" /> arrays.
 /// </summary>
 internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
 {
@@ -16,12 +16,16 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
     private static readonly MethodInfo s_containsMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.Contains)
-            && method.GetParameters().Length == 2);
+            && method.GetParameters()
+                .Length
+            == 2);
 
     private static readonly MethodInfo s_firstMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.First)
-            && method.GetParameters().Length == 1);
+            && method.GetParameters()
+                .Length
+            == 1);
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 

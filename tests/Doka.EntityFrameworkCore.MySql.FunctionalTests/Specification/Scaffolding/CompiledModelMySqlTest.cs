@@ -116,6 +116,7 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
             var entry = context.Add(data);
             entry.Property("Id")
                 .CurrentValue = 1;
+
             entry.Property("Point")
                 .CurrentValue = expected;
 
@@ -161,6 +162,11 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
         return build;
     }
 
+    /// <summary>
+    /// Removes the auxiliary database after the compiled-model scenario completes.
+    /// </summary>
+
+    // WHY: This finally-only cleanup must restore FK checks even after test cancellation.
     private static async Task DropQualifiedDatabaseAsync()
     {
         var connectionString =
@@ -170,7 +176,7 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
             }.ConnectionString;
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
 
         command.CommandTimeout = MySqlTestStore.DefaultCommandTimeout;
@@ -180,17 +186,17 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
         // auxiliary database, so disable FK enforcement only for this cleanup
         // session and restore it even when the drop fails.
         command.CommandText = "SET FOREIGN_KEY_CHECKS = 0;";
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
 
         try
         {
             command.CommandText = "DROP DATABASE IF EXISTS `mySchema`;";
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
         finally
         {
             command.CommandText = "SET FOREIGN_KEY_CHECKS = 1;";
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
     }
 }

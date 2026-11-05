@@ -5,11 +5,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFactory
 {
+    private readonly ILogger _logger;
     private readonly MySqlReverseEngineeringOptions _reverseEngineeringOptions;
     private readonly MySqlScaffoldingContext _scaffoldingContext;
     private readonly IMySqlSpatialTypeProvider? _spatialTypeProvider;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
-    private readonly ILogger _logger;
 
     public MySqlScaffoldingModelFactory(
         MySqlReverseEngineeringOptions reverseEngineeringOptions,
@@ -24,10 +24,12 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
 
         _reverseEngineeringOptions = reverseEngineeringOptions
             ?? throw new ArgumentNullException(nameof(reverseEngineeringOptions));
+
         _scaffoldingContext = scaffoldingContext ?? throw new ArgumentNullException(nameof(scaffoldingContext));
         _spatialTypeProvider = spatialTypeProviders.SingleOrDefault();
         _typeMappingSource = typeMappingSource
             ?? throw new ArgumentNullException(nameof(typeMappingSource));
+
         _logger = loggerFactory.CreateLogger(MySqlLoggerCategory.Scaffolding);
     }
 
@@ -40,7 +42,9 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
         ArgumentNullException.ThrowIfNull(options);
 
         var modelBuilder = new ModelBuilder(new ConventionSet());
-        var modelCharSet = databaseModel.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
+        var modelCharSet = databaseModel.FindAnnotation(MySqlAnnotationNames.CharSet)
+            ?.Value as string;
+
         var entityNames = new HashSet<string>(StringComparer.Ordinal);
         var propertyNamesByEntity = new Dictionary<DatabaseTable, HashSet<string>>();
         var entityBuilders = new Dictionary<DatabaseTable, EntityTypeBuilder>();
@@ -56,7 +60,8 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
 
         // Pre-sort tables once to avoid redundant OrderBy allocations in each pass.
         var sortedTables = databaseModel
-            .Tables.OrderBy(table => table.Name, StringComparer.Ordinal)
+            .Tables
+            .OrderBy(table => table.Name, StringComparer.Ordinal)
             .ToList();
 
         foreach (var table in sortedTables)
@@ -122,12 +127,12 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
             foreach (var column in table.Columns.OrderBy(column => column.Name, StringComparer.Ordinal))
             {
                 if (TryHandleSpatialColumn(
-                        table,
-                        column,
-                        entityBuilder,
-                        usedPropertyNames,
-                        entityPropertyBuilders,
-                        skippedColumns))
+                    table,
+                    column,
+                    entityBuilder,
+                    usedPropertyNames,
+                    entityPropertyBuilders,
+                    skippedColumns))
                 {
                     continue;
                 }
@@ -176,7 +181,7 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
 
                     if (table.PrimaryKey.FindAnnotation(
                             MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
-                            ?.Value is true)
+                        ?.Value is true)
                     {
                         primaryKeyBuilder.UseWithoutOverlaps();
                     }
@@ -198,7 +203,7 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
 
                     if (uniqueConstraint.FindAnnotation(
                             MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
-                            ?.Value is true)
+                        ?.Value is true)
                     {
                         alternateKeyBuilder.UseWithoutOverlaps();
                     }
@@ -206,7 +211,8 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
             }
 
             var uniqueConstraintNames = table
-                .UniqueConstraints.Select(constraint => constraint.Name)
+                .UniqueConstraints
+                .Select(constraint => constraint.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToHashSet(StringComparer.Ordinal);
 
@@ -252,7 +258,7 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
                 }
 
                 if (index.FindAnnotation(MySqlAnnotationNames.ApplicationTimeIndexWithoutOverlaps)
-                        ?.Value is true)
+                    ?.Value is true)
                 {
                     indexBuilder.UseWithoutOverlaps();
                 }
@@ -269,12 +275,16 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
                     indexBuilder.Metadata.SetMySqlIndexPrefixLengths(prefixLengths);
                 }
 
-                if ((index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?) == true)
+                if (index.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                        ?.Value as bool?
+                    == true)
                 {
                     indexBuilder.Metadata.SetMySqlFullTextIndex(true);
                 }
 
-                if ((index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true)
+                if (index.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                        ?.Value as bool?
+                    == true)
                 {
                     indexBuilder.Metadata.SetMySqlSpatialIndex(true);
                     _scaffoldingContext.MarkUsesNetTopologySuiteScaffolding();
@@ -305,12 +315,13 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
 
                 var dependentEntityBuilder = entityBuilders[table];
                 var dependentProperties = foreignKey
-                    .Columns.Select(column => entityPropertyBuilders[(table, column)].Metadata)
+                    .Columns
+                    .Select(column => entityPropertyBuilders[(table, column)].Metadata)
                     .ToArray();
 
                 var principalProperties = foreignKey
-                    .PrincipalColumns.Select(
-                        column => entityPropertyBuilders[(foreignKey.PrincipalTable, column)].Metadata)
+                    .PrincipalColumns
+                    .Select(column => entityPropertyBuilders[(foreignKey.PrincipalTable, column)].Metadata)
                     .ToArray();
 
                 var principalReadOnlyProperties = principalProperties
@@ -336,6 +347,7 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
                         principalEntityBuilder.Metadata.Name,
                         propertyNamesByEntity[table],
                         "Principal"));
+
                 relationship.SetPrincipalToDependent(
                     CreateUniqueClrIdentifier(
                         dependentEntityBuilder.Metadata.Name + "Collection",
@@ -348,8 +360,9 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
         {
             var sequenceType = string.IsNullOrWhiteSpace(sequence.StoreType)
                 ? typeof(long)
-                : _typeMappingSource.FindMapping(sequence.StoreType)?.ClrType
-                    ?? typeof(long);
+                : _typeMappingSource.FindMapping(sequence.StoreType)
+                    ?.ClrType
+                ?? typeof(long);
 
             var sequenceBuilder = modelBuilder.HasSequence(
                 sequenceType,
@@ -388,13 +401,13 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
     private static IReadOnlyList<MySqlScaffoldedCheckConstraint> GetCheckConstraints(
         DatabaseTable table
     ) => table.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
-        ?.Value as IReadOnlyList<MySqlScaffoldedCheckConstraint>
+            ?.Value as IReadOnlyList<MySqlScaffoldedCheckConstraint>
         ?? [];
 
     private static IReadOnlyList<MySqlScaffoldedIndexPart> GetScaffoldedIndexParts(
         DatabaseIndex index
     ) => index.FindAnnotation(MySqlAnnotationNames.ScaffoldingIndexParts)
-        ?.Value as IReadOnlyList<MySqlScaffoldedIndexPart>
+            ?.Value as IReadOnlyList<MySqlScaffoldedIndexPart>
         ?? [];
 
     private static bool ContainsSkippedColumn(

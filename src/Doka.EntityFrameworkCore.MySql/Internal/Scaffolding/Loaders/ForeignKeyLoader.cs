@@ -101,15 +101,15 @@ internal static class ForeignKeyLoader
             var principalColumnName = reader.GetString(7);
 
             if (context.DatabaseColumns.TryGetValue(
-                    (sourceDatabaseName, tableName, columnName),
-                    out var column))
+                (sourceDatabaseName, tableName, columnName),
+                out var column))
             {
                 foreignKey.Columns.Add(column);
             }
 
             if (context.DatabaseColumns.TryGetValue(
-                    (principalDatabaseNameForColumn, principalTableNameForColumn, principalColumnName),
-                    out var principalColumn))
+                (principalDatabaseNameForColumn, principalTableNameForColumn, principalColumnName),
+                out var principalColumn))
             {
                 foreignKey.PrincipalColumns.Add(principalColumn);
             }

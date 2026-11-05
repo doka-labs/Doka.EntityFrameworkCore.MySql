@@ -41,6 +41,7 @@ public sealed partial class MySqlGuidMigrationTests
                 newStoreType,
                 oldClrType,
                 newClrType));
+
         Assert.Equal(ForeignKeyName, addForeignKey.Name);
         Assert.Equal("TextGuidDocumentRevisions", addForeignKey.Table);
         Assert.Equal(["DocumentId"], addForeignKey.Columns);
@@ -73,16 +74,21 @@ public sealed partial class MySqlGuidMigrationTests
             .ToArray();
 
         Assert.Equal(2, alterColumns.Length);
-        Assert.All(alterColumns, operation =>
-        {
-            var sourceFormat = operation.OldColumn.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value;
-            var targetFormat = operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value;
+        Assert.All(
+            alterColumns,
+            operation =>
+            {
+                var sourceFormat = operation.OldColumn.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                    ?.Value;
 
-            Assert.True(sourceFormat is null ^ targetFormat is null);
-            Assert.True(
-                Equals(sourceFormat, MySqlGuidFormat.Binary16)
-                || Equals(targetFormat, MySqlGuidFormat.Binary16));
-        });
+                var targetFormat = operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                    ?.Value;
+
+                Assert.True(sourceFormat is null ^ targetFormat is null);
+                Assert.True(
+                    Equals(sourceFormat, MySqlGuidFormat.Binary16)
+                    || Equals(targetFormat, MySqlGuidFormat.Binary16));
+            });
 
         AssertExplicitMigrationFailure(result.SqlFailure, "explicit data migration");
     }
@@ -156,18 +162,21 @@ public sealed partial class MySqlGuidMigrationTests
         var addForeignKey = Assert.Single(operations.OfType<AddForeignKeyOperation>());
 
         Assert.Equal(2, alterColumns.Length);
-        Assert.All(alterColumns, operation =>
-        {
-            AssertGuidColumn(operation, targetStoreType, operation.IsNullable, targetFormat);
-            AssertGuidColumn(
-                operation.OldColumn,
-                sourceStoreType,
-                operation.OldColumn.IsNullable,
-                sourceFormat);
-            Assert.Equal(operation.IsNullable, operation.OldColumn.IsNullable);
-            Assert.True(operations.IndexOf(dropForeignKey) < operations.IndexOf(operation));
-            Assert.True(operations.IndexOf(addForeignKey) > operations.IndexOf(operation));
-        });
+        Assert.All(
+            alterColumns,
+            operation =>
+            {
+                AssertGuidColumn(operation, targetStoreType, operation.IsNullable, targetFormat);
+                AssertGuidColumn(
+                    operation.OldColumn,
+                    sourceStoreType,
+                    operation.OldColumn.IsNullable,
+                    sourceFormat);
+
+                Assert.Equal(operation.IsNullable, operation.OldColumn.IsNullable);
+                Assert.True(operations.IndexOf(dropForeignKey) < operations.IndexOf(operation));
+                Assert.True(operations.IndexOf(addForeignKey) > operations.IndexOf(operation));
+            });
 
         if (containsNullableColumn)
         {
@@ -207,17 +216,20 @@ public sealed partial class MySqlGuidMigrationTests
         var addForeignKey = Assert.Single(operations.OfType<AddForeignKeyOperation>());
 
         Assert.Equal(2, alterColumns.Length);
-        Assert.All(alterColumns, operation =>
-        {
-            AssertGuidColumn(operation, targetStoreType, operation.IsNullable, targetFormat);
-            AssertGuidColumn(
-                operation.OldColumn,
-                sourceStoreType,
-                operation.OldColumn.IsNullable,
-                sourceFormat);
-            Assert.True(operations.IndexOf(dropForeignKey) < operations.IndexOf(operation));
-            Assert.True(operations.IndexOf(addForeignKey) > operations.IndexOf(operation));
-        });
+        Assert.All(
+            alterColumns,
+            operation =>
+            {
+                AssertGuidColumn(operation, targetStoreType, operation.IsNullable, targetFormat);
+                AssertGuidColumn(
+                    operation.OldColumn,
+                    sourceStoreType,
+                    operation.OldColumn.IsNullable,
+                    sourceFormat);
+
+                Assert.True(operations.IndexOf(dropForeignKey) < operations.IndexOf(operation));
+                Assert.True(operations.IndexOf(addForeignKey) > operations.IndexOf(operation));
+            });
 
         var foreignKeyColumn = Assert.Single(
             alterColumns,
@@ -263,7 +275,8 @@ public sealed partial class MySqlGuidMigrationTests
         Assert.Equal(isNullable, operation.IsNullable);
         Assert.Equal(
             guidFormat,
-            operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value);
+            operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                ?.Value);
     }
 
     /// <summary>Asserts the compiler result already captured in the migration pipeline's Act phase.</summary>

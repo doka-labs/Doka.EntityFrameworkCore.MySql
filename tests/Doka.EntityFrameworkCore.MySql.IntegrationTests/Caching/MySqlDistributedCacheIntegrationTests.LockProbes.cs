@@ -12,10 +12,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Arrange
         await using var connection = new MySqlConnection(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
+
         await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
         command.CommandText = GetLockingStatementProbeSql(
             "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO) AS process");
+
         var statement = Encoding
             .ASCII
             .GetBytes("UPDATE `DokaProbe` SET `Value` = ")
@@ -27,9 +29,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     0xAA,
                     0xBB,
                     0xCC,
-                    0xDD
+                    0xDD,
                 })
             .ToArray();
+
         command.Parameters.AddWithValue("@statement", statement);
         command.Parameters.AddWithValue("@tableName", "DokaProbe");
         command.Parameters.AddWithValue("@cleanupOnly", false);
@@ -52,11 +55,13 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Arrange
         await using var connection = new MySqlConnection(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
+
         await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
         command.CommandText = GetWaitingForTableLockProbeSql(
             "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO, "
             + "'Waiting for table metadata lock' AS STATE) AS process");
+
         var statement = Encoding
             .ASCII
             .GetBytes("ALTER TABLE `DokaProbe` ADD `Value` int ")
@@ -68,9 +73,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     0xAA,
                     0xBB,
                     0xCC,
-                    0xDD
+                    0xDD,
                 })
             .ToArray();
+
         command.Parameters.AddWithValue("@statement", statement);
         command.Parameters.AddWithValue("@tableName", "DokaProbe");
 
@@ -82,11 +88,18 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Assert
         Assert.Equal(1, waiting);
     }
+
     /// <summary>Waits for the expected command to reach a real database row lock.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="pending">The pending used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    /// <param name="cleanupOnly">Whether to require the cleanup command's primary-index clause.</param>
     private static async Task AssertLockingStatementStartedAsync(
         MySqlConnection observer,
         string tableName,
         Task pending,
+        CancellationToken cancellationToken,
         bool cleanupOnly = false
     )
     {
@@ -108,7 +121,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
             var waiting = Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
@@ -118,7 +131,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             }
 
             await Task
-                .Delay(10, CancellationToken.None)
+                .Delay(10, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -131,24 +144,29 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     private static string GetLockingStatementProbeSql(
         string processSource
     ) => $"""
-           SELECT COUNT(*) FROM (
-               SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
-               FROM {processSource}
-           ) AS observed
-           WHERE ID <> CONNECTION_ID()
-               AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-               AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
-                   OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
-                   OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
-               AND (@cleanupOnly = FALSE
-                   OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
-           """;
+          SELECT COUNT(*) FROM (
+              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
+              FROM {processSource}
+          ) AS observed
+          WHERE ID <> CONNECTION_ID()
+              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+              AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
+                  OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
+                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
+              AND (@cleanupOnly = FALSE
+                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
+          """;
 
     /// <summary>Waits for the selected cache command to block on a table lock.</summary>
+    /// <param name="observer">The observer used by this operation.</param>
+    /// <param name="tableName">The database table to inspect.</param>
+    /// <param name="pending">The pending used by this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task AssertWaitingForTableLockAsync(
         MySqlConnection observer,
         string tableName,
-        Task pending
+        Task pending,
+        CancellationToken cancellationToken
     )
     {
         await using var command = observer.CreateCommand();
@@ -164,7 +182,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
             var waiting = Convert.ToInt64(
                 await command
-                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ExecuteScalarAsync(cancellationToken)
                     .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
@@ -174,7 +192,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             }
 
             await Task
-                .Delay(10, CancellationToken.None)
+                .Delay(10, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -186,12 +204,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     private static string GetWaitingForTableLockProbeSql(
         string processSource
     ) => $"""
-           SELECT COUNT(*) FROM (
-               SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
-               FROM {processSource}
-           ) AS observed
-           WHERE ID <> CONNECTION_ID()
-               AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-               AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
-           """;
+          SELECT COUNT(*) FROM (
+              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
+              FROM {processSource}
+          ) AS observed
+          WHERE ID <> CONNECTION_ID()
+              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+              AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
+          """;
 }

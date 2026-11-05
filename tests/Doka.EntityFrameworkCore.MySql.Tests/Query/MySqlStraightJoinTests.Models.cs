@@ -3,12 +3,19 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed partial class MySqlStraightJoinTests
 {
     /// <summary>Creates deterministic configured services without opening a database connection.</summary>
-    private static JoinContext CreateContext(bool mariaDb = false, bool relationalNulls = false, IServiceProvider? services = null)
+    private static JoinContext CreateContext(
+        bool mariaDb = false,
+        bool relationalNulls = false,
+        IServiceProvider? services = null
+    )
     {
         var blocker = new OpeningBlocker();
         var builder = new DbContextOptionsBuilder<JoinContext>()
-            .UseMySql("Server=127.0.0.1;Database=straight_join_unused;User ID=unused;Password=unused;",
-                mariaDb ? MySqlServerVersion.MariaDb(new Version(11, 8, 8)) : MySqlServerVersion.MySql(new Version(8, 4, 11)),
+            .UseMySql(
+                "Server=127.0.0.1;Database=straight_join_unused;User ID=unused;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(11, 8, 8))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 11)),
                 options => options.UseRelationalNulls(relationalNulls))
             .AddInterceptors(blocker);
 
@@ -21,7 +28,10 @@ public sealed partial class MySqlStraightJoinTests
     }
 
     /// <summary>Hosts application filters, converted keys and both collection-shaping paths.</summary>
-    private sealed class JoinContext(DbContextOptions<JoinContext> options, OpeningBlocker blocker) : DbContext(options)
+    private sealed class JoinContext(
+        DbContextOptions<JoinContext> options,
+        OpeningBlocker blocker
+    ) : DbContext(options)
     {
         /// <summary>Gets the controlled I/O boundary observed by every probe.</summary>
         public OpeningBlocker Blocker { get; } = blocker;
@@ -33,22 +43,40 @@ public sealed partial class MySqlStraightJoinTests
         public DbSet<JoinNode> Nodes => Set<JoinNode>();
 
         /// <inheritdoc />
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
         {
             var nodes = modelBuilder.Entity<JoinNode>();
             nodes.HasKey(value => value.Id);
-            nodes.Property(value => value.Code).HasConversion(value => value.Value, value => new JoinCode(value));
+            nodes
+                .Property(value => value.Code)
+                .HasConversion(value => value.Value, value => new JoinCode(value));
+
             nodes.HasQueryFilter(value => value.Visible && value.TenantId == TenantId);
             nodes.OwnsOne(value => value.Details);
-            nodes.OwnsMany(value => value.Tags, tags =>
-            {
-                tags.WithOwner().HasForeignKey("OwnerId");
-                tags.Property<int>("TagId");
-                tags.HasKey("OwnerId", "TagId");
-            });
-            nodes.HasOne(value => value.Parent).WithMany().HasForeignKey(value => value.ParentId)
+            nodes.OwnsMany(
+                value => value.Tags,
+                tags =>
+                {
+                    tags
+                        .WithOwner()
+                        .HasForeignKey("OwnerId");
+
+                    tags.Property<int>("TagId");
+                    tags.HasKey("OwnerId", "TagId");
+                });
+
+            nodes
+                .HasOne(value => value.Parent)
+                .WithMany()
+                .HasForeignKey(value => value.ParentId)
                 .OnDelete(DeleteBehavior.Restrict);
-            nodes.HasMany(value => value.Items).WithOne().HasForeignKey(value => value.OwnerId);
+
+            nodes
+                .HasMany(value => value.Items)
+                .WithOne()
+                .HasForeignKey(value => value.OwnerId);
         }
     }
 
@@ -57,22 +85,31 @@ public sealed partial class MySqlStraightJoinTests
     {
         /// <summary>Gets or sets the owner identity.</summary>
         public int Id { get; set; }
+
         /// <summary>Gets or sets the application tenant.</summary>
         public Guid TenantId { get; set; }
+
         /// <summary>Gets or sets the duplicate-capable optional key.</summary>
         public int? OptionalKey { get; set; }
+
         /// <summary>Gets or sets an optional parent reference key.</summary>
         public int? ParentId { get; set; }
+
         /// <summary>Gets or sets an ordinary optional self-reference navigation.</summary>
         public JoinNode? Parent { get; set; }
+
         /// <summary>Gets or sets the converted operator-free key.</summary>
         public JoinCode Code { get; set; }
+
         /// <summary>Gets or sets the application visibility predicate.</summary>
         public bool Visible { get; set; }
+
         /// <summary>Gets or sets the owned reference payload.</summary>
         public JoinDetails Details { get; set; } = new();
+
         /// <summary>Gets the automatically included owned collection.</summary>
         public List<JoinTag> Tags { get; } = [];
+
         /// <summary>Gets the ordinary related collection.</summary>
         public List<JoinItem> Items { get; } = [];
     }
@@ -83,6 +120,7 @@ public sealed partial class MySqlStraightJoinTests
     /// <summary>Represents an owned reference projection.</summary>
     private sealed class JoinDetails
     {
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the reference payload.</summary>
         public string Text { get; set; } = string.Empty;
     }
@@ -90,6 +128,7 @@ public sealed partial class MySqlStraightJoinTests
     /// <summary>Represents one occurrence in an owned collection.</summary>
     private sealed class JoinTag
     {
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the collection payload.</summary>
         public string Text { get; set; } = string.Empty;
     }
@@ -99,8 +138,11 @@ public sealed partial class MySqlStraightJoinTests
     {
         /// <summary>Gets or sets the occurrence identifier.</summary>
         public int Id { get; set; }
+
         /// <summary>Gets or sets the owning node key.</summary>
         public int OwnerId { get; set; }
+
+        // WHY: This setter keeps the scalar convention-mapped even in translation-only probes.
         /// <summary>Gets or sets the ordinary collection payload.</summary>
         public string Text { get; set; } = string.Empty;
     }
@@ -115,8 +157,11 @@ public sealed partial class MySqlStraightJoinTests
         public int Openings { get; private set; }
 
         /// <inheritdoc />
-        public override InterceptionResult ConnectionOpening(DbConnection connection, ConnectionEventData eventData,
-            InterceptionResult result)
+        public override InterceptionResult ConnectionOpening(
+            DbConnection connection,
+            ConnectionEventData eventData,
+            InterceptionResult result
+        )
         {
             Openings++;
 
@@ -124,8 +169,12 @@ public sealed partial class MySqlStraightJoinTests
         }
 
         /// <inheritdoc />
-        public override ValueTask<InterceptionResult> ConnectionOpeningAsync(DbConnection connection,
-            ConnectionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+        public override ValueTask<InterceptionResult> ConnectionOpeningAsync(
+            DbConnection connection,
+            ConnectionEventData eventData,
+            InterceptionResult result,
+            CancellationToken cancellationToken = default
+        )
         {
             Openings++;
 

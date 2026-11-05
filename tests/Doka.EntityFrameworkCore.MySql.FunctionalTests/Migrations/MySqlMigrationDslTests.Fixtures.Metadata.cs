@@ -40,6 +40,7 @@ public sealed partial class MySqlMigrationDslTests
                 entity
                     .Property(item => item.ExternalId)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 entity
                     .HasIndex(item => new
                     {
@@ -49,13 +50,16 @@ public sealed partial class MySqlMigrationDslTests
                     .HasDatabaseName("IX_MigrationDsl_Name_Code")
                     .HasPrefixLength(s_indexPrefixLengths)
                     .IsDescending(s_mixedIndexDirections);
+
                 entity
                     .HasIndex(item => item.Body)
                     .HasDatabaseName("IX_MigrationDsl_Body")
                     .IsFullText();
+
                 entity
                     .Property(item => item.Location)
                     .HasColumnType("point");
+
                 entity
                     .HasIndex(item => item.Location)
                     .HasDatabaseName("IX_MigrationDsl_Location")

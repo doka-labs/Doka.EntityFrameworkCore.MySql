@@ -13,7 +13,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => EF.Functions.Like(e.Name, "%test%", "\\"))
+            .Items
+            .Where(e => EF.Functions.Like(e.Name, "%test%", "\\"))
             .ToQueryString();
 
         // Assert
@@ -32,7 +33,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => EF.Functions.Match(e.Name, "search term"))
+            .Items
+            .Where(e => EF.Functions.Match(e.Name, "search term"))
             .ToQueryString();
 
         // Assert
@@ -52,7 +54,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => EF.Functions.MatchInBooleanMode(e.Name, "+required -excluded"))
+            .Items
+            .Where(e => EF.Functions.MatchInBooleanMode(e.Name, "+required -excluded"))
             .ToQueryString();
 
         // Assert
@@ -73,7 +76,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
+            .Items
+            .Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
             .ToQueryString();
 
         // Assert
@@ -91,7 +95,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
+            .Items
+            .Where(e => EF.Functions.Regexp(e.Name, "^test.*$"))
             .ToQueryString();
 
         // Assert

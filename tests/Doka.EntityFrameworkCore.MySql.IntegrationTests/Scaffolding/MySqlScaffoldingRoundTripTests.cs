@@ -30,7 +30,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task MySql84_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MySql84)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -40,7 +40,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
     public async Task MySql97_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MySql97)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -50,7 +50,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -60,7 +60,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb114)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -70,7 +70,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb118)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -80,18 +80,24 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_core_schema_metadata_roundtrips()
     {
-        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb123)
+        await RunCoreSchemaRoundTripAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs core schema round trip for the integration contract.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="target">The database target used by the test.</param>
     private static async Task RunCoreSchemaRoundTripAsync(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
 
-        await CreateSchemaAsync(connectionString)
+        await CreateSchemaAsync(connectionString, cancellationToken)
             .ConfigureAwait(false);
 
         try
@@ -129,12 +135,13 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         }
         finally
         {
-            await DropSchemaAsync(connectionString)
+            await DropSchemaAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
 
     private static bool IsMariaDb(
         IntegrationDatabaseTarget target
-    ) => IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
+    ) => IntegrationTestEnvironment.GetServerVersion(target)
+        .IsMariaDb;
 }

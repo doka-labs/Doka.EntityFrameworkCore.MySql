@@ -9,6 +9,28 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlSequenceValueGeneratorTests
 {
     /// <summary>
+    /// Supplies the scalar representations returned by connector sequence commands.
+    /// </summary>
+    public static TheoryData<object, long> ConnectorScalarRepresentations =>
+        new()
+        {
+            { 42L, 42L },
+            { 42, 42L },
+            { 42m, 42L },
+            { 42UL, 42L },
+            { "42", 42L },
+        };
+
+    /// <summary>
+    /// Supplies the database null scalar separately from a CLR null reference.
+    /// </summary>
+    public static TheoryData<object> DbNullScalarRepresentation =>
+        new()
+        {
+            DBNull.Value,
+        };
+
+    /// <summary>
     /// Verifies native sequence SQL escapes the configured sequence name.
     /// </summary>
     [Fact]
@@ -20,7 +42,9 @@ public sealed class MySqlSequenceValueGeneratorTests
 
         // Act
         var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(
-            sequenceName, increment, supportsNativeSequences: true);
+            sequenceName,
+            increment,
+            supportsNativeSequences: true);
 
         // Assert
         Assert.Equal("SELECT NEXT VALUE FOR `order``sequence`;", sql);
@@ -70,7 +94,10 @@ public sealed class MySqlSequenceValueGeneratorTests
             MySqlSequenceValueGenerator.GetNextValue(connection, "orders", 1, supportsNativeSequences: false));
 
         // Assert
-        Assert.Equal("connection", Assert.IsType<ArgumentNullException>(recordedException).ParamName);
+        Assert.Equal(
+            "connection",
+            Assert.IsType<ArgumentNullException>(recordedException)
+                .ParamName);
     }
 
     /// <summary>
@@ -84,24 +111,19 @@ public sealed class MySqlSequenceValueGeneratorTests
 
         // Act
         var recordedException = await Record.ExceptionAsync(() =>
-            MySqlSequenceValueGenerator.GetNextValueAsync(connection, "orders", 1, supportsNativeSequences: false));
+            MySqlSequenceValueGenerator.GetNextValueAsync(
+                connection,
+                "orders",
+                1,
+                supportsNativeSequences: false,
+                cancellationToken: CancellationToken.None));
 
         // Assert
-        Assert.Equal("connection", Assert.IsType<ArgumentNullException>(recordedException).ParamName);
+        Assert.Equal(
+            "connection",
+            Assert.IsType<ArgumentNullException>(recordedException)
+                .ParamName);
     }
-
-    /// <summary>
-    /// Supplies the scalar representations returned by connector sequence commands.
-    /// </summary>
-    public static TheoryData<object, long> ConnectorScalarRepresentations =>
-        new()
-        {
-            { 42L, 42L },
-            { 42, 42L },
-            { 42m, 42L },
-            { 42UL, 42L },
-            { "42", 42L },
-        };
 
     /// <summary>
     /// Verifies a connector scalar converts to the signed 64-bit sequence contract.
@@ -146,15 +168,6 @@ public sealed class MySqlSequenceValueGeneratorTests
         var exception = Assert.IsType<InvalidOperationException>(recordedException);
         Assert.Equal("The database did not return a sequence value.", exception.Message);
     }
-
-    /// <summary>
-    /// Supplies the database null scalar separately from a CLR null reference.
-    /// </summary>
-    public static TheoryData<object> DbNullScalarRepresentation =>
-        new()
-        {
-            DBNull.Value,
-        };
 
     /// <summary>
     /// Verifies unsigned connector values cannot overflow the signed 64-bit sequence contract silently.

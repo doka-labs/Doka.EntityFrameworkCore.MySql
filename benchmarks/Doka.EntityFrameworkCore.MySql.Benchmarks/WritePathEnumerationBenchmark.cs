@@ -11,14 +11,14 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 [MemoryDiagnoser]
 public partial class WritePathEnumerationBenchmark : IDisposable
 {
-    private WriteContext _context = null!;
-    private MySqlUpdateSqlGenerator _generator = null!;
     private IModificationCommandBatchFactory _batchFactory = null!;
     private List<IReadOnlyModificationCommand> _commands = null!;
-    private IReadOnlyModificationCommand _firstShape = null!;
-    private IReadOnlyModificationCommand _matching = null!;
+    private WriteContext _context = null!;
     private IReadOnlyModificationCommand _earlyMismatch = null!;
+    private IReadOnlyModificationCommand _firstShape = null!;
+    private MySqlUpdateSqlGenerator _generator = null!;
     private IReadOnlyModificationCommand _lateMismatch = null!;
+    private IReadOnlyModificationCommand _matching = null!;
     private StringBuilder _sql = null!;
 
     /// <summary>Gets or sets the engine, physical column count, and command population.</summary>
@@ -41,6 +41,14 @@ public partial class WritePathEnumerationBenchmark : IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>Releases the context and its tracked command populations.</summary>
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _context?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -77,8 +85,14 @@ public partial class WritePathEnumerationBenchmark : IDisposable
 
         // WHY: A successful SQL call is not evidence that its named protocol ran.
         // Reject fixture drift before timing a write-only path as generated readback.
-        var expectedReadColumns = Scenario.Mode == WriteMode.MySqlWriteOnly ? 0 : 1;
-        if (_commands[0].ColumnModifications.Count(modification => modification.IsRead) != expectedReadColumns
+        var expectedReadColumns = Scenario.Mode == WriteMode.MySqlWriteOnly
+            ? 0
+            : 1;
+
+        if (_commands[0]
+                .ColumnModifications
+                .Count(modification => modification.IsRead)
+            != expectedReadColumns
             || CompareMatchingShapes() != Scenario.RowCount
             || CompareEarlyMismatches() != 0
             || CompareLateMismatches() != 0)
@@ -96,6 +110,7 @@ public partial class WritePathEnumerationBenchmark : IDisposable
             + $"columns={_commands[0].ColumnModifications.GetType().FullName}; "
             + $"keys={_commands[0].Table!.PrimaryKey!.Columns.GetType().FullName}; "
             + $"batch={batch.ModificationCommands.GetType().FullName}");
+
         Console.WriteLine($"Write fingerprint ({Scenario}): {CaptureFingerprint()}");
     }
 
@@ -107,7 +122,11 @@ public partial class WritePathEnumerationBenchmark : IDisposable
         _sql.Clear();
         var mapping = _generator.AppendBulkInsertOperation(_sql, _commands, 0, out var transaction);
 
-        return _sql.Length + ((long)mapping << 32) + (transaction ? 1L << 48 : 0);
+        return _sql.Length
+            + ((long)mapping << 32)
+            + (transaction
+                ? 1L << 48
+                : 0);
     }
 
     /// <summary>Calculates the complete packet-readback cost of every prepared command.</summary>
@@ -122,7 +141,9 @@ public partial class WritePathEnumerationBenchmark : IDisposable
         // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < _commands.Count; index++)
         {
-            total += _generator.TryGetKeyedReadbackCost(_commands[index], out var bytes) ? bytes + 1 : 0;
+            total += _generator.TryGetKeyedReadbackCost(_commands[index], out var bytes)
+                ? bytes + 1
+                : 0;
         }
 
         return total;
@@ -161,21 +182,28 @@ public partial class WritePathEnumerationBenchmark : IDisposable
         _sql.Clear();
         var mapping = _generator.AppendBulkInsertOperation(_sql, _commands, 0, out var transaction);
         var evidence = new StringBuilder();
-        evidence.Append(Scenario).Append('|').Append((int)mapping).Append('|').Append(transaction)
-            .Append('|').Append(CalculateReadbackCost()).Append('|').Append(_sql);
-        evidence.Append('|').Append(CompareMatchingShapes()).Append('|').Append(CompareEarlyMismatches())
-            .Append('|').Append(CompareLateMismatches());
+        evidence
+            .Append(Scenario)
+            .Append('|')
+            .Append((int)mapping)
+            .Append('|')
+            .Append(transaction)
+            .Append('|')
+            .Append(CalculateReadbackCost())
+            .Append('|')
+            .Append(_sql);
+
+        evidence
+            .Append('|')
+            .Append(CompareMatchingShapes())
+            .Append('|')
+            .Append(CompareEarlyMismatches())
+            .Append('|')
+            .Append(CompareLateMismatches());
+
         _ = AssembleBatches(evidence);
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence.ToString())));
-    }
-
-    /// <summary>Releases the context and its tracked command populations.</summary>
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _context?.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     private int CompareShapes(
@@ -189,7 +217,9 @@ public partial class WritePathEnumerationBenchmark : IDisposable
         // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < Scenario.RowCount; index++)
         {
-            accepted += MySqlModificationCommandBatch.CanBeInsertedInSameStatement(_firstShape, candidate) ? 1 : 0;
+            accepted += MySqlModificationCommandBatch.CanBeInsertedInSameStatement(_firstShape, candidate)
+                ? 1
+                : 0;
         }
 
         return accepted;
@@ -229,7 +259,11 @@ public partial class WritePathEnumerationBenchmark : IDisposable
         )
         {
             batch.Complete(moreBatchesExpected);
-            checksum += batch.ModificationCommands.Count + 1 + (batch.RequiresTransaction ? 1 : 0);
+            checksum += batch.ModificationCommands.Count
+                + 1
+                + (batch.RequiresTransaction
+                    ? 1
+                    : 0);
 
             if (evidence is not null)
             {
@@ -239,8 +273,13 @@ public partial class WritePathEnumerationBenchmark : IDisposable
                     .GetProperty("StoreCommand", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
                     .GetValue(batch)!;
 
-                evidence.Append('|').Append(batch.ModificationCommands.Count).Append('|')
-                    .Append(batch.RequiresTransaction).Append('|').Append(command.RelationalCommand.CommandText);
+                evidence
+                    .Append('|')
+                    .Append(batch.ModificationCommands.Count)
+                    .Append('|')
+                    .Append(batch.RequiresTransaction)
+                    .Append('|')
+                    .Append(command.RelationalCommand.CommandText);
             }
         }
     }

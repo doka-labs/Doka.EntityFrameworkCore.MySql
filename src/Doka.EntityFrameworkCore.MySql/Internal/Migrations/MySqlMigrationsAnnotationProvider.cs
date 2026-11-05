@@ -239,7 +239,8 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
         }
 
         var mappedAnnotation = column
-            .PropertyMappings.Select(mapping => mapping.Property.FindAnnotation(annotationName))
+            .PropertyMappings
+            .Select(mapping => mapping.Property.FindAnnotation(annotationName))
             .FirstOrDefault(annotation => annotation is not null);
 
         if (mappedAnnotation is not null)
@@ -264,7 +265,8 @@ internal sealed class MySqlMigrationsAnnotationProvider : IMigrationsAnnotationP
         }
 
         var mappedAnnotation = table
-            .EntityTypeMappings.Select(mapping => mapping.TypeBase.FindAnnotation(annotationName))
+            .EntityTypeMappings
+            .Select(mapping => mapping.TypeBase.FindAnnotation(annotationName))
             .FirstOrDefault(annotation => annotation is not null);
 
         if (mappedAnnotation is not null)

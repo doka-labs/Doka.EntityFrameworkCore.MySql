@@ -15,9 +15,7 @@ public sealed class StoreGeneratedMySqlTest
 {
     public StoreGeneratedMySqlTest(
         StoreGeneratedMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override void UseTransaction(
         DatabaseFacade facade,
@@ -55,36 +53,48 @@ public sealed class StoreGeneratedMySqlTest
         {
             modelBuilder.Entity<Gumball>(entity =>
             {
-                entity.Property(value => value.Id).UseMySqlAutoIncrementColumn();
+                entity
+                    .Property(value => value.Id)
+                    .UseMySqlAutoIncrementColumn();
+
                 ConfigureDefault(entity.Property(value => value.Identity), "Banana Joe");
                 ConfigureDefault(
                     entity.Property(value => value.IdentityReadOnlyBeforeSave),
                     "Doughnut Sheriff");
+
                 ConfigureDefault(
                     entity.Property(value => value.IdentityReadOnlyAfterSave),
                     "Anton");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysIdentity),
                     "Banana Joe");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysIdentityReadOnlyBeforeSave),
                     "Doughnut Sheriff");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysIdentityReadOnlyAfterSave),
                     "Anton");
+
                 ConfigureDefault(entity.Property(value => value.Computed), "Alan");
                 ConfigureDefault(
                     entity.Property(value => value.ComputedReadOnlyBeforeSave),
                     "Carmen");
+
                 ConfigureDefault(
                     entity.Property(value => value.ComputedReadOnlyAfterSave),
                     "Tina Rex");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysComputed),
                     "Alan");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysComputedReadOnlyBeforeSave),
                     "Carmen");
+
                 ConfigureDefault(
                     entity.Property(value => value.AlwaysComputedReadOnlyAfterSave),
                     "Tina Rex");
@@ -96,85 +106,112 @@ public sealed class StoreGeneratedMySqlTest
                 ConfigureDefault(
                     entity.Property(value => value.OnAddUseBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddIgnoreBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddThrowBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddUseBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddIgnoreBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddThrowBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddUseBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddIgnoreBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddThrowBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdate),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateUseBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateIgnoreBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateThrowBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateUseBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateIgnoreBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateThrowBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateUseBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateIgnoreBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnAddOrUpdateThrowBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(entity.Property(value => value.OnUpdate), "Rabbit");
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateUseBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateIgnoreBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateThrowBeforeUseAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateUseBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateIgnoreBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateThrowBeforeIgnoreAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateUseBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateIgnoreBeforeThrowAfter),
                     "Rabbit");
+
                 ConfigureDefault(
                     entity.Property(value => value.OnUpdateThrowBeforeThrowAfter),
                     "Rabbit");
@@ -182,48 +219,79 @@ public sealed class StoreGeneratedMySqlTest
 
             modelBuilder.Entity<WithBackingFields>(entity =>
             {
-                entity.Property(value => value.NullableAsNonNullable)
+                entity
+                    .Property(value => value.NullableAsNonNullable)
                     .HasComputedColumnSql("1");
-                entity.Property(value => value.NonNullableAsNullable)
+
+                entity
+                    .Property(value => value.NonNullableAsNullable)
                     .HasComputedColumnSql("1");
             });
 
             modelBuilder.Entity<WithNoBackingFields>(entity =>
             {
-                entity.Property(value => value.TrueDefault).HasDefaultValue(true);
-                entity.Property(value => value.NonZeroDefault).HasDefaultValue(-1);
-                entity.Property(value => value.FalseDefault).HasDefaultValue(false);
-                entity.Property(value => value.ZeroDefault).HasDefaultValue(0);
+                entity
+                    .Property(value => value.TrueDefault)
+                    .HasDefaultValue(true);
+
+                entity
+                    .Property(value => value.NonZeroDefault)
+                    .HasDefaultValue(-1);
+
+                entity
+                    .Property(value => value.FalseDefault)
+                    .HasDefaultValue(false);
+
+                entity
+                    .Property(value => value.ZeroDefault)
+                    .HasDefaultValue(0);
             });
 
             modelBuilder.Entity<WithNullableBackingFields>(entity =>
             {
-                entity.Property(value => value.NullableBackedBoolTrueDefault)
+                entity
+                    .Property(value => value.NullableBackedBoolTrueDefault)
                     .HasDefaultValue(true);
-                entity.Property(value => value.NullableBackedIntNonZeroDefault)
+
+                entity
+                    .Property(value => value.NullableBackedIntNonZeroDefault)
                     .HasDefaultValue(-1);
-                entity.Property(value => value.NullableBackedBoolFalseDefault)
+
+                entity
+                    .Property(value => value.NullableBackedBoolFalseDefault)
                     .HasDefaultValue(false);
-                entity.Property(value => value.NullableBackedIntZeroDefault)
+
+                entity
+                    .Property(value => value.NullableBackedIntZeroDefault)
                     .HasDefaultValue(0);
             });
 
             modelBuilder.Entity<WithObjectBackingFields>(entity =>
             {
-                entity.Property(value => value.NullableBackedBoolTrueDefault)
+                entity
+                    .Property(value => value.NullableBackedBoolTrueDefault)
                     .HasDefaultValue(true);
-                entity.Property(value => value.NullableBackedIntNonZeroDefault)
+
+                entity
+                    .Property(value => value.NullableBackedIntNonZeroDefault)
                     .HasDefaultValue(-1);
-                entity.Property(value => value.NullableBackedBoolFalseDefault)
+
+                entity
+                    .Property(value => value.NullableBackedBoolFalseDefault)
                     .HasDefaultValue(false);
-                entity.Property(value => value.NullableBackedIntZeroDefault)
+
+                entity
+                    .Property(value => value.NullableBackedIntZeroDefault)
                     .HasDefaultValue(0);
             });
 
-            modelBuilder.Entity<NonStoreGenDependent>()
+            modelBuilder
+                .Entity<NonStoreGenDependent>()
                 .Property(value => value.HasTemp)
                 .HasDefaultValue(777);
-            modelBuilder.Entity<CompositePrincipal>()
+
+            modelBuilder
+                .Entity<CompositePrincipal>()
                 .Property(value => value.Id)
                 .UseMySqlAutoIncrementColumn();
 

@@ -8,17 +8,18 @@ internal sealed class MySqlDistributedCache : IBufferDistributedCache, IDisposab
             new EventId(1, "ExpiredItemsCleanupFailed"),
             "The bounded expired-item cleanup failed ({ExceptionType}, database error {DatabaseErrorNumber}).");
 
-    private readonly MySqlDataSource _dataSource;
-    private readonly bool _ownsDataSource;
-    private readonly MySqlCacheDatabaseOperations _operations;
-    private readonly ILogger<MySqlDistributedCache> _logger;
-    private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _cleanupInterval;
-    private readonly long _defaultSlidingExpirationMicroseconds;
 
-    private long _lastCleanupTimestamp;
+    private readonly MySqlDataSource _dataSource;
+    private readonly long _defaultSlidingExpirationMicroseconds;
+    private readonly ILogger<MySqlDistributedCache> _logger;
+    private readonly MySqlCacheDatabaseOperations _operations;
+    private readonly bool _ownsDataSource;
+    private readonly TimeProvider _timeProvider;
     private int _cleanupActive;
     private int _disposed;
+
+    private long _lastCleanupTimestamp;
 
     public MySqlDistributedCache(
         IOptions<MySqlCacheOptions> options,
@@ -39,6 +40,11 @@ internal sealed class MySqlDistributedCache : IBufferDistributedCache, IDisposab
         _cleanupInterval = settings.ExpiredItemsDeletionInterval;
         _lastCleanupTimestamp = _timeProvider.GetTimestamp();
     }
+
+    public ValueTask DisposeAsync() =>
+        Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsDataSource
+            ? _dataSource.DisposeAsync()
+            : ValueTask.CompletedTask;
 
     public byte[]? Get(
         string key
@@ -220,11 +226,6 @@ internal sealed class MySqlDistributedCache : IBufferDistributedCache, IDisposab
         }
     }
 
-    public ValueTask DisposeAsync() =>
-        Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsDataSource
-            ? _dataSource.DisposeAsync()
-            : ValueTask.CompletedTask;
-
     private static int GetSequenceLength(
         ReadOnlySequence<byte> value
     )
@@ -383,7 +384,10 @@ internal sealed class MySqlDistributedCache : IBufferDistributedCache, IDisposab
         Exception exception
     ) => s_cleanupFailed(
         _logger,
-        exception.GetType().Name,
-        exception is MySqlException databaseException ? databaseException.Number : 0,
+        exception.GetType()
+            .Name,
+        exception is MySqlException databaseException
+            ? databaseException.Number
+            : 0,
         null);
 }

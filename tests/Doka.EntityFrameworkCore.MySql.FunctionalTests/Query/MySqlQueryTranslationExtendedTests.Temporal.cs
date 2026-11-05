@@ -13,7 +13,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => e.CreatedAt < DateTime.Now)
+            .Items
+            .Where(e => e.CreatedAt < DateTime.Now)
             .ToQueryString();
 
         // Assert
@@ -31,7 +32,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => e.CreatedAt < DateTime.UtcNow)
+            .Items
+            .Where(e => e.CreatedAt < DateTime.UtcNow)
             .ToQueryString();
 
         // Assert
@@ -50,7 +52,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(entity => entity.CreatedAt - new DateTime(2000, 1, 1))
+            .Items
+            .Select(entity => entity.CreatedAt - new DateTime(2000, 1, 1))
             .ToQueryString();
 
         // Assert

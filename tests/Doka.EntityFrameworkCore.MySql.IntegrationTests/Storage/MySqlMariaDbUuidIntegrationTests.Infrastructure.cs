@@ -30,7 +30,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         IntegrationDatabaseTarget target,
         string purpose
     ) => new(
-        IntegrationTestDbContextOptions.Create<NativeUuidContext>()
+        IntegrationTestDbContextOptions
+            .Create<NativeUuidContext>()
             .UseMySql(
                 CreateNativeConnectionString(target, purpose),
                 IntegrationTestEnvironment.GetServerVersion(target),
@@ -41,7 +42,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     private static VersionedUuidContext CreateVersionedContext(
         IntegrationDatabaseTarget target
     ) => new(
-        IntegrationTestDbContextOptions.Create<VersionedUuidContext>()
+        IntegrationTestDbContextOptions
+            .Create<VersionedUuidContext>()
             .UseMySql(
                 CreateNativeConnectionString(target, nameof(UuidDataSet.Versioned)),
                 IntegrationTestEnvironment.GetServerVersion(target),
@@ -49,12 +51,18 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             .Options);
 
     /// <summary>Executes the model differ and SQL generator pipeline, including model-managed UUID data.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task CreateNativeModelAsync(
-        NativeUuidContext context
+        NativeUuidContext context,
+        CancellationToken cancellationToken
     )
     {
-        var model = context.GetService<IDesignTimeModel>().Model;
-        var operations = context.GetService<IMigrationsModelDiffer>()
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
             .GetDifferences(null, model.GetRelationalModel());
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -62,15 +70,20 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
         foreach (var command in generator.Generate(operations, model))
         {
-            _ = await command.ExecuteNonQueryAsync(
-                relationalConnection,
-                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            _ = await command
+                .ExecuteNonQueryAsync(
+                    relationalConnection,
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
-
+    /// <summary>Reads the storage types selected by property-level UUID opt-in.</summary>
+    /// <param name="context">The context used for this operation.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<Dictionary<string, string>> ReadOptInColumnTypesAsync(
-        NativeUuidOptInContext context
+        NativeUuidOptInContext context,
+        CancellationToken cancellationToken
     )
     {
         var connection = (MySqlConnection)context.Database.GetDbConnection();
@@ -78,13 +91,20 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         command.CommandText = "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
             + "WHERE TABLE_SCHEMA = DATABASE() "
             + $"AND TABLE_NAME = '{OptInTable}' AND COLUMN_NAME IN ('NativeId', 'BinaryId');";
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await using var reader = await command
-            .ExecuteReaderAsync(CancellationToken.None)
+
+        await connection
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             result.Add(reader.GetString(0), reader.GetString(1));
         }
@@ -92,8 +112,12 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         return result;
     }
 
+    /// <summary>Reads native, binary, and character UUID column types from the catalog.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task<Dictionary<string, string>> ReadColumnTypesAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -102,12 +126,16 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             + $"((TABLE_NAME = '{PrincipalTable}' AND COLUMN_NAME IN "
             + "('Id', 'OptionalNativeId', 'BinaryId', 'CharId', 'ConvertedId')) OR "
             + $"(TABLE_NAME = '{DependentTable}' AND COLUMN_NAME = 'PrincipalId'));";
+
         await using var reader = await command
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
+
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        while (await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             result.Add(reader.GetString(0), reader.GetString(1));
         }
@@ -115,31 +143,50 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         return result;
     }
 
+    /// <summary>Drops the related native UUID model tables in foreign-key order.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task DropModelTablesAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{DependentTable}`; "
             + $"DROP TABLE IF EXISTS `{PrincipalTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>Drops the isolated UUID probe table.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task DropProbeTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{ProbeTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>Drops the versioned UUID comparison table.</summary>
+    /// <param name="connection">The open database connection.</param>
+    /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
     private static async Task DropVersionedTableAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{VersionedTable}`;";
-        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

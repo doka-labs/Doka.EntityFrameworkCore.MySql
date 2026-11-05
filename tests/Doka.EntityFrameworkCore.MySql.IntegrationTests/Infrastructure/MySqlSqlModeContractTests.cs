@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
@@ -27,7 +28,8 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -39,7 +41,8 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MySql97,
-                MySqlServerVersion.MySql(new Version(9, 7, 0)))
+                MySqlServerVersion.MySql(new Version(9, 7, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -51,7 +54,8 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                MySqlServerVersion.MariaDb(new Version(10, 11, 0)))
+                MySqlServerVersion.MariaDb(new Version(10, 11, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -63,7 +67,8 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -75,7 +80,8 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -87,13 +93,15 @@ public sealed class MySqlSqlModeContractTests
     {
         await AssertTextLiteralContractAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                MySqlServerVersion.MariaDb(new Version(12, 3, 0)))
+                MySqlServerVersion.MariaDb(new Version(12, 3, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertTextLiteralContractAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -107,11 +115,13 @@ public sealed class MySqlSqlModeContractTests
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
-            .OpenAsync(CancellationToken.None)
+            .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var context = new SqlModeContractContext(
-            IntegrationTestDbContextOptions.Create<SqlModeContractContext>().UseMySql(connection, serverVersion)
+            IntegrationTestDbContextOptions
+                .Create<SqlModeContractContext>()
+                .UseMySql(connection, serverVersion)
                 .Options);
 
         var mapping = context
@@ -128,26 +138,30 @@ public sealed class MySqlSqlModeContractTests
         // Act
         foreach (var sqlMode in s_sqlModes)
         {
-            await SetSqlModeAsync(connection, sqlMode)
+            await SetSqlModeAsync(connection, sqlMode, cancellationToken)
                 .ConfigureAwait(false);
-            var expectedSqlMode = await ReadSqlModeAsync(connection)
+
+            var expectedSqlMode = await ReadSqlModeAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT HEX({literal})";
 
-            var actualHex = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
-
-            await AssertJsonPathLiteralContractAsync(connection, context)
+            var actualHex = await command
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertMigrationLiteralContractAsync(connection, context)
+            await AssertJsonPathLiteralContractAsync(connection, context, cancellationToken)
                 .ConfigureAwait(false);
 
-            await AssertFailedMigrationRestoresSessionAsync(connection, context, expectedSqlMode)
+            await AssertMigrationLiteralContractAsync(connection, context, cancellationToken)
                 .ConfigureAwait(false);
 
-            var restoredMode = await ReadSqlModeAsync(connection).ConfigureAwait(false);
+            await AssertFailedMigrationRestoresSessionAsync(connection, context, expectedSqlMode, cancellationToken)
+                .ConfigureAwait(false);
+
+            var restoredMode = await ReadSqlModeAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
 
             observations.Add((actualHex, expectedSqlMode, restoredMode));
         }
@@ -159,11 +173,14 @@ public sealed class MySqlSqlModeContractTests
         await AssertCanceledMigrationRestoresSessionAsync(
                 connectionString,
                 connection,
-                context)
+                context,
+                cancellationToken)
             .ConfigureAwait(false);
-        await AssertPoolReuseAfterFailureAsync(connectionString, serverVersion)
+
+        await AssertPoolReuseAfterFailureAsync(connectionString, serverVersion, cancellationToken)
             .ConfigureAwait(false);
-        await AssertCleanupFailureEvictsCallerConnectionAsync(connectionString, serverVersion)
+
+        await AssertCleanupFailureEvictsCallerConnectionAsync(connectionString, serverVersion, cancellationToken)
             .ConfigureAwait(false);
 
         // Keep the synchronous pool-eviction path qualified independently of
@@ -172,16 +189,19 @@ public sealed class MySqlSqlModeContractTests
         QualifySynchronousCleanupFailurePoolEviction(connectionString, serverVersion);
 
         // Assert
-        Assert.All(observations, observation =>
-        {
-            Assert.Equal(expectedHex, Assert.IsType<string>(observation.Hex));
-            Assert.Equal(observation.ExpectedMode, observation.RestoredMode);
-        });
+        Assert.All(
+            observations,
+            observation =>
+            {
+                Assert.Equal(expectedHex, Assert.IsType<string>(observation.Hex));
+                Assert.Equal(observation.ExpectedMode, observation.RestoredMode);
+            });
     }
 
     private static async Task AssertJsonPathLiteralContractAsync(
         MySqlConnection connection,
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -201,7 +221,7 @@ public sealed class MySqlSqlModeContractTests
             .GetType()
             .GetMethod(
                 "EscapeJsonPathPropertyName",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                BindingFlags.NonPublic | BindingFlags.Static);
 
         // WHY: The reflected escaping hook is fixture infrastructure, not the
         // server result being qualified by the following literal roundtrip.
@@ -218,19 +238,24 @@ public sealed class MySqlSqlModeContractTests
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT JSON_UNQUOTE(JSON_EXTRACT({jsonLiteral}, {pathLiteral}));";
 
-            var actual = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            var actual = await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             observations.Add((@case.Expected, actual));
         }
 
         // Assert
-        Assert.All(observations, observation =>
-            Assert.Equal(observation.Expected, Assert.IsType<string>(observation.Actual)));
+        Assert.All(
+            observations,
+            observation =>
+                Assert.Equal(observation.Expected, Assert.IsType<string>(observation.Actual)));
     }
 
     private static async Task AssertMigrationLiteralContractAsync(
         MySqlConnection connection,
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -276,17 +301,20 @@ public sealed class MySqlSqlModeContractTests
                             Table = tableName,
                             Columns = ["Value"],
                             ColumnTypes = ["longtext"],
-                            Values = new object[,]
-                            {
-                                { insertedValue },
-                            },
+                            Values = new object[,] { { insertedValue } },
                         },
-                    ])
+                    ],
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            var createdTableComment = await ReadTableCommentAsync(connection, tableName).ConfigureAwait(false);
-            var createdColumnComment = await ReadColumnCommentAsync(connection, tableName, "Value").ConfigureAwait(false);
-            var insertedHex = await ReadStoredValueHexAsync(connection, tableName).ConfigureAwait(false);
+            var createdTableComment = await ReadTableCommentAsync(connection, tableName, cancellationToken)
+                .ConfigureAwait(false);
+
+            var createdColumnComment = await ReadColumnCommentAsync(connection, tableName, "Value", cancellationToken)
+                .ConfigureAwait(false);
+
+            var insertedHex = await ReadStoredValueHexAsync(connection, tableName, cancellationToken)
+                .ConfigureAwait(false);
 
             var alterTable = new AlterTableOperation
             {
@@ -311,12 +339,19 @@ public sealed class MySqlSqlModeContractTests
                     context,
                     [
                         alterTable,
-                        addColumn
-                    ])
+                        addColumn,
+                    ],
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            var modifiedTableComment = await ReadTableCommentAsync(connection, tableName).ConfigureAwait(false);
-            var additionalColumnComment = await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
+            var modifiedTableComment = await ReadTableCommentAsync(connection, tableName, cancellationToken)
+                .ConfigureAwait(false);
+
+            var additionalColumnComment = await ReadColumnCommentAsync(
+                    connection,
+                    tableName,
+                    addColumn.Name,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             var alterColumn = new AlterColumnOperation
@@ -327,17 +362,23 @@ public sealed class MySqlSqlModeContractTests
                 ColumnType = "longtext",
                 IsNullable = true,
                 Comment = alteredColumnComment,
-                OldColumn = { ClrType = typeof(string),
+                OldColumn =
+                {
+                    ClrType = typeof(string),
                     ColumnType = "longtext",
                     IsNullable = true,
                     Comment = addedColumnComment,
                 },
             };
 
-            await ExecuteOperationsAsync(generator, context.Model, context, [alterColumn])
+            await ExecuteOperationsAsync(generator, context.Model, context, [alterColumn], cancellationToken)
                 .ConfigureAwait(false);
 
-            var modifiedColumnComment = await ReadColumnCommentAsync(connection, tableName, addColumn.Name)
+            var modifiedColumnComment = await ReadColumnCommentAsync(
+                    connection,
+                    tableName,
+                    addColumn.Name,
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             await ExecuteOperationsAsync(
@@ -350,21 +391,17 @@ public sealed class MySqlSqlModeContractTests
                             Table = tableName,
                             Columns = ["Value"],
                             ColumnTypes = ["longtext"],
-                            Values = new object[,]
-                            {
-                                { updatedValue },
-                            },
+                            Values = new object[,] { { updatedValue } },
                             KeyColumns = ["Value"],
                             KeyColumnTypes = ["longtext"],
-                            KeyValues = new object[,]
-                            {
-                                { insertedValue },
-                            },
+                            KeyValues = new object[,] { { insertedValue } },
                         },
-                    ])
+                    ],
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            var updatedHex = await ReadStoredValueHexAsync(connection, tableName).ConfigureAwait(false);
+            var updatedHex = await ReadStoredValueHexAsync(connection, tableName, cancellationToken)
+                .ConfigureAwait(false);
 
             await ExecuteOperationsAsync(
                     generator,
@@ -376,19 +413,19 @@ public sealed class MySqlSqlModeContractTests
                             Table = tableName,
                             KeyColumns = ["Value"],
                             KeyColumnTypes = ["longtext"],
-                            KeyValues = new object[,]
-                            {
-                                { updatedValue },
-                            },
+                            KeyValues = new object[,] { { updatedValue } },
                         },
-                    ])
+                    ],
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             await using var countCommand = connection.CreateCommand();
             countCommand.CommandText = $"SELECT COUNT(*) FROM `{tableName}`;";
 
             var remainingCount = Convert.ToInt64(
-                await countCommand.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                await countCommand
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
             // Assert
@@ -415,7 +452,8 @@ public sealed class MySqlSqlModeContractTests
         IMigrationsSqlGenerator generator,
         IModel model,
         DbContext context,
-        IReadOnlyList<MigrationOperation> operations
+        IReadOnlyList<MigrationOperation> operations,
+        CancellationToken cancellationToken
     )
     {
         var relationalConnection = context.GetService<IRelationalConnection>();
@@ -425,7 +463,7 @@ public sealed class MySqlSqlModeContractTests
             _ = await migrationCommand
                 .ExecuteNonQueryAsync(
                     relationalConnection,
-                    cancellationToken: CancellationToken.None)
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -433,7 +471,8 @@ public sealed class MySqlSqlModeContractTests
     private static async Task AssertFailedMigrationRestoresSessionAsync(
         MySqlConnection connection,
         DbContext context,
-        string expectedSqlMode
+        string expectedSqlMode,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -456,7 +495,7 @@ public sealed class MySqlSqlModeContractTests
         {
             setVariable.CommandText = "/*! SET @__doka_previous_sql_mode = 'caller-owned' */;";
             _ = await setVariable
-                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -467,22 +506,29 @@ public sealed class MySqlSqlModeContractTests
             await migrationCommand
                 .ExecuteNonQueryAsync(
                     relationalConnection,
-                    cancellationToken: CancellationToken.None)
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false));
 
         // Assert
         Assert.NotEqual(0, exception.Number);
         Assert.Equal(connectionId, connection.ServerThread);
-        Assert.Equal(expectedSqlMode, await ReadSqlModeAsync(connection).ConfigureAwait(false));
+        Assert.Equal(
+            expectedSqlMode,
+            await ReadSqlModeAsync(connection, cancellationToken)
+                .ConfigureAwait(false));
 
         await using var verify = connection.CreateCommand();
         verify.CommandText = "SELECT /*! @__doka_previous_sql_mode */, 1;";
 
         await using var reader = await verify
-            .ExecuteReaderAsync(CancellationToken.None)
+            .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        Assert.True(await reader.ReadAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.True(
+            await reader
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false));
+
         Assert.Equal(callerVariableValue, reader.GetString(0));
         Assert.Equal(1, reader.GetInt32(1));
     }
@@ -512,6 +558,7 @@ public sealed class MySqlSqlModeContractTests
             IsNullable = true,
             Comment = "path\\segment",
         };
+
         var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
 
         // Act
@@ -533,7 +580,8 @@ public sealed class MySqlSqlModeContractTests
     private static async Task AssertCanceledMigrationRestoresSessionAsync(
         string connectionString,
         MySqlConnection connection,
-        DbContext context
+        DbContext context,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -541,13 +589,23 @@ public sealed class MySqlSqlModeContractTests
         var tableName = $"SqlModeCancellation_{Guid.NewGuid():N}";
         await using var blocker = new MySqlConnection(connectionString);
         await using var observer = new MySqlConnection(connectionString);
-        await blocker.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await observer.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        await SetSqlModeAsync(connection, expectedSqlMode).ConfigureAwait(false);
+        await blocker
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await observer
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await SetSqlModeAsync(connection, expectedSqlMode, cancellationToken)
+            .ConfigureAwait(false);
+
         await using (var createTable = connection.CreateCommand())
         {
             createTable.CommandText = $"CREATE TABLE `{tableName}` (`Id` int NOT NULL);";
-            _ = await createTable.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await createTable
+                .ExecuteNonQueryAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var lockHeld = false;
@@ -557,7 +615,10 @@ public sealed class MySqlSqlModeContractTests
             await using (var lockCommand = blocker.CreateCommand())
             {
                 lockCommand.CommandText = $"LOCK TABLES `{tableName}` WRITE;";
-                _ = await lockCommand.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await lockCommand
+                    .ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
                 lockHeld = true;
             }
 
@@ -572,19 +633,25 @@ public sealed class MySqlSqlModeContractTests
                 IsNullable = true,
                 Comment = "path\\segment",
             };
+
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
-            using var cancellation = new CancellationTokenSource();
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             // Act
             var execution = migrationCommand.ExecuteNonQueryAsync(
                 relationalConnection,
                 cancellationToken: cancellation.Token);
 
-            await WaitForMetadataLockAsync(observer, connection.ServerThread)
+            await WaitForMetadataLockAsync(observer, connection.ServerThread, cancellationToken)
                 .ConfigureAwait(false);
-            await cancellation.CancelAsync().ConfigureAwait(false);
 
-            _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await cancellation
+                .CancelAsync()
+                .ConfigureAwait(false);
+
+            // WHY: Join the canceled command before verifying restoration; canceling this wait could leave it running.
+            _ = await Assert
+                .ThrowsAnyAsync<OperationCanceledException>(async () =>
                     await execution.ConfigureAwait(false))
                 .WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
                 .ConfigureAwait(false);
@@ -592,14 +659,17 @@ public sealed class MySqlSqlModeContractTests
             // Assert
             Assert.Equal(
                 expectedSqlMode,
-                await ReadSqlModeAsync(connection).ConfigureAwait(false));
+                await ReadSqlModeAsync(connection, cancellationToken)
+                    .ConfigureAwait(false));
 
             await using var verify = connection.CreateCommand();
             verify.CommandText = "SELECT 1;";
             Assert.Equal(
                 1,
                 Convert.ToInt32(
-                    await verify.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                    await verify
+                        .ExecuteScalarAsync(cancellationToken)
+                        .ConfigureAwait(false),
                     CultureInfo.InvariantCulture));
         }
         finally
@@ -608,18 +678,23 @@ public sealed class MySqlSqlModeContractTests
             {
                 await using var unlock = blocker.CreateCommand();
                 unlock.CommandText = "UNLOCK TABLES;";
-                _ = await unlock.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await unlock
+                    .ExecuteNonQueryAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await using var dropTable = connection.CreateCommand();
             dropTable.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
-            _ = await dropTable.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await dropTable
+                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
     private static async Task WaitForMetadataLockAsync(
         MySqlConnection observer,
-        int connectionId
+        int connectionId,
+        CancellationToken cancellationToken
     )
     {
         var timeout = Stopwatch.StartNew();
@@ -629,14 +704,18 @@ public sealed class MySqlSqlModeContractTests
             await using var command = observer.CreateCommand();
             command.CommandText = "SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @connectionId;";
             command.Parameters.AddWithValue("@connectionId", connectionId);
-            var state = await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false) as string;
+            var state = await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false) as string;
 
             if (state?.Contains("metadata lock", StringComparison.OrdinalIgnoreCase) == true)
             {
                 return;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(25), CancellationToken.None).ConfigureAwait(false);
+            await Task
+                .Delay(TimeSpan.FromMilliseconds(25), cancellationToken)
+                .ConfigureAwait(false);
         }
 
         throw new TimeoutException("The migration command did not enter the expected metadata-lock wait state.");
@@ -644,7 +723,8 @@ public sealed class MySqlSqlModeContractTests
 
     private static async Task AssertPoolReuseAfterFailureAsync(
         string baseConnectionString,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -666,14 +746,24 @@ public sealed class MySqlSqlModeContractTests
         // Act
         await using (var first = new MySqlConnection(pooledConnectionString))
         {
-            await MySqlConnection.ClearPoolAsync(first, CancellationToken.None).ConfigureAwait(false);
-            await first.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+            await MySqlConnection
+                .ClearPoolAsync(first, cancellationToken)
+                .ConfigureAwait(false);
+
+            await first
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
+
             firstConnectionId = first.ServerThread;
-            await SetSqlModeAsync(first, expectedSqlMode).ConfigureAwait(false);
+            await SetSqlModeAsync(first, expectedSqlMode, cancellationToken)
+                .ConfigureAwait(false);
+
             await using var context = new SqlModeContractContext(
-                IntegrationTestDbContextOptions.Create<SqlModeContractContext>()
+                IntegrationTestDbContextOptions
+                    .Create<SqlModeContractContext>()
                     .UseMySql(first, serverVersion)
                     .Options);
+
             var generator = context.GetService<IMigrationsSqlGenerator>();
             var relationalConnection = context.GetService<IRelationalConnection>();
             var operation = new AddColumnOperation
@@ -685,33 +775,43 @@ public sealed class MySqlSqlModeContractTests
                 IsNullable = true,
                 Comment = "path\\segment",
             };
+
             var command = Assert.Single(generator.Generate([operation], context.Model));
 
             migrationFailure = await Record.ExceptionAsync(async () =>
                 await command
                     .ExecuteNonQueryAsync(
                         relationalConnection,
-                        cancellationToken: CancellationToken.None)
+                        cancellationToken: cancellationToken)
                     .ConfigureAwait(false));
 
-            firstRestoredMode = await ReadSqlModeAsync(first).ConfigureAwait(false);
+            firstRestoredMode = await ReadSqlModeAsync(first, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         await using var second = new MySqlConnection(pooledConnectionString);
-        await second.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await second
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.IsType<MySqlException>(migrationFailure);
         Assert.Equal(expectedSqlMode, firstRestoredMode);
         Assert.Equal(firstConnectionId, second.ServerThread);
-        Assert.Equal(expectedSqlMode, await ReadSqlModeAsync(second).ConfigureAwait(false));
+        Assert.Equal(
+            expectedSqlMode,
+            await ReadSqlModeAsync(second, cancellationToken)
+                .ConfigureAwait(false));
 
-        await MySqlConnection.ClearPoolAsync(second, CancellationToken.None).ConfigureAwait(false);
+        await MySqlConnection
+            .ClearPoolAsync(second, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static async Task AssertCleanupFailureEvictsCallerConnectionAsync(
         string baseConnectionString,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -726,12 +826,19 @@ public sealed class MySqlSqlModeContractTests
         }.ConnectionString;
 
         await using var connection = new MySqlConnection(connectionString);
-        await MySqlConnection.ClearPoolAsync(connection, CancellationToken.None).ConfigureAwait(false);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await MySqlConnection
+            .ClearPoolAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
+
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var originalConnectionId = connection.ServerThread;
 
         await using var context = new SqlModeContractContext(
-            IntegrationTestDbContextOptions.Create<SqlModeContractContext>()
+            IntegrationTestDbContextOptions
+                .Create<SqlModeContractContext>()
                 .AddInterceptors(new RestoreFailureInterceptor())
                 .UseMySql(connection, serverVersion)
                 .Options);
@@ -741,7 +848,9 @@ public sealed class MySqlSqlModeContractTests
             await using (var createTable = connection.CreateCommand())
             {
                 createTable.CommandText = $"CREATE TABLE `{tableName}` (`Id` int NOT NULL);";
-                _ = await createTable.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = await createTable
+                    .ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             var operation = new AddColumnOperation
@@ -753,6 +862,7 @@ public sealed class MySqlSqlModeContractTests
                 IsNullable = true,
                 Comment = "path\\segment",
             };
+
             var generator = context.GetService<IMigrationsSqlGenerator>();
             var relationalConnection = context.GetService<IRelationalConnection>();
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
@@ -762,12 +872,14 @@ public sealed class MySqlSqlModeContractTests
                 await migrationCommand
                     .ExecuteNonQueryAsync(
                         relationalConnection,
-                        cancellationToken: CancellationToken.None)
+                        cancellationToken: cancellationToken)
                     .ConfigureAwait(false));
 
             var stateAfterFailure = connection.State;
 
-            await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+            await connection
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             var exception = Assert.IsType<MySqlMigrationSessionCleanupException>(caught);
@@ -780,14 +892,20 @@ public sealed class MySqlSqlModeContractTests
         {
             if (connection.State != ConnectionState.Open)
             {
-                await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+                await connection
+                    .OpenAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
             }
 
             await using var dropTable = connection.CreateCommand();
             dropTable.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
-            _ = await dropTable.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+            _ = await dropTable
+                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ConfigureAwait(false);
 
-            await MySqlConnection.ClearPoolAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await MySqlConnection
+                .ClearPoolAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -813,7 +931,8 @@ public sealed class MySqlSqlModeContractTests
         var originalConnectionId = connection.ServerThread;
 
         using var context = new SqlModeContractContext(
-            IntegrationTestDbContextOptions.Create<SqlModeContractContext>()
+            IntegrationTestDbContextOptions
+                .Create<SqlModeContractContext>()
                 .AddInterceptors(new RestoreFailureInterceptor())
                 .UseMySql(connection, serverVersion)
                 .Options);
@@ -835,6 +954,7 @@ public sealed class MySqlSqlModeContractTests
                 IsNullable = true,
                 Comment = "path\\segment",
             };
+
             var generator = context.GetService<IMigrationsSqlGenerator>();
             var relationalConnection = context.GetService<IRelationalConnection>();
             var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
@@ -842,6 +962,7 @@ public sealed class MySqlSqlModeContractTests
             // Act
             var caught = Record.Exception(() =>
                 migrationCommand.ExecuteNonQuery(relationalConnection));
+
             var stateAfterFailure = connection.State;
 
             connection.Open();
@@ -870,41 +991,46 @@ public sealed class MySqlSqlModeContractTests
 
     private static async Task<string> ReadTableCommentAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT TABLE_COMMENT FROM information_schema.TABLES "
             + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @tableName;";
+
         command.Parameters.AddWithValue("@tableName", tableName);
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 
     private static async Task<string> ReadColumnCommentAsync(
         MySqlConnection connection,
         string tableName,
-        string columnName
+        string columnName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
             + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @tableName AND COLUMN_NAME = @columnName;";
+
         command.Parameters.AddWithValue("@tableName", tableName);
         command.Parameters.AddWithValue("@columnName", columnName);
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 
     private static async Task<string> ReadStoredValueHexAsync(
         MySqlConnection connection,
-        string tableName
+        string tableName,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -912,13 +1038,14 @@ public sealed class MySqlSqlModeContractTests
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 
     private static async Task SetSqlModeAsync(
         MySqlConnection connection,
-        string sqlMode
+        string sqlMode,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -926,12 +1053,13 @@ public sealed class MySqlSqlModeContractTests
         command.Parameters.AddWithValue("@sqlMode", sqlMode);
 
         _ = await command
-            .ExecuteNonQueryAsync(CancellationToken.None)
+            .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
     private static async Task<string> ReadSqlModeAsync(
-        MySqlConnection connection
+        MySqlConnection connection,
+        CancellationToken cancellationToken
     )
     {
         await using var command = connection.CreateCommand();
@@ -939,7 +1067,7 @@ public sealed class MySqlSqlModeContractTests
 
         return Assert.IsType<string>(
             await command
-                .ExecuteScalarAsync(CancellationToken.None)
+                .ExecuteScalarAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
 

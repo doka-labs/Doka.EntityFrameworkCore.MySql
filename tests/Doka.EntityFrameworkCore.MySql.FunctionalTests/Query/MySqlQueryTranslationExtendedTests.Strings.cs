@@ -13,7 +13,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Name.Substring(2))
+            .Items
+            .Select(e => e.Name.Substring(2))
             .ToQueryString();
 
         // Assert
@@ -32,7 +33,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
         // the CLR culture is never consulted by UPPER().
 #pragma warning disable CA1304, CA1311
         var sql = context
-            .Items.Select(item => item.Name.ToUpper())
+            .Items
+            .Select(item => item.Name.ToUpper())
             .ToQueryString();
 #pragma warning restore CA1304, CA1311
 
@@ -52,7 +54,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
         // the CLR culture is never consulted by LOWER().
 #pragma warning disable CA1304, CA1311
         var sql = context
-            .Items.Select(item => item.Name.ToLower())
+            .Items
+            .Select(item => item.Name.ToLower())
             .ToQueryString();
 #pragma warning restore CA1304, CA1311
 
@@ -71,7 +74,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Name.Replace("old", "new"))
+            .Items
+            .Select(e => e.Name.Replace("old", "new"))
             .ToQueryString();
 
         // Assert
@@ -89,7 +93,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Name.Trim())
+            .Items
+            .Select(e => e.Name.Trim())
             .ToQueryString();
 
         // Assert
@@ -107,7 +112,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Name.IndexOf("test"))
+            .Items
+            .Select(e => e.Name.IndexOf("test"))
             .ToQueryString();
 
         // Assert
@@ -125,7 +131,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => string.Concat(e.Name, "-suffix"))
+            .Items
+            .Select(e => string.Concat(e.Name, "-suffix"))
             .ToQueryString();
 
         // Assert
@@ -145,7 +152,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Join(
+            .Items
+            .Join(
                 characters,
                 item => item.Id,
                 character => character,
@@ -157,6 +165,7 @@ public sealed partial class MySqlQueryTranslationExtendedTests
             "CONV(HEX(CONVERT(",
             sql,
             StringComparison.OrdinalIgnoreCase);
+
         Assert.Contains("USING utf32", sql, StringComparison.OrdinalIgnoreCase);
     }
 }

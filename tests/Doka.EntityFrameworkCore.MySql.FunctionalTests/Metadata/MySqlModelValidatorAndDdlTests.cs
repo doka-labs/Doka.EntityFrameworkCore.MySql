@@ -330,7 +330,11 @@ public sealed partial class MySqlModelValidatorAndDdlTests
         var index = Assert.Single(dependent!.GetIndexes());
 
         // Assert
-        Assert.True(index.Properties.Single().IsForeignKey());
+        Assert.True(
+            index
+                .Properties
+                .Single()
+                .IsForeignKey());
     }
 
     [Fact]

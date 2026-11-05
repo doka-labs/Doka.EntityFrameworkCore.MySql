@@ -14,7 +14,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var target = Enum.Parse<IntegrationDatabaseTarget>(targetName);
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsSharedTableMode>(target, format, capture);
-        await RecreateGuidDefaultsTablesAsync(context);
+        await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
         var principal = new GuidDefaultSharedPrincipal { Payload = "principal-marker" };
         var dependent = new GuidDefaultSharedDependent
         {
@@ -24,8 +24,14 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         principal.Dependent = dependent;
         context.Add(principal);
-        var principalKey = context.Entry(principal).Property(row => row.Id);
-        var dependentKey = context.Entry(dependent).Property(row => row.Id);
+        var principalKey = context
+            .Entry(principal)
+            .Property(row => row.Id);
+
+        var dependentKey = context
+            .Entry(dependent)
+            .Property(row => row.Id);
+
         var principalWasTemporary = principalKey.IsTemporary;
         var dependentWasTemporary = dependentKey.IsTemporary;
         var provisionalPrincipalId = principalKey.CurrentValue;
@@ -36,8 +42,11 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var exception = await Record.ExceptionAsync(() => context.SaveChangesAsync(CancellationToken.None));
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidDefaultSharedPrincipal>().AsNoTracking()
-            .Include(row => row.Dependent).ToListAsync(CancellationToken.None);
+        var persisted = await context
+            .Set<GuidDefaultSharedPrincipal>()
+            .AsNoTracking()
+            .Include(row => row.Dependent)
+            .ToListAsync(CancellationToken.None);
 
         // Assert
         Assert.True(principalWasTemporary);
@@ -70,17 +79,27 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             Assert.Equal(dependent.Payload, stored.Dependent.Payload);
             Assert.False(principalKey.IsTemporary);
             Assert.False(dependentKey.IsTemporary);
-            Assert.Equal(EntityState.Unchanged, context.Entry(principal).State);
-            Assert.Equal(EntityState.Unchanged, context.Entry(dependent).State);
+            Assert.Equal(
+                EntityState.Unchanged,
+                context.Entry(principal)
+                    .State);
+
+            Assert.Equal(
+                EntityState.Unchanged,
+                context.Entry(dependent)
+                    .State);
+
             Assert.Contains(capture.Commands, sql => sql.Contains("RETURNING `Id`", StringComparison.Ordinal));
             Assert.Equal(1, capture.Commands.Sum(sql => CountOccurrences(sql, "INSERT INTO")));
             Assert.NotEmpty(GuidDefaultInsertHeaders(capture.Commands, GuidDefaultSharedTable));
-            Assert.All(GuidDefaultInsertHeaders(capture.Commands, GuidDefaultSharedTable), header =>
-            {
-                Assert.DoesNotContain("`Id`", header, StringComparison.Ordinal);
-                Assert.Contains("`PrincipalPayload`", header, StringComparison.Ordinal);
-                Assert.Contains("`DependentPayload`", header, StringComparison.Ordinal);
-            });
+            Assert.All(
+                GuidDefaultInsertHeaders(capture.Commands, GuidDefaultSharedTable),
+                header =>
+                {
+                    Assert.DoesNotContain("`Id`", header, StringComparison.Ordinal);
+                    Assert.Contains("`PrincipalPayload`", header, StringComparison.Ordinal);
+                    Assert.Contains("`DependentPayload`", header, StringComparison.Ordinal);
+                });
         }
     }
 }

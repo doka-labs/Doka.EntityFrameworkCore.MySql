@@ -58,12 +58,15 @@ public sealed partial class EngineProfileTableTests
     public void High_cardinality_version_input_stays_within_cache_capacity()
     {
         // Arrange
-        var versions = Enumerable.Range(0, EngineProfileTable.Capacity * 4)
+        var versions = Enumerable
+            .Range(0, EngineProfileTable.Capacity * 4)
             .Select(versionIndex => new Version(1000 + versionIndex, 0))
             .ToArray();
 
         // Act
-        var profiles = versions.Select(version => EngineProfileTable.Resolve(EngineFamily.MySql, version)).ToArray();
+        var profiles = versions
+            .Select(version => EngineProfileTable.Resolve(EngineFamily.MySql, version))
+            .ToArray();
 
         // Assert
         Assert.All(versions.Zip(profiles), pair => Assert.Equal(pair.First, pair.Second.Version));
@@ -77,7 +80,8 @@ public sealed partial class EngineProfileTableTests
     public void Concurrent_high_cardinality_version_input_stays_within_cache_capacity()
     {
         // Arrange
-        var versions = Enumerable.Range(0, EngineProfileTable.Capacity * 8)
+        var versions = Enumerable
+            .Range(0, EngineProfileTable.Capacity * 8)
             .Select(versionIndex => new Version(2000 + versionIndex, 0))
             .ToArray();
 

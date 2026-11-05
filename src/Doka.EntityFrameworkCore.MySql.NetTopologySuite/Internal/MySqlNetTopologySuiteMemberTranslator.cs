@@ -37,11 +37,12 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         [(typeof(Polygon), nameof(Polygon.ExteriorRing))] = "ST_ExteriorRing",
     };
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
-    private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
-    private readonly bool _supportsMariaDbSpatialFunctions;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly bool _supportsIsValid;
+    private readonly bool _supportsMariaDbSpatialFunctions;
+    private readonly IRelationalTypeMappingSource _typeMappingSource;
 
     public MySqlNetTopologySuiteMemberTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
@@ -82,7 +83,8 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
 
         if (TryGetScalarFunction(member, out var scalarFunctionName, out var typeMapping))
         {
-            if (scalarFunctionName == "ST_IsValid" && !_supportsIsValid)
+            if (scalarFunctionName == "ST_IsValid"
+                && !_supportsIsValid)
             {
                 MySqlLoggerMessages.MissingSpatialTranslation(
                     _logger,
@@ -229,6 +231,6 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         nameof(Geometry.GeometryType) => s_stringMapping,
         nameof(Geometry.SRID) or nameof(Geometry.NumPoints) or nameof(Polygon.NumInteriorRings) => s_intMapping,
         nameof(Geometry.IsEmpty) or nameof(Geometry.IsSimple) or nameof(Geometry.IsValid) => s_boolMapping,
-        _ => s_doubleMapping
+        _ => s_doubleMapping,
     };
 }

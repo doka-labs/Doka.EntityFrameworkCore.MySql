@@ -10,6 +10,8 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
         NonSharedFixture fixture
     ) : base(fixture) { }
 
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+
     public override Task Can_read_write_DateTimeOffset_JSON_values(
         string value,
         string json
@@ -67,7 +69,9 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
         string json
     ) => Can_read_and_write_JSON_value<NullableEnumU64Type, EnumU64?>(
         nameof(NullableEnumU64Type.EnumU64),
-        value is null ? null : (EnumU64)value,
+        value is null
+            ? null
+            : (EnumU64)value,
         json);
 
     public override Task Can_read_write_collection_of_ulong_enum_JSON_values() =>
@@ -96,8 +100,6 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
             ],
             """{"Prop":[0,null,18446744073709551615,0,1,8]}""",
             mappedCollection: true);
-
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override DbContextOptionsBuilder AddOptions(
         DbContextOptionsBuilder builder

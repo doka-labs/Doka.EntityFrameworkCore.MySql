@@ -21,12 +21,15 @@ internal static class MigrationWorkflowCommand
     /// Executes one supported command.
     /// </summary>
     /// <param name="args">Command-line arguments. The default command is <c>migrate</c>.</param>
+    /// <param name="cancellationToken">The token to observe while executing the selected command.</param>
     /// <returns>Zero when the selected operation succeeds.</returns>
     public static async Task<int> RunAsync(
-        string[] args
+        string[] args,
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(args);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var command = args.Length == 0
             ? "migrate"
@@ -34,10 +37,10 @@ internal static class MigrationWorkflowCommand
 
         return command switch
         {
-            "migrate" => await MigrateAsync().ConfigureAwait(false),
-            "migrate-direct" => await MigrateDirectAsync().ConfigureAwait(false),
-            "verify-latest" => await VerifyLatestAsync().ConfigureAwait(false),
-            "verify-rolled-back" => await VerifyRolledBackAsync().ConfigureAwait(false),
+            "migrate" => await MigrateAsync(cancellationToken).ConfigureAwait(false),
+            "migrate-direct" => await MigrateDirectAsync(cancellationToken).ConfigureAwait(false),
+            "verify-latest" => await VerifyLatestAsync(cancellationToken).ConfigureAwait(false),
+            "verify-rolled-back" => await VerifyRolledBackAsync(cancellationToken).ConfigureAwait(false),
             _ => throw new ArgumentException(
                 $"Unsupported migration workflow command '{command}'. "
                 + "Supported commands are: migrate, migrate-direct, verify-latest, verify-rolled-back.",
@@ -45,20 +48,35 @@ internal static class MigrationWorkflowCommand
         };
     }
 
-    private static async Task<int> MigrateAsync()
+    /// <summary>
+    /// Applies pending migrations through the database facade.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while applying migrations.</param>
+    /// <returns>Zero after the database reaches the current model.</returns>
+    private static async Task<int> MigrateAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: true);
 
         await context.Database
-            .MigrateAsync(CancellationToken.None)
+            .MigrateAsync(cancellationToken)
             .ConfigureAwait(false);
 
         Console.WriteLine("Migration workflow database is up to date.");
+
         return 0;
     }
 
-    private static async Task<int> MigrateDirectAsync()
+    /// <summary>
+    /// Applies pending migrations through the provider's migrator service.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while applying migrations.</param>
+    /// <returns>Zero after the database reaches the current model.</returns>
+    private static async Task<int> MigrateDirectAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: false);
@@ -67,37 +85,46 @@ internal static class MigrationWorkflowCommand
         // directly keeps its public provider contract independently visible.
         await context
             .GetService<IMigrator>()
-            .MigrateAsync(cancellationToken: CancellationToken.None)
+            .MigrateAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         Console.WriteLine("Direct IMigrator workflow is up to date.");
+
         return 0;
     }
 
-    private static async Task<int> VerifyLatestAsync()
+    /// <summary>
+    /// Verifies migration history, seeded values and handler evidence after migration.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while reading the database state.</param>
+    /// <returns>Zero when the complete latest-state contract is observed.</returns>
+    private static async Task<int> VerifyLatestAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: false);
 
         var appliedMigrations = (await context.Database
-            .GetAppliedMigrationsAsync(CancellationToken.None)
+            .GetAppliedMigrationsAsync(cancellationToken)
             .ConfigureAwait(false))
             .ToArray();
 
         var pendingMigrations = (await context.Database
-            .GetPendingMigrationsAsync(CancellationToken.None)
+            .GetPendingMigrationsAsync(cancellationToken)
             .ConfigureAwait(false))
             .ToArray();
 
         var items = await context.Items
             .OrderBy(item => item.Id)
-            .ToArrayAsync(CancellationToken.None)
+            .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var handlerEvidenceTableCount = await CountApplicationTablesAsync(
                 context,
                 MigrationWorkflowOperationHandlerExtensions.EvidenceTableName,
-                MigrationWorkflowOperationHandlerExtensions.EvidenceTableName)
+                MigrationWorkflowOperationHandlerExtensions.EvidenceTableName,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (!appliedMigrations.SequenceEqual(s_expectedMigrations, StringComparer.Ordinal)
@@ -114,6 +141,7 @@ internal static class MigrationWorkflowCommand
         }
 
         Console.WriteLine("Migration workflow readback verified the latest schema.");
+
         return 0;
     }
 
@@ -149,19 +177,27 @@ internal static class MigrationWorkflowCommand
             && items[2].OccurredAt == repairedTimestamp;
     }
 
-    private static async Task<int> VerifyRolledBackAsync()
+    /// <summary>
+    /// Verifies rollback removed both migration history and example-owned tables.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while reading the rolled-back state.</param>
+    /// <returns>Zero when no applied migration or example-owned table remains.</returns>
+    private static async Task<int> VerifyRolledBackAsync(
+        CancellationToken cancellationToken
+    )
     {
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: false);
 
         var appliedMigrations = await context.Database
-            .GetAppliedMigrationsAsync(CancellationToken.None)
+            .GetAppliedMigrationsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var applicationTableCount = await CountApplicationTablesAsync(
                 context,
                 "MigrationWorkflowItems",
-                MigrationWorkflowOperationHandlerExtensions.EvidenceTableName)
+                MigrationWorkflowOperationHandlerExtensions.EvidenceTableName,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (appliedMigrations.Any()
@@ -172,13 +208,23 @@ internal static class MigrationWorkflowCommand
         }
 
         Console.WriteLine("Migration workflow readback verified the rolled-back schema.");
+
         return 0;
     }
 
+    /// <summary>
+    /// Counts the named application tables independently of provider SQL generation.
+    /// </summary>
+    /// <param name="context">The context selecting the database to inspect.</param>
+    /// <param name="firstTableName">The first expected application table.</param>
+    /// <param name="secondTableName">The second expected application table.</param>
+    /// <param name="cancellationToken">The token to observe while reading the table metadata.</param>
+    /// <returns>The number of matching tables in the selected database.</returns>
     private static Task<long> CountApplicationTablesAsync(
         MigrationWorkflowContext context,
         string firstTableName,
-        string secondTableName
+        string secondTableName,
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -196,6 +242,6 @@ internal static class MigrationWorkflowCommand
                 + "AND `table_name` IN ({0}, {1})",
                 firstTableName,
                 secondTableName)
-            .SingleAsync(CancellationToken.None);
+            .SingleAsync(cancellationToken);
     }
 }

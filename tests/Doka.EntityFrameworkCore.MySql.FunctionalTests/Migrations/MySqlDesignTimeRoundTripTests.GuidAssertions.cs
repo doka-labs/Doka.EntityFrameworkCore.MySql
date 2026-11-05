@@ -22,9 +22,20 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             operations.OfType<CreateIndexOperation>(),
             operation => operation.Name == "IX_MixedGuidDesignRecords_Name_BinaryReference");
 
-        Assert.Equal(MySqlGuidFormat.Char36, id.GetMySqlMigrationMetadata().GuidFormat);
-        Assert.Equal(MySqlGuidFormat.Binary16, binaryReference.GetMySqlMigrationMetadata().GuidFormat);
-        Assert.Equal([16, 0], index.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(
+            MySqlGuidFormat.Char36,
+            id.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
+        Assert.Equal(
+            MySqlGuidFormat.Binary16,
+            binaryReference.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
+        Assert.Equal(
+            [16, 0],
+            index.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
     }
 
     private static void AssertChar36OperationMetadata(
@@ -43,14 +54,25 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             tables["Char36DesignRevisions"].Columns,
             column => column.Name == nameof(Char36DesignRevision.DocumentId));
 
-        Assert.Equal(MySqlGuidFormat.Char36, id.GetMySqlMigrationMetadata().GuidFormat);
+        Assert.Equal(
+            MySqlGuidFormat.Char36,
+            id.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
-            id.GetMySqlMigrationMetadata().ValueGenerationStrategy);
-        Assert.Equal(MySqlGuidFormat.Char36, documentId.GetMySqlMigrationMetadata().GuidFormat);
+            id.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
+        Assert.Equal(
+            MySqlGuidFormat.Char36,
+            documentId.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.None,
-            documentId.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+            documentId.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
     }
 
     private static void AssertGuidSeedDataOperations(
@@ -71,9 +93,11 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.All(
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.ExplicitChar36)),
             value => Assert.IsType<string>(value));
+
         Assert.All(
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.Binary16)),
             value => Assert.IsType<Guid>(value));
+
         AssertNullableProviderGuidValues(
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.OptionalChar36)));
 
@@ -87,18 +111,21 @@ public sealed partial class MySqlDesignTimeRoundTripTests
                     principalTable.Columns,
                     column => column.Name == nameof(GuidSeedDesignRecord.DefaultChar36))
                 .DefaultValue);
+
         Assert.Equal(
             new Guid("5c855603-622d-4bee-b232-f74f63026caf"),
             Assert.Single(
                     principalTable.Columns,
                     column => column.Name == nameof(GuidSeedDesignRecord.DefaultBinary16))
                 .DefaultValue);
+
         Assert.Equal(
             new Guid("19bbd2b4-6a65-4469-bfaa-6ed3d4c19d81"),
             Assert.Single(
                     principalTable.Columns,
                     column => column.Name == nameof(GuidSeedDesignRecord.OptionalDefaultChar36))
                 .DefaultValue);
+
         Assert.Equal(
             Guid.Empty,
             Assert.Single(
@@ -111,6 +138,7 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.All(
             GetColumnValues(dependents, nameof(GuidSeedDependentRecord.PrincipalId)),
             value => Assert.IsType<string>(value));
+
         AssertNullableProviderGuidValues(
             GetColumnValues(dependents, nameof(GuidSeedDependentRecord.OptionalPrincipalId)));
 
@@ -130,16 +158,27 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         Assert.Equal(
             new Guid("27caab1e-a588-4dcc-bace-fef7cf47e1fd"),
-            entityType?.FindProperty(nameof(GuidSeedDesignRecord.DefaultChar36))?.GetDefaultValue());
+            entityType
+                ?.FindProperty(nameof(GuidSeedDesignRecord.DefaultChar36))
+                ?.GetDefaultValue());
+
         Assert.Equal(
             new Guid("5c855603-622d-4bee-b232-f74f63026caf"),
-            entityType?.FindProperty(nameof(GuidSeedDesignRecord.DefaultBinary16))?.GetDefaultValue());
+            entityType
+                ?.FindProperty(nameof(GuidSeedDesignRecord.DefaultBinary16))
+                ?.GetDefaultValue());
+
         Assert.Equal(
             new Guid("19bbd2b4-6a65-4469-bfaa-6ed3d4c19d81"),
-            entityType?.FindProperty(nameof(GuidSeedDesignRecord.OptionalDefaultChar36))?.GetDefaultValue());
+            entityType
+                ?.FindProperty(nameof(GuidSeedDesignRecord.OptionalDefaultChar36))
+                ?.GetDefaultValue());
+
         Assert.Equal(
             Guid.Empty,
-            entityType?.FindProperty(nameof(GuidSeedDesignRecord.EmptyDefaultChar36))?.GetDefaultValue());
+            entityType
+                ?.FindProperty(nameof(GuidSeedDesignRecord.EmptyDefaultChar36))
+                ?.GetDefaultValue());
     }
 
     private static object?[] GetColumnValues(
@@ -192,11 +231,15 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.Equal(
             new Guid("0517e651-62e5-4a93-845d-fd87b14e4363"),
             Assert.IsType<Guid>(externalId?.GetDefaultValue()));
+
         Assert.Equal(
             typeof(string),
             applicationId?.ClrType == typeof(string)
                 ? applicationId.ClrType
-                : applicationId?.GetProviderClrType() ?? applicationId?.GetValueConverter()?.ProviderClrType);
+                : applicationId?.GetProviderClrType()
+                ?? applicationId?.GetValueConverter()
+                    ?.ProviderClrType);
+
         Assert.Null(applicationId?.GetMySqlGuidFormat());
     }
 }

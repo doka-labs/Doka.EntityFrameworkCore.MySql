@@ -10,7 +10,7 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="strategy">The provider-specific value-generation strategy.</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
     public static PropertyBuilder HasMySqlValueGenerationStrategy(
         this PropertyBuilder propertyBuilder,
         MySqlValueGenerationStrategy strategy
@@ -48,7 +48,7 @@ public static class MySqlPropertyBuilderExtensions
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="strategy">The provider-specific value-generation strategy.</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
     public static PropertyBuilder<TProperty> HasMySqlValueGenerationStrategy<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         MySqlValueGenerationStrategy strategy
@@ -65,7 +65,7 @@ public static class MySqlPropertyBuilderExtensions
     /// Configures an integer property to use MySQL-family auto-increment semantics.
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
     public static PropertyBuilder UseMySqlAutoIncrementColumn(
         this PropertyBuilder propertyBuilder
     )
@@ -80,14 +80,14 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
     public static PropertyBuilder<TProperty> UseMySqlAutoIncrementColumn<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder
     )
     {
         ArgumentNullException.ThrowIfNull(propertyBuilder);
 
-        UseMySqlAutoIncrementColumn((PropertyBuilder)propertyBuilder);
+        ((PropertyBuilder)propertyBuilder).UseMySqlAutoIncrementColumn();
 
         return propertyBuilder;
     }
@@ -96,7 +96,7 @@ public static class MySqlPropertyBuilderExtensions
     /// Configures a GUID property to use explicit client-side value generation.
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
     public static PropertyBuilder UseMySqlClientGuidValueGeneration(
         this PropertyBuilder propertyBuilder
     )
@@ -111,7 +111,7 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
     public static PropertyBuilder<TProperty> UseMySqlClientGuidValueGeneration<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder
     )
@@ -129,11 +129,12 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="name">The sequence name (defaults to a convention-based name if <c>null</c>).</param>
     /// <param name="schema">The sequence schema (unused on MySQL; included for API compatibility).</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
     public static PropertyBuilder UseHiLo(
         this PropertyBuilder propertyBuilder,
         string? name = null,
@@ -166,11 +167,12 @@ public static class MySqlPropertyBuilderExtensions
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="name">The sequence name.</param>
     /// <param name="schema">The sequence schema (unused on MySQL).</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: HiLo sequence name and schema are optional and default to convention. See ADR D-008.")]
     public static PropertyBuilder<TProperty> UseHiLo<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         string? name = null,
@@ -189,9 +191,9 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="format">The GUID storage format.</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
     /// <remarks>
-    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <see cref="MySqlGuidFormat.Uuid" /> selects MariaDB's native
     /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
     /// to this format requires a reviewed data migration.
     /// </remarks>
@@ -218,9 +220,9 @@ public static class MySqlPropertyBuilderExtensions
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="format">The GUID storage format.</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
     /// <remarks>
-    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <see cref="MySqlGuidFormat.Uuid" /> selects MariaDB's native
     /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
     /// to this format requires a reviewed data migration.
     /// </remarks>
@@ -241,9 +243,9 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <param name="propertyBuilder">The complex-type property builder.</param>
     /// <param name="format">The GUID storage format.</param>
-    /// <returns>The same <see cref="ComplexTypePropertyBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="ComplexTypePropertyBuilder" /> instance.</returns>
     /// <remarks>
-    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <see cref="MySqlGuidFormat.Uuid" /> selects MariaDB's native
     /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
     /// to this format requires a reviewed data migration.
     /// </remarks>
@@ -270,9 +272,9 @@ public static class MySqlPropertyBuilderExtensions
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The typed complex-type property builder.</param>
     /// <param name="format">The GUID storage format.</param>
-    /// <returns>The same <see cref="ComplexTypePropertyBuilder{TProperty}"/> instance.</returns>
+    /// <returns>The same <see cref="ComplexTypePropertyBuilder{TProperty}" /> instance.</returns>
     /// <remarks>
-    /// <see cref="MySqlGuidFormat.Uuid"/> selects MariaDB's native
+    /// <see cref="MySqlGuidFormat.Uuid" /> selects MariaDB's native
     /// <c>uuid</c> type on MariaDB 10.7 or later. Changing an existing column
     /// to this format requires a reviewed data migration.
     /// </remarks>
@@ -327,11 +329,12 @@ public static class MySqlPropertyBuilderExtensions
     /// </summary>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="invisible">Whether the column should be invisible.</param>
-    /// <returns>The same <see cref="PropertyBuilder"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="PropertyBuilder" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
+        Justification =
+            "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder IsInvisible(
         this PropertyBuilder propertyBuilder,
         bool invisible = true
@@ -350,11 +353,12 @@ public static class MySqlPropertyBuilderExtensions
     /// <typeparam name="TProperty">The property CLR type.</typeparam>
     /// <param name="propertyBuilder">The property builder.</param>
     /// <param name="invisible">Whether the column should be invisible.</param>
-    /// <returns>The same <see cref="PropertyBuilder{TProperty}"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="PropertyBuilder{TProperty}" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
+        Justification =
+            "MySQL-family INVISIBLE fluent API: the toggle defaults to true so the no-argument call site reads naturally. See ADR D-008.")]
     public static PropertyBuilder<TProperty> IsInvisible<TProperty>(
         this PropertyBuilder<TProperty> propertyBuilder,
         bool invisible = true

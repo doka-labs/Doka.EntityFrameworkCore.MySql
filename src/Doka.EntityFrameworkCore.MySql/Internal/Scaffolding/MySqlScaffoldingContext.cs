@@ -3,24 +3,33 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Carries cross-service scaffolding state for a single design-time reverse-engineering
 /// invocation. The two fields cross three EF Core service boundaries -- written by
-/// <see cref="MySqlDatabaseModelFactory"/> and <see cref="MySqlScaffoldingModelFactory"/>,
-/// read by <see cref="MySqlProviderConfigurationCodeGenerator"/> -- which cannot share
+/// <see cref="MySqlDatabaseModelFactory" /> and <see cref="MySqlScaffoldingModelFactory" />,
+/// read by <see cref="MySqlProviderConfigurationCodeGenerator" /> -- which cannot share
 /// the in-flight <c>IModel</c> because the EF Core
 /// <c>ProviderCodeGenerator.GenerateUseProvider</c> contract takes only the connection
 /// string and an optional provider-options fragment. Until that contract surfaces a
 /// model parameter the cross-service hand-off lives here.
-///
 /// The class is registered as a DI singleton because EF Core requires
-/// <see cref="IProviderConfigurationCodeGenerator"/> to be a thread-safe singleton.
+/// <see cref="IProviderConfigurationCodeGenerator" /> to be a thread-safe singleton.
 /// The ambient value is immutable and scoped to the current logical execution context,
 /// so concurrent reverse-engineering operations cannot overwrite each other's state.
-/// <see cref="Begin"/> starts a fresh state and <see cref="Consume"/> removes it after
-/// provider configuration generation. <see cref="Abort"/> provides idempotent cleanup
+/// <see cref="Begin" /> starts a fresh state and <see cref="Consume" /> removes it after
+/// provider configuration generation. <see cref="Abort" /> provides idempotent cleanup
 /// when the enclosing operation exits before code generation.
 /// </summary>
 internal sealed class MySqlScaffoldingContext
 {
     private readonly AsyncLocal<MySqlScaffoldingState?> _current = new();
+
+    /// <summary>
+    /// Gets the server version detected for the active scaffolding invocation.
+    /// </summary>
+    public string? DetectedServerVersionText => Current.DetectedServerVersionText;
+
+    private MySqlScaffoldingState Current =>
+        _current.Value
+        ?? throw new InvalidOperationException(
+            "No MySQL scaffolding operation is active in the current execution context.");
 
     /// <summary>
     /// Begins a new scaffolding invocation in the current logical execution context.
@@ -33,11 +42,6 @@ internal sealed class MySqlScaffoldingContext
     {
         DetectedServerVersionText = detectedServerVersionText,
     };
-
-    /// <summary>
-    /// Gets the server version detected for the active scaffolding invocation.
-    /// </summary>
-    public string? DetectedServerVersionText => Current.DetectedServerVersionText;
 
     public void SetUsesNetTopologySuiteScaffolding(
         bool usesNetTopologySuiteScaffolding
@@ -65,11 +69,6 @@ internal sealed class MySqlScaffoldingContext
     /// Removes any in-flight state from the current logical execution context.
     /// </summary>
     public void Abort() => _current.Value = null;
-
-    private MySqlScaffoldingState Current =>
-        _current.Value
-        ?? throw new InvalidOperationException(
-            "No MySQL scaffolding operation is active in the current execution context.");
 }
 
 internal sealed record MySqlScaffoldingState(

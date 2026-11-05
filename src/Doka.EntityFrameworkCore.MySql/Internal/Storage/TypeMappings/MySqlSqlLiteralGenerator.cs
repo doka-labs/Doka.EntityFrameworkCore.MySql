@@ -21,7 +21,7 @@ internal static class MySqlSqlLiteralGenerator
     /// <param name="value">The valid UTF-16 text to encode.</param>
     /// <returns>A complete MySQL-family SQL text literal.</returns>
     /// <exception cref="EncoderFallbackException">
-    /// Thrown when <paramref name="value"/> contains an unpaired UTF-16 surrogate.
+    /// Thrown when <paramref name="value" /> contains an unpaired UTF-16 surrogate.
     /// </exception>
     public static string Generate(
         string value
@@ -35,7 +35,10 @@ internal static class MySqlSqlLiteralGenerator
 
         foreach (var character in value)
         {
-            quoteCount += character == '\'' ? 1 : 0;
+            quoteCount += character == '\''
+                ? 1
+                : 0;
+
             requiresHexLiteral |= character == '\\' || char.IsControl(character);
             requiresUtf8Validation |= char.IsSurrogate(character);
         }
@@ -64,7 +67,7 @@ internal static class MySqlSqlLiteralGenerator
     /// <param name="value">The valid UTF-16 comment text to encode.</param>
     /// <returns>A quoted and quote-doubled DDL comment literal.</returns>
     /// <exception cref="EncoderFallbackException">
-    /// Thrown when <paramref name="value"/> contains an unpaired UTF-16 surrogate.
+    /// Thrown when <paramref name="value" /> contains an unpaired UTF-16 surrogate.
     /// </exception>
     public static string GenerateDdlComment(
         string value
@@ -77,7 +80,10 @@ internal static class MySqlSqlLiteralGenerator
 
         foreach (var character in value)
         {
-            quoteCount += character == '\'' ? 1 : 0;
+            quoteCount += character == '\''
+                ? 1
+                : 0;
+
             requiresUtf8Validation |= char.IsSurrogate(character);
         }
 
@@ -97,10 +103,8 @@ internal static class MySqlSqlLiteralGenerator
         return string.Create(
             value.Length + quoteCount + 2,
             value,
-            static (
-                destination,
-                source
-            ) =>
+            static (destination,
+                source) =>
             {
                 destination[0] = '\'';
                 var destinationIndex = 1;
@@ -131,12 +135,10 @@ internal static class MySqlSqlLiteralGenerator
             bytesWritten = s_strictUtf8.GetBytes(value, rentedBytes);
 
             return string.Create(
-                Utf8HexPrefix.Length + (bytesWritten * 2) + 1,
+                Utf8HexPrefix.Length + bytesWritten * 2 + 1,
                 (Bytes: rentedBytes, Length: bytesWritten),
-                static (
-                    destination,
-                    state
-                ) =>
+                static (destination,
+                    state) =>
                 {
                     Utf8HexPrefix
                         .AsSpan()

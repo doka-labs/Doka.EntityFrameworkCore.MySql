@@ -1,5 +1,6 @@
 // File-local using: ICSharpRuntimeAnnotationCodeGenerator is registered via the Design.Internal
 // service-pair below; the rest of this file's surface stays on the public EF Core API.
+
 using Microsoft.EntityFrameworkCore.Design.Internal;
 using Microsoft.EntityFrameworkCore.Migrations.Design;
 
@@ -14,7 +15,7 @@ public static class MySqlServiceCollectionExtensions
     /// Adds the Doka MySQL runtime provider services to the supplied collection.
     /// </summary>
     /// <param name="serviceCollection">The target service collection.</param>
-    /// <returns>The same <see cref="IServiceCollection"/> instance.</returns>
+    /// <returns>The same <see cref="IServiceCollection" /> instance.</returns>
     public static IServiceCollection AddEntityFrameworkDokaMySql(
         this IServiceCollection serviceCollection
     )
@@ -81,7 +82,7 @@ public static class MySqlServiceCollectionExtensions
     /// </summary>
     /// <param name="serviceCollection">The target design-time service collection.</param>
     /// <param name="configure">An optional reverse-engineering configuration callback.</param>
-    /// <returns>The same <see cref="IServiceCollection"/> instance.</returns>
+    /// <returns>The same <see cref="IServiceCollection" /> instance.</returns>
     public static IServiceCollection AddEntityFrameworkDokaMySqlDesignTime(
         this IServiceCollection serviceCollection,
         Action<MySqlReverseEngineeringOptionsBuilder>? configure = null

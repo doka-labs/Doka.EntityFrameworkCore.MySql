@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.EntityFrameworkCore.ValueGeneration;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
@@ -30,8 +31,7 @@ public sealed class MySqlRemainingGapTests
 
         var selector = context.GetService<IValueGeneratorSelector>();
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => selector.TrySelect(property, entityType, out _));
+        var exception = Assert.Throws<InvalidOperationException>(() => selector.TrySelect(property, entityType, out _));
 
         // Assert
         Assert.Equal(
@@ -67,6 +67,7 @@ public sealed class MySqlRemainingGapTests
     {
         // Arrange
         var mapping = MySqlJsonTypeMapping.CreateJsonElementMapping();
+
         // Build JSON with a single-quote in a value using a raw JSON string.
         using var doc = JsonDocument.Parse("{\"key\":\"it's here\"}");
 
@@ -96,7 +97,7 @@ public sealed class MySqlRemainingGapTests
 
         // Assert
         Assert.Equal(
-            $"_utf8mb4 X'{Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(rawJson))}'",
+            $"_utf8mb4 X'{Convert.ToHexString(Encoding.UTF8.GetBytes(rawJson))}'",
             literal);
     }
 

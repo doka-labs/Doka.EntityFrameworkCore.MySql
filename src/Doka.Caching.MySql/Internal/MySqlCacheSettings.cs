@@ -7,10 +7,11 @@ internal sealed class MySqlCacheSettings
     )
     {
         DataSource = options.DataSource;
-        ConnectionString = DataSource?.ConnectionString ?? new MySqlConnectionStringBuilder(options.ConnectionString)
-        {
-            AutoEnlist = false,
-        }.ConnectionString;
+        ConnectionString = DataSource?.ConnectionString
+            ?? new MySqlConnectionStringBuilder(options.ConnectionString)
+            {
+                AutoEnlist = false,
+            }.ConnectionString;
 
         QualifiedTableName = MySqlCacheIdentifier.GetQualifiedName(options.SchemaName, options.TableName);
         DefaultSlidingExpirationMicroseconds = MySqlCacheExpiration.ToMicroseconds(

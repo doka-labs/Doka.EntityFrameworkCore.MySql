@@ -11,7 +11,12 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     private readonly ITestOutputHelper _output;
 
     /// <summary>Initializes quotation evidence output for the test instance.</summary>
-    public MySqlMaterializedSourceExpressionTests(ITestOutputHelper output) => _output = output;
+    public MySqlMaterializedSourceExpressionTests(
+        ITestOutputHelper output
+    )
+    {
+        _output = output;
+    }
 
     /// <summary>EF's actual late-quotation translation retains the local scope and required constructor accessors.</summary>
     [Fact]
@@ -30,9 +35,12 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         Assert.Contains(".Invoke()", translation.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("QuotedReference", translation.Code, StringComparison.Ordinal);
         Assert.Equal(2, CountDefinitionConstructions(translation.Code));
-        Assert.Contains(translation.UnsafeAccessors, accessor =>
-            accessor.Contains("UnsafeAccessorKind.Constructor", StringComparison.Ordinal)
-            && accessor.Contains(nameof(MySqlMaterializedSourceExpression), StringComparison.Ordinal));
+        Assert.Contains(
+            translation.UnsafeAccessors,
+            accessor =>
+                accessor.Contains("UnsafeAccessorKind.Constructor", StringComparison.Ordinal)
+                && accessor.Contains(nameof(MySqlMaterializedSourceExpression), StringComparison.Ordinal));
+
         AssertValidSyntax(translation);
     }
 
@@ -45,16 +53,30 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     [InlineData(8, true)]
     [InlineData(12, true)]
     [Experimental("EF9100")]
-    public void Actual_csharp_translation_preserves_linear_definition_growth(int depth, bool commandSelect)
+    public void Actual_csharp_translation_preserves_linear_definition_growth(
+        int depth,
+        bool commandSelect
+    )
     {
         // Arrange
         using var context = CreateContext();
         var warmup = CreateGraph(2);
+
         // WHY: Source references and their owning SELECT enter different late-quotation paths.
-        _ = TranslateConstantToCSharp(commandSelect ? warmup.Source : warmup, context);
+        _ = TranslateConstantToCSharp(
+            commandSelect
+                ? warmup.Source
+                : warmup,
+            context);
+
         var expression = CreateGraph(depth);
-        object constant = commandSelect ? expression.Source : expression;
-        var expectedDefinitions = commandSelect ? depth * 2 : depth + 1;
+        object constant = commandSelect
+            ? expression.Source
+            : expression;
+
+        var expectedDefinitions = commandSelect
+            ? depth * 2
+            : depth + 1;
 
         // Act
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -65,12 +87,18 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
 
         // Assert
         Assert.Equal(expectedDefinitions, actual);
+
         // WHY: Structural budgets detect path duplication without depending on runner CPU speed.
         Assert.InRange(translation.Code.Length, 0, expectedDefinitions * 6_000);
         Assert.InRange(allocated, 0, expectedDefinitions * 500_000L);
         AssertValidSyntax(translation);
-        _output.WriteLine("Depth={0}; command select={1}; definitions={2}; generated characters={3}; allocated={4} B.",
-            depth, commandSelect, expectedDefinitions, translation.Code.Length, allocated);
+        _output.WriteLine(
+            "Depth={0}; command select={1}; definitions={2}; generated characters={3}; allocated={4} B.",
+            depth,
+            commandSelect,
+            expectedDefinitions,
+            translation.Code.Length,
+            allocated);
     }
 
     /// <summary>The real C# generator rejects cycles before emitting an uninitialized definition reference.</summary>
@@ -102,33 +130,50 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     )
     {
         var unsafeAccessors = new HashSet<string>();
+
         // WHY: Translating an eagerly optimized Quote AST would skip EF's actual late-quotation boundary.
 #pragma warning disable EF1001 // Exercise EF's actual design-time expression translator instead of a substitute generator.
         var helper = new CSharpHelper(context.GetService<ITypeMappingSource>());
-        var code = helper.Expression(Expression.Constant(expression), new HashSet<string>(), unsafeAccessors, null, null);
+        var code = helper.Expression(
+            Expression.Constant(expression),
+            new HashSet<string>(),
+            unsafeAccessors,
+            null,
+            null);
 #pragma warning restore EF1001
 
         return (code, unsafeAccessors);
     }
 
     /// <summary>Checks generated expression and accessor syntax without claiming cross-assembly or NativeAOT compilation.</summary>
-    private static void AssertValidSyntax((string Code, IReadOnlyCollection<string> UnsafeAccessors) translation)
+    private static void AssertValidSyntax(
+        (string Code, IReadOnlyCollection<string> UnsafeAccessors) translation
+    )
     {
-        var source = "static class QuotedCommand { static object Read() => " + translation.Code
-            + "; " + string.Join(Environment.NewLine, translation.UnsafeAccessors) + " }";
+        var source = "static class QuotedCommand { static object Read() => "
+            + translation.Code
+            + "; "
+            + string.Join(Environment.NewLine, translation.UnsafeAccessors)
+            + " }";
 
-        var diagnostics = CSharpSyntaxTree.ParseText(source).GetDiagnostics()
+        var diagnostics = CSharpSyntaxTree
+            .ParseText(source)
+            .GetDiagnostics()
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
         Assert.Empty(diagnostics);
     }
 
     /// <summary>Counts emitted definition constructors rather than local variables or reference accessors.</summary>
-    private static int CountDefinitionConstructions(string code)
+    private static int CountDefinitionConstructions(
+        string code
+    )
         => Regex.Count(code, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\(");
 
     /// <summary>Builds a DAG whose two aliases at each level reuse the same completed child definition.</summary>
-    private static MySqlMaterializedSourceExpression CreateGraph(int depth)
+    private static MySqlMaterializedSourceExpression CreateGraph(
+        int depth
+    )
     {
         var source = CreateLeafSource();
 
@@ -136,14 +181,27 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         {
             var first = new MySqlMaterializedSourceExpression("first", index, source);
             var second = first.WithAlias("second");
-            source = CreateSource("seed" + index.ToString(CultureInfo.InvariantCulture),
+            source = CreateSource(
+                "seed" + index.ToString(CultureInfo.InvariantCulture),
                 [first, second],
-            [
-                new ProjectionExpression(new ColumnExpression("Token", "first", typeof(Guid),
-                    MySqlGuidBinaryTypeMapping.Default, nullable: false), "Token"),
-                new ProjectionExpression(new ColumnExpression("OptionalName", "second", typeof(string),
-                    MySqlStringTypeMapping.Default, nullable: true), "OptionalName"),
-            ]);
+                [
+                    new ProjectionExpression(
+                        new ColumnExpression(
+                            "Token",
+                            "first",
+                            typeof(Guid),
+                            MySqlGuidBinaryTypeMapping.Default,
+                            nullable: false),
+                        "Token"),
+                    new ProjectionExpression(
+                        new ColumnExpression(
+                            "OptionalName",
+                            "second",
+                            typeof(string),
+                            MySqlStringTypeMapping.Default,
+                            nullable: true),
+                        "OptionalName"),
+                ]);
         }
 
         return new MySqlMaterializedSourceExpression("result", depth, source);

@@ -1,3 +1,8 @@
+using System.Diagnostics;
+using System.Text.Json.Nodes;
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -18,8 +23,12 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         using var fixture = PerformanceGateFixture.Create(
-            timeMultiplier: 100000, sampleCountOffset: invalidSamples ? 1 : 0);
-        var startInfo = new System.Diagnostics.ProcessStartInfo("dotnet")
+            timeMultiplier: 100000,
+            sampleCountOffset: invalidSamples
+                ? 1
+                : 0);
+
+        var startInfo = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -27,10 +36,14 @@ public sealed partial class PerformanceGateTests
         };
 
         foreach (var argument in new[]
-                 {
-                     typeof(Benchmarks.Program).Assembly.Location, "--evaluate", fixture.ContractPath,
-                     fixture.ReportsPath, "mysql84", "smoke"
-                 })
+            {
+                typeof(Program).Assembly.Location,
+                "--evaluate",
+                fixture.ContractPath,
+                fixture.ReportsPath,
+                "mysql84",
+                "smoke",
+            })
         {
             startInfo.ArgumentList.Add(argument);
         }
@@ -39,7 +52,7 @@ public sealed partial class PerformanceGateTests
         startInfo.Environment["DOKA_BENCHMARK_EVALUATION"] = "full";
 
         // Act
-        using var process = System.Diagnostics.Process.Start(startInfo)
+        using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start the benchmark evaluator.");
 
         var output = process.StandardOutput.ReadToEndAsync();
@@ -71,11 +84,11 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         var expected = allocationsOnly
-            ? Benchmarks.PerformanceEvaluationMode.AllocationsOnly
-            : Benchmarks.PerformanceEvaluationMode.Full;
+            ? PerformanceEvaluationMode.AllocationsOnly
+            : PerformanceEvaluationMode.Full;
 
         // Act
-        var actual = Benchmarks.PerformanceEvaluationPolicy.Resolve(requested, actions);
+        var actual = PerformanceEvaluationPolicy.Resolve(requested, actions);
 
         // Assert
         Assert.Equal(expected, actual);
@@ -92,7 +105,7 @@ public sealed partial class PerformanceGateTests
     )
     {
         // Arrange
-        Action act = () => Benchmarks.PerformanceEvaluationPolicy.Resolve(requested, "true");
+        Action act = () => PerformanceEvaluationPolicy.Resolve(requested, "true");
 
         // Act
         var exception = Record.Exception(act);
@@ -115,8 +128,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var result = BenchmarkPerformanceGate.Evaluate(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Empty(result.InvalidEvidence);
@@ -125,7 +142,9 @@ public sealed partial class PerformanceGateTests
         Assert.Contains(result.Diagnostics, error => error.Contains("medianNanoseconds", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, error => error.Contains("p95Nanoseconds", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, error => error.Contains("p99Nanoseconds", StringComparison.Ordinal));
-        Assert.Contains(result.Diagnostics, error => error.Contains("gen2CollectionsPer1000", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Diagnostics,
+            error => error.Contains("gen2CollectionsPer1000", StringComparison.Ordinal));
     }
 
     /// <summary>Verifies hosted controls do not treat timing ratios as hardware independent.</summary>
@@ -143,8 +162,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(0, exitCode);
@@ -170,8 +193,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(1, exitCode);
@@ -186,8 +213,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(1, exitCode);
@@ -204,8 +235,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
@@ -237,8 +272,12 @@ public sealed partial class PerformanceGateTests
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "scorecard", soakPath,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "scorecard",
+            soakPath,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(expectedExitCode, exitCode);
@@ -251,12 +290,19 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var fixture = PerformanceGateFixture.Create();
         var soakPath = WriteChangedSoak(
-            fixture, "soak.concurrent-throughput-retention", "throughputRetentionRatio", null);
+            fixture,
+            "soak.concurrent-throughput-retention",
+            "throughputRetentionRatio",
+            null);
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "scorecard", soakPath,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "scorecard",
+            soakPath,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
@@ -269,13 +315,20 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var fixture = PerformanceGateFixture.Create();
         var soakPath = WriteChangedSoak(
-            fixture, "soak.concurrent-throughput-retention", "throughputRetentionRatio", 0.1,
+            fixture,
+            "soak.concurrent-throughput-retention",
+            "throughputRetentionRatio",
+            0.1,
             reportSuccess: true);
 
         // Act
         var exitCode = BenchmarkPerformanceGate.Run(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "scorecard", soakPath,
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "scorecard",
+            soakPath,
+            PerformanceEvaluationMode.AllocationsOnly);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
@@ -294,12 +347,17 @@ public sealed partial class PerformanceGateTests
         using var fixture = PerformanceGateFixture.Create();
         var soakPath = fixture.WriteSoak(managedHeapGrowthBytes: 0);
         var mode = allocationsOnly
-            ? Benchmarks.PerformanceEvaluationMode.AllocationsOnly
-            : Benchmarks.PerformanceEvaluationMode.Full;
+            ? PerformanceEvaluationMode.AllocationsOnly
+            : PerformanceEvaluationMode.Full;
 
         // Act
         var result = BenchmarkPerformanceGate.Evaluate(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "scorecard", soakPath, mode);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "scorecard",
+            soakPath,
+            mode);
 
         // Assert
         Assert.Empty(result.InvalidEvidence);
@@ -312,8 +370,9 @@ public sealed partial class PerformanceGateTests
     public void Hosted_policy_rejects_unclassified_metrics()
     {
         // Arrange
-        Action act = () => Benchmarks.PerformanceEvaluationPolicy.IsDiagnostic(
-            Benchmarks.PerformanceEvaluationMode.AllocationsOnly, "newMetric");
+        Action act = () => PerformanceEvaluationPolicy.IsDiagnostic(
+            PerformanceEvaluationMode.AllocationsOnly,
+            "newMetric");
 
         // Act
         var exception = Record.Exception(act);
@@ -329,8 +388,12 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var fixture = PerformanceGateFixture.Create();
         Action act = () => BenchmarkPerformanceGate.Evaluate(
-            fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke", null,
-            (Benchmarks.PerformanceEvaluationMode)42);
+            fixture.ContractPath,
+            fixture.ReportsPath,
+            "mysql84",
+            "smoke",
+            null,
+            (PerformanceEvaluationMode)42);
 
         // Act
         var exception = Record.Exception(act);
@@ -348,8 +411,11 @@ public sealed partial class PerformanceGateTests
     )
     {
         var path = fixture.WriteSoak(managedHeapGrowthBytes: 0);
-        var root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
-        var scenario = root["scenarios"]!.AsArray().Single(item => item!["id"]!.GetValue<string>() == scenarioId)!;
+        var root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        var scenario = root["scenarios"]!
+            .AsArray()
+            .Single(item => item!["id"]!.GetValue<string>() == scenarioId)!;
+
         var metrics = scenario["metrics"]!.AsObject();
         if (value is not null)
         {

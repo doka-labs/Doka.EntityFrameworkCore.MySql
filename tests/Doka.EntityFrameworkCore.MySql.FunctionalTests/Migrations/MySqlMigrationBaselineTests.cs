@@ -34,7 +34,8 @@ public sealed class MySqlMigrationBaselineTests
 
         // Act
         var sql = context
-            .Entities.Where(entity => entity.Id == id)
+            .Entities
+            .Where(entity => entity.Id == id)
             .Take(2)
             .ToQueryString();
 
@@ -248,10 +249,12 @@ public sealed class MySqlMigrationBaselineTests
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var idColumn = Assert.Single(createTable.Columns, column => column.Name == nameof(BaselineEntity.Id));
@@ -263,6 +266,7 @@ public sealed class MySqlMigrationBaselineTests
             MySqlValueGenerationStrategy.AutoIncrement,
             idColumn.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
                 ?.Value);
+
         Assert.Contains("`Id` int NOT NULL AUTO_INCREMENT", sql, StringComparison.Ordinal);
     }
 

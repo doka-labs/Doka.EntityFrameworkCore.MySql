@@ -55,6 +55,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.DoesNotContain("DISTINCT", sql, StringComparison.OrdinalIgnoreCase);
+
         // WHY: One UNION ALL forms the empty recursive arm; the other preserves the consumer's bag.
         Assert.Equal(2, CountOccurrences(sql, "UNION ALL"));
     }
@@ -74,13 +75,19 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var minimum = 3;
         var skip = 5;
         var take = 7;
-        var source = context.Nodes
+        var source = context
+            .Nodes
             .Where(node => node.Left > minimum)
             .OrderBy(node => node.Name)
             .ThenBy(node => node.Id)
             .Skip(skip)
             .Take(take)
-            .Select(node => new Coordinates { Id = node.Id, Left = node.Left, Right = node.Right });
+            .Select(node => new Coordinates
+            {
+                Id = node.Id,
+                Left = node.Left,
+                Right = node.Right,
+            });
 
         // Act
         var query = source.WithMaterializedSource(shared => shared
@@ -112,14 +119,23 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Nodes.Select(node => new { node.Id, Token = Guid.NewGuid() });
+        var source = context.Nodes.Select(node => new
+        {
+            node.Id,
+            Token = Guid.NewGuid(),
+        });
 
         // Act
         var query = source.WithMaterializedSource(shared => shared.Join(
             shared,
             first => first.Id,
             second => second.Id,
-            (first, second) => new { first.Id, First = first.Token, Second = second.Token }));
+            (first, second) => new
+            {
+                first.Id,
+                First = first.Token,
+                Second = second.Token,
+            }));
 
         var sql = query.ToQueryString();
 
@@ -181,7 +197,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Where(_ => false)
+        var query = context
+            .Nodes
+            .Where(_ => false)
             .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
@@ -208,13 +226,22 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes
-            .Select(node => new { node.Token, node.OptionalName })
+        var query = context
+            .Nodes
+            .Select(node => new
+            {
+                node.Token,
+                node.OptionalName,
+            })
             .WithMaterializedSource(shared => shared.Join(
                 shared,
                 first => first.Token,
                 second => second.Token,
-                (first, second) => new { First = first.OptionalName, Second = second.OptionalName }))
+                (first, second) => new
+                {
+                    First = first.OptionalName,
+                    Second = second.OptionalName,
+                }))
             .Where(row => EF.Functions.Collate(row.First!, "utf8mb4_bin") == row.Second);
 
         var sql = query.ToQueryString();
@@ -258,7 +285,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         BindingContext context,
         int minimum
     )
-        => context.Nodes.Where(node => node.Left > minimum)
+        => context
+            .Nodes
+            .Where(node => node.Left > minimum)
             .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 

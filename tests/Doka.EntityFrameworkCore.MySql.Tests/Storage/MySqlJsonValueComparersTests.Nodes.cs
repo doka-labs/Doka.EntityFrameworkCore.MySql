@@ -251,8 +251,13 @@ public sealed partial class MySqlJsonValueComparersTests
         // Act
         var equal = MySqlJsonValueComparers.JsonNodeComparer.Equals(left, right);
         var reverseEqual = MySqlJsonValueComparers.JsonNodeComparer.Equals(right, left);
-        var leftHash = expected ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left) : (int?)null;
-        var rightHash = expected ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right) : (int?)null;
+        var leftHash = expected
+            ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left)
+            : (int?)null;
+
+        var rightHash = expected
+            ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right)
+            : (int?)null;
 
         // Assert
         Assert.Equal(expected, equal);
@@ -280,8 +285,13 @@ public sealed partial class MySqlJsonValueComparersTests
         // Act
         var equal = MySqlJsonValueComparers.JsonNodeComparer.Equals(left, right);
         var reverseEqual = MySqlJsonValueComparers.JsonNodeComparer.Equals(right, left);
-        var leftHash = expected ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left!) : (int?)null;
-        var rightHash = expected ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right!) : (int?)null;
+        var leftHash = expected
+            ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(left!)
+            : (int?)null;
+
+        var rightHash = expected
+            ? MySqlJsonValueComparers.JsonNodeComparer.GetHashCode(right!)
+            : (int?)null;
 
         // Assert
         Assert.Equal(expected, equal);
@@ -431,11 +441,17 @@ public sealed partial class MySqlJsonValueComparersTests
 
         // Act
         snapshot["nested"]!["value"] = 2;
-        snapshot["items"]!.AsArray().Add(3);
+        snapshot["items"]!
+            .AsArray()
+            .Add(3);
 
         // Assert
         Assert.Equal(1, source["nested"]!["value"]!.GetValue<int>());
-        Assert.Equal(2, source["items"]!.AsArray().Count);
+        Assert.Equal(
+            2,
+            source["items"]!.AsArray()
+                .Count);
+
         Assert.False(MySqlJsonValueComparers.JsonNodeComparer.Equals(source, snapshot));
     }
 

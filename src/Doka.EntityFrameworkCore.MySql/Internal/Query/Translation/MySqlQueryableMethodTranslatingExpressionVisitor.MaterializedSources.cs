@@ -29,6 +29,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             SourceProjectionValidator.Validate(source);
             source = source.UpdateShaperExpression(
                 new SourceReferenceIncludeUnwrapper().Visit(source.ShaperExpression));
+
             SourceScopeValidator.Validate(source.QueryExpression);
 
             var select = (SelectExpression)source.QueryExpression;
@@ -52,6 +53,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             select.PushdownIntoSubquery();
             var definition = (SelectExpression)select.Tables.Single();
             var referenceAlias = definition.Alias!;
+
             // WHY: The definition and its reference occupy different alias scopes. Sharing their
             // alias lets EF's cloning visitor overwrite the reference's column remapping.
             definition = definition.WithAlias(_queryCompilationContext.SqlAliasManager.GenerateTableAlias("seed"));

@@ -2,9 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlExecutionStrategyFactory : IExecutionStrategyFactory
 {
-    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
     private readonly ExecutionStrategyDependencies _dependencies;
     private readonly MySqlSingletonOptions _singletonOptions;
+    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
 
     public MySqlExecutionStrategyFactory(
         ExecutionStrategyDependencies dependencies,
@@ -35,8 +35,10 @@ internal sealed class MySqlExecutionStrategyFactory : IExecutionStrategyFactory
             retryOptions,
             _singletonOptions,
             _dependencies
-                .Options.FindExtension<CoreOptionsExtension>()
-                ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience),
+                .Options
+                .FindExtension<CoreOptionsExtension>()
+                ?.LoggerFactory
+                ?.CreateLogger(MySqlLoggerCategory.Resilience),
             _transientExceptionDetector);
     }
 }

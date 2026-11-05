@@ -39,7 +39,7 @@ public sealed partial class AdrRepositoryValidatorTests
         var exitCode = Program.Main(
         [
             "--root",
-            repository.Root
+            repository.Root,
         ]);
 
         // Assert

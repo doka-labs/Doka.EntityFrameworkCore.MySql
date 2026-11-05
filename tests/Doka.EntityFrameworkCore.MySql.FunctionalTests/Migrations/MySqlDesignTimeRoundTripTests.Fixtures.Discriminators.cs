@@ -49,6 +49,7 @@ public sealed class DiscriminatorCompletenessDesignContext : DbContext
                 .HasDiscriminator<DesignDiscriminator>("Discriminator")
                 .HasValue<KnownConvertedDiscriminatorDesignRecord>(DesignDiscriminator.Known)
                 .IsComplete(false);
+
             entity
                 .Property<DesignDiscriminator>("Discriminator")
                 .HasConversion<DesignEnumValueConverter<DesignDiscriminator>>()
@@ -74,6 +75,7 @@ public sealed class DiscriminatorCompletenessDesignContext : DbContext
                 .HasConversion<DesignEnumValueConverter<DesignDiscriminator>>()
                 .HasMaxLength(1)
                 .IsFixedLength();
+
             entity.Metadata.SetDiscriminatorMappingComplete(false);
         });
 
@@ -201,8 +203,11 @@ internal sealed class DesignEnumValueConverter<TEnum> : ValueConverter<TEnum, st
             .GetMember(value.ToString())
             .Single();
 
-        var jsonName = member.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name;
-        var enumMemberName = member.GetCustomAttribute<EnumMemberAttribute>()?.Value;
+        var jsonName = member.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()
+            ?.Name;
+
+        var enumMemberName = member.GetCustomAttribute<EnumMemberAttribute>()
+            ?.Value;
 
         return jsonName ?? enumMemberName ?? value.ToString();
     }

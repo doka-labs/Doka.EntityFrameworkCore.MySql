@@ -24,9 +24,11 @@ public sealed partial class MySqlMigrationOperationContractTests
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Setup, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Body, fragment.Kind),
             fragment => Assert.Equal(MySqlMigrationCommandFragmentKind.Cleanup, fragment.Kind));
+
         Assert.Equal(
             commandText,
             string.Concat(layout.Fragments.Select(static fragment => fragment.CommandText.ToString())));
+
         Assert.Equal("ALTER TABLE `Entries` COMMENT 'safe';\n", layout.BodyCommandText);
         foreach (var fragment in layout.Fragments)
         {
@@ -36,6 +38,7 @@ public sealed partial class MySqlMigrationOperationContractTests
                     out var backingString,
                     out _,
                     out _));
+
             Assert.Same(layout.CommandText, backingString);
         }
     }
@@ -94,8 +97,13 @@ public sealed partial class MySqlMigrationOperationContractTests
     )
     {
         // Arrange
-        string[] setup = omitSetup ? [] : ["SET @scope = 1;"];
-        string[] cleanup = omitSetup ? ["SET @scope = NULL;"] : [];
+        string[] setup = omitSetup
+            ? []
+            : ["SET @scope = 1;"];
+
+        string[] cleanup = omitSetup
+            ? ["SET @scope = NULL;"]
+            : [];
 
         // Act
         var recordedException = Record.Exception(() =>

@@ -33,8 +33,8 @@ internal sealed class MySqlProviderConfigurationCodeGenerator : ProviderCodeGene
         if (scaffoldingState is { UsesNetTopologySuiteScaffolding: true })
         {
             providerOptionsWithSpatial = providerOptionsWithSpatial is null
-                ? new MethodCallCodeFragment("UseNetTopologySuite", Array.Empty<object>())
-                : providerOptionsWithSpatial.Chain("UseNetTopologySuite", Array.Empty<object>());
+                ? new MethodCallCodeFragment("UseNetTopologySuite")
+                : providerOptionsWithSpatial.Chain("UseNetTopologySuite");
         }
 
         var detectedServerVersion = MySqlServerVersion.Parse(detectedServerVersionText);

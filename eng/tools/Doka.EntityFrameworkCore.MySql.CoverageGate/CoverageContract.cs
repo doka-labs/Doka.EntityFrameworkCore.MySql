@@ -16,6 +16,7 @@ internal static class CoverageContract
             var root = XDocument.Load(reportPath)
                     .Root
                 ?? throw new InvalidDataException($"Coverage report '{reportPath}' has no root element.");
+
             errors.AddRange(
                 FreshnessErrors(root, policy.EvidenceMaxAgeSeconds, now)
                     .Select(error => $"{reportPath}: {error}"));
@@ -31,7 +32,8 @@ internal static class CoverageContract
     )
     {
         var policy = ReadPolicy(policyPath);
-        var root = XDocument.Load(reportPath).Root
+        var root = XDocument.Load(reportPath)
+                .Root
             ?? throw new InvalidDataException($"Coverage report '{reportPath}' has no root element.");
 
         var now = nowTimestamp ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -73,6 +75,7 @@ internal static class CoverageContract
                 Metrics(Descendants(package, "line")),
                 assembly.MinimumLinePercent,
                 assembly.MinimumBranchPercent);
+
             resultLines.Add(threshold.Result);
             errors.AddRange(threshold.Errors);
         }
@@ -94,6 +97,7 @@ internal static class CoverageContract
             var matches = Descendants(package, "class")
                 .Where(element => Attribute(element, "name") == criticalClass.Name)
                 .ToArray();
+
             if (matches.Length == 0)
             {
                 errors.Add($"Coverage report is missing critical class '{criticalClass.Name}'.");
@@ -103,6 +107,7 @@ internal static class CoverageContract
             var filenames = matches
                 .Select(element => Attribute(element, "filename"))
                 .ToArray();
+
             if (matches.Length > 1
                 && (filenames.Any(string.IsNullOrEmpty)
                     || filenames
@@ -113,6 +118,7 @@ internal static class CoverageContract
                 errors.Add(
                     $"Coverage report contains ambiguous source fragments for critical class "
                     + $"'{criticalClass.Name}'.");
+
                 continue;
             }
 
@@ -121,6 +127,7 @@ internal static class CoverageContract
                 Metrics(matches.SelectMany(element => Descendants(element, "line"))),
                 criticalClass.MinimumLinePercent,
                 criticalClass.MinimumBranchPercent);
+
             resultLines.Add(threshold.Result);
             errors.AddRange(threshold.Errors);
         }
@@ -145,18 +152,21 @@ internal static class CoverageContract
         var maximumAge = root
             .GetProperty("evidenceMaxAgeSeconds")
             .GetInt64();
+
         var assemblies = root.TryGetProperty("assemblies", out var assemblyArray)
             ? assemblyArray
                 .EnumerateArray()
                 .Select(ReadAssembly)
                 .ToArray()
             : [];
+
         var criticalClasses = root.TryGetProperty("criticalClasses", out var classArray)
             ? classArray
                 .EnumerateArray()
                 .Select(ReadCriticalClass)
                 .ToArray()
             : [];
+
         return new CoveragePolicy(maximumAge, assemblies, criticalClasses);
     }
 
@@ -191,7 +201,9 @@ internal static class CoverageContract
             element
                 .GetProperty("minimumLinePercent")
                 .GetDouble(),
-            branchFloor.ValueKind == JsonValueKind.Null ? null : branchFloor.GetDouble());
+            branchFloor.ValueKind == JsonValueKind.Null
+                ? null
+                : branchFloor.GetDouble());
     }
 
     private static List<string> FreshnessErrors(
@@ -212,7 +224,9 @@ internal static class CoverageContract
             return ["Coverage report timestamp is more than five minutes in the future."];
         }
 
-        return age > maximumAge ? [$"Coverage report is {age} seconds old; maximum age is {maximumAge} seconds."] : [];
+        return age > maximumAge
+            ? [$"Coverage report is {age} seconds old; maximum age is {maximumAge} seconds."]
+            : [];
     }
 
     private static CoverageMetrics Metrics(
@@ -224,6 +238,7 @@ internal static class CoverageContract
                 Attribute(line, "hits", "0"),
                 CultureInfo.InvariantCulture)
             > 0);
+
         var branchesCovered = 0;
         var branchesValid = 0;
         foreach (var line in lineElements)
@@ -239,7 +254,8 @@ internal static class CoverageContract
 
             var fraction = conditionCoverage[(openingParenthesis + 1)..]
                 .TrimEnd(')');
-            var parts = fraction.Split('/', 2, StringSplitOptions.None);
+
+            var parts = fraction.Split('/', 2);
             branchesCovered += int.Parse(parts[0], CultureInfo.InvariantCulture);
             branchesValid += int.Parse(parts[1], CultureInfo.InvariantCulture);
         }
@@ -295,6 +311,7 @@ internal static class CoverageContract
             + $"({metrics.LinePercent:F2}%, minimum {minimumLinePercent:F2}%); "
             + $"branches {metrics.BranchesCovered}/{metrics.BranchesValid} "
             + $"({metrics.BranchPercent:F2}%, minimum {branchFloor})";
+
         return new ThresholdEvaluation(result, errors);
     }
 
@@ -339,9 +356,13 @@ internal static class CoverageContract
         int BranchesValid
     )
     {
-        public double LinePercent => LinesValid == 0 ? 0 : 100d * LinesCovered / LinesValid;
+        public double LinePercent => LinesValid == 0
+            ? 0
+            : 100d * LinesCovered / LinesValid;
 
-        public double BranchPercent => BranchesValid == 0 ? 0 : 100d * BranchesCovered / BranchesValid;
+        public double BranchPercent => BranchesValid == 0
+            ? 0
+            : 100d * BranchesCovered / BranchesValid;
     }
 
     private sealed record ThresholdEvaluation(

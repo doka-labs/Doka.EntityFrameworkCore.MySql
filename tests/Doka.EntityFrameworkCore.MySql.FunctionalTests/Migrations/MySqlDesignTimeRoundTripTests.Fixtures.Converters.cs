@@ -26,23 +26,31 @@ public sealed class ProviderConverterDesignContext : DbContext
             entity
                 .Property(record => record.Element)
                 .HasDefaultValue(JsonElement.Parse("""{"kind":"default-element"}"""));
+
             entity
                 .Property(record => record.Document)
                 .IsRequired()
                 .HasDefaultValue(JsonDocument.Parse("""{"kind":"default-document"}"""));
+
             entity
                 .Property(record => record.Node)
                 .IsRequired()
                 .HasDefaultValue(JsonNode.Parse("""{"kind":"default-node"}"""));
+
             entity
                 .Property(record => record.ObjectValue)
                 .IsRequired()
                 .HasDefaultValue((JsonObject)JsonNode.Parse("""{"kind":"default-object"}""")!);
+
             entity
                 .Property(record => record.Array)
                 .IsRequired()
                 .HasDefaultValue((JsonArray)JsonNode.Parse("""["default-array"]""")!);
-            entity.Property(record => record.Version).IsRowVersion();
+
+            entity
+                .Property(record => record.Version)
+                .IsRowVersion();
+
             entity.HasData(
                 new
                 {
@@ -53,7 +61,14 @@ public sealed class ProviderConverterDesignContext : DbContext
                     ObjectValue = (JsonObject)JsonNode.Parse("""{"kind":"object","value":4}""")!,
                     Array = (JsonArray)JsonNode.Parse("""["array",5,true]""")!,
                     Version = MySqlBytesToDateTimeConverter.ToBytes(
-                        new DateTime(2026, 8, 31, 12, 34, 56, DateTimeKind.Utc)),
+                        new DateTime(
+                            2026,
+                            8,
+                            31,
+                            12,
+                            34,
+                            56,
+                            DateTimeKind.Utc)),
                 });
         });
     }

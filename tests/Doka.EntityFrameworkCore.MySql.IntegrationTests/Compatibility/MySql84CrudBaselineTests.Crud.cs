@@ -11,7 +11,7 @@ public sealed partial class MySql84CrudBaselineTests
         // Arrange
         var connectionString = GetConnectionString();
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -24,7 +24,7 @@ public sealed partial class MySql84CrudBaselineTests
             // WHY: This deliberately exercises one entity through the complete
             // create/read/update/delete lifecycle on migration-generated objects.
             await historyRepository
-                .CreateIfNotExistsAsync()
+                .CreateIfNotExistsAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var migrationCommands = migrationsSqlGenerator.Generate(
@@ -51,19 +51,22 @@ public sealed partial class MySql84CrudBaselineTests
             {
                 // Safe: SQL emitted by IMigrationsSqlGenerator from fixture-controlled operations.
                 await context
-                    .Database.ExecuteSqlRawAsync(command.CommandText)
+                    .Database
+                    .ExecuteSqlRawAsync(command.CommandText, CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     """
                     CREATE TABLE `Phase1CrudEntities` (
                         `Id` int NOT NULL AUTO_INCREMENT,
                         `Name` longtext NOT NULL,
                         CONSTRAINT `PK_Phase1CrudEntities` PRIMARY KEY (`Id`)
                     ) CHARACTER SET utf8mb4;
-                    """)
+                    """,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var createdEntity = new MySql84CrudEntity
@@ -73,46 +76,56 @@ public sealed partial class MySql84CrudBaselineTests
 
             context.Entities.Add(createdEntity);
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
 
             var queriedEntity = await context
-                .Entities.SingleAsync(entity => entity.Id == createdEntity.Id)
+                .Entities
+                .SingleAsync(
+                    entity => entity.Id == createdEntity.Id,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var initialName = queriedEntity.Name;
 
             queriedEntity.Name = "updated";
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             context.ChangeTracker.Clear();
 
             var updatedEntity = await context
-                .Entities.SingleAsync(entity => entity.Id == createdEntity.Id)
+                .Entities
+                .SingleAsync(
+                    entity => entity.Id == createdEntity.Id,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var updatedName = updatedEntity.Name;
 
             context.Entities.Remove(updatedEntity);
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var remainingCount = await context
-                .Entities.CountAsync()
+                .Entities
+                .CountAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
-            var historyExists = await TableExistsAsync(connectionString, HistoryTableName)
+            var historyExists = await TableExistsAsync(connectionString, HistoryTableName, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            var migrationProbeExists = await TableExistsAsync(connectionString, MigrationProbeTableName)
+            var migrationProbeExists = await TableExistsAsync(
+                    connectionString,
+                    MigrationProbeTableName,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
-            var crudTableExists = await TableExistsAsync(connectionString, CrudTableName)
+            var crudTableExists = await TableExistsAsync(connectionString, CrudTableName, CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
@@ -126,7 +139,8 @@ public sealed partial class MySql84CrudBaselineTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -141,7 +155,7 @@ public sealed partial class MySql84CrudBaselineTests
         var connectionString = GetConnectionString();
         var interceptor = new CommandCaptureInterceptor();
 
-        await ResetDatabaseObjectsAsync(connectionString)
+        await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -149,14 +163,16 @@ public sealed partial class MySql84CrudBaselineTests
             await using var context = new MySql84CrudContext(CreateOptions(connectionString, interceptor));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     """
                     CREATE TABLE `Phase1CrudEntities` (
                         `Id` int NOT NULL AUTO_INCREMENT,
                         `Name` longtext NOT NULL,
                         CONSTRAINT `PK_Phase1CrudEntities` PRIMARY KEY (`Id`)
                     ) CHARACTER SET utf8mb4;
-                    """)
+                    """,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             context.Entities.AddRange(
@@ -171,11 +187,12 @@ public sealed partial class MySql84CrudBaselineTests
 
             // Act
             await context
-                .SaveChangesAsync()
+                .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var insertCommands = interceptor
-                .Commands.Where(command => command.CommandText.Contains(
+                .Commands
+                .Where(command => command.CommandText.Contains(
                     "INSERT INTO `Phase1CrudEntities`",
                     StringComparison.Ordinal))
                 .ToList();
@@ -196,7 +213,8 @@ public sealed partial class MySql84CrudBaselineTests
         }
         finally
         {
-            await ResetDatabaseObjectsAsync(connectionString)
+            // WHY: Cleanup must finish even when the operation is canceled.
+            await ResetDatabaseObjectsAsync(connectionString, CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }

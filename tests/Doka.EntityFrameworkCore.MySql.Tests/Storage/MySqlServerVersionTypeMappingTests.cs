@@ -38,9 +38,9 @@ public sealed class MySqlServerVersionTypeMappingTests
 
         // Act
         var actual = mapping.GenerateCodeLiteral(
-                MySqlServerVersion.MariaDb(
-                    new Version(11, 6, 2),
-                    MySqlServerVersionCompatibilityMode.AllowUnsupported));
+            MySqlServerVersion.MariaDb(
+                new Version(11, 6, 2),
+                MySqlServerVersionCompatibilityMode.AllowUnsupported));
 
         // Assert
         var expression = Assert.IsAssignableFrom<MethodCallExpression>(

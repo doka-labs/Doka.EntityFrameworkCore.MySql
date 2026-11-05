@@ -22,7 +22,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var command = WithLiteralPhysicalKey(CreateCommands(context, tableName, 1)[0]);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var expectedBytes = expectedValueBytes
-            + (4L * (96 + (2 * tableName.Length) + 6 + (2 * "Generated".Length) + 16 + (2 * "Id".Length)));
+            + 4L * (96 + 2 * tableName.Length + 6 + 2 * "Generated".Length + 16 + 2 * "Id".Length);
 
         // Act
         var eligible = generator.TryGetKeyedReadbackCost(command, out var packetBytes);
@@ -51,7 +51,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Arrange
         using var context = CreateContext();
         var original = CreateCommands(context, "ConvertedIdentityRows", 1, firstKey: key)[0];
-        var command = parameterized ? original : WithLiteralPhysicalKey(original, key);
+        var command = parameterized
+            ? original
+            : WithLiteralPhysicalKey(original, key);
+
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
 
         // Act
@@ -60,7 +63,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Assert
         Assert.Equal(parameterized, command.ColumnModifications[0].UseCurrentValueParameter);
         Assert.Equal(expectedEligible, eligible);
-        Assert.InRange(packetBytes, expectedEligible ? 1L : 0L, expectedEligible ? long.MaxValue : 0L);
+        Assert.InRange(
+            packetBytes,
+            expectedEligible
+                ? 1L
+                : 0L,
+            expectedEligible
+                ? long.MaxValue
+                : 0L);
     }
 
     /// <summary>Preserves literal escaping and conversion in both INSERT and keyed readback.</summary>
@@ -90,8 +100,13 @@ public sealed partial class MySqlGeneratedValueSqlTests
         Assert.Equal(expectedSql, sql.ToString(), ignoreLineEndingDifferences: true);
         Assert.Equal(ResultSetMapping.NotLastInResultSet | ResultSetMapping.IsPositionalResultMappingEnabled, mapping);
         Assert.True(transaction);
-        Assert.False(commands[0].ColumnModifications[0].UseCurrentValueParameter);
-        Assert.True(commands[1].ColumnModifications[0].UseCurrentValueParameter);
+        Assert.False(
+            commands[0]
+                .ColumnModifications[0].UseCurrentValueParameter);
+
+        Assert.True(
+            commands[1]
+                .ColumnModifications[0].UseCurrentValueParameter);
     }
 
     /// <summary>Ignores nonphysical descriptors that neither write nor read a value.</summary>
@@ -107,7 +122,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2);
-        var modifications = commands[1].ColumnModifications.ToList();
+        var modifications = commands[1]
+            .ColumnModifications
+            .ToList();
+
         modifications.Insert(position, CreateNonphysicalPayload(commands[1].Table!, read: false, write: false));
         commands[1] = new TestCommand(commands[1].Table, modifications);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
@@ -145,10 +163,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2);
-        var longerIndex = longerFirst ? 0 : 1;
+        var longerIndex = longerFirst
+            ? 0
+            : 1;
+
         var shorterIndex = 1 - longerIndex;
-        var longer = commands[longerIndex].ColumnModifications.ToList();
-        var shorter = commands[shorterIndex].ColumnModifications.ToList();
+        var longer = commands[longerIndex]
+            .ColumnModifications
+            .ToList();
+
+        var shorter = commands[shorterIndex]
+            .ColumnModifications
+            .ToList();
+
         var table = commands[0].Table!;
 
         if (operation == "read")
@@ -197,12 +224,17 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var original = CreateCommands(context, "Rows", 1)[0];
         var column = original.Table!.PrimaryKey!.Columns[0];
         var property = column.PropertyMappings[0].Property;
-        object value = failure == "dbnull" ? DBNull.Value : 1;
+        object value = failure == "dbnull"
+            ? DBNull.Value
+            : 1;
+
         var parameters = new ColumnModificationParameters(
             column,
             originalValue: null,
             value,
-            property: failure == "missing-property" ? null : property,
+            property: failure == "missing-property"
+                ? null
+                : property,
             typeMapping: property.GetRelationalTypeMapping(),
             read: false,
             write: failure != "not-written",
@@ -299,19 +331,20 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var column = table.FindColumn("Payload")!;
         var property = column.PropertyMappings[0].Property;
 
-        return new ColumnModification(new ColumnModificationParameters(
-            columnName: column.Name,
-            originalValue: null,
-            value: 1,
-            property,
-            columnType: column.StoreType,
-            typeMapping: property.GetRelationalTypeMapping(),
-            read,
-            write,
-            key: false,
-            condition: false,
-            sensitiveLoggingEnabled: false,
-            isNullable: false));
+        return new ColumnModification(
+            new ColumnModificationParameters(
+                columnName: column.Name,
+                originalValue: null,
+                value: 1,
+                property,
+                columnType: column.StoreType,
+                typeMapping: property.GetRelationalTypeMapping(),
+                read,
+                write,
+                key: false,
+                condition: false,
+                sensitiveLoggingEnabled: false,
+                isNullable: false));
     }
 
     /// <summary>Defines the two-row protocol independently of generator implementation details.</summary>

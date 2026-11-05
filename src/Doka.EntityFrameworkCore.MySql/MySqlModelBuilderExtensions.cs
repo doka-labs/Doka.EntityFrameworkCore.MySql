@@ -10,7 +10,7 @@ public static class MySqlModelBuilderExtensions
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
     /// <param name="charSet">The database character set.</param>
-    /// <returns>The same <see cref="ModelBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="ModelBuilder" /> instance.</returns>
     public static ModelBuilder HasCharSet(
         this ModelBuilder modelBuilder,
         string charSet

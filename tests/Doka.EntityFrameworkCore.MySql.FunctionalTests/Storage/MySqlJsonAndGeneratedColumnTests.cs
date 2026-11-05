@@ -48,6 +48,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "`StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) STORED NOT NULL",
             sql,
@@ -72,18 +73,22 @@ public sealed class MySqlJsonAndGeneratedColumnTests
             "`Payload` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Payload`))",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "`StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) STORED",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "`StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) STORED NOT NULL",
             sql,
@@ -119,6 +124,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
             + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL",
             command.CommandText,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "`StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) PERSISTENT",
             command.CommandText,
@@ -224,7 +230,7 @@ public sealed class MySqlJsonAndGeneratedColumnTests
         // Assert
         Assert.Contains(
             "`VirtualKind` varchar(64) GENERATED ALWAYS AS "
-                + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
+            + "(JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL NOT NULL",
             command.CommandText,
             StringComparison.OrdinalIgnoreCase);
     }
@@ -288,6 +294,31 @@ public sealed class MySqlJsonAndGeneratedColumnTests
         return builder.Options;
     }
 
+    private static void ConfigureJsonEntity(
+        ModelBuilder modelBuilder
+    )
+    {
+        modelBuilder.Entity<JsonEntity>(entity =>
+        {
+            entity.ToTable("Phase2JsonEntities");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id);
+            entity
+                .Property(item => item.Payload)
+                .HasColumnType("json");
+
+            entity
+                .Property(item => item.VirtualKind)
+                .HasColumnType("varchar(64)")
+                .HasComputedColumnSql("JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))", stored: false);
+
+            entity
+                .Property(item => item.StoredCount)
+                .HasColumnType("int")
+                .HasComputedColumnSql("JSON_LENGTH(`Payload`)", stored: true);
+        });
+    }
+
     private sealed class MySqlJsonContext : DbContext
     {
         public MySqlJsonContext(
@@ -308,29 +339,6 @@ public sealed class MySqlJsonAndGeneratedColumnTests
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         ) => ConfigureJsonEntity(modelBuilder);
-    }
-
-    private static void ConfigureJsonEntity(
-        ModelBuilder modelBuilder
-    )
-    {
-        modelBuilder.Entity<JsonEntity>(entity =>
-        {
-            entity.ToTable("Phase2JsonEntities");
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.Id);
-            entity
-                .Property(item => item.Payload)
-                .HasColumnType("json");
-            entity
-                .Property(item => item.VirtualKind)
-                .HasColumnType("varchar(64)")
-                .HasComputedColumnSql("JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))", stored: false);
-            entity
-                .Property(item => item.StoredCount)
-                .HasColumnType("int")
-                .HasComputedColumnSql("JSON_LENGTH(`Payload`)", stored: true);
-        });
     }
 
     private sealed class JsonEntity

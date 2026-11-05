@@ -11,7 +11,7 @@
     <!-- WHY: Earlier drivers are affected by GHSA-473q-m89c-ghf8. Qualification
          exercises this security floor and the latest stable 2.x independently. -->
     <DokaMySqlConnectorVersion
-        Condition="'$(DokaMySqlConnectorVersion)' == ''">[2.6.1, 3.0.0)</DokaMySqlConnectorVersion>
+      Condition="'$(DokaMySqlConnectorVersion)' == ''">[2.6.1, 3.0.0)</DokaMySqlConnectorVersion>
   </PropertyGroup>
 
   <ItemGroup Label="Production">

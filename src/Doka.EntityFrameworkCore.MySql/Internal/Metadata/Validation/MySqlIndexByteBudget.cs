@@ -32,7 +32,9 @@ internal static class MySqlIndexByteBudget
     {
         var storeType = (mapping ?? property.GetRelationalTypeMapping()).StoreType;
         var storeTypeName = GetStoreTypeName(storeType);
-        var indexedLength = prefixLength > 0 ? prefixLength : fullLength;
+        var indexedLength = prefixLength > 0
+            ? prefixLength
+            : fullLength;
 
         if (storeTypeName is "char" or "varchar"
             || (prefixLength > 0 && storeTypeName is "tinytext" or "text" or "mediumtext" or "longtext"))
@@ -50,14 +52,22 @@ internal static class MySqlIndexByteBudget
             // WHY: Validation needs a proven rejection lower bound, while implicit
             // allocation needs the four-byte safe upper bound for an unknown charset.
             // Reusing a lower bound to allocate lengths can create invalid native DDL.
-            return checked((long)indexedLength.Value * (bytesPerCharacter ?? (useSafeUpperBound ? 4 : 1)));
+            return checked((long)indexedLength.Value
+                * (bytesPerCharacter
+                    ?? (useSafeUpperBound
+                        ? 4
+                        : 1)));
         }
 
         if (storeTypeName is "enum" or "set")
         {
             // WHY: Native ENUM and SET storage is bounded, but exact list cardinality
             // is not needed to allocate safely and does not justify a second SQL parser.
-            return useSafeUpperBound ? storeTypeName == "enum" ? 2 : 8 : 1;
+            return useSafeUpperBound
+                ? storeTypeName == "enum"
+                    ? 2
+                    : 8
+                : 1;
         }
 
         return storeTypeName is "binary" or "varbinary"
@@ -101,7 +111,9 @@ internal static class MySqlIndexByteBudget
     )
     {
         var facetEnd = storeType.IndexOf(')');
-        var modifierStart = facetEnd >= 0 ? facetEnd + 1 : storeType.IndexOf(' ');
+        var modifierStart = facetEnd >= 0
+            ? facetEnd + 1
+            : storeType.IndexOf(' ');
 
         if (modifierStart < 0)
         {
@@ -145,8 +157,8 @@ internal static class MySqlIndexByteBudget
                 : null;
 
             for (var mappedType = (IReadOnlyEntityType?)entityType;
-                 mappedType is not null;
-                 mappedType = mappedType.BaseType)
+                mappedType is not null;
+                mappedType = mappedType.BaseType)
             {
                 var fragments = mappedType
                     .GetMappingFragments(StoreObjectType.Table)
@@ -159,7 +171,12 @@ internal static class MySqlIndexByteBudget
                     AddPhysicalMapping(
                         mappings,
                         table,
-                        new PhysicalTableMapping(entityType, includesDerivedTypes, fragments.Length > 0 ? true : null));
+                        new PhysicalTableMapping(
+                            entityType,
+                            includesDerivedTypes,
+                            fragments.Length > 0
+                                ? true
+                                : null));
 
                     foreach (var fragment in fragments)
                     {
@@ -197,6 +214,7 @@ internal static class MySqlIndexByteBudget
             var mappedEntities = tableMappings
                 .Select(mapping => mapping.EntityType)
                 .ToHashSet();
+
             IReadOnlyEntityType? principal = null;
 
             foreach (var mapping in ordered)
@@ -214,10 +232,13 @@ internal static class MySqlIndexByteBudget
             string? collation = null;
 
             foreach (var mapping in
-                     ordered.OrderByDescending(mapping => ReferenceEquals(mapping.EntityType, principal)))
+                ordered.OrderByDescending(mapping => ReferenceEquals(mapping.EntityType, principal)))
             {
-                charSet ??= mapping.EntityType.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
-                collation ??= mapping.EntityType.FindAnnotation(RelationalAnnotationNames.Collation)?.Value as string;
+                charSet ??= mapping.EntityType.FindAnnotation(MySqlAnnotationNames.CharSet)
+                    ?.Value as string;
+
+                collation ??= mapping.EntityType.FindAnnotation(RelationalAnnotationNames.Collation)
+                    ?.Value as string;
             }
 
             defaults.Add(table, new TableDefaults(charSet, collation));
@@ -255,7 +276,9 @@ internal static class MySqlIndexByteBudget
 
         var json = entityType.IsMappedToJson();
         var foreignKeys = json
-            ? entityType.FindOwnership() is { } ownership ? [ownership] : []
+            ? entityType.FindOwnership() is { } ownership
+                ? [ownership]
+                : []
             : entityType
                 .GetForeignKeys()
                 .Where(foreignKey => foreignKey.Properties.SequenceEqual(key.Properties));
@@ -266,12 +289,6 @@ internal static class MySqlIndexByteBudget
             && !foreignKey.PrincipalEntityType.IsAssignableFrom(foreignKey.DeclaringEntityType)
             && mappedEntities.Contains(foreignKey.PrincipalEntityType));
     }
-
-    private readonly record struct PhysicalTableMapping(
-        IReadOnlyEntityType EntityType,
-        bool? IncludesDerivedTypes,
-        bool? SplitPrincipal
-    );
 
     /// <summary>
     /// Resolves a property's physical charset once, keeping explicit property
@@ -290,56 +307,49 @@ internal static class MySqlIndexByteBudget
     )
     {
         var charSet = GetCharSetFromCollation(property.GetCollation(table))
+
             // WHY: A shared-table default can live only on another mapped
             // entity (usually its owner), ahead of the model-wide charset.
             ?? GetCharSetFromCollation(defaults.Collation)
             ?? defaults.CharSet
             ?? GetCharSetFromCollation(entityType.Model.GetCollation()) ?? entityType.Model.GetMySqlCharSet();
 
-        return charSet?.Trim().ToLowerInvariant() switch
-        {
-            "utf8mb4" or "utf16" or "utf16le" or "utf32" or "gb18030" => 4,
-            "utf8" or "utf8mb3" or "eucjpms" or "ujis" => 3,
-            "big5" or "cp932" or "euckr" or "gb2312" or "gbk" or "sjis" or "ucs2" => 2,
-            "armscii8"
-                or "ascii"
-                or "binary"
-                or "cp1250"
-                or "cp1251"
-                or "cp1256"
-                or "cp1257"
-                or "cp850"
-                or "cp852"
-                or "cp866"
-                or "dec8"
-                or "geostd8"
-                or "greek"
-                or "hebrew"
-                or "hp8"
-                or "keybcs2"
-                or "koi8r"
-                or "koi8u"
-                or "latin1"
-                or "latin2"
-                or "latin5"
-                or "latin7"
-                or "macce"
-                or "macroman"
-                or "swe7"
-                or "tis620" => 1,
-            _ => null,
-        };
+        return charSet
+                ?.Trim()
+                .ToLowerInvariant() switch
+            {
+                "utf8mb4" or "utf16" or "utf16le" or "utf32" or "gb18030" => 4,
+                "utf8" or "utf8mb3" or "eucjpms" or "ujis" => 3,
+                "big5" or "cp932" or "euckr" or "gb2312" or "gbk" or "sjis" or "ucs2" => 2,
+                "armscii8"
+                    or "ascii"
+                    or "binary"
+                    or "cp1250"
+                    or "cp1251"
+                    or "cp1256"
+                    or "cp1257"
+                    or "cp850"
+                    or "cp852"
+                    or "cp866"
+                    or "dec8"
+                    or "geostd8"
+                    or "greek"
+                    or "hebrew"
+                    or "hp8"
+                    or "keybcs2"
+                    or "koi8r"
+                    or "koi8u"
+                    or "latin1"
+                    or "latin2"
+                    or "latin5"
+                    or "latin7"
+                    or "macce"
+                    or "macroman"
+                    or "swe7"
+                    or "tis620" => 1,
+                _ => null,
+            };
     }
-
-    /// <summary>
-    /// Stores only the table-level annotations needed by index-width resolution.
-    /// </summary>
-    /// <param name="CharSet">The explicit charset of the physical table, if present.</param>
-    /// <param name="Collation">The explicit collation of the physical table, if present.</param>
-    internal readonly record struct TableDefaults(
-        string? CharSet,
-        string? Collation
-    );
 
     private static string? GetCharSetFromCollation(
         string? collation
@@ -352,7 +362,9 @@ internal static class MySqlIndexByteBudget
 
         var separator = collation.IndexOf('_');
 
-        return separator > 0 ? collation[..separator] : null;
+        return separator > 0
+            ? collation[..separator]
+            : null;
     }
 
     /// <summary>
@@ -377,7 +389,9 @@ internal static class MySqlIndexByteBudget
             {
                 var facet = storeType.AsSpan(facetStart + 1, facetEnd - facetStart - 1);
                 var separator = facet.IndexOf(',');
-                var lengthFacet = separator >= 0 ? facet[..separator] : facet;
+                var lengthFacet = separator >= 0
+                    ? facet[..separator]
+                    : facet;
 
                 if (int.TryParse(lengthFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var length))
                 {
@@ -394,10 +408,15 @@ internal static class MySqlIndexByteBudget
     )
     {
         var facetStart = storeType.IndexOf('(');
-        var name = facetStart >= 0 ? storeType[..facetStart] : storeType;
+        var name = facetStart >= 0
+            ? storeType[..facetStart]
+            : storeType;
+
         var modifierStart = name.IndexOf(' ');
 
-        return (modifierStart >= 0 ? name[..modifierStart] : name)
+        return (modifierStart >= 0
+                ? name[..modifierStart]
+                : name)
             .Trim()
             .ToLowerInvariant();
     }
@@ -430,7 +449,9 @@ internal static class MySqlIndexByteBudget
 
         // WHY: FLOAT(p) uses DOUBLE storage above 24 bits; FLOAT(M,D) is a
         // separate, deprecated syntax whose storage remains single precision.
-        return !storeType.Contains(',', StringComparison.Ordinal) && facets?.First >= 25 ? 8 : 4;
+        return !storeType.Contains(',', StringComparison.Ordinal) && facets?.First >= 25
+            ? 8
+            : 4;
     }
 
     private static int GetBitBytes(
@@ -471,7 +492,7 @@ internal static class MySqlIndexByteBudget
     {
         ReadOnlySpan<int> remainderBytes = [0, 1, 1, 2, 2, 3, 3, 4, 4];
 
-        return ((digits / 9) * 4) + remainderBytes[digits % 9];
+        return digits / 9 * 4 + remainderBytes[digits % 9];
     }
 
     private static int GetFractionalSecondsBytes(
@@ -499,7 +520,10 @@ internal static class MySqlIndexByteBudget
     )
     {
         var facetStart = storeType.IndexOf('(');
-        var facetEnd = facetStart < 0 ? -1 : storeType.IndexOf(')', facetStart + 1);
+        var facetEnd = facetStart < 0
+            ? -1
+            : storeType.IndexOf(')', facetStart + 1);
+
         if (facetStart < 0
             || facetEnd <= facetStart + 1)
         {
@@ -508,8 +532,13 @@ internal static class MySqlIndexByteBudget
 
         var facets = storeType.AsSpan(facetStart + 1, facetEnd - facetStart - 1);
         var separator = facets.IndexOf(',');
-        var firstFacet = separator >= 0 ? facets[..separator] : facets;
-        var secondFacet = separator >= 0 ? facets[(separator + 1)..] : "0";
+        var firstFacet = separator >= 0
+            ? facets[..separator]
+            : facets;
+
+        var secondFacet = separator >= 0
+            ? facets[(separator + 1)..]
+            : "0";
 
         return int.TryParse(firstFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var first)
             && int.TryParse(secondFacet.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var second)
@@ -531,7 +560,8 @@ internal static class MySqlIndexByteBudget
         // example, can expose binary(16) through a GuidTypeMapping whose Size is
         // null. The normalized store-type family is therefore the authoritative
         // signal for whether the engine can build a complete key or index.
-        var storeType = property.GetRelationalTypeMapping().StoreType;
+        var storeType = property.GetRelationalTypeMapping()
+            .StoreType;
 
         return GetStoreTypeName(storeType) is "tinytext"
             or "text"
@@ -542,4 +572,20 @@ internal static class MySqlIndexByteBudget
             or "mediumblob"
             or "longblob";
     }
+
+    private readonly record struct PhysicalTableMapping(
+        IReadOnlyEntityType EntityType,
+        bool? IncludesDerivedTypes,
+        bool? SplitPrincipal
+    );
+
+    /// <summary>
+    /// Stores only the table-level annotations needed by index-width resolution.
+    /// </summary>
+    /// <param name="CharSet">The explicit charset of the physical table, if present.</param>
+    /// <param name="Collation">The explicit collation of the physical table, if present.</param>
+    internal readonly record struct TableDefaults(
+        string? CharSet,
+        string? Collation
+    );
 }

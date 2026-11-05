@@ -1,8 +1,11 @@
+using System.Globalization;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
+
 namespace Doka.EntityFrameworkCore.MySql.HostExamples;
 
 internal static class Program
 {
-    private static readonly Action<Microsoft.Extensions.Logging.ILogger, string, Exception?> s_hostConfigured =
+    private static readonly Action<ILogger, string, Exception?> s_hostConfigured =
         LoggerMessage.Define<string>(
             LogLevel.Information,
             new EventId(0, nameof(Program)),
@@ -20,19 +23,21 @@ internal static class Program
 
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        builder.Services.AddSerilog((
-            _,
-            loggerConfiguration
-        ) =>
+        builder.Services.AddSerilog((_,
+            loggerConfiguration) =>
         {
             loggerConfiguration
-                .MinimumLevel.Information()
-                .Enrich.FromLogContext()
-                .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture);
+                .MinimumLevel
+                .Information()
+                .Enrich
+                .FromLogContext()
+                .WriteTo
+                .Console(formatProvider: CultureInfo.InvariantCulture);
         });
 
         builder
-            .Services.AddOpenTelemetry()
+            .Services
+            .AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService("Doka.EntityFrameworkCore.MySql.HostExamples"))
             .WithTracing(tracing => tracing
                 .AddSource(SampleTelemetry.ActivitySourceName)
@@ -52,7 +57,8 @@ internal static class Program
         using var host = builder.Build();
 
         var logger = host
-            .Services.GetRequiredService<ILoggerFactory>()
+            .Services
+            .GetRequiredService<ILoggerFactory>()
             .CreateLogger("HostExamples");
 
         s_hostConfigured(logger, "Doka.EntityFrameworkCore.MySql", null);
@@ -62,6 +68,7 @@ internal static class Program
         await host
             .StartAsync()
             .ConfigureAwait(false);
+
         await host
             .StopAsync()
             .ConfigureAwait(false);
@@ -98,6 +105,7 @@ internal sealed class LegacyGuidContext : DbContext
                 .Property(candidate => candidate.LegacyId)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
                 .UseMySqlClientGuidValueGeneration();
+
             entity
                 .Property(candidate => candidate.DisplayName)
                 .HasMaxLength(128);

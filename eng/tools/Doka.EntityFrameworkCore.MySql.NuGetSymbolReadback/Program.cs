@@ -26,10 +26,10 @@ internal static class Program
             return 0;
         }
         catch (Exception exception) when (exception is ArgumentException
-                                              or BadImageFormatException
-                                              or InvalidDataException
-                                              or IOException
-                                              or JsonException)
+            or BadImageFormatException
+            or InvalidDataException
+            or IOException
+            or JsonException)
         {
             Console.Error.WriteLine($"NuGet symbol manifest failed: {exception.Message}");
             return 1;

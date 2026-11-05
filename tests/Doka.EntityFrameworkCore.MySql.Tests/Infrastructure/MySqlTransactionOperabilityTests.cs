@@ -22,7 +22,8 @@ public sealed class MySqlTransactionOperabilityTests
         transaction.RollbackToSavepoint("before-update");
         transaction.ReleaseSavepoint("before-update");
         var commands = connection
-            .Commands.Select(command => command.CommandText)
+            .Commands
+            .Select(command => command.CommandText)
             .ToArray();
 
         // Assert
@@ -31,10 +32,12 @@ public sealed class MySqlTransactionOperabilityTests
             commands,
             c => c.StartsWith("SAVEPOINT", StringComparison.OrdinalIgnoreCase)
                 && c.Contains("before-update", StringComparison.Ordinal));
+
         Assert.Contains(
             commands,
             c => c.StartsWith("ROLLBACK TO", StringComparison.OrdinalIgnoreCase)
                 && c.Contains("before-update", StringComparison.Ordinal));
+
         Assert.Contains(
             commands,
             c => c.StartsWith("RELEASE SAVEPOINT", StringComparison.OrdinalIgnoreCase)
@@ -60,12 +63,15 @@ public sealed class MySqlTransactionOperabilityTests
                 .GetService<IEnumerable<ISingletonOptions>>()
                 .OfType<MySqlSingletonOptions>()
                 .Single();
+
             await primingTransaction.RollbackAsync();
         }
+
         var sink = new TestLogSink();
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new TestLoggerProvider(sink)));
         await using var connection =
             new RecordingDbConnection(commitFailure: new SocketException((int)SocketError.ConnectionReset));
+
         await using var context =
             new TransactionOperabilityContext(
                 CreateOptions(connection, loggerFactory, MySqlGuidFormat.Char36));
@@ -76,7 +82,7 @@ public sealed class MySqlTransactionOperabilityTests
             .Single();
 
         await using var transaction = await context.Database.BeginTransactionAsync();
-        Func<Task> act = () => transaction.CommitAsync();
+        var act = () => transaction.CommitAsync();
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);

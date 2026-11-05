@@ -19,7 +19,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TphCrudContext(CreateOptions<TphCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_TphAnimals");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_TphAnimals");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -39,20 +39,24 @@ public sealed class MySqlModelingIntegrationTests
                 new TphDog
                 {
                     Name = "Rex",
-                    Breed = "Shepherd"
+                    Breed = "Shepherd",
                 });
+
             context.Animals.Add(
                 new TphCat
                 {
                     Name = "Whiskers",
-                    IsIndoor = true
+                    IsIndoor = true,
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var dogs = await context
-                .Animals.OfType<TphDog>()
+                .Animals
+                .OfType<TphDog>()
                 .ToListAsync();
+
             var allAnimals = await context.Animals.ToListAsync();
 
             // Assert
@@ -62,7 +66,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_TphAnimals");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_TphAnimals");
         }
     }
 
@@ -76,7 +80,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new OwnedCrudContext(CreateOptions<OwnedCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_OwnedCustomers");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_OwnedCustomers");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -98,10 +102,11 @@ public sealed class MySqlModelingIntegrationTests
                     Address = new OwnedAddress
                     {
                         Street = "123 Main",
-                        City = "Berlin"
+                        City = "Berlin",
                     },
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var customer = await context.Customers.FirstAsync();
@@ -113,7 +118,7 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_OwnedCustomers");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_OwnedCustomers");
         }
     }
 
@@ -127,7 +132,12 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new M2MCrudContext(CreateOptions<M2MCrudContext>(connectionString));
 
-        await CleanupAsync(context, "M2MCourseM2MStudent", "Phase5_M2MStudents", "Phase5_M2MCourses");
+        await CleanupAsync(
+            context,
+            CancellationToken.None,
+            "M2MCourseM2MStudent",
+            "Phase5_M2MStudents",
+            "Phase5_M2MCourses");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -137,6 +147,7 @@ public sealed class MySqlModelingIntegrationTests
                 CONSTRAINT `PK_Phase5_M2MStudents` PRIMARY KEY (`Id`)
             ) CHARACTER SET utf8mb4;
             """);
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS `Phase5_M2MCourses` (
@@ -145,6 +156,7 @@ public sealed class MySqlModelingIntegrationTests
                 CONSTRAINT `PK_Phase5_M2MCourses` PRIMARY KEY (`Id`)
             ) CHARACTER SET utf8mb4;
             """);
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS `M2MCourseM2MStudent` (
@@ -162,11 +174,12 @@ public sealed class MySqlModelingIntegrationTests
             var course = new M2MCourse { Title = "Databases" };
             student.Courses.Add(course);
             context.Students.Add(student);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var loaded = await context
-                .Students.Include(s => s.Courses)
+                .Students
+                .Include(s => s.Courses)
                 .FirstAsync();
 
             // Assert
@@ -175,7 +188,12 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "M2MCourseM2MStudent", "Phase5_M2MStudents", "Phase5_M2MCourses");
+            await CleanupAsync(
+                context,
+                CancellationToken.None,
+                "M2MCourseM2MStudent",
+                "Phase5_M2MStudents",
+                "Phase5_M2MCourses");
         }
     }
 
@@ -186,7 +204,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new TptCrudContext(CreateOptions<TptCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_TptCars", "Phase5_TptVehicles");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_TptCars", "Phase5_TptVehicles");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -196,6 +214,7 @@ public sealed class MySqlModelingIntegrationTests
                 CONSTRAINT `PK_TptVehicles` PRIMARY KEY (`Id`)
             ) CHARACTER SET utf8mb4;
             """);
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS `Phase5_TptCars` (
@@ -212,9 +231,10 @@ public sealed class MySqlModelingIntegrationTests
                 new TptCar
                 {
                     Make = "BMW",
-                    SeatCount = 5
+                    SeatCount = 5,
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var vehicle = await context.Vehicles.FirstAsync();
@@ -223,14 +243,15 @@ public sealed class MySqlModelingIntegrationTests
             Assert.Equal("BMW", vehicle.Make);
 
             var car = await context
-                .Vehicles.OfType<TptCar>()
+                .Vehicles
+                .OfType<TptCar>()
                 .FirstAsync();
 
             Assert.Equal(5, car.SeatCount);
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_TptCars", "Phase5_TptVehicles");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_TptCars", "Phase5_TptVehicles");
         }
     }
 
@@ -244,7 +265,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context1 = new ConcurrencyCrudContext(CreateOptions<ConcurrencyCrudContext>(connectionString));
 
-        await CleanupAsync(context1, "Phase5_ConcurrencyEntities");
+        await CleanupAsync(context1, CancellationToken.None, "Phase5_ConcurrencyEntities");
 
         await context1.Database.ExecuteSqlRawAsync(
             """
@@ -262,9 +283,10 @@ public sealed class MySqlModelingIntegrationTests
                 new ConcurrencyEntity
                 {
                     Name = "Original",
-                    Version = 1
+                    Version = 1,
                 });
-            await context1.SaveChangesAsync();
+
+            await context1.SaveChangesAsync(CancellationToken.None);
 
             // Simulate concurrent modification.
             await context1.Database.ExecuteSqlRawAsync(
@@ -274,14 +296,14 @@ public sealed class MySqlModelingIntegrationTests
             entity.Name = "Modified";
 
             // Act
-            var failure = await Record.ExceptionAsync(() => context1.SaveChangesAsync());
+            var failure = await Record.ExceptionAsync(() => context1.SaveChangesAsync(CancellationToken.None));
 
             // Assert
             Assert.IsType<DbUpdateConcurrencyException>(failure);
         }
         finally
         {
-            await CleanupAsync(context1, "Phase5_ConcurrencyEntities");
+            await CleanupAsync(context1, CancellationToken.None, "Phase5_ConcurrencyEntities");
         }
     }
 
@@ -295,7 +317,7 @@ public sealed class MySqlModelingIntegrationTests
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         await using var context = new ConverterCrudContext(CreateOptions<ConverterCrudContext>(connectionString));
 
-        await CleanupAsync(context, "Phase5_ConverterEntities");
+        await CleanupAsync(context, CancellationToken.None, "Phase5_ConverterEntities");
 
         await context.Database.ExecuteSqlRawAsync(
             """
@@ -313,9 +335,10 @@ public sealed class MySqlModelingIntegrationTests
                 new ConverterEntity
                 {
                     IsActive = true,
-                    Price = new Money(42.50m)
+                    Price = new Money(42.50m),
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Clear tracker to force fresh read.
             context.ChangeTracker.Clear();
@@ -329,7 +352,43 @@ public sealed class MySqlModelingIntegrationTests
         }
         finally
         {
-            await CleanupAsync(context, "Phase5_ConverterEntities");
+            await CleanupAsync(context, CancellationToken.None, "Phase5_ConverterEntities");
+        }
+    }
+
+    // -- Helpers ----------------------------------------------------------
+
+    private static DbContextOptions<TContext> CreateOptions<TContext>(
+        string connectionString
+    )
+        where TContext : DbContext
+    {
+        var builder = IntegrationTestDbContextOptions.Create<TContext>();
+        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
+    }
+
+    /// <summary>
+    /// Removes the test objects while observing the supplied token.
+    /// </summary>
+    /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
+    /// <param name="context">The context used for the database operation.</param>
+    /// <param name="tables">The tables.</param>
+    private static async Task CleanupAsync(
+        DbContext context,
+        CancellationToken cancellationToken,
+        params string[] tables
+    )
+    {
+        foreach (var table in tables)
+        {
+            // Escape any backticks defensively so the helper is safe-by-construction
+            // even if a future caller passes a non-literal identifier.
+            var quoted = table.Replace("`", "``", StringComparison.Ordinal);
+            await context.Database.ExecuteSqlRawAsync(
+                $"DROP TABLE IF EXISTS `{quoted}`;",
+                cancellationToken: cancellationToken);
         }
     }
 
@@ -361,6 +420,7 @@ public sealed class MySqlModelingIntegrationTests
             modelBuilder
                 .Entity<TptVehicle>()
                 .UseTptMappingStrategy();
+
             modelBuilder.Entity<TptVehicle>(e =>
             {
                 e.ToTable("Phase5_TptVehicles");
@@ -368,6 +428,7 @@ public sealed class MySqlModelingIntegrationTests
                     .Property(v => v.Make)
                     .HasMaxLength(100);
             });
+
             modelBuilder
                 .Entity<TptCar>()
                 .ToTable("Phase5_TptCars");
@@ -435,40 +496,18 @@ public sealed class MySqlModelingIntegrationTests
                 e.ToTable("Phase5_ConverterEntities");
                 e
                     .Property(c => c.IsActive)
-                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasConversion(
+                        v => v
+                            ? "Y"
+                            : "N",
+                        v => v == "Y")
                     .HasMaxLength(1);
+
                 e
                     .Property(c => c.Price)
                     .HasConversion(v => v.Amount, v => new Money(v))
                     .HasPrecision(18, 2);
             });
-        }
-    }
-
-    // -- Helpers ----------------------------------------------------------
-
-    private static DbContextOptions<TContext> CreateOptions<TContext>(
-        string connectionString
-    )
-        where TContext : DbContext
-    {
-        var builder = IntegrationTestDbContextOptions.Create<TContext>();
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        return builder.Options;
-    }
-
-    private static async Task CleanupAsync(
-        DbContext context,
-        params string[] tables
-    )
-    {
-        foreach (var table in tables)
-        {
-            // Escape any backticks defensively so the helper is safe-by-construction
-            // even if a future caller passes a non-literal identifier.
-            var quoted = table.Replace("`", "``", StringComparison.Ordinal);
-            await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{quoted}`;");
         }
     }
 
@@ -509,13 +548,16 @@ public sealed class MySqlModelingIntegrationTests
                     .HasDiscriminator<string>("Type")
                     .HasValue<TphDog>("Dog")
                     .HasValue<TphCat>("Cat");
+
                 e
                     .Property("Type")
                     .HasMaxLength(64);
+
                 e
                     .Property(a => a.Name)
                     .HasMaxLength(100);
             });
+
             modelBuilder.Entity<TphDog>(e => e
                 .Property(d => d.Breed)
                 .HasMaxLength(100));
@@ -553,6 +595,7 @@ public sealed class MySqlModelingIntegrationTests
                 e
                     .Property(c => c.Name)
                     .HasMaxLength(100);
+
                 e.OwnsOne(
                     c => c.Address,
                     a =>
@@ -560,6 +603,7 @@ public sealed class MySqlModelingIntegrationTests
                         a
                             .Property(x => x.Street)
                             .HasMaxLength(200);
+
                         a
                             .Property(x => x.City)
                             .HasMaxLength(100);
@@ -602,6 +646,7 @@ public sealed class MySqlModelingIntegrationTests
                     .Property(s => s.Name)
                     .HasMaxLength(100);
             });
+
             modelBuilder.Entity<M2MCourse>(e =>
             {
                 e.ToTable("Phase5_M2MCourses");
@@ -609,6 +654,7 @@ public sealed class MySqlModelingIntegrationTests
                     .Property(c => c.Title)
                     .HasMaxLength(200);
             });
+
             modelBuilder
                 .Entity<M2MStudent>()
                 .HasMany(s => s.Courses)

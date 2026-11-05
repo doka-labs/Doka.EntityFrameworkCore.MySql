@@ -45,7 +45,7 @@ internal sealed class MySqlMaterializedSourceIncludeValidator : MySqlShapedQuery
                 StructuralType: IEntityType entityType,
                 ValueBufferExpression: ProjectionBindingExpression
                 {
-                    QueryExpression: SelectExpression select
+                    QueryExpression: SelectExpression select,
                 } binding,
             }
             || select.GetProjection(binding) is not ConstantExpression

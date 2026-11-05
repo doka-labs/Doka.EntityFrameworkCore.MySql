@@ -98,11 +98,13 @@ internal sealed partial class MySqlQuerySqlGenerator
             Sql.Append("WHERE ");
             AppendDelimitedColumn(
                 GetRequiredStringAnnotation(tableExpression, MySqlAnnotationNames.TemporalPeriodStartColumn));
+
             Sql.Append(" >= ");
             AppendTemporalLiteral(GetRequiredTemporalRangeStart(tableExpression));
             Sql.Append(" AND ");
             AppendDelimitedColumn(
                 GetRequiredStringAnnotation(tableExpression, MySqlAnnotationNames.TemporalPeriodEndColumn));
+
             Sql.Append(" <= ");
             AppendTemporalLiteral(GetRequiredTemporalRangeEnd(tableExpression));
             Sql.AppendLine();

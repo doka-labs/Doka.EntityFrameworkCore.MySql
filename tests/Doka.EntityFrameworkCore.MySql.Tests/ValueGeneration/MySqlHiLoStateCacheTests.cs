@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the cross-DbContext sharing contract of <see cref="MySqlHiLoStateCache"/>: every
+/// Pins the cross-DbContext sharing contract of <see cref="MySqlHiLoStateCache" />: every
 /// caller that asks for the same database, sequence-name, and block-size tuple receives
 /// the same HiLoValueGeneratorState instance. Distinct databases never share a range,
 /// and high-cardinality database churn cannot grow the process-wide cache without bound.
@@ -148,7 +148,9 @@ public sealed partial class MySqlHiLoStateCacheTests : IDisposable
             2000,
             _ => instances.Add(MySqlHiLoStateCache.GetOrCreate(s_database, "orders_seq", blockSize: 10)));
 
-        var distinct = instances.Distinct().ToArray();
+        var distinct = instances
+            .Distinct()
+            .ToArray();
 
         // Assert
         Assert.Single(distinct);
@@ -188,7 +190,9 @@ public sealed partial class MySqlHiLoStateCacheTests : IDisposable
         var databaseIdentity = DatabaseIdentity("evicted");
         var originalState = MySqlHiLoStateCache.GetOrCreate(databaseIdentity, "orders_seq", blockSize);
         var nextServerLow = 1 - blockSize;
+
         long LeaseRange() => Interlocked.Add(ref nextServerLow, blockSize);
+
         var values = new ConcurrentBag<int>
         {
             originalState.Next<int>(LeaseRange),
@@ -208,7 +212,10 @@ public sealed partial class MySqlHiLoStateCacheTests : IDisposable
             blockSize * 2,
             index =>
             {
-                var state = index % 2 == 0 ? originalState : replacementState;
+                var state = index % 2 == 0
+                    ? originalState
+                    : replacementState;
+
                 values.Add(state.Next<int>(LeaseRange));
             });
 

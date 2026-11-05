@@ -26,9 +26,10 @@ internal sealed class MySqlNetTopologySuiteAggregateMethodTranslator : IAggregat
         nameof(EnvelopeCombiner.CombineAsGeometry),
         [typeof(IEnumerable<Geometry>)])!;
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _geometryTypeMapping;
     private readonly ILogger _logger;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly bool _supportsCollectAggregate;
 
     public MySqlNetTopologySuiteAggregateMethodTranslator(
@@ -53,7 +54,7 @@ internal sealed class MySqlNetTopologySuiteAggregateMethodTranslator : IAggregat
     )
     {
         if (source.Selector is not SqlExpression selector
-            || method != s_geometryCombineMethod && method != s_unionMethod && method != s_envelopeCombineMethod)
+            || (method != s_geometryCombineMethod && method != s_unionMethod && method != s_envelopeCombineMethod))
         {
             return null;
         }
@@ -63,6 +64,7 @@ internal sealed class MySqlNetTopologySuiteAggregateMethodTranslator : IAggregat
             MySqlLoggerMessages.MissingSpatialTranslation(
                 _logger,
                 "Spatial collection aggregates require MySQL 8.0.24 or MariaDB 12.0 or newer");
+
             return null;
         }
 

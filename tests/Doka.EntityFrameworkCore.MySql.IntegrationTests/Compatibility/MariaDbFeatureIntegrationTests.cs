@@ -26,7 +26,7 @@ public sealed class MariaDbFeatureIntegrationTests
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         // Act
-        var exists = await creator.ExistsAsync();
+        var exists = await creator.ExistsAsync(CancellationToken.None);
 
         // Assert
         Assert.True(exists);
@@ -43,7 +43,7 @@ public sealed class MariaDbFeatureIntegrationTests
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         // Act
-        var exists = await creator.ExistsAsync();
+        var exists = await creator.ExistsAsync(CancellationToken.None);
 
         // Assert
         Assert.True(exists);
@@ -59,22 +59,22 @@ public sealed class MariaDbFeatureIntegrationTests
         await using var context = new SimpleContext(
             CreateOptions<SimpleContext>(connectionString, MySqlServerVersion.MariaDb(new Version(11, 8, 0))));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;", CancellationToken.None);
 
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         try
         {
             // Act
-            await context.Database.EnsureCreatedAsync();
-            var hasTables = await creator.HasTablesAsync();
+            await context.Database.EnsureCreatedAsync(CancellationToken.None);
+            var hasTables = await creator.HasTablesAsync(CancellationToken.None);
 
             // Assert
             Assert.True(hasTables);
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `SimpleItems`;", CancellationToken.None);
         }
     }
 
@@ -82,22 +82,23 @@ public sealed class MariaDbFeatureIntegrationTests
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
     public async Task MariaDb1011_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb1011);
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
     public async Task MariaDb118_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb118);
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
     public async Task MariaDb114_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb114);
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
     public async Task MariaDb123_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb123);
+        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     private static async Task RunJsonAliasCrudTest(
-        IntegrationDatabaseTarget target
+        IntegrationDatabaseTarget target,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -105,29 +106,34 @@ public sealed class MariaDbFeatureIntegrationTests
         var serverVersion = GetServerVersion(target);
         await using var context = new JsonContext(CreateOptions<JsonContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbJsonItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbJsonItems`;", cancellationToken);
+
         // MariaDB stores JSON as longtext with CHECK constraint.
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbJsonItems` (`Id` int NOT NULL AUTO_INCREMENT, `Data` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Data`)), PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbJsonItems` (`Id` int NOT NULL AUTO_INCREMENT, `Data` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Data`)), PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
 
         try
         {
             var jsonValue = """{"name":"MariaDB","version":11}""";
 
             // Act
-            await context.Database.ExecuteSqlRawAsync("INSERT INTO `MdbJsonItems` (`Data`) VALUES ({0});", jsonValue);
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO `MdbJsonItems` (`Data`) VALUES ({0});",
+                new object[] { jsonValue },
+                cancellationToken);
 
             // Read back.
-            var item = await context.Items.FirstAsync();
+            var item = await context.Items.FirstAsync(cancellationToken);
 
             var insertedData = item.Data;
 
             // Update.
             item.Data = """{"name":"MariaDB","version":12}""";
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
-            var updated = await context.Items.FirstAsync();
+            var updated = await context.Items.FirstAsync(cancellationToken);
 
             // Assert
             Assert.Contains("MariaDB", insertedData, StringComparison.Ordinal);
@@ -135,7 +141,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbJsonItems`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbJsonItems`;", CancellationToken.None);
         }
     }
 
@@ -151,6 +157,7 @@ public sealed class MariaDbFeatureIntegrationTests
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
         var seqName = $"mdb_seq_{Guid.NewGuid():N}"[..25];
+
         // Backtick-escaped form for raw-SQL interpolation. The GUID:N format cannot
         // produce backticks today; escaping keeps the pattern safe-by-construction.
         var quotedSeqName = seqName.Replace("`", "``", StringComparison.Ordinal);
@@ -172,27 +179,27 @@ public sealed class MariaDbFeatureIntegrationTests
         foreach (var cmd in createOps)
         {
             // Safe: SQL emitted by IMigrationsSqlGenerator from a fixture-controlled CreateSequenceOperation.
-            await context.Database.ExecuteSqlRawAsync(cmd.CommandText);
+            await context.Database.ExecuteSqlRawAsync(cmd.CommandText, CancellationToken.None);
         }
 
         try
         {
             // Verify sequence works.
-            await using var conn = new MySqlConnector.MySqlConnection(connectionString);
-            await conn.OpenAsync();
+            await using var conn = new MySqlConnection(connectionString);
+            await conn.OpenAsync(CancellationToken.None);
             await using var fetchCmd = conn.CreateCommand();
             fetchCmd.CommandText = $"SELECT NEXT VALUE FOR `{quotedSeqName}`;";
 
             var value = Convert.ToInt64(
-                await fetchCmd.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture);
+                await fetchCmd.ExecuteScalarAsync(CancellationToken.None),
+                CultureInfo.InvariantCulture);
 
             // Generate DROP SEQUENCE DDL.
             var dropOps = generator.Generate([new DropSequenceOperation { Name = seqName }], context.Model);
             foreach (var cmd in dropOps)
             {
                 // Safe: SQL emitted by IMigrationsSqlGenerator from a fixture-controlled DropSequenceOperation.
-                await context.Database.ExecuteSqlRawAsync(cmd.CommandText);
+                await context.Database.ExecuteSqlRawAsync(cmd.CommandText, CancellationToken.None);
             }
 
             // Assert
@@ -201,7 +208,10 @@ public sealed class MariaDbFeatureIntegrationTests
         catch
         {
             // Cleanup on failure.
-            await context.Database.ExecuteSqlRawAsync($"DROP SEQUENCE IF EXISTS `{quotedSeqName}`;");
+            await context.Database.ExecuteSqlRawAsync(
+                $"DROP SEQUENCE IF EXISTS `{quotedSeqName}`;",
+                CancellationToken.None);
+
             throw;
         }
     }
@@ -216,9 +226,10 @@ public sealed class MariaDbFeatureIntegrationTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
         await using var context = new CrudContext(CreateOptions<CrudContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;", CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbCrudItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Score` double NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbCrudItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Score` double NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            CancellationToken.None);
 
         try
         {
@@ -227,38 +238,41 @@ public sealed class MariaDbFeatureIntegrationTests
                 new CrudItem
                 {
                     Name = "First",
-                    Score = 1.5
+                    Score = 1.5,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Second",
-                    Score = 2.5
+                    Score = 2.5,
                 });
-            await context.SaveChangesAsync();
 
-            var insertedCount = await context.Items.CountAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
+
+            var insertedCount = await context.Items.CountAsync(CancellationToken.None);
 
             // Read.
             var first = await context
-                .Items.Where(e => e.Name == "First")
-                .FirstAsync();
+                .Items
+                .Where(e => e.Name == "First")
+                .FirstAsync(CancellationToken.None);
 
             var insertedScore = first.Score;
 
             // Update.
             first.Score = 99.9;
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
-            var updated = await context.Items.FindAsync(first.Id);
+            var updated = await context.Items.FindAsync(new object[] { first.Id }, CancellationToken.None);
 
             var updatedScore = updated!.Score;
 
             // Delete.
             context.Items.Remove(updated);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
 
-            var remainingCount = await context.Items.CountAsync();
+            var remainingCount = await context.Items.CountAsync(CancellationToken.None);
 
             // Assert
             Assert.Equal(2, insertedCount);
@@ -268,7 +282,7 @@ public sealed class MariaDbFeatureIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;", CancellationToken.None);
         }
     }
 
@@ -282,9 +296,10 @@ public sealed class MariaDbFeatureIntegrationTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new CrudContext(CreateOptions<CrudContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;", CancellationToken.None);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbCrudItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Score` double NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbCrudItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Score` double NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            CancellationToken.None);
 
         try
         {
@@ -292,31 +307,35 @@ public sealed class MariaDbFeatureIntegrationTests
                 new CrudItem
                 {
                     Name = "Alpha",
-                    Score = 10.0
+                    Score = 10.0,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Beta",
-                    Score = 20.0
+                    Score = 20.0,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Gamma",
-                    Score = 30.0
+                    Score = 30.0,
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var filtered = await context
-                .Items.Where(e => e.Score > 15)
+                .Items
+                .Where(e => e.Score > 15)
                 .OrderBy(e => e.Name)
-                .ToListAsync();
+                .ToListAsync(CancellationToken.None);
 
             context.Items.RemoveRange(filtered);
-            await context.SaveChangesAsync();
-            var remainingCount = await context.Items.CountAsync();
+            await context.SaveChangesAsync(CancellationToken.None);
+            var remainingCount = await context.Items.CountAsync(CancellationToken.None);
 
             // Assert
             Assert.Equal(2, filtered.Count);
@@ -326,21 +345,24 @@ public sealed class MariaDbFeatureIntegrationTests
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbCrudItems`;", CancellationToken.None);
         }
     }
 
     // -- MariaDB DateTime/DateOnly Arithmetic --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_datetime_arithmetic_executes_correctly() => AssertDateTimeArithmeticAsync(addMonths: false);
+    public Task MariaDb118_datetime_arithmetic_executes_correctly() =>
+        AssertDateTimeArithmeticAsync(addMonths: false, cancellationToken: CancellationToken.None);
 
     /// <summary>Verifies calendar-month arithmetic independently from DateTime day arithmetic.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_dateonly_month_arithmetic_executes_correctly() => AssertDateTimeArithmeticAsync(addMonths: true);
+    public Task MariaDb118_dateonly_month_arithmetic_executes_correctly() =>
+        AssertDateTimeArithmeticAsync(addMonths: true, cancellationToken: CancellationToken.None);
 
     private static async Task AssertDateTimeArithmeticAsync(
-        bool addMonths
+        bool addMonths,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -348,9 +370,10 @@ public sealed class MariaDbFeatureIntegrationTests
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 8, 0));
         await using var context = new TemporalContext(CreateOptions<TemporalContext>(connectionString, serverVersion));
 
-        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbTemporal`;");
+        await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbTemporal`;", cancellationToken);
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE `MdbTemporal` (`Id` int NOT NULL AUTO_INCREMENT, `Created` datetime(6) NOT NULL, `BirthDate` date NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+            "CREATE TABLE `MdbTemporal` (`Id` int NOT NULL AUTO_INCREMENT, `Created` datetime(6) NOT NULL, `BirthDate` date NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
+            cancellationToken);
 
         try
         {
@@ -358,22 +381,33 @@ public sealed class MariaDbFeatureIntegrationTests
                 new TemporalItem
                 {
                     Created = new DateTime(2025, 3, 15, 9, 0, 0),
-                    BirthDate = new DateOnly(1990, 6, 1)
+                    BirthDate = new DateOnly(1990, 6, 1),
                 });
-            await context.SaveChangesAsync();
+
+            await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             // Act
             var actual = addMonths
-                ? (await context.Items.Select(e => e.BirthDate.AddMonths(6)).FirstAsync()).Month
-                : (await context.Items.Select(e => e.Created.AddDays(10)).FirstAsync()).Day;
+                ? (await context
+                    .Items
+                    .Select(e => e.BirthDate.AddMonths(6))
+                    .FirstAsync(cancellationToken)).Month
+                : (await context
+                    .Items
+                    .Select(e => e.Created.AddDays(10))
+                    .FirstAsync(cancellationToken)).Day;
 
             // Assert
-            Assert.Equal(addMonths ? 12 : 25, actual);
+            Assert.Equal(
+                addMonths
+                    ? 12
+                    : 25,
+                actual);
         }
         finally
         {
-            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbTemporal`;");
+            await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbTemporal`;", CancellationToken.None);
         }
     }
 
@@ -414,15 +448,16 @@ public sealed class MariaDbFeatureIntegrationTests
 
     private static async Task DropDatabaseIfExistsAsync(
         string connectionString,
-        string databaseName
+        string databaseName,
+        CancellationToken cancellationToken
     )
     {
         var csb = new MySqlConnectionStringBuilder(connectionString) { Database = string.Empty };
         await using var connection = new MySqlConnection(csb.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     // -- Entities / Contexts --

@@ -26,8 +26,13 @@ public sealed class MySqlGuidFormatTestOptionsTests
     )
     {
         // Arrange
-        using var connection = bootstrap == "db-connection" ? new MySqlConnection(ConnectionString) : null;
-        using var dataSource = bootstrap == "data-source" ? new MySqlDataSourceBuilder(ConnectionString).Build() : null;
+        using var connection = bootstrap == "db-connection"
+            ? new MySqlConnection(ConnectionString)
+            : null;
+
+        using var dataSource = bootstrap == "data-source"
+            ? new MySqlDataSourceBuilder(ConnectionString).Build()
+            : null;
 
         // Act
         var options = bootstrap switch

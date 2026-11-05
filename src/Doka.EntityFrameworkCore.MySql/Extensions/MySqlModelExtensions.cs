@@ -8,7 +8,8 @@ internal static class MySqlModelExtensions
     {
         ArgumentNullException.ThrowIfNull(model);
 
-        return model.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value as string;
+        return model.FindAnnotation(MySqlAnnotationNames.CharSet)
+            ?.Value as string;
     }
 
     public static void SetMySqlCharSet(

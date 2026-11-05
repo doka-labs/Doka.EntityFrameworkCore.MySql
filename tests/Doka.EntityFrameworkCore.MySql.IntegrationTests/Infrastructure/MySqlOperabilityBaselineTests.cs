@@ -17,7 +17,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MySql84,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -29,7 +30,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -41,7 +43,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -54,7 +57,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -66,7 +70,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -78,7 +83,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCommandTimeoutAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -88,7 +94,10 @@ public sealed class MySqlOperabilityBaselineTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
     {
-        await AssertCancellationAsync(IntegrationDatabaseTarget.MySql84, MySqlServerVersion.MySql(new Version(8, 4, 0)))
+        await AssertCancellationAsync(
+                IntegrationDatabaseTarget.MySql84,
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -100,7 +109,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MySql97,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MySql97),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -112,7 +122,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MariaDb1011,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb1011),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -125,7 +136,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MariaDb114,
-                MySqlServerVersion.MariaDb(new Version(11, 4, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -137,7 +149,8 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MariaDb118,
-                MySqlServerVersion.MariaDb(new Version(11, 8, 0)))
+                MySqlServerVersion.MariaDb(new Version(11, 8, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -149,13 +162,15 @@ public sealed class MySqlOperabilityBaselineTests
     {
         await AssertCancellationAsync(
                 IntegrationDatabaseTarget.MariaDb123,
-                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123))
+                IntegrationTestEnvironment.GetServerVersion(IntegrationDatabaseTarget.MariaDb123),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
     private static async Task AssertCommandTimeoutAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -170,17 +185,19 @@ public sealed class MySqlOperabilityBaselineTests
 
         // Act
         var caught = await Record
-            .ExceptionAsync(() => query.SingleAsync())
+            .ExceptionAsync(() => query.SingleAsync(cancellationToken))
             .ConfigureAwait(false);
 
         var timeoutEntries = sink
-            .Entries.Where(entry =>
+            .Entries
+            .Where(entry =>
                 entry.EventId.Id == MySqlEventId.CommandTimeoutExhausted.Id
                 && entry.Category == MySqlLoggerCategory.Resilience)
             .ToList();
 
         var resilienceEntries = sink
-            .Entries.Where(entry => entry.Category == MySqlLoggerCategory.Resilience)
+            .Entries
+            .Where(entry => entry.Category == MySqlLoggerCategory.Resilience)
             .Select(entry => $"{entry.EventId.Id}:{entry.Message}")
             .ToList();
 
@@ -191,12 +208,14 @@ public sealed class MySqlOperabilityBaselineTests
         Assert.True(
             timeoutEntries.Count == 1,
             $"Expected exactly one timeout exhaustion entry, but saw {timeoutEntries.Count}. Resilience entries: {string.Join(" | ", resilienceEntries)}");
+
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.RetryAttempt.Id);
     }
 
     private static async Task AssertCancellationAsync(
         IntegrationDatabaseTarget target,
-        MySqlServerVersion serverVersion
+        MySqlServerVersion serverVersion,
+        CancellationToken cancellationToken
     )
     {
         // Arrange
@@ -211,7 +230,9 @@ public sealed class MySqlOperabilityBaselineTests
         await using var context = new OperabilityContext(
             CreateOptions(connectionStringBuilder.ConnectionString, serverVersion, loggerFactory));
 
-        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        // WHY: Keep the test's timed cancellation while also honoring cancellation of the enclosing operation.
+        using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellationTokenSource.CancelAfter(TimeSpan.FromMilliseconds(200));
 
         var query = context.Database.SqlQueryRaw<int>(LongRunningBenchmarkSql);
 

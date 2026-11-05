@@ -1,3 +1,5 @@
+using Program = Doka.EntityFrameworkCore.MySql.RepositoryContract.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class AdrRepositoryValidatorTests
@@ -120,7 +122,8 @@ public sealed partial class AdrRepositoryValidatorTests
     )
     {
         // Arrange
-        var workflow = "name: Sample\non: workflow_dispatch\n" + concurrency
+        var workflow = "name: Sample\non: workflow_dispatch\n"
+            + concurrency
             + "jobs:\n  sample:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: true\n";
 
         // Act
@@ -186,7 +189,7 @@ public sealed partial class AdrRepositoryValidatorTests
         File.WriteAllText(Path.Combine(workflows, "sample.yml"), QueuedWorkflow(true, queue, cancellation));
 
         // Act
-        var exitCode = Doka.EntityFrameworkCore.MySql.RepositoryContract.Program.Main(
+        var exitCode = Program.Main(
             ["--workflow-concurrency", "--root", directory.Root]);
 
         // Assert
@@ -213,22 +216,42 @@ public sealed partial class AdrRepositoryValidatorTests
         // Assert
         Assert.Empty(errors);
         Assert.Equal(original, File.ReadAllText(callerPath));
-        Assert.Equal(original.Replace("uses: $/", "uses: ./", StringComparison.Ordinal),
+        Assert.Equal(
+            original.Replace("uses: $/", "uses: ./", StringComparison.Ordinal),
             File.ReadAllText(Path.Combine(destination, ".github/workflows/caller.yml")));
-        Assert.Contains("known:", File.ReadAllText(Path.Combine(destination, ".github/workflows/child.yml")),
+
+        Assert.Contains(
+            "known:",
+            File.ReadAllText(Path.Combine(destination, ".github/workflows/child.yml")),
             StringComparison.Ordinal);
-        Assert.Contains("uses: ./.github/actions/child", File.ReadAllText(
-            Path.Combine(destination, ".github/actions/parent/action.yml")), StringComparison.Ordinal);
+
+        Assert.Contains(
+            "uses: ./.github/actions/child",
+            File.ReadAllText(
+                Path.Combine(destination, ".github/actions/parent/action.yml")),
+            StringComparison.Ordinal);
+
         Assert.True(File.Exists(Path.Combine(destination, ".github/actions/child/action.yml")));
-        Assert.Equal("self-hosted-runner:\n  labels: [local]\n", File.ReadAllText(
-            Path.Combine(destination, ".github/actionlint.yaml")));
+        Assert.Equal(
+            "self-hosted-runner:\n  labels: [local]\n",
+            File.ReadAllText(
+                Path.Combine(destination, ".github/actionlint.yaml")));
+
         var composites = Directory.GetFiles(Path.Combine(destination, ".github/workflows"), "__actionlint_composite_*");
 
         Assert.Equal(2, composites.Length);
-        Assert.Contains(composites, path => File.ReadAllText(path)
-            .Contains("      marker:\n        type: string\n", StringComparison.Ordinal));
-        Assert.All(composites, path => Assert.Contains(
-            "    steps:\n", File.ReadAllText(path), StringComparison.Ordinal));
+        Assert.Contains(
+            composites,
+            path => File
+                .ReadAllText(path)
+                .Contains("      marker:\n        type: string\n", StringComparison.Ordinal));
+
+        Assert.All(
+            composites,
+            path => Assert.Contains(
+                "    steps:\n",
+                File.ReadAllText(path),
+                StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -251,7 +274,8 @@ public sealed partial class AdrRepositoryValidatorTests
         using var snapshot = TestRepository.Create();
         var destination = Path.Combine(snapshot.Root, "lint");
         WriteSelfRepositoryFixture(repository.Root);
-        File.WriteAllText(Path.Combine(repository.Root, ".github/workflows/caller.yml"),
+        File.WriteAllText(
+            Path.Combine(repository.Root, ".github/workflows/caller.yml"),
             $"name: Caller\non: workflow_dispatch\njobs:\n  child:\n    uses: {reference}\n");
 
         // Act
@@ -277,7 +301,8 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Act
         var errors = EngineeringSurfaceContract.PrepareActionlintSnapshot(
-            repository.Root, Path.Combine(snapshot.Root, "lint"));
+            repository.Root,
+            Path.Combine(snapshot.Root, "lint"));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("symbolic", StringComparison.Ordinal));
@@ -297,7 +322,9 @@ public sealed partial class AdrRepositoryValidatorTests
         using var repository = TestRepository.Create();
         using var snapshot = TestRepository.Create();
         WriteSelfRepositoryFixture(repository.Root);
-        var destination = insideRepository ? repository.Root : snapshot.Root;
+        var destination = insideRepository
+            ? repository.Root
+            : snapshot.Root;
 
         // Act
         var errors = EngineeringSurfaceContract.PrepareActionlintSnapshot(repository.Root, destination);
@@ -347,12 +374,14 @@ public sealed partial class AdrRepositoryValidatorTests
         using var repository = TestRepository.Create();
         using var snapshot = TestRepository.Create();
         WriteSelfRepositoryFixture(repository.Root);
-        File.WriteAllText(Path.Combine(repository.Root, ".github/actions/child/action.yml"),
+        File.WriteAllText(
+            Path.Combine(repository.Root, ".github/actions/child/action.yml"),
             "name: Child\ndescription: Opaque step shape\n" + runs);
 
         // Act
         var errors = EngineeringSurfaceContract.PrepareActionlintSnapshot(
-            repository.Root, Path.Combine(snapshot.Root, "lint"));
+            repository.Root,
+            Path.Combine(snapshot.Root, "lint"));
 
         // Assert
         Assert.NotEmpty(errors);
@@ -381,7 +410,7 @@ public sealed partial class AdrRepositoryValidatorTests
         var destination = Path.Combine(snapshot.Root, "lint");
 
         // Act
-        var exitCode = Doka.EntityFrameworkCore.MySql.RepositoryContract.Program.Main(
+        var exitCode = Program.Main(
             ["--actionlint-snapshot", destination, "--root", repository.Root]);
 
         // Assert
@@ -402,25 +431,30 @@ public sealed partial class AdrRepositoryValidatorTests
         Directory.CreateDirectory(workflows);
         Directory.CreateDirectory(parent);
         Directory.CreateDirectory(child);
-        File.WriteAllText(Path.Combine(workflows, "caller.yml"),
+        File.WriteAllText(
+            Path.Combine(workflows, "caller.yml"),
             "name: Caller\non: workflow_dispatch\njobs:\n  child:\n"
             + "    uses: $/.github/workflows/child.yml\n    with:\n      known: true\n");
 
-        File.WriteAllText(Path.Combine(workflows, "child.yml"),
+        File.WriteAllText(
+            Path.Combine(workflows, "child.yml"),
             "name: Child\non:\n  workflow_call:\n    inputs:\n      known:\n        type: boolean\n"
             + "jobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n"
             + "      - uses: $/.github/actions/parent\n");
 
-        File.WriteAllText(Path.Combine(parent, "action.yml"),
+        File.WriteAllText(
+            Path.Combine(parent, "action.yml"),
             "name: Parent\ndescription: Nested composite\nruns:\n  using: composite\n  steps:\n"
             + "    - uses: $/.github/actions/child\n");
 
-        File.WriteAllText(Path.Combine(child, "action.yml"),
+        File.WriteAllText(
+            Path.Combine(child, "action.yml"),
             "name: Child\ndescription: Terminal composite\ninputs:\n  marker:\n    description: Marker input\n"
             + "runs:\n  using: composite\n  steps:\n"
             + "    - shell: bash\n      run: echo ok\n");
 
-        File.WriteAllText(Path.Combine(root, ".github/actionlint.yaml"),
+        File.WriteAllText(
+            Path.Combine(root, ".github/actionlint.yaml"),
             "self-hosted-runner:\n  labels: [local]\n");
     }
 
@@ -433,7 +467,10 @@ public sealed partial class AdrRepositoryValidatorTests
         string? cancellation
     )
     {
-        var indent = jobLevel ? "    " : string.Empty;
+        var indent = jobLevel
+            ? "    "
+            : string.Empty;
+
         var concurrency = $"{indent}concurrency:\n{indent}  group: publication\n{indent}  queue: {queue}\n";
         if (cancellation is not null)
         {
@@ -444,6 +481,8 @@ public sealed partial class AdrRepositoryValidatorTests
         var job = "jobs:\n  sample:\n    runs-on: ubuntu-24.04\n";
         var steps = "    steps:\n      - run: true\n";
 
-        return jobLevel ? header + job + concurrency + steps : header + concurrency + job + steps;
+        return jobLevel
+            ? header + job + concurrency + steps
+            : header + concurrency + job + steps;
     }
 }

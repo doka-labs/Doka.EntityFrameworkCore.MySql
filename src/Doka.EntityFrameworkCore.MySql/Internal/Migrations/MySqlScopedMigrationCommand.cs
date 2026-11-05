@@ -3,13 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 {
     private const string PreviousSqlModeParameterName = "__doka_previous_sql_mode";
+
     private static readonly IReadOnlyList<IRelationalParameter> s_noParameters =
         Array.Empty<IRelationalParameter>();
 
-    private readonly IRelationalCommand? _captureCommand;
-    private readonly IRelationalCommand? _enableCommand;
     private readonly IRelationalCommand _bodyCommand;
+
+    private readonly IRelationalCommand? _captureCommand;
     private readonly DbContext _context;
+    private readonly IRelationalCommand? _enableCommand;
     private readonly IRelationalCommand[] _handlerCleanupCommands;
     private readonly IRelationalCommand[] _handlerSetupCommands;
     private readonly IRelationalCommand? _restoreCommand;
@@ -88,7 +90,9 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
             primaryException = exception;
         }
 
-        var cleanupException = originalSqlMode is null ? null : RestoreSqlMode(connection, originalSqlMode);
+        var cleanupException = originalSqlMode is null
+            ? null
+            : RestoreSqlMode(connection, originalSqlMode);
 
         if (openedConnection || cleanupException is not null)
         {
@@ -126,8 +130,10 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             originalSqlMode = await CaptureOriginalSqlModeAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteAsync(_enableCommand!, connection, null, cancellationToken)
                 .ConfigureAwait(false);
+
             result = await ExecuteAsync(_bodyCommand, connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -206,7 +212,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
     {
         try
         {
-            // Session cleanup must outlive caller cancellation so pooled state cannot leak.
+            // WHY: Session cleanup must outlive caller cancellation so pooled state cannot leak.
             await ExecuteAsync(
                     _restoreCommand!,
                     connection,
@@ -331,6 +337,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IRelationalConnection connection
     )
     {
+        // WHY: Every restoration command must run even when the migration body was canceled.
         Exception? cleanupException = null;
 
         foreach (var cleanupCommand in _handlerCleanupCommands)
@@ -447,8 +454,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
                 PreviousSqlModeParameterName,
                 generatedParameterName,
                 stringMapping,
-                nullable: false,
-                ParameterDirection.Input);
+                nullable: false);
 
         return builder.Build();
     }
@@ -502,6 +508,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         IRelationalConnection connection
     )
     {
+        // WHY: Both token-less close APIs must run before an unsafe physical session can be reused.
         Exception? relationalCloseException = null;
 
         try
@@ -561,6 +568,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         Exception? cleanupException
     )
     {
+        // WHY: Pool cleanup must finish before the original migration or cleanup failure is rethrown.
         if (cleanupException is not null)
         {
             await TryClearPoolAsync(connection, cleanupException)
@@ -627,7 +635,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 
         try
         {
-            // Pool cleanup must complete even when the migration was cancelled.
+            // WHY: Pool cleanup must complete even when the migration was canceled.
             await MySqlConnection
                 .ClearPoolAsync(mySqlConnection, CancellationToken.None)
                 .ConfigureAwait(false);

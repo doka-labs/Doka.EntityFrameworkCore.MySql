@@ -42,7 +42,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var ddl = context.Database.GenerateCreateScript();
 
         // Assert
@@ -50,6 +54,7 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(
             configuredStoreType,
             entity.FindProperty("A")!.FindAnnotation(RelationalAnnotationNames.ColumnType)!.Value);
+
         Assert.Equal("varchar(750)", entity.FindProperty("A")!.GetColumnType());
         Assert.Contains("`A` varchar(750)", ddl, StringComparison.Ordinal);
     }
@@ -72,7 +77,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("float-metadata");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var property = entity.FindProperty("B")!;
         var mapping = new MySqlFloatTypeMapping(storeType);
 
@@ -126,7 +135,10 @@ public sealed partial class MySqlIndexByteBudgetTests
         // Assert
         Assert.Equal(1, entity.FindProperty("E")!.GetMaxLength());
         Assert.Contains("`E` varchar(1)", ddl, StringComparison.Ordinal);
-        Assert.Null(Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
+        Assert.Null(
+            Assert
+                .Single(entity.GetIndexes())
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>

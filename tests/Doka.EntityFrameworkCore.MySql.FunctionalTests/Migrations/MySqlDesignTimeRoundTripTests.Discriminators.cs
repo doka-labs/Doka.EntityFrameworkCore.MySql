@@ -16,7 +16,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         // Act
         var generated = GenerateAndCompile(context);
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
 
         // Assert
         Assert.Contains(".IsComplete(false)", generated.SnapshotCode, StringComparison.Ordinal);
@@ -41,7 +42,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             CreateOptions<DiscriminatorCompletenessDesignContext>(
                 MySqlServerVersion.MySql(new Version(8, 4, 0))));
 
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
 
         // Act
         _ = context
@@ -71,13 +73,17 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.Equal(
             2,
             generated.SnapshotCode.Split(
-                ".HasDiscriminator<int>(\"Discriminator\")",
-                StringSplitOptions.None).Length - 1);
+                    ".HasDiscriminator<int>(\"Discriminator\")")
+                .Length
+            - 1);
+
         Assert.Equal(
             2,
             generated.DesignerCode.Split(
-                ".HasDiscriminator<int>(\"Discriminator\")",
-                StringSplitOptions.None).Length - 1);
+                    ".HasDiscriminator<int>(\"Discriminator\")")
+                .Length
+            - 1);
+
         AssertNonStringDiscriminatorSnapshot(generated.SnapshotModel);
         AssertNonStringDiscriminatorSnapshot(generated.DesignerModel);
     }

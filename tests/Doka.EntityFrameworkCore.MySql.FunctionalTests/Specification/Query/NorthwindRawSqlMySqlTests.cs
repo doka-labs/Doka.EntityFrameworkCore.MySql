@@ -45,7 +45,8 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
                [ReorderLevel]
         FROM [Products]
         """,
-        CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductID", typeof(int), typeof(string)));
+        CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductID", typeof(int), typeof(string)),
+        cancellationToken: CancellationToken.None);
 
     public override Task Bad_data_error_handling_invalid_cast(
         bool async
@@ -64,7 +65,8 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
                [ReorderLevel]
         FROM [Products]
         """,
-        CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "UnitPrice", typeof(decimal?), typeof(int)));
+        CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "UnitPrice", typeof(decimal?), typeof(int)),
+        cancellationToken: CancellationToken.None);
 
     public override Task Bad_data_error_handling_invalid_cast_no_tracking(
         bool async
@@ -84,6 +86,7 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
         FROM [Products]
         """,
         CoreStrings.ErrorMaterializingPropertyInvalidCast("Product", "ProductID", typeof(int), typeof(string)),
+        cancellationToken: CancellationToken.None,
         noTracking: true);
 
     public override Task Bad_data_error_handling_null(
@@ -103,7 +106,8 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
                [ReorderLevel]
         FROM [Products]
         """,
-        RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "Discontinued", typeof(bool)));
+        RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "Discontinued", typeof(bool)),
+        cancellationToken: CancellationToken.None);
 
     public override Task Bad_data_error_handling_null_no_tracking(
         bool async
@@ -123,15 +127,27 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
         FROM [Products]
         """,
         RelationalStrings.ErrorMaterializingPropertyNullReference("Product", "Discontinued", typeof(bool)),
+        cancellationToken: CancellationToken.None,
         noTracking: true);
 
+    /// <summary>
+    /// Checks the expected materialization failure for the supplied product query.
+    /// </summary>
+    /// <param name="cancellationToken">The token to observe while performing this operation.</param>
+    /// <param name="async">Whether the scenario exercises asynchronous execution.</param>
+    /// <param name="sql">The SQL text used by the scenario.</param>
+    /// <param name="expectedMessage">The expected materialization failure message.</param>
+    /// <param name="noTracking">Whether the query disables change tracking.</param>
     private async Task AssertProductMaterializationError(
         bool async,
         string sql,
         string expectedMessage,
+        CancellationToken cancellationToken,
         bool noTracking = false
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var context = CreateContext();
         var query = context
             .Set<Product>()
@@ -143,7 +159,8 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
         }
 
         var exception = async
-            ? await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToListAsync())
+            ? await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                query.ToListAsync(cancellationToken: cancellationToken))
             : Assert.Throws<InvalidOperationException>(() => query.ToList());
 
         Assert.Equal(expectedMessage, exception.Message);
@@ -211,6 +228,12 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
+    protected override string TenMostExpensiveProductsSproc => "CALL `Ten Most Expensive Products`();";
+
+    protected override string CustomerOrderHistorySproc => "CALL `CustOrderHist`(@CustomerID);";
+
+    protected override string CustomerOrderHistoryWithGeneratedParameterSproc => "CALL `CustOrderHist`({0});";
+
     protected override DbParameter CreateDbParameter(
         string name,
         object value
@@ -219,12 +242,6 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
         ParameterName = name,
         Value = value,
     };
-
-    protected override string TenMostExpensiveProductsSproc => "CALL `Ten Most Expensive Products`();";
-
-    protected override string CustomerOrderHistorySproc => "CALL `CustOrderHist`(@CustomerID);";
-
-    protected override string CustomerOrderHistoryWithGeneratedParameterSproc => "CALL `CustOrderHist`({0});";
 
     public override async Task Executes_stored_procedure(
         bool async
@@ -422,7 +439,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
@@ -440,7 +459,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
@@ -462,7 +483,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }

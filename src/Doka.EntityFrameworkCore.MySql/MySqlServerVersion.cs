@@ -5,6 +5,30 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 public sealed record MySqlServerVersion
 {
+    private MySqlServerVersion(
+        Version version,
+        bool isMariaDb,
+        MySqlServerVersionCompatibilityMode compatibilityMode
+    )
+    {
+        ArgumentNullException.ThrowIfNull(version);
+
+        if (!Enum.IsDefined(compatibilityMode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(compatibilityMode));
+        }
+
+        Profile = new ProviderProfile(
+            EngineProfileTable.Resolve(
+                isMariaDb
+                    ? EngineFamily.MariaDb
+                    : EngineFamily.MySql,
+                version));
+
+        SupportStatus = ServerVersionSupportPolicy.Classify(Profile.Engine.Family, version);
+        CompatibilityMode = compatibilityMode;
+    }
+
     /// <summary>
     /// Gets the parsed server version.
     /// </summary>
@@ -28,34 +52,13 @@ public sealed record MySqlServerVersion
 
     internal ProviderProfile Profile { get; }
 
-    private MySqlServerVersion(
-        Version version,
-        bool isMariaDb,
-        MySqlServerVersionCompatibilityMode compatibilityMode
-    )
-    {
-        ArgumentNullException.ThrowIfNull(version);
-
-        if (!Enum.IsDefined(compatibilityMode))
-        {
-            throw new ArgumentOutOfRangeException(nameof(compatibilityMode));
-        }
-
-        Profile = new ProviderProfile(EngineProfileTable.Resolve(isMariaDb
-            ? EngineFamily.MariaDb
-            : EngineFamily.MySql, version));
-
-        SupportStatus = ServerVersionSupportPolicy.Classify(Profile.Engine.Family, version);
-        CompatibilityMode = compatibilityMode;
-    }
-
     /// <summary>
     /// Creates a MySQL server-version descriptor that permits only supported
     /// release lines during provider-option validation.
     /// </summary>
     /// <param name="version">The server version.</param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="version"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="version" /> is <see langword="null" />.</exception>
     public static MySqlServerVersion MySql(
         Version version
     ) => MySql(version, MySqlServerVersionCompatibilityMode.SupportedOnly);
@@ -68,10 +71,10 @@ public sealed record MySqlServerVersion
     /// <param name="compatibilityMode">
     /// The compatibility mode controlling unsupported release lines.
     /// </param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="version"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="version" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="compatibilityMode"/> is not a defined value.
+    /// <paramref name="compatibilityMode" /> is not a defined value.
     /// </exception>
     public static MySqlServerVersion MySql(
         Version version,
@@ -83,8 +86,8 @@ public sealed record MySqlServerVersion
     /// release lines during provider-option validation.
     /// </summary>
     /// <param name="version">The server version.</param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="version"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="version" /> is <see langword="null" />.</exception>
     public static MySqlServerVersion MariaDb(
         Version version
     ) => MariaDb(version, MySqlServerVersionCompatibilityMode.SupportedOnly);
@@ -97,10 +100,10 @@ public sealed record MySqlServerVersion
     /// <param name="compatibilityMode">
     /// The compatibility mode controlling unsupported release lines.
     /// </param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="version"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="version" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="compatibilityMode"/> is not a defined value.
+    /// <paramref name="compatibilityMode" /> is not a defined value.
     /// </exception>
     public static MySqlServerVersion MariaDb(
         Version version,
@@ -112,9 +115,9 @@ public sealed record MySqlServerVersion
     /// release lines during provider-option validation.
     /// </summary>
     /// <param name="serverVersion">The raw server-version string.</param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="serverVersion"/> is empty, whitespace, or does not contain a parseable version.
+    /// <paramref name="serverVersion" /> is empty, whitespace, or does not contain a parseable version.
     /// </exception>
     public static MySqlServerVersion Parse(
         string serverVersion
@@ -128,12 +131,12 @@ public sealed record MySqlServerVersion
     /// <param name="compatibilityMode">
     /// The compatibility mode controlling unsupported release lines.
     /// </param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="serverVersion"/> is empty, whitespace, or does not contain a parseable version.
+    /// <paramref name="serverVersion" /> is empty, whitespace, or does not contain a parseable version.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="compatibilityMode"/> is not a defined value.
+    /// <paramref name="compatibilityMode" /> is not a defined value.
     /// </exception>
     public static MySqlServerVersion Parse(
         string serverVersion,
@@ -153,8 +156,8 @@ public sealed record MySqlServerVersion
     /// permits only supported release lines during provider-option validation.
     /// </summary>
     /// <param name="connection">An already open, caller-owned database connection.</param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="connection"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="connection" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     /// The connection is not open or does not expose a server version.
     /// </exception>
@@ -172,9 +175,9 @@ public sealed record MySqlServerVersion
     /// lines during provider-option validation.
     /// </summary>
     /// <param name="connectionString">The MySQL connection string.</param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="connectionString"/> is empty or whitespace.
+    /// <paramref name="connectionString" /> is empty or whitespace.
     /// </exception>
     /// <remarks>
     /// This method performs one synchronous database connection. Cache the
@@ -207,10 +210,10 @@ public sealed record MySqlServerVersion
     /// <param name="compatibilityMode">
     /// The compatibility mode controlling unsupported release lines.
     /// </param>
-    /// <returns>A configured <see cref="MySqlServerVersion"/> instance.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="connection"/> is <see langword="null"/>.</exception>
+    /// <returns>A configured <see cref="MySqlServerVersion" /> instance.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="connection" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="compatibilityMode"/> is not a defined value.
+    /// <paramref name="compatibilityMode" /> is not a defined value.
     /// </exception>
     /// <exception cref="InvalidOperationException">
     /// The connection is not open or does not expose a server version.
@@ -249,8 +252,8 @@ public sealed record MySqlServerVersion
             {
                 var mariaDbVersionStart = mariaDbMarker;
                 while (mariaDbVersionStart > 0
-                       && (char.IsDigit(serverVersion[mariaDbVersionStart - 1])
-                           || serverVersion[mariaDbVersionStart - 1] == '.'))
+                    && (char.IsDigit(serverVersion[mariaDbVersionStart - 1])
+                        || serverVersion[mariaDbVersionStart - 1] == '.'))
                 {
                     mariaDbVersionStart--;
                 }

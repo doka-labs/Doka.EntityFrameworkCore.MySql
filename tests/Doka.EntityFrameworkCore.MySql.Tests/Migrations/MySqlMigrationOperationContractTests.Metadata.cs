@@ -100,6 +100,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             Table = "Entries",
             Columns = ["Name", "Code"],
         };
+
         operation[MySqlAnnotationNames.IndexPrefixLength] = source;
         var metadata = operation.GetMySqlMigrationMetadata();
 
@@ -179,7 +180,10 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Assert
         Assert.Null(metadata.GuidFormat);
         Assert.Null(metadata.IndexPrefixLengths);
-        Assert.Equal(useExplicitValue ? MySqlValueGenerationStrategy.None : (MySqlValueGenerationStrategy?)null,
+        Assert.Equal(
+            useExplicitValue
+                ? MySqlValueGenerationStrategy.None
+                : null,
             metadata.ValueGenerationStrategy);
     }
 
@@ -222,6 +226,7 @@ public sealed partial class MySqlMigrationOperationContractTests
                 Columns = ["Name"],
             }
             : CreateColumnOperation();
+
         operation[annotationName] = "invalid";
         Action act = () => operation.GetMySqlMigrationMetadata();
 
@@ -359,6 +364,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             Table = "Entries",
             Columns = ["Name"],
         };
+
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { -1 };
         Action act = () => operation.GetMySqlMigrationMetadata();
 
@@ -382,6 +388,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             Table = "Entries",
             Columns = ["Name", "Code"],
         };
+
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
         Action act = () => operation.GetMySqlMigrationMetadata();
 
@@ -405,6 +412,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             Table = "Entries",
             Columns = null!,
         };
+
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
         Action act = () => operation.GetMySqlMigrationMetadata();
 

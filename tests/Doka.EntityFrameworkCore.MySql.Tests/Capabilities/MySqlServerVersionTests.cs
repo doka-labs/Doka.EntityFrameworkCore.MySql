@@ -240,6 +240,7 @@ public sealed class MySqlServerVersionTests
                 ? MySqlServerVersionCompatibilityMode.AllowUnsupported
                 : MySqlServerVersionCompatibilityMode.SupportedOnly,
             detected.CompatibilityMode);
+
         Assert.Equal(ConnectionState.Open, connection.State);
         Assert.False(connection.WasDisposed);
     }
@@ -399,33 +400,42 @@ public sealed class MySqlServerVersionTests
         Assert.Equal(
             ProviderSupportStatus.UnsupportedByEngine,
             serverVersion.Profile.GetSupport(ProviderCapability.ReturningClause));
+
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Savepoints));
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.VirtualGeneratedColumns));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
+
         Assert.Equal(
             ProviderSupportStatus.Emulated,
             serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement));
+
         Assert.Equal(ProviderSupportStatus.Emulated, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.LateralDerivedTables));
+
         Assert.Equal(
             ProviderSupportStatus.Emulated,
             serverVersion.Profile.GetSupport(ProviderCapability.SelfReferencingMutations));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.FunctionalIndexScaffolding));
@@ -439,33 +449,42 @@ public sealed class MySqlServerVersionTests
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.ReturningClause));
+
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Savepoints));
         Assert.Equal(
             ProviderSupportStatus.UnsupportedByEngine,
             serverVersion.Profile.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.VirtualGeneratedColumns));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.StoredGeneratedColumns));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.CommonTableExpressions));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.TemporalTables));
+
         Assert.Equal(
             ProviderSupportStatus.Emulated,
             serverVersion.Profile.GetSupport(ProviderCapability.SpatialColumnSridEnforcement));
+
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.Sequences));
         Assert.Equal(ProviderSupportStatus.Native, serverVersion.Profile.GetSupport(ProviderCapability.RenameColumn));
         Assert.Equal(
             ProviderSupportStatus.UnsupportedByEngine,
             serverVersion.Profile.GetSupport(ProviderCapability.LateralDerivedTables));
+
         Assert.Equal(
             ProviderSupportStatus.Native,
             serverVersion.Profile.GetSupport(ProviderCapability.SelfReferencingMutations));
+
         Assert.Equal(
             ProviderSupportStatus.UnsupportedByEngine,
             serverVersion.Profile.GetSupport(ProviderCapability.FunctionalIndexScaffolding));

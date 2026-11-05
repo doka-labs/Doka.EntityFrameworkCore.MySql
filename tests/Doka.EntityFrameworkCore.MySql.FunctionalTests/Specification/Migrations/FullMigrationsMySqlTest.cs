@@ -1,3 +1,4 @@
+using System.Data;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations;
@@ -12,17 +13,12 @@ public sealed class FullMigrationsMySqlTest
     : MigrationsTestBase<FullMigrationsMySqlTest.FullMigrationsMySqlFixture>
 {
     private const string MariaDbJsonColumnAlterSql = """
-        ALTER TABLE `Entity` MODIFY COLUMN `Name` longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(`Name`));
-        """;
+                                                     ALTER TABLE `Entity` MODIFY COLUMN `Name` longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(`Name`));
+                                                     """;
 
     private const string MySqlJsonColumnAlterSql = """
-        ALTER TABLE `Entity` MODIFY COLUMN `Name` json NULL;
-        """;
-
-    private static string ExpectedJsonColumnAlterSql =>
-        MySqlTestStore.ServerVersion.IsMariaDb
-            ? MariaDbJsonColumnAlterSql
-            : MySqlJsonColumnAlterSql;
+                                                   ALTER TABLE `Entity` MODIFY COLUMN `Name` json NULL;
+                                                   """;
 
     /// <summary>
     /// Creates a migration specification test instance with an isolated SQL baseline log.
@@ -34,6 +30,11 @@ public sealed class FullMigrationsMySqlTest
     {
         Fixture.TestSqlLoggerFactory.Clear();
     }
+
+    private static string ExpectedJsonColumnAlterSql =>
+        MySqlTestStore.ServerVersion.IsMariaDb
+            ? MariaDbJsonColumnAlterSql
+            : MySqlJsonColumnAlterSql;
 
     protected override bool AssertSchemaNames => false;
 
@@ -80,6 +81,7 @@ public sealed class FullMigrationsMySqlTest
                     entity
                         .Property<int>("EmployerId")
                         .HasComment("Employer ID comment");
+
                     entity
                         .Property<string>("SSN")
                         .HasColumnType(char11StoreType)
@@ -127,6 +129,7 @@ public sealed class FullMigrationsMySqlTest
                 Assert.Same(
                     peopleTable.Columns.Single(column => column.Name == "CustomId"),
                     Assert.Single(peopleTable.PrimaryKey!.Columns));
+
                 Assert.Same(
                     peopleTable.Columns.Single(column => column.Name == "SSN"),
                     Assert.Single(
@@ -139,6 +142,7 @@ public sealed class FullMigrationsMySqlTest
                 Assert.Same(
                     peopleTable.Columns.Single(column => column.Name == "EmployerId"),
                     Assert.Single(foreignKey.Columns));
+
                 Assert.Same(employersTable, foreignKey.PrincipalTable);
                 Assert.Same(employersTable.Columns.Single(), Assert.Single(foreignKey.PrincipalColumns));
                 Assert.Equal("Table comment", peopleTable.Comment);
@@ -209,57 +213,77 @@ public sealed class FullMigrationsMySqlTest
 
     /// <inheritdoc />
     public override Task Add_column_with_required() =>
-        AssertExplicitBackfillRequired(base.Add_column_with_required);
+        AssertExplicitBackfillRequired(base.Add_column_with_required, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_column_with_check_constraint() =>
-        AssertExplicitBackfillRequired(base.Add_column_with_check_constraint);
+        AssertExplicitBackfillRequired(
+            base.Add_column_with_check_constraint,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_json_columns_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_json_columns_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_json_columns_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_primary_key_with_name() =>
-        AssertExplicitBackfillRequired(base.Add_primary_key_with_name);
+        AssertExplicitBackfillRequired(base.Add_primary_key_with_name, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_required_primitive_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitive_collection_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
     public override Task Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitive_collection_with_custom_converter_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitive_collection_with_custom_converter_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Add_required_primitve_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitve_collection_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
     public override Task Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(base.Add_required_primitve_collection_with_custom_converter_to_existing_table);
+        AssertExplicitBackfillRequired(
+            base.Add_required_primitve_collection_with_custom_converter_to_existing_table,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required);
+        AssertExplicitBackfillRequired(base.Alter_column_make_required, cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_composite_index() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_composite_index);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_composite_index,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_index() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_index);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_index,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Alter_column_make_required_with_null_data() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required_with_null_data);
+        AssertExplicitBackfillRequired(
+            base.Alter_column_make_required_with_null_data,
+            cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     public override Task Convert_string_column_to_a_json_column_containing_required_reference() =>
-        AssertExplicitBackfillRequired(base.Convert_string_column_to_a_json_column_containing_required_reference);
+        AssertExplicitBackfillRequired(
+            base.Convert_string_column_to_a_json_column_containing_required_reference,
+            cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Verifies every sequence option while adapting the relational schema assertion to
@@ -267,9 +291,7 @@ public sealed class FullMigrationsMySqlTest
     /// </summary>
     public override Task Create_sequence_all_settings() =>
         Test(
-            _ =>
-            {
-            },
+            _ => { },
             builder =>
             {
                 builder
@@ -309,16 +331,26 @@ public sealed class FullMigrationsMySqlTest
                 Assert.Null(sequence.Schema);
             });
 
+    /// <summary>
+    /// Checks that the upstream migration scenario requires an explicit backfill.
+    /// </summary>
+    /// <param name="cancellationToken">The token observed before invoking the upstream tokenless assertion.</param>
+    /// <param name="migrationTest">The upstream migration assertion to invoke.</param>
     private static async Task AssertExplicitBackfillRequired(
-        Func<Task> migrationTest
+        Func<Task> migrationTest,
+        CancellationToken cancellationToken
     )
     {
+        // WHY: The upstream EF assertion callback does not expose a cancellation token.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(migrationTest);
 
         Assert.Contains(
             "requires an explicit DefaultValue or DefaultValueSql",
             exception.Message,
             StringComparison.Ordinal);
+
         Assert.Contains("application contract", exception.Message, StringComparison.Ordinal);
     }
 
@@ -392,6 +424,171 @@ public sealed class FullMigrationsMySqlTest
         }
     }
 
+    private static void BuildStringJsonSourceModel(
+        ModelBuilder builder
+    )
+    {
+        builder.Entity(
+            "Entity",
+            entity =>
+            {
+                entity
+                    .Property<int>("Id")
+                    .ValueGeneratedOnAdd();
+
+                entity.HasKey("Id");
+                entity.Property<string>("Name");
+            });
+    }
+
+    private static void BuildJsonReferenceTargetModel(
+        ModelBuilder builder
+    )
+    {
+        builder.Entity(
+            "Entity",
+            entity =>
+            {
+                entity
+                    .Property<int>("Id")
+                    .ValueGeneratedOnAdd();
+
+                entity.HasKey("Id");
+                entity.OwnsOne(
+                    "Owned",
+                    "OwnedReference",
+                    owned =>
+                    {
+                        owned.ToJson("Name");
+                        owned.OwnsOne(
+                            "Nested",
+                            "NestedReference",
+                            nested => nested.Property<int>("Number"));
+
+                        owned.OwnsMany(
+                            "Nested2",
+                            "NestedCollection",
+                            nested => nested.Property<int>("Number2"));
+
+                        owned.Property<DateTime>("Date");
+                    });
+            });
+    }
+
+    private static void BuildJsonCollectionTargetModel(
+        ModelBuilder builder
+    )
+    {
+        builder.Entity(
+            "Entity",
+            entity =>
+            {
+                entity
+                    .Property<int>("Id")
+                    .ValueGeneratedOnAdd();
+
+                entity.HasKey("Id");
+                entity.OwnsMany(
+                    "Owned2",
+                    "OwnedCollection",
+                    owned =>
+                    {
+                        owned.OwnsOne(
+                            "Nested3",
+                            "NestedReference2",
+                            nested => nested.Property<int>("Number3"));
+
+                        owned.OwnsMany(
+                            "Nested4",
+                            "NestedCollection2",
+                            nested => nested.Property<int>("Number4"));
+
+                        owned.Property<DateTime>("Date2");
+                        owned.ToJson("Name");
+                    });
+            });
+    }
+
+    private static void AssertStringToJsonDatabaseModel(
+        DatabaseModel model
+    )
+    {
+        Assert.Collection(
+            model.Tables.Single()
+                .Columns,
+            column => Assert.Equal("Id", column.Name),
+            column => Assert.Equal("Name", column.Name));
+    }
+
+    private static string[] GetSelectedDatabases(
+        string activeDatabase,
+        IModel sourceModel,
+        IModel? targetModel
+    )
+    {
+        var databases = new List<string>
+        {
+            activeDatabase,
+        };
+
+        databases.AddRange(
+            sourceModel
+                .GetRelationalModel()
+                .Tables
+                .Select(table => table.Schema)
+                .Concat(
+                    targetModel
+                        ?.GetRelationalModel()
+                        .Tables
+                        .Select(table => table.Schema)
+                    ?? [])
+                .Where(schema => !string.IsNullOrWhiteSpace(schema))
+                .Select(schema => schema!));
+
+        return databases
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Removes secondary databases owned by the completed migration scenario.
+    /// </summary>
+    /// <param name="connection">The connection used for cleanup administration commands.</param>
+    /// <param name="databaseNames">The test-owned secondary databases to remove.</param>
+
+    // WHY: This finally-only cleanup must finish after a test fails or is canceled.
+    private static async Task DropSecondaryDatabasesAsync(
+        DbConnection connection,
+        IEnumerable<string> databaseNames
+    )
+    {
+        var shouldCloseConnection = connection.State != ConnectionState.Open;
+
+        if (shouldCloseConnection)
+        {
+            await connection.OpenAsync(CancellationToken.None);
+        }
+
+        try
+        {
+            foreach (var databaseName in databaseNames)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    $"DROP DATABASE IF EXISTS {MySqlIdentifierEscaping.DelimitIdentifier(databaseName)};";
+
+                await command.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
+    }
+
     /// <summary>
     /// MySQL fixture for the official live migration suite.
     /// </summary>
@@ -413,158 +610,15 @@ public sealed class FullMigrationsMySqlTest
     private sealed class FullMigrationsTestStoreFactory
         : MySqlTestStoreFactory
     {
+        private FullMigrationsTestStoreFactory() { }
+
         public static new FullMigrationsTestStoreFactory Instance { get; } =
             new();
-
-        private FullMigrationsTestStoreFactory()
-        {
-        }
 
         public override IServiceCollection AddProviderServices(
             IServiceCollection serviceCollection
         ) => serviceCollection
             .AddEntityFrameworkDokaMySqlDesignTime()
             .AddEntityFrameworkDokaMySqlNetTopologySuite();
-    }
-
-    private static void BuildStringJsonSourceModel(
-        ModelBuilder builder
-    )
-    {
-        builder.Entity(
-            "Entity",
-            entity =>
-            {
-                entity.Property<int>("Id").ValueGeneratedOnAdd();
-                entity.HasKey("Id");
-                entity.Property<string>("Name");
-            });
-    }
-
-    private static void BuildJsonReferenceTargetModel(
-        ModelBuilder builder
-    )
-    {
-        builder.Entity(
-            "Entity",
-            entity =>
-            {
-                entity.Property<int>("Id").ValueGeneratedOnAdd();
-                entity.HasKey("Id");
-                entity.OwnsOne(
-                    "Owned",
-                    "OwnedReference",
-                    owned =>
-                    {
-                        owned.ToJson("Name");
-                        owned.OwnsOne(
-                            "Nested",
-                            "NestedReference",
-                            nested => nested.Property<int>("Number"));
-                        owned.OwnsMany(
-                            "Nested2",
-                            "NestedCollection",
-                            nested => nested.Property<int>("Number2"));
-                        owned.Property<DateTime>("Date");
-                    });
-            });
-    }
-
-    private static void BuildJsonCollectionTargetModel(
-        ModelBuilder builder
-    )
-    {
-        builder.Entity(
-            "Entity",
-            entity =>
-            {
-                entity.Property<int>("Id").ValueGeneratedOnAdd();
-                entity.HasKey("Id");
-                entity.OwnsMany(
-                    "Owned2",
-                    "OwnedCollection",
-                    owned =>
-                    {
-                        owned.OwnsOne(
-                            "Nested3",
-                            "NestedReference2",
-                            nested => nested.Property<int>("Number3"));
-                        owned.OwnsMany(
-                            "Nested4",
-                            "NestedCollection2",
-                            nested => nested.Property<int>("Number4"));
-                        owned.Property<DateTime>("Date2");
-                        owned.ToJson("Name");
-                    });
-            });
-    }
-
-    private static void AssertStringToJsonDatabaseModel(
-        DatabaseModel model
-    )
-    {
-        Assert.Collection(
-            model.Tables.Single().Columns,
-            column => Assert.Equal("Id", column.Name),
-            column => Assert.Equal("Name", column.Name));
-    }
-
-    private static string[] GetSelectedDatabases(
-        string activeDatabase,
-        IModel sourceModel,
-        IModel? targetModel
-    )
-    {
-        var databases = new List<string>
-        {
-            activeDatabase,
-        };
-
-        databases.AddRange(
-            sourceModel
-                .GetRelationalModel()
-                .Tables.Select(table => table.Schema)
-                .Concat(
-                    targetModel
-                        ?.GetRelationalModel()
-                        .Tables.Select(table => table.Schema)
-                    ?? [])
-                .Where(schema => !string.IsNullOrWhiteSpace(schema))
-                .Select(schema => schema!));
-
-        return databases
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    private static async Task DropSecondaryDatabasesAsync(
-        DbConnection connection,
-        IEnumerable<string> databaseNames
-    )
-    {
-        var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
-
-        if (shouldCloseConnection)
-        {
-            await connection.OpenAsync();
-        }
-
-        try
-        {
-            foreach (var databaseName in databaseNames)
-            {
-                await using var command = connection.CreateCommand();
-                command.CommandText =
-                    $"DROP DATABASE IF EXISTS {MySqlIdentifierEscaping.DelimitIdentifier(databaseName)};";
-                await command.ExecuteNonQueryAsync();
-            }
-        }
-        finally
-        {
-            if (shouldCloseConnection)
-            {
-                await connection.CloseAsync();
-            }
-        }
     }
 }

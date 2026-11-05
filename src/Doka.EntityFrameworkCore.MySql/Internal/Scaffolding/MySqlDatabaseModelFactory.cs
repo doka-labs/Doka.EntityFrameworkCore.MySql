@@ -5,15 +5,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// seven INFORMATION_SCHEMA queries and the MariaDB JSON_VALID detection in one 800+
 /// LOC class; this orchestrator delegates each query to a dedicated loader under
 /// <c>Internal/Scaffolding/Loaders/</c> and threads the per-call state through a
-/// <see cref="ScaffoldingPipelineContext"/>. The cross-service hand-off for the
+/// <see cref="ScaffoldingPipelineContext" />. The cross-service hand-off for the
 /// detected server version and NetTopologySuite-usage flag stays in
-/// <see cref="MySqlScaffoldingContext"/> per ADR D-005.
+/// <see cref="MySqlScaffoldingContext" /> per ADR D-005.
 /// </summary>
 internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
 {
     private readonly IMySqlDriverFacade _driverFacade;
-    private readonly MySqlScaffoldingContext _scaffoldingContext;
     private readonly ILogger? _logger;
+    private readonly MySqlScaffoldingContext _scaffoldingContext;
 
     public MySqlDatabaseModelFactory(
         IMySqlDriverFacade driverFacade,
@@ -68,7 +68,8 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
             var databaseName = ScaffoldingHelpers.ExecuteScalarString(connection, "SELECT DATABASE();");
             initialDatabaseName = databaseName;
             var requestedDatabaseNames = options
-                .Schemas.Where(schema => !string.IsNullOrWhiteSpace(schema))
+                .Schemas
+                .Where(schema => !string.IsNullOrWhiteSpace(schema))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
@@ -113,8 +114,8 @@ internal sealed class MySqlDatabaseModelFactory : IDatabaseModelFactory
 
                 var mariaDbJsonColumns = serverVersion.Profile.GetSupport(ProviderCapability.JsonColumns)
                     == ProviderSupportStatus.Emulated
-                    ? JsonCheckConstraintLoader.Load(connection, tableFilter)
-                    : new HashSet<(string, string)>();
+                        ? JsonCheckConstraintLoader.Load(connection, tableFilter)
+                        : new HashSet<(string, string)>();
 
                 var pipelineContext = new ScaffoldingPipelineContext(
                     connection,

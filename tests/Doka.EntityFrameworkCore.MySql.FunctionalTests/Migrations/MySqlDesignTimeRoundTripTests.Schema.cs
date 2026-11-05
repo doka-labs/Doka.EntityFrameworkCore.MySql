@@ -51,7 +51,11 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var generated = GenerateAndCompile(context);
         var snapshotRoundTrip = CaptureRoundTrip(context, generated.SnapshotModel);
         var designerRoundTrip = CaptureRoundTrip(context, generated.DesignerModel);
-        var sourceMigration = CaptureInitialMigration(context, context.GetService<IDesignTimeModel>().Model);
+        var sourceMigration = CaptureInitialMigration(
+            context,
+            context.GetService<IDesignTimeModel>()
+                .Model);
+
         var snapshotMigration = CaptureInitialMigration(context, generated.SnapshotModel);
         var designerMigration = CaptureInitialMigration(context, generated.DesignerModel);
 
@@ -62,16 +66,27 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             ".Property<NetTopologySuite.Geometries.Point>(\"Location\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".Property<NetTopologySuite.Geometries.Point>(\"Location\")",
             generated.DesignerCode,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(".Property<MySqlGeometry>(\"Location\")", generated.SnapshotCode, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Property<MySqlGeometry>(\"Location\")", generated.DesignerCode, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            ".Property<MySqlGeometry>(\"Location\")",
+            generated.SnapshotCode,
+            StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            ".Property<MySqlGeometry>(\"Location\")",
+            generated.DesignerCode,
+            StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             MySqlAnnotationNames.SpatialReferenceSystemId,
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         AssertSpatialSeedModelValue(generated.SnapshotModel);
         AssertSpatialSeedModelValue(generated.DesignerModel);
         AssertRoundTripsWithoutOperations(snapshotRoundTrip);
@@ -96,7 +111,12 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         var generated = GenerateAndCompile(context);
         var snapshotRoundTrip = CaptureRoundTrip(context, generated.SnapshotModel);
         var designerRoundTrip = CaptureRoundTrip(context, generated.DesignerModel);
-        var sourceOperations = CaptureTableCreation(context, context.GetService<IDesignTimeModel>().Model, serverVersion);
+        var sourceOperations = CaptureTableCreation(
+            context,
+            context.GetService<IDesignTimeModel>()
+                .Model,
+            serverVersion);
+
         var snapshotOperations = CaptureTableCreation(context, generated.SnapshotModel, serverVersion);
         var designerOperations = CaptureTableCreation(context, generated.DesignerModel, serverVersion);
 
@@ -124,7 +144,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
-            principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)?.Value);
+            principalId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
+                ?.Value);
+
         Assert.Null(secondaryId.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy));
     }
 }

@@ -110,15 +110,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .TotalSeconds;
         }
         catch (MySqlMigrationOperationHandlerException exception) when (exception.FailureCode is
-                                                                            MySqlMigrationHandlerFailureCode
-                                                                                .InvalidHandlerResult
-                                                                            or MySqlMigrationHandlerFailureCode
-                                                                                .UnknownOperationType
-                                                                            or MySqlMigrationHandlerFailureCode
-                                                                                .RecursiveProviderRendering)
+            MySqlMigrationHandlerFailureCode
+                .InvalidHandlerResult
+            or MySqlMigrationHandlerFailureCode
+                .UnknownOperationType
+            or MySqlMigrationHandlerFailureCode
+                .RecursiveProviderRendering)
         {
             handlerDurationSeconds = Stopwatch.GetElapsedTime(startedAt)
                 .TotalSeconds;
+
             RecordContractViolation(
                 activity,
                 registration,
@@ -127,12 +128,14 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 serverVersion.Profile.Engine.Family,
                 exception.FailureCode,
                 handlerDurationSeconds);
+
             throw;
         }
         catch (Exception exception)
         {
             handlerDurationSeconds = Stopwatch.GetElapsedTime(startedAt)
                 .TotalSeconds;
+
             const MySqlMigrationHandlerFailureCode failureCode = MySqlMigrationHandlerFailureCode.HandlerFailed;
             const string outcome = "handler_failed";
 
@@ -188,6 +191,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 serverVersion.Profile.Engine.Family,
                 exception.FailureCode,
                 handlerDurationSeconds);
+
             throw;
         }
 
@@ -203,7 +207,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         foreach (var command in commands)
         {
-            GetProviderCommandBuilder(builder).AppendCommandSpec(command);
+            GetProviderCommandBuilder(builder)
+                .AppendCommandSpec(command);
         }
     }
 

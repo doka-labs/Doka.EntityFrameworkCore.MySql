@@ -3,15 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerator
 {
     private const string PreviousDdlCommentSqlModeVariable = "@__doka_previous_sql_mode";
-    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
     private readonly MySqlMigrationFeatureSet _migrationFeatures;
+    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
     private readonly MySqlMigrationOperationHandlerRegistry _operationHandlerRegistry;
     private DdlCommentSqlModeCommands? _ddlCommentSqlModeCommands;
     private int _operationOrdinal = -1;
-
-    private ProviderProfile Profile => _mySqlSingletonOptions.Profile
-        ?? throw new InvalidOperationException(
-            "The provider profile must be initialized before migration SQL generation.");
 
     public MySqlMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
@@ -24,6 +20,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
         _mySqlSingletonOptions = singletonOptions
             .OfType<MySqlSingletonOptions>()
             .Single();
+
         _migrationFeatures = new MySqlMigrationFeatureSet(Profile);
 
         try
@@ -52,6 +49,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
         }
     }
 
+    private ProviderProfile Profile => _mySqlSingletonOptions.Profile
+        ?? throw new InvalidOperationException(
+            "The provider profile must be initialized before migration SQL generation.");
+
     private string DelimitMigrationIdentifier(
         string identifier
     ) => Dependencies.SqlGenerationHelper.DelimitIdentifier(identifier);
@@ -63,11 +64,17 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
 
     private void AppendDdlCommentSqlModeScopeStart(
         MigrationCommandListBuilder builder
-    ) => GetProviderCommandBuilder(builder).BeginProviderScope(GetDdlCommentSqlModeCommands().Setup);
+    ) => GetProviderCommandBuilder(builder)
+        .BeginProviderScope(
+            GetDdlCommentSqlModeCommands()
+                .Setup);
 
     private void AppendDdlCommentSqlModeScopeEnd(
         MigrationCommandListBuilder builder
-    ) => GetProviderCommandBuilder(builder).CompleteProviderScope(GetDdlCommentSqlModeCommands().Cleanup);
+    ) => GetProviderCommandBuilder(builder)
+        .CompleteProviderScope(
+            GetDdlCommentSqlModeCommands()
+                .Cleanup);
 
     private DdlCommentSqlModeCommands GetDdlCommentSqlModeCommands()
     {

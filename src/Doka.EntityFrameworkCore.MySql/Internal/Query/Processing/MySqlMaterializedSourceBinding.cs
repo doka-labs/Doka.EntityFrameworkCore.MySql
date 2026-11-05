@@ -24,7 +24,10 @@ internal sealed class MySqlMaterializedSourceBinding(
         var source = Visit(node.Arguments[0]);
         var compose = (LambdaExpression)((UnaryExpression)node.Arguments[1]).Operand;
         var bindingId = _nextBindingId++;
-        var sourceType = node.Method.GetGenericArguments()[0];
+        var sourceType = node
+            .Method
+            .GetGenericArguments()[0];
+
         var origin = ResolveOrigin(source, new Stack<string>());
 
         if (origin is not null
@@ -90,7 +93,9 @@ internal sealed class MySqlMaterializedSourceBinding(
 
                     if (call.Arguments.Count == 2)
                     {
-                        return inner is null ? null : FollowNavigations(inner, members);
+                        return inner is null
+                            ? null
+                            : FollowNavigations(inner, members);
                     }
 
                     var result = UnwrapLambda(call.Arguments[2]);
@@ -106,9 +111,15 @@ internal sealed class MySqlMaterializedSourceBinding(
                     var parent = ResolveOrigin(call.Arguments[0], new Stack<string>());
                     var refined = parent is null
                         ? null
-                        : RefineEntityType(parent, call.Method.GetGenericArguments()[0]);
+                        : RefineEntityType(
+                            parent,
+                            call
+                                .Method
+                                .GetGenericArguments()[0]);
 
-                    return refined is null ? null : FollowNavigations(refined, members);
+                    return refined is null
+                        ? null
+                        : FollowNavigations(refined, members);
 
                 case nameof(Queryable.Concat):
                 case nameof(Queryable.Union):
@@ -119,11 +130,15 @@ internal sealed class MySqlMaterializedSourceBinding(
 
                     // WHY: A source with conflicting origins cannot lend one branch's temporal or named
                     // identity to the other. EF validates the original set operation independently.
-                    return first is not null && first.Equals(second) ? first : null;
+                    return first is not null && first.Equals(second)
+                        ? first
+                        : null;
             }
         }
 
-        return IsIdentityOperator(call) ? ResolveOrigin(call.Arguments[0], members) : null;
+        return IsIdentityOperator(call)
+            ? ResolveOrigin(call.Arguments[0], members)
+            : null;
     }
 
     /// <summary>Resolves retained entities through selectors and transparent projection members.</summary>
@@ -240,8 +255,10 @@ internal sealed class MySqlMaterializedSourceBinding(
     {
         foreach (var member in members)
         {
-            var target = origin.EntityType.FindNavigation(member)?.TargetEntityType
-                ?? origin.EntityType.FindSkipNavigation(member)?.TargetEntityType;
+            var target = origin.EntityType.FindNavigation(member)
+                    ?.TargetEntityType
+                ?? origin.EntityType.FindSkipNavigation(member)
+                    ?.TargetEntityType;
 
             if (target is null)
             {
@@ -266,7 +283,9 @@ internal sealed class MySqlMaterializedSourceBinding(
             .GetDerivedTypesInclusive()
             .FirstOrDefault(candidate => candidate.ClrType == type);
 
-        return entityType is null ? null : WithEntityType(origin, entityType);
+        return entityType is null
+            ? null
+            : WithEntityType(origin, entityType);
     }
 
     /// <summary>Keeps only root semantics needed by navigation expansion, without retaining a provider or source DAG.</summary>

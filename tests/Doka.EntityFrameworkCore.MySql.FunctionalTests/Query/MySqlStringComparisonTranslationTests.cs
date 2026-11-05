@@ -6,6 +6,32 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed class MySqlStringComparisonTranslationTests
 {
     /// <summary>
+    /// Identifies the unsupported overload under test.
+    /// </summary>
+    public enum UnsupportedStringComparisonOperation
+    {
+        /// <summary>
+        /// Uses <see cref="string.Contains(string, StringComparison)" />.
+        /// </summary>
+        Contains = 0,
+
+        /// <summary>
+        /// Uses <see cref="string.StartsWith(string, StringComparison)" />.
+        /// </summary>
+        StartsWith = 1,
+
+        /// <summary>
+        /// Uses <see cref="string.EndsWith(string, StringComparison)" />.
+        /// </summary>
+        EndsWith = 2,
+
+        /// <summary>
+        /// Uses <see cref="string.Equals(string, StringComparison)" />.
+        /// </summary>
+        Equals = 3,
+    }
+
+    /// <summary>
     /// Verifies that the supported baseline string comparisons translate server-side.
     /// </summary>
     [Fact]
@@ -16,7 +42,8 @@ public sealed class MySqlStringComparisonTranslationTests
 
         // Act
         var sql = context
-            .Entities.Where(entity =>
+            .Entities
+            .Where(entity =>
                 entity.Name.Contains("alp")
                 || entity.Name.StartsWith("alp")
                 || entity.Name.EndsWith("alp")
@@ -42,7 +69,8 @@ public sealed class MySqlStringComparisonTranslationTests
 
         // Act
         var sql = context
-            .Entities.Where(entity => EF.Functions.Collate(entity.Name, "utf8mb4_bin") == "alp")
+            .Entities
+            .Where(entity => EF.Functions.Collate(entity.Name, "utf8mb4_bin") == "alp")
             .ToQueryString();
 
         // Assert
@@ -131,31 +159,5 @@ public sealed class MySqlStringComparisonTranslationTests
         public int Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Identifies the unsupported overload under test.
-    /// </summary>
-    public enum UnsupportedStringComparisonOperation
-    {
-        /// <summary>
-        /// Uses <see cref="string.Contains(string, StringComparison)"/>.
-        /// </summary>
-        Contains = 0,
-
-        /// <summary>
-        /// Uses <see cref="string.StartsWith(string, StringComparison)"/>.
-        /// </summary>
-        StartsWith = 1,
-
-        /// <summary>
-        /// Uses <see cref="string.EndsWith(string, StringComparison)"/>.
-        /// </summary>
-        EndsWith = 2,
-
-        /// <summary>
-        /// Uses <see cref="string.Equals(string, StringComparison)"/>.
-        /// </summary>
-        Equals = 3,
     }
 }

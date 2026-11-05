@@ -20,13 +20,15 @@ public sealed partial class MySqlDesignTimeRoundTripTests
     {
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var columnNames = createTable
-            .Columns.Select(column => column.Name)
+            .Columns
+            .Select(column => column.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Equal(
             ["Id", "business_from", "business_to", "recorded_from", "recorded_to"],
             columnNames);
+
         Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName, columnNames);
         Assert.DoesNotContain(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName, columnNames);
     }
@@ -37,7 +39,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
     {
         var createTable = Assert.Single(operations.OfType<CreateTableOperation>());
         var columnNames = createTable
-            .Columns.Select(column => column.Name)
+            .Columns
+            .Select(column => column.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 

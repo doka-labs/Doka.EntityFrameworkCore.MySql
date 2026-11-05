@@ -6,10 +6,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeIntegrationTests.LikeFixture>
 {
-    private readonly LikeFixture _fixture;
     private static readonly string[] s_guidParameterScenarios = ["Required", "Nullable", "Null"];
     private static readonly string[] s_stringEscapeOverloads = ["Generic", "Standard", "Nullable"];
     private static readonly int[] s_matchingIds = [1];
+    private readonly LikeFixture _fixture;
 
     /// <summary>
     /// Uses the read-only scalar dataset shared by this class's independent cases.
@@ -33,7 +33,8 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     /// Identifies the selected supported engines.
     /// </summary>
     public static IEnumerable<object[]> TargetCases =>
-        SelectedTargets().Select(target => new object[] { target.ToString() });
+        SelectedTargets()
+            .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// Identifies nullable and non-nullable GUID parameters independently.
@@ -63,7 +64,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var testCase = s_scalarCases.Single(item => item.PropertyName == propertyName && item.Name == scenario);
         var query = CreateLikeQuery(context, testCase);
         var sql = query.ToQueryString();
@@ -79,7 +83,8 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
             Assert.InRange(sql.Length, 1, 1024);
         }
 
-        if (testCase.Pattern is not null && (!testCase.HasEscape || testCase.EscapeCharacter is not null))
+        if (testCase.Pattern is not null
+            && (!testCase.HasEscape || testCase.EscapeCharacter is not null))
         {
             Assert.Contains(" LIKE @pattern", sql, StringComparison.Ordinal);
 
@@ -115,12 +120,18 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var pattern = "00112233-%-aabbccddeeff";
-        var formattedQuery = context.Items
+        var formattedQuery = context
+            .Items
             .Where(item => EF.Functions.Like(item.BinaryToken.ToString(), pattern))
             .Select(item => item.Id);
-        var scalarQuery = context.Items
+
+        var scalarQuery = context
+            .Items
             .Where(item => EF.Functions.Like(item.BinaryToken, pattern))
             .Select(item => item.Id);
 
@@ -143,8 +154,14 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
-        var query = context.Items.Where(item => item.Id == 1).Select(item => item.BinaryToken.ToString());
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
+        var query = context
+            .Items
+            .Where(item => item.Id == 1)
+            .Select(item => item.BinaryToken.ToString());
 
         // Act
         var actual = await query.ToArrayAsync(CancellationToken.None);
@@ -164,18 +181,30 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var token = s_matchingGuid;
-        Guid? optionalToken = scenario == "Null" ? null : token;
+        Guid? optionalToken = scenario == "Null"
+            ? null
+            : token;
+
         var query = scenario == "Required"
             ? context.Items.Where(item => EF.Functions.Like(token, item.Pattern))
             : context.Items.Where(item => EF.Functions.Like(optionalToken, item.Pattern));
 
         // Act
-        var actual = await query.Select(item => item.Id).ToArrayAsync(CancellationToken.None);
+        var actual = await query
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None);
 
         // Assert
-        Assert.Equal(scenario == "Null" ? [] : s_matchingIds, actual);
+        Assert.Equal(
+            scenario == "Null"
+                ? []
+                : s_matchingIds,
+            actual);
     }
 
     /// <summary>
@@ -188,11 +217,15 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var escapedPattern = "sale!_25!%!!";
         var escapeCharacter = "!";
         var genericQuery = context.Items.Where(item =>
             EF.Functions.Like<string>(item.Text, escapedPattern, escapeCharacter));
+
         var standardQuery = context.Items.Where(item =>
             DbFunctionsExtensions.Like(EF.Functions, item.Text, escapedPattern, escapeCharacter));
 
@@ -215,7 +248,10 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     )
     {
         // Arrange
-        await using var context = await _fixture.CreateContextAsync(Enum.Parse<IntegrationDatabaseTarget>(target));
+        await using var context = await _fixture.CreateContextAsync(
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
+
         var escapedPattern = "sale!_25!%!!";
         var escapeCharacter = "!";
         var query = overload switch
@@ -230,7 +266,9 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
         };
 
         // Act
-        var actual = await query.Select(item => item.Id).ToArrayAsync(CancellationToken.None);
+        var actual = await query
+            .Select(item => item.Id)
+            .ToArrayAsync(CancellationToken.None);
 
         // Assert
         Assert.Equal([1], actual);

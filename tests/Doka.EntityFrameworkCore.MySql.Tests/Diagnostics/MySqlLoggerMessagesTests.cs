@@ -48,7 +48,8 @@ public sealed class MySqlLoggerMessagesTests
 
         // Act
         MySqlLoggerMessages.ServerVersionResolved(logger, MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
-        var actual = logger.Entries.Single().RenderedMessage;
+        var actual = logger.Entries.Single()
+            .RenderedMessage;
 
         // Assert
         Assert.Contains("MariaDB", actual);
@@ -69,7 +70,12 @@ public sealed class MySqlLoggerMessagesTests
         var iterated = state.ToList();
 
         // Assert
-        Assert.Equal(4 + Enum.GetValues<ProviderCapability>().Length, state.Count);
+        Assert.Equal(
+            4
+            + Enum.GetValues<ProviderCapability>()
+                .Length,
+            state.Count);
+
         Assert.Equal("DatabaseEngine", state[0].Key);
         Assert.Equal("MySQL", state[0].Value);
         Assert.Equal("ServerVersion", state[1].Key);
@@ -78,7 +84,10 @@ public sealed class MySqlLoggerMessagesTests
         Assert.Equal("CompatibilityMode", state[3].Key);
         Assert.Equal(
             Enum.GetNames<ProviderCapability>(),
-            state.Skip(4).Select(entry => entry.Key));
+            state
+                .Skip(4)
+                .Select(entry => entry.Key));
+
         Assert.Equal(state.Count, iterated.Count);
     }
 
@@ -144,7 +153,11 @@ public sealed class MySqlLoggerMessagesTests
         var state = Assert.IsAssignableFrom<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State);
 
         Assert.Equal(MySqlEventId.RetryAttempt, entry.EventId);
-        Assert.Equal(0d, Assert.IsType<double>(Assert.Single(state, field => field.Key == "DelayMs").Value));
+        Assert.Equal(
+            0d,
+            Assert.IsType<double>(
+                Assert.Single(state, field => field.Key == "DelayMs")
+                    .Value));
     }
 
     /// <summary>RetryAttempt with explicit delay reports the millisecond value.</summary>
@@ -167,7 +180,11 @@ public sealed class MySqlLoggerMessagesTests
         var state = Assert.IsAssignableFrom<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State);
 
         Assert.Equal(MySqlEventId.RetryAttempt, entry.EventId);
-        Assert.Equal(250d, Assert.IsType<double>(Assert.Single(state, field => field.Key == "DelayMs").Value));
+        Assert.Equal(
+            250d,
+            Assert.IsType<double>(
+                Assert.Single(state, field => field.Key == "DelayMs")
+                    .Value));
     }
 
     /// <summary>
@@ -195,12 +212,22 @@ public sealed class MySqlLoggerMessagesTests
             "retry_attempt" => () => MySqlLoggerMessages.RetryAttempt(logger, 1, 3, TimeSpan.Zero, exception),
             "retry_exhausted" => () => MySqlLoggerMessages.RetryLimitExceeded(logger, 4, 3, exception),
             "command_timeout" => () => MySqlLoggerMessages.CommandTimeoutExhausted(
-                logger, "Async", 30, "Broken", exception),
+                logger,
+                "Async",
+                30,
+                "Broken",
+                exception),
             "commit_unknown" => () => MySqlLoggerMessages.CommitUnknown(logger, Guid.NewGuid(), "Broken", exception),
             "lock_timeout" => () => MySqlLoggerMessages.MigrationLockTimeout(
-                logger, "safe-scope-id", TimeSpan.FromSeconds(1), exception),
+                logger,
+                "safe-scope-id",
+                TimeSpan.FromSeconds(1),
+                exception),
             "lock_acquire" => () => MySqlLoggerMessages.MigrationLockAcquireFailed(
-                logger, "safe-scope-id", TimeSpan.FromSeconds(1), exception),
+                logger,
+                "safe-scope-id",
+                TimeSpan.FromSeconds(1),
+                exception),
             "lock_release" => () => MySqlLoggerMessages.LockReleaseFailed(logger, "safe-scope-id", exception),
             _ => throw new ArgumentOutOfRangeException(nameof(emitter)),
         };
@@ -251,7 +278,11 @@ public sealed class MySqlLoggerMessagesTests
         var state = Assert.IsType<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State, exactMatch: false);
         Assert.DoesNotContain(
             state,
-            field => field.Value?.ToString()?.Contains("private_tenant", StringComparison.Ordinal) == true);
+            field => field
+                    .Value
+                    ?.ToString()
+                    ?.Contains("private_tenant", StringComparison.Ordinal)
+                == true);
     }
 
     /// <summary>
@@ -306,15 +337,29 @@ public sealed class MySqlLoggerMessagesTests
         Action emit = emitter switch
         {
             "key_length" => () => MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
-                logger, $"{secret}_ENTITY", $"{secret}_PROPERTY", "text"),
+                logger,
+                $"{secret}_ENTITY",
+                $"{secret}_PROPERTY",
+                "text"),
             "decimal_precision" => () => MySqlLoggerMessages.ImplicitDecimalPrecisionDefaulted(
-                logger, $"{secret}_ENTITY", $"{secret}_DECIMAL", 18, 2),
+                logger,
+                $"{secret}_ENTITY",
+                $"{secret}_DECIMAL",
+                18,
+                2),
             "spatial_package" => () => MySqlLoggerMessages.MissingSpatialPackageDuringScaffolding(
-                logger, $"{secret}_TABLE", $"{secret}_COLUMN"),
+                logger,
+                $"{secret}_TABLE",
+                $"{secret}_COLUMN"),
             "spatial_index" => () => MySqlLoggerMessages.InvalidSpatialIndexConfiguration(
-                logger, $"{secret}_INDEX", "must target exactly one property"),
+                logger,
+                $"{secret}_INDEX",
+                "must target exactly one property"),
             "foreign_key" => () => MySqlLoggerMessages.ForeignKeyPrincipalTableNotScaffolded(
-                logger, $"{secret}_FOREIGN_KEY", $"{secret}_TABLE", $"{secret}_PRINCIPAL_TABLE"),
+                logger,
+                $"{secret}_FOREIGN_KEY",
+                $"{secret}_TABLE",
+                $"{secret}_PRINCIPAL_TABLE"),
             _ => throw new ArgumentOutOfRangeException(nameof(emitter)),
         };
 
@@ -328,12 +373,17 @@ public sealed class MySqlLoggerMessagesTests
 
         var state = Assert.IsAssignableFrom<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State);
         var scopeId = Assert.IsType<string>(
-            Assert.Single(state, item => item.Key == "ObjectScopeId").Value);
+            Assert.Single(state, item => item.Key == "ObjectScopeId")
+                .Value);
 
         Assert.Matches("^[0-9a-f]{16}$", scopeId);
         Assert.DoesNotContain(
             state,
-            item => item.Value?.ToString()?.Contains(secret, StringComparison.Ordinal) == true);
+            item => item
+                    .Value
+                    ?.ToString()
+                    ?.Contains(secret, StringComparison.Ordinal)
+                == true);
     }
 
     /// <summary>
@@ -357,7 +407,9 @@ public sealed class MySqlLoggerMessagesTests
         var state = Assert.IsType<IReadOnlyList<KeyValuePair<string, object?>>>(entry.State, exactMatch: false);
         Assert.Equal(
             MySqlConfigurationFailureReason.IndexNameTooLong,
-            Assert.Single(state, item => item.Key == "Reason").Value);
+            Assert.Single(state, item => item.Key == "Reason")
+                .Value);
+
         Assert.DoesNotContain(state, item => item.Key == "Message");
         Assert.DoesNotContain(state, item => item.Key == "RedactedConnectionString");
     }
@@ -452,16 +504,22 @@ public sealed class MySqlLoggerMessagesTests
 
         public List<LogEntry> Entries { get; } = [];
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(
+            TState state
+        )
+            where TState : notnull => null;
 
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= MinLevel;
+        public bool IsEnabled(
+            LogLevel logLevel
+        ) => logLevel >= MinLevel;
 
         public void Log<TState>(
             LogLevel logLevel,
             EventId eventId,
             TState state,
             Exception? exception,
-            Func<TState, Exception?, string> formatter) =>
+            Func<TState, Exception?, string> formatter
+        ) =>
             Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), state, exception));
     }
 }

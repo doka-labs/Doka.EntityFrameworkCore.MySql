@@ -6,8 +6,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlAggregateMethodCallTranslatorPlugin : IAggregateMethodCallTranslatorPlugin
 {
-    public IEnumerable<IAggregateMethodCallTranslator> Translators { get; }
-
     public MySqlAggregateMethodCallTranslatorPlugin(
         ISqlExpressionFactory sqlExpressionFactory
     )
@@ -17,6 +15,8 @@ internal sealed class MySqlAggregateMethodCallTranslatorPlugin : IAggregateMetho
             new MySqlStringAggregateTranslator(sqlExpressionFactory),
         };
     }
+
+    public IEnumerable<IAggregateMethodCallTranslator> Translators { get; }
 }
 
 /// <summary>
@@ -32,7 +32,7 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
         nameof(string.Join),
         [
             typeof(string),
-            typeof(IEnumerable<string>)
+            typeof(IEnumerable<string>),
         ])!;
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;

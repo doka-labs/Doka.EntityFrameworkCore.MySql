@@ -21,7 +21,8 @@ internal static class SpecificationDebtReport
         }
 
         var currentProviderGaps = report
-            .CurrentProviderGaps.Distinct(StringComparer.Ordinal)
+            .CurrentProviderGaps
+            .Distinct(StringComparer.Ordinal)
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
