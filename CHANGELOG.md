@@ -43,6 +43,11 @@ dotnet package add Doka.Caching.MySql --version 10.6.4
 
 ### Fixed
 
+- Compile generated scaffolding contexts against the exact provider, EF and
+  spatial assemblies selected by the test host, avoiding redundant recursive
+  provider builds across parallel integration tests. Preserve real child-process
+  schema reconstruction and CRUD checks, retain sanitized timeout diagnostics,
+  and distinguish deadlines from caller cancellation with deterministic tests.
 - Remove the fixed scaffolding-scale runtime ceiling so CPU speed and host load
   cannot fail its performance verdict. Keep elapsed times as diagnostics and
   preserve resource, metadata-command, determinism and cleanup checks.

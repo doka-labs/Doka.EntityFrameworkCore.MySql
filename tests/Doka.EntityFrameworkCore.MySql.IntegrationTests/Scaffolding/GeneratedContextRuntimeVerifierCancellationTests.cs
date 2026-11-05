@@ -26,19 +26,37 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
         Assert.Equal(cancellation.Token, canceled.CancellationToken);
     }
 
-    /// <summary>Verifies caller cancellation terminates a started noncooperative child without becoming a timeout.</summary>
-    [Fact]
-    public async Task Caller_cancellation_after_launch_terminates_the_generated_context_process()
+    /// <summary>Verifies cancellation and deadlines terminate a ready noncooperative child with distinct outcomes.</summary>
+    /// <param name="cancelCaller">Whether the caller requests cancellation.</param>
+    /// <param name="cancelDeadline">Whether the execution deadline is reached.</param>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Cancellation_or_deadline_after_launch_terminates_the_generated_context_process(
+        bool cancelCaller,
+        bool cancelDeadline
+    )
     {
         // Arrange
         using var cancellation = new CancellationTokenSource();
+        using var deadline = new CancellationTokenSource();
         using var guard = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        const string connectionString =
+            "Server=127.0.0.1;Database=unused;User ID=unused;Password=deadline-test-secret;Pooling=false";
+
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
-        var nonce = Guid.NewGuid().ToByteArray();
+        var nonce = Guid
+            .NewGuid()
+            .ToByteArray();
+
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var model = CreateBlockingModel(port, Convert.ToHexString(nonce));
-        var connection = listener.AcceptTcpClientAsync(guard.Token).AsTask();
+        var connection = listener
+            .AcceptTcpClientAsync(guard.Token)
+            .AsTask();
+
         TcpClient? child = null;
         Task? verification = null;
 
@@ -49,8 +67,9 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
             // Linux derives UTC start times from independently sampled boot-time estimates.
             verification = GeneratedContextRuntimeVerifier.VerifyAsync(
                 model,
-                "Server=127.0.0.1;Database=unused;User ID=unused;Pooling=false",
+                connectionString,
                 "mariadb:12.3",
+                deadline.Token,
                 cancellation.Token);
 
             await Task.WhenAny(connection, verification);
@@ -67,12 +86,24 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
             var handshake = new byte[nonce.Length];
             await stream.ReadExactlyAsync(handshake, guard.Token);
 
-            if (!handshake.AsSpan().SequenceEqual(nonce))
+            if (!handshake
+                .AsSpan()
+                .SequenceEqual(nonce))
             {
                 throw new InvalidOperationException("The generated context connection did not identify this test.");
             }
 
-            await cancellation.CancelAsync();
+            // WHY: The child is ready before either signal, so deadline coverage
+            // does not require a short timeout or assume any compilation speed.
+            if (cancelCaller)
+            {
+                await cancellation.CancelAsync();
+            }
+
+            if (cancelDeadline)
+            {
+                await deadline.CancelAsync();
+            }
 
             // WHY: Bound a broken cancellation observer independently of the helper's execution deadline.
             var exception =
@@ -80,13 +111,25 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
 
             // WHY: The child holds its socket while blocking without a cancellation token.
             // Read EOF before parent cleanup; no clock value or execution speed determines success.
-            var received = exception is OperationCanceledException
+            var received = exception is OperationCanceledException or TimeoutException
                 ? await stream.ReadAsync(new byte[1], guard.Token)
                 : -1;
 
             // Assert
-            var canceled = Assert.IsAssignableFrom<OperationCanceledException>(exception);
-            Assert.Equal(cancellation.Token, canceled.CancellationToken);
+            if (cancelCaller)
+            {
+                var canceled = Assert.IsAssignableFrom<OperationCanceledException>(exception);
+                Assert.Equal(cancellation.Token, canceled.CancellationToken);
+            }
+            else
+            {
+                var timedOut = Assert.IsType<TimeoutException>(exception);
+                Assert.Contains("DOKA_CANCELLATION_CHILD_READY", timedOut.Message, StringComparison.Ordinal);
+                Assert.Contains("DOKA_CANCELLATION_CHILD_STDERR", timedOut.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain(connectionString, timedOut.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain("deadline-test-secret", timedOut.Message, StringComparison.Ordinal);
+            }
+
             Assert.Equal(0, received);
         }
         finally
@@ -116,13 +159,33 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
                     {
                         await verification;
                     }
-                    catch (OperationCanceledException)
+                    catch (Exception exception) when (exception is OperationCanceledException or TimeoutException)
                     {
-                        // Expected after the cleanup cancellation above.
+                        // The body already observes caller cancellation or the explicit deadline.
                     }
                 }
             }
         }
+    }
+
+    /// <summary>Gives an already canceled caller priority over an already expired deadline.</summary>
+    [Fact]
+    public async Task Pre_canceled_caller_takes_priority_over_the_deadline()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        using var deadline = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        await deadline.CancelAsync();
+        var model = new ScaffoldedModel();
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            GeneratedContextRuntimeVerifier.VerifyAsync(model, "unused", "unused", deadline.Token, cancellation.Token));
+
+        // Assert
+        var canceled = Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        Assert.Equal(cancellation.Token, canceled.CancellationToken);
     }
 
     /// <summary>Creates a child context that identifies its connection before blocking without database access.</summary>
@@ -156,6 +219,9 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
                       using var client = new TcpClient();
                       client.Connect(IPAddress.Loopback, {{port.ToString(CultureInfo.InvariantCulture)}});
                       using var stream = client.GetStream();
+                      Console.WriteLine("DOKA_CANCELLATION_CHILD_READY "
+                          + Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_CONNECTION"));
+                      Console.Error.WriteLine("DOKA_CANCELLATION_CHILD_STDERR deadline-test-secret");
                       stream.Write(Convert.FromHexString("{{nonce}}"));
 
                       // WHY: Caller cancellation cannot end this blocking read. The parent

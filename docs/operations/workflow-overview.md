@@ -69,6 +69,23 @@ grants a feature branch release authority.
 repository-wide supply-chain practices. It is not framework qualification or
 publication authority, and is not duplicated for each maintained platform line.
 
+### Generated Scaffolding Runtime Checks
+
+Scaffolding runtime checks compile the generated source in a fresh SDK console
+project using the exact provider, EF and spatial assembly paths loaded by the
+test host. They do not rebuild source project references for every child. The
+SDK and child output remain isolated; the generated context still reconstructs
+the schema and performs CRUD, generated-value and relationship-fixup checks on
+each selected engine. Actual package-consumer qualification remains separate.
+
+The child retains a two-minute hang-protection deadline after launch. Caller
+cancellation remains distinct from a deadline; either outcome terminates the
+owned process tree, awaits the launched process and drains both output streams.
+Deadline failures retain credential-redacted, bounded diagnostic excerpts and runtime stage
+markers to distinguish restore/build from context execution. Regression tests
+signal an independent deadline only after a child-readiness handshake, without
+requiring a particular compilation speed or changing the normal deadline.
+
 ### Hosted Runner Baseline
 
 All checked-in hosted jobs explicitly use `ubuntu-26.04` on x64, including
