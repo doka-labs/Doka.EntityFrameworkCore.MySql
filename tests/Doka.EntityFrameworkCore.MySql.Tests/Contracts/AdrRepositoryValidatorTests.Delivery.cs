@@ -73,12 +73,14 @@ public sealed partial class AdrRepositoryValidatorTests
             "bash \"${repo_root}/eng/testing/build-migration-bundle.sh\" \"${bundle_path}\"",
             deploymentGate,
             StringComparison.Ordinal);
+
         Assert.Contains("migrations bundle", bundleBuilder, StringComparison.Ordinal);
         Assert.Contains("DokaIsolatedNuGetLockRoot", bundleBuilder, StringComparison.Ordinal);
         Assert.Contains(
             "run_bundle_command \"${connection_string}\" \"${server_version}\" 0",
             deploymentGate,
             StringComparison.Ordinal);
+
         Assert.Contains("\"mysql84\"", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("\"mariadb114\"", deploymentGate, StringComparison.Ordinal);
         Assert.Contains("\"mariadb118\"", deploymentGate, StringComparison.Ordinal);
@@ -87,10 +89,12 @@ public sealed partial class AdrRepositoryValidatorTests
             "DOKA_MIGRATION_DEPLOYMENT_EVIDENCE_ROOT=\"${migration_deployment_root}\"",
             engineQualifier,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "\"${repo_root}/eng/quality/check-migration-model.sh\"",
             qualityGates,
             StringComparison.Ordinal);
+
         Assert.Contains("run: bash eng/quality-gates.sh", sharedWorkflow, StringComparison.Ordinal);
         Assert.Contains("uses: $/.github/workflows/quality-gates.yml", workflow, StringComparison.Ordinal);
         Assert.Contains("run: bash eng/test-migration-deployment.sh", workflow, StringComparison.Ordinal);

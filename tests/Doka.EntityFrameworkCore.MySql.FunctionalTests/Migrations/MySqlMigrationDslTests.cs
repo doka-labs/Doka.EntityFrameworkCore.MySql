@@ -42,6 +42,7 @@ public sealed partial class MySqlMigrationDslTests
             s_indexPrefixLengths,
             prefixIndex?.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
                 ?.Value as int[]);
+
         Assert.True(
             fullTextIndex?.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
                 ?.Value as bool?);
@@ -64,8 +65,7 @@ public sealed partial class MySqlMigrationDslTests
             });
 
         // Act
-        var exception = Assert.Throws<ArgumentException>(
-            () => indexBuilder.HasPrefixLength(s_singlePrefixLength));
+        var exception = Assert.Throws<ArgumentException>(() => indexBuilder.HasPrefixLength(s_singlePrefixLength));
 
         // Assert
         Assert.Equal("prefixLengths", exception.ParamName);
@@ -88,8 +88,8 @@ public sealed partial class MySqlMigrationDslTests
             });
 
         // Act
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => indexBuilder.HasPrefixLength(s_negativePrefixLengths));
+        var exception =
+            Assert.Throws<ArgumentOutOfRangeException>(() => indexBuilder.HasPrefixLength(s_negativePrefixLengths));
 
         // Assert
         Assert.Equal("prefixLengths", exception.ParamName);
@@ -110,10 +110,12 @@ public sealed partial class MySqlMigrationDslTests
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         // Assert
         var alterDatabase = Assert.Single(operations.OfType<AlterDatabaseOperation>());
@@ -142,32 +144,43 @@ public sealed partial class MySqlMigrationDslTests
             "utf8mb4",
             alterDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)
                 ?.Value);
+
         Assert.Equal(
             "utf8mb4",
             createTable.FindAnnotation(MySqlAnnotationNames.CharSet)
                 ?.Value);
+
         Assert.Equal(
             "InnoDB",
             createTable.FindAnnotation(MySqlAnnotationNames.StorageEngine)
                 ?.Value);
+
         Assert.Equal(
             MySqlGuidFormat.Char36,
             externalIdColumn.FindAnnotation(MySqlAnnotationNames.GuidFormat)
                 ?.Value);
+
         Assert.Equal("char(36)", externalIdColumn.ColumnType);
         Assert.Equal(
             MySqlGuidFormat.Char36,
-            externalIdColumn.GetMySqlMigrationMetadata().GuidFormat);
+            externalIdColumn.GetMySqlMigrationMetadata()
+                .GuidFormat);
+
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
-            idColumn.GetMySqlMigrationMetadata().ValueGenerationStrategy);
+            idColumn.GetMySqlMigrationMetadata()
+                .ValueGenerationStrategy);
+
         Assert.Equal(
             s_indexPrefixLengths,
             prefixIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
                 ?.Value as int[]);
+
         Assert.Equal(
             s_indexPrefixLengths,
-            prefixIndex.GetMySqlMigrationMetadata().IndexPrefixLengths);
+            prefixIndex.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.Equal(s_mixedIndexDirections, prefixIndex.IsDescending);
         Assert.Null(prefixIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex));
         Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
@@ -175,6 +188,7 @@ public sealed partial class MySqlMigrationDslTests
         Assert.True(
             fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
                 ?.Value as bool?);
+
         Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
         Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex));
         Assert.True(
@@ -198,10 +212,12 @@ public sealed partial class MySqlMigrationDslTests
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         var commands = migrationsSqlGenerator.Generate(operations, targetContext.Model);
         var sql = string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
@@ -217,10 +233,12 @@ public sealed partial class MySqlMigrationDslTests
             + "ON `MigrationDslEntities` (`Name`(32), `Code` DESC)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "CREATE FULLTEXT INDEX `IX_MigrationDsl_Body` ON `MigrationDslEntities` (`Body`)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "CREATE SPATIAL INDEX `IX_MigrationDsl_Location` ON `MigrationDslEntities` (`Location`)",
             sql,
@@ -248,7 +266,8 @@ public sealed partial class MySqlMigrationDslTests
             .Single(index => index.GetDatabaseName() == "IX_MigrationDsl_Body");
 
         var modelAnnotations = context
-            .Model.GetAnnotations()
+            .Model
+            .GetAnnotations()
             .ToDictionary(annotation => annotation.Name);
 
         var entityAnnotations = entityType
@@ -265,33 +284,42 @@ public sealed partial class MySqlMigrationDslTests
         var propertyCalls = codeGenerator.GenerateFluentApiCalls(property, propertyAnnotations);
         var prefixIndexCalls = codeGenerator.GenerateFluentApiCalls(
             prefixIndex,
-            prefixIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
+            prefixIndex
+                .GetAnnotations()
+                .ToDictionary(annotation => annotation.Name));
 
         var fullTextIndexCalls = codeGenerator.GenerateFluentApiCalls(
             fullTextIndex,
-            fullTextIndex.GetAnnotations().ToDictionary(annotation => annotation.Name));
+            fullTextIndex
+                .GetAnnotations()
+                .ToDictionary(annotation => annotation.Name));
 
         // Assert
         Assert.Contains(
             modelCalls,
             fragment => fragment.Method == nameof(MySqlModelBuilderExtensions.HasCharSet)
                 && Equals(fragment.Arguments.Single(), "utf8mb4"));
+
         Assert.Contains(
             entityCalls,
             fragment => fragment.Method == nameof(MySqlEntityTypeBuilderExtensions.HasCharSet)
                 && Equals(fragment.Arguments.Single(), "utf8mb4"));
+
         Assert.Contains(
             entityCalls,
             fragment => fragment.Method == nameof(MySqlEntityTypeBuilderExtensions.UseStorageEngine)
                 && Equals(fragment.Arguments.Single(), "InnoDB"));
+
         Assert.Contains(
             propertyCalls,
             fragment => fragment.Method == nameof(MySqlPropertyBuilderExtensions.HasMySqlGuidFormat)
                 && Equals(fragment.Arguments.Single(), MySqlGuidFormat.Char36));
+
         Assert.Contains(
             prefixIndexCalls,
             fragment => fragment.Method == nameof(MySqlIndexBuilderExtensions.HasPrefixLength)
                 && fragment.Arguments.SequenceEqual(s_indexPrefixLengths.Cast<object>()));
+
         Assert.Contains(
             fullTextIndexCalls,
             fragment => fragment.Method == nameof(MySqlIndexBuilderExtensions.IsFullText)

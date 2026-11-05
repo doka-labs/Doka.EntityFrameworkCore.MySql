@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Converts EF's byte-array row-version shape to the <see cref="DateTime"/>
+/// Converts EF's byte-array row-version shape to the <see cref="DateTime" />
 /// value stored by MySQL <c>timestamp</c> columns.
 /// </summary>
 public sealed class MySqlBytesToDateTimeConverter : ValueConverter<byte[], DateTime>

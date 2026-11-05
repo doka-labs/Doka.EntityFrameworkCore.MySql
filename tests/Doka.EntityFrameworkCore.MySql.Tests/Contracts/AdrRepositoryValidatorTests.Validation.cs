@@ -245,7 +245,9 @@ public sealed partial class AdrRepositoryValidatorTests
                 var driversStart = content.IndexOf("## Decision Drivers", StringComparison.Ordinal);
                 var optionsStart = content.IndexOf("## Considered Options", StringComparison.Ordinal);
 
-                if (contextStart < 0 || driversStart <= contextStart || optionsStart <= driversStart)
+                if (contextStart < 0
+                    || driversStart <= contextStart
+                    || optionsStart <= driversStart)
                 {
                     throw new InvalidOperationException("The ADR fixture does not have its expected heading order.");
                 }

@@ -1,13 +1,13 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Pins the backtick-escape behavior of <see cref="MySqlIdentifierEscaping"/>'s
+/// Pins the backtick-escape behavior of <see cref="MySqlIdentifierEscaping" />'s
 /// <c>DelimitIdentifier</c> helper. The helper guards both the sequence-name and
 /// the emulation-table-name interpolation paths inside
-/// <see cref="MySqlSequenceValueGenerator"/>; a sequence name carrying a backtick
+/// <see cref="MySqlSequenceValueGenerator" />; a sequence name carrying a backtick
 /// would otherwise terminate the surrounding backtick-delimited identifier and let
 /// arbitrary SQL run past the boundary. The escape rule mirrors
-/// <see cref="MySqlSqlGenerationHelper"/>: double every embedded backtick, then
+/// <see cref="MySqlSqlGenerationHelper" />: double every embedded backtick, then
 /// wrap the result in backticks.
 /// </summary>
 public sealed class MySqlSequenceIdentifierEscapeTests

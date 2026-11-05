@@ -252,6 +252,38 @@ public sealed partial class MySqlModelingBaselineTests
         Assert.Equal("ElectricCars", model.FindEntityType(typeof(ElectricCar))!.GetTableName());
     }
 
+    // Sequence
+    [Fact]
+    public void Tph_int_discriminator_produces_int_column()
+    {
+        // Arrange
+        using var context = new TphIntDiscriminatorContext(CreateOptions<TphIntDiscriminatorContext>());
+        var baseType = context.Model.FindEntityType(typeof(IntAnimal))!;
+        var discriminator = baseType.FindDiscriminatorProperty()!;
+
+        // Act
+        var columnType = discriminator.GetColumnType();
+
+        // Assert
+        Assert.Equal("int", columnType);
+    }
+
+    /// <summary>
+    /// Custom discriminator HasValue("custom") in model.
+    /// </summary>
+    [Fact]
+    public void Tph_custom_discriminator_value_in_model()
+    {
+        // Arrange
+        using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Act
+        var catType = context.Model.FindEntityType(typeof(Cat))!;
+
+        // Assert
+        Assert.Equal("Feline", catType.GetDiscriminatorValue());
+    }
+
     private abstract class BaseVehicle
     {
         public int Id { get; set; }
@@ -283,12 +315,15 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<BaseVehicle>()
                 .UseTptMappingStrategy();
+
             modelBuilder
                 .Entity<BaseVehicle>()
                 .ToTable("BaseVehicles");
+
             modelBuilder
                 .Entity<MotorVehicle>()
                 .ToTable("MotorVehicles");
+
             modelBuilder
                 .Entity<ElectricCar>()
                 .ToTable("ElectricCars");
@@ -325,42 +360,12 @@ public sealed partial class MySqlModelingBaselineTests
                 entity
                     .HasDiscriminator<string>("Kind")
                     .HasValue<TaggedDog>("Dog");
+
                 entity
                     .Property("Kind")
                     .HasMaxLength(64);
             });
         }
-    }
-
-    // Sequence
-    [Fact]
-    public void Tph_int_discriminator_produces_int_column()
-    {
-        // Arrange
-        using var context = new TphIntDiscriminatorContext(CreateOptions<TphIntDiscriminatorContext>());
-        var baseType = context.Model.FindEntityType(typeof(IntAnimal))!;
-        var discriminator = baseType.FindDiscriminatorProperty()!;
-
-        // Act
-        var columnType = discriminator.GetColumnType();
-
-        // Assert
-        Assert.Equal("int", columnType);
-    }
-    /// <summary>
-    /// Custom discriminator HasValue("custom") in model.
-    /// </summary>
-    [Fact]
-    public void Tph_custom_discriminator_value_in_model()
-    {
-        // Arrange
-        using var context = new TphContext(CreateOptions<TphContext>());
-
-        // Act
-        var catType = context.Model.FindEntityType(typeof(Cat))!;
-
-        // Assert
-        Assert.Equal("Feline", catType.GetDiscriminatorValue());
     }
 
     // -- Int Discriminator ------------------------------------------------
@@ -476,6 +481,7 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<DeepAnimal>()
                 .ToTable("Animals");
+
             modelBuilder.Entity<Mammal>();
             modelBuilder.Entity<DeepDog>();
         }
@@ -514,12 +520,15 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<Vehicle>()
                 .UseTptMappingStrategy();
+
             modelBuilder
                 .Entity<Vehicle>()
                 .ToTable("Vehicles");
+
             modelBuilder
                 .Entity<Car>()
                 .ToTable("Cars");
+
             modelBuilder
                 .Entity<Truck>()
                 .ToTable("Trucks");
@@ -560,9 +569,11 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<Shape>()
                 .UseTpcMappingStrategy();
+
             modelBuilder
                 .Entity<Circle>()
                 .ToTable("Circles");
+
             modelBuilder
                 .Entity<Rectangle>()
                 .ToTable("Rectangles");

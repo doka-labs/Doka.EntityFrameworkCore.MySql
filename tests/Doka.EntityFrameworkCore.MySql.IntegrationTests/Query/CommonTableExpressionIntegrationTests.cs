@@ -7,6 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed class CommonTableExpressionIntegrationTests
 {
     private const string TableName = "IntCteItems";
+
     private const string ComposedCteSql =
         """
         WITH RECURSIVE `numbers` (`Value`) AS (
@@ -24,6 +25,7 @@ public sealed class CommonTableExpressionIntegrationTests
         SELECT *
         FROM `selected`
         """;
+
     private const string UpdateCteSql =
         """
         WITH `selected` AS (
@@ -88,17 +90,14 @@ public sealed class CommonTableExpressionIntegrationTests
 
             var affectedRows = await context.Database.ExecuteSqlRawAsync(
                 UpdateCteSql,
-                new object[]
-                {
-                    new MySqlParameter("@minimumScore", 20),
-                    new MySqlParameter("@category", "updated"),
-                },
+                new object[] { new MySqlParameter("@minimumScore", 20), new MySqlParameter("@category", "updated") },
                 cancellationToken);
 
             Assert.Equal(2, affectedRows);
 
             var updatedNames = await context
-                .Items.Where(item => item.Category == "updated")
+                .Items
+                .Where(item => item.Category == "updated")
                 .OrderBy(item => item.Id)
                 .Select(item => item.Name)
                 .ToListAsync(cancellationToken: cancellationToken);
@@ -151,12 +150,17 @@ public sealed class CommonTableExpressionIntegrationTests
             Assert.Equal(["charlie", "bravo", "alpha"], untrackedItems.Select(item => item.Name));
             Assert.Empty(context.ChangeTracker.Entries());
 
-            Assert.Equal(3, await CreateComposedQuery(context, 3).CountAsync(cancellationToken: cancellationToken));
+            Assert.Equal(
+                3,
+                await CreateComposedQuery(context, 3)
+                    .CountAsync(cancellationToken: cancellationToken));
+
             Assert.Equal(
                 60,
-                await CreateComposedQuery(context, 3).SumAsync(
-                    item => item.Score,
-                    cancellationToken: cancellationToken));
+                await CreateComposedQuery(context, 3)
+                    .SumAsync(
+                        item => item.Score,
+                        cancellationToken: cancellationToken));
 
             await AssertCancellationContractAsync(target, cancellationToken);
         }
@@ -177,6 +181,7 @@ public sealed class CommonTableExpressionIntegrationTests
         var interceptor = new CommandCancellationProbeInterceptor();
 
         await using var context = CreateContext(target, interceptor);
+
         // WHY: Keep the deliberate probe token distinct while honoring cancellation from its caller.
         using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var probeCancellationToken = cancellationSource.Token;
@@ -195,6 +200,7 @@ public sealed class CommonTableExpressionIntegrationTests
         CteContext context,
         int upperBound
     ) =>
+
         // SQL identifiers are deliberately fixed in the trusted command text.
         // Only runtime data is parameterized; relational providers cannot bind
         // table or column names through database parameters.
@@ -205,9 +211,11 @@ public sealed class CommonTableExpressionIntegrationTests
         params IInterceptor[] interceptors
     )
     {
-        var optionsBuilder = IntegrationTestDbContextOptions.Create<CteContext>().UseMySql(
-            IntegrationTestEnvironment.GetConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target));
+        var optionsBuilder = IntegrationTestDbContextOptions
+            .Create<CteContext>()
+            .UseMySql(
+                IntegrationTestEnvironment.GetConnectionString(target),
+                IntegrationTestEnvironment.GetServerVersion(target));
 
         if (interceptors.Length > 0)
         {
@@ -227,6 +235,7 @@ public sealed class CommonTableExpressionIntegrationTests
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{TableName}`;",
             cancellationToken: cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             $"""
              CREATE TABLE `{TableName}` (
@@ -252,19 +261,19 @@ public sealed class CommonTableExpressionIntegrationTests
             {
                 Name = "alpha",
                 Score = 10,
-                Category = "selected"
+                Category = "selected",
             },
             new CteItem
             {
                 Name = "bravo",
                 Score = 20,
-                Category = "selected"
+                Category = "selected",
             },
             new CteItem
             {
                 Name = "charlie",
                 Score = 30,
-                Category = "other"
+                Category = "other",
             });
 
         await context.SaveChangesAsync(cancellationToken: cancellationToken);
@@ -307,6 +316,7 @@ public sealed class CommonTableExpressionIntegrationTests
                 entity
                     .Property(item => item.Name)
                     .HasMaxLength(64);
+
                 entity
                     .Property(item => item.Category)
                     .HasMaxLength(32);

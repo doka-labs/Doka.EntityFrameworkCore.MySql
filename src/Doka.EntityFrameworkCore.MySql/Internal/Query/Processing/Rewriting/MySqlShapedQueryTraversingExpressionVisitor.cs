@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// expressions.
 /// </summary>
 /// <remarks>
-/// <see cref="ExpressionVisitor"/> does not traverse provider-specific
+/// <see cref="ExpressionVisitor" /> does not traverse provider-specific
 /// extension nodes automatically. Query-processing visitors derive from this
 /// type so neither branch is skipped as EF Core query shapes evolve.
 /// </remarks>

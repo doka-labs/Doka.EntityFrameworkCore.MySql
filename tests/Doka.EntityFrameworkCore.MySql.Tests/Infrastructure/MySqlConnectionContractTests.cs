@@ -296,7 +296,7 @@ public sealed class MySqlConnectionContractTests
             throwOnConnectionStringRead: true);
 
         connection.Open();
-        Action act = () =>
+        var act = () =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -363,7 +363,7 @@ public sealed class MySqlConnectionContractTests
         // Arrange
         using var connection = new ContractDbConnection($"{BaseConnectionString}{option};");
         connection.Open();
-        Action act = () =>
+        var act = () =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -384,7 +384,7 @@ public sealed class MySqlConnectionContractTests
         // Arrange
         var configured = CompatibleBorrowedConnectionString + "UseAffectedRows=true;";
         using var connection = new ContractDbConnection(configured);
-        Action act = () =>
+        var act = () =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: false);
 
         // Act
@@ -411,7 +411,7 @@ public sealed class MySqlConnectionContractTests
         using var connection = new ContractDbConnection(
             CompatibleBorrowedConnectionString + option);
 
-        Action act = () =>
+        var act = () =>
             MySqlConnectionContract.ValidateBorrowed(connection, userVariablesRequired: true);
 
         // Act
@@ -475,9 +475,9 @@ public sealed class MySqlConnectionContractTests
 
     private sealed class ContractDbConnection : DbConnection
     {
+        private readonly bool _throwOnConnectionStringRead;
         private string _connectionString;
         private ConnectionState _state;
-        private readonly bool _throwOnConnectionStringRead;
 
         public ContractDbConnection(
             string connectionString,

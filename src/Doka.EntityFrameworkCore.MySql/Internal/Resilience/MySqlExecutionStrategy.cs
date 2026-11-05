@@ -2,9 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 {
-    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
-    private readonly ILogger? _logger;
     private readonly EngineFamily _engineFamily;
+    private readonly ILogger? _logger;
+    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
 
     // _lastException is written by GetNextDelay (called by EF Core's retry loop on the
     // executing thread) and read by OnRetry (called on the same thread between attempts).
@@ -30,12 +30,15 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
     {
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
+
         _engineFamily = singletonOptions.Profile?.Engine.Family
             ?? throw new InvalidOperationException("The MySQL capability profile must be initialized.");
 
         _logger = dependencies
-            .Options.FindExtension<CoreOptionsExtension>()
-            ?.LoggerFactory?.CreateLogger(MySqlLoggerCategory.Resilience);
+            .Options
+            .FindExtension<CoreOptionsExtension>()
+            ?.LoggerFactory
+            ?.CreateLogger(MySqlLoggerCategory.Resilience);
     }
 
     protected override TimeSpan? GetNextDelay(

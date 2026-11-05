@@ -99,7 +99,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
         // Assert
         Assert.True(actual);
-        Assert.Equal(0, commands[0].ColumnModifications[0].Value);
+        Assert.Equal(
+            0,
+            commands[0]
+                .ColumnModifications[0].Value);
     }
 
     /// <summary>
@@ -264,8 +267,22 @@ public sealed partial class MySqlGeneratedValueSqlTests
     {
         // Arrange
         using var context = CreateContext();
-        context.AddRange(new IdentityRow { Payload = 11, }, new IdentityRow { Payload = 22, });
-        var entries = context.GetService<IUpdateAdapterFactory>().Create().Entries.ToArray();
+        context.AddRange(
+            new IdentityRow
+            {
+                Payload = 11,
+            },
+            new IdentityRow
+            {
+                Payload = 22,
+            });
+
+        var entries = context
+            .GetService<IUpdateAdapterFactory>()
+            .Create()
+            .Entries
+            .ToArray();
+
         var commands = CreateTrackedCommands(context, "IdentityRows", entries);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
@@ -291,8 +308,22 @@ public sealed partial class MySqlGeneratedValueSqlTests
     {
         // Arrange
         using var context = CreateContext();
-        context.AddRange(new GuidIdentityRow { Payload = 11, }, new GuidIdentityRow { Payload = 22, });
-        var entries = context.GetService<IUpdateAdapterFactory>().Create().Entries.ToArray();
+        context.AddRange(
+            new GuidIdentityRow
+            {
+                Payload = 11,
+            },
+            new GuidIdentityRow
+            {
+                Payload = 22,
+            });
+
+        var entries = context
+            .GetService<IUpdateAdapterFactory>()
+            .Create()
+            .Entries
+            .ToArray();
+
         var commands = CreateTrackedCommands(context, "GuidIdentityRows", entries);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var sql = new StringBuilder();
@@ -303,19 +334,24 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Assert
         Assert.True(transaction);
         Assert.True(mapping.HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled));
-        Assert.All(entries, entry =>
-        {
-            var key = entry.EntityType.FindPrimaryKey()!.Properties[0];
-            Assert.Equal(ValueGenerated.OnAdd, key.ValueGenerated);
-            Assert.False(entry.HasTemporaryValue(key));
-            Assert.NotEqual(Guid.Empty, entry.GetCurrentValue<Guid>(key));
-        });
-        Assert.All(commands, command =>
-        {
-            var key = Assert.Single(command.ColumnModifications, modification => modification.IsKey);
-            Assert.True(key.IsWrite);
-            Assert.False(key.IsRead);
-        });
+        Assert.All(
+            entries,
+            entry =>
+            {
+                var key = entry.EntityType.FindPrimaryKey()!.Properties[0];
+                Assert.Equal(ValueGenerated.OnAdd, key.ValueGenerated);
+                Assert.False(entry.HasTemporaryValue(key));
+                Assert.NotEqual(Guid.Empty, entry.GetCurrentValue<Guid>(key));
+            });
+
+        Assert.All(
+            commands,
+            command =>
+            {
+                var key = Assert.Single(command.ColumnModifications, modification => modification.IsKey);
+                Assert.True(key.IsWrite);
+                Assert.False(key.IsRead);
+            });
     }
 
     /// <summary>

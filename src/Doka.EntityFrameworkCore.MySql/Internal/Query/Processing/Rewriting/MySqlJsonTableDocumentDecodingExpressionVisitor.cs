@@ -82,7 +82,8 @@ internal sealed class MySqlJsonTableDocumentDecodingExpressionVisitor : Expressi
 
     private IReadOnlyList<TExpression> VisitExpressions<TExpression>(
         IReadOnlyList<TExpression> expressions
-    ) where TExpression : Expression
+    )
+        where TExpression : Expression
     {
         List<TExpression>? rewritten = null;
 

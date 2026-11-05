@@ -205,7 +205,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                     Item.TypeMapping: { } itemTypeMapping,
                     Subquery.Projection:
                     [
-                    { Expression: ColumnExpression { Name: "Value", Type: { } type, } valueColumn, },
+                        { Expression: ColumnExpression { Name: "Value", Type: { } type } valueColumn },
                     ],
                 }
                 && type == typeof(string)
@@ -254,7 +254,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 return columnExpression.ApplyTypeMapping(null);
             }
 
-            if (node is ValuesExpression { Alias: { } alias, RowValues: { } rows, } valuesExpression
+            if (node is ValuesExpression { Alias: { } alias, RowValues: { } rows } valuesExpression
                 && _aliases.Contains(alias)
                 && FindValueColumnIndex(valuesExpression.ColumnNames) is var valueIndex and >= 0)
             {

@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -124,7 +126,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal("ALTER DATABASE CHARACTER SET = utf8mb4;\n", sql);
@@ -142,7 +145,8 @@ public sealed class MySqlDefensiveValidationTests
         };
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal("ALTER DATABASE COLLATE = utf8mb4_unicode_ci;\n", sql);
@@ -162,7 +166,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal(
@@ -184,7 +189,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal(
@@ -206,8 +212,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
@@ -247,8 +252,7 @@ public sealed class MySqlDefensiveValidationTests
         };
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
@@ -269,8 +273,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
@@ -291,8 +294,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.Collation, "utf8mb4_unicode_ci");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(nameof(AlterDatabaseOperation.Collation), exception.Message, StringComparison.Ordinal);
@@ -309,8 +311,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(MySqlAnnotationNames.CharSet, 42);
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
@@ -339,8 +340,7 @@ public sealed class MySqlDefensiveValidationTests
         var operation = new AlterDatabaseOperation { OldDatabase = { Collation = "utf8mb4_bin" } };
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains("explicit target value", exception.Message, StringComparison.Ordinal);
@@ -357,7 +357,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldDatabase.Collation = "utf8mb4_bin";
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal("ALTER DATABASE CHARACTER SET = utf8mb4;\n", sql);
@@ -377,8 +378,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
@@ -398,8 +398,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldTable.SetAnnotation(MySqlAnnotationNames.CharSet, "latin1");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(MySqlAnnotationNames.CharSet, exception.Message, StringComparison.Ordinal);
@@ -420,7 +419,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldTable.SetAnnotation(MySqlAnnotationNames.StorageEngine, "MyISAM");
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal("ALTER TABLE `StorageEngineTransition` ENGINE = InnoDB;\n", sql);
@@ -443,7 +443,8 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "uca1400_ai_ci");
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Equal(
@@ -491,8 +492,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.OldTable.SetAnnotation(MySqlAnnotationNames.StorageEngine, "InnoDB");
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(MySqlAnnotationNames.StorageEngine, exception.Message, StringComparison.Ordinal);
@@ -509,7 +509,8 @@ public sealed class MySqlDefensiveValidationTests
         var operation = CreateTableOperation("CanonicalCollation");
         operation.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
 
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Contains("COLLATE utf8mb4_bin", sql, StringComparison.Ordinal);
@@ -527,8 +528,7 @@ public sealed class MySqlDefensiveValidationTests
         operation.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_unicode_ci");
         operation.SetAnnotation(MySqlAnnotationNames.Collation, "utf8mb4_bin");
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
@@ -601,8 +601,7 @@ public sealed class MySqlDefensiveValidationTests
         };
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => generator.Generate([operation], context.Model));
+        var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.Contains(RelationalAnnotationNames.Collation, exception.Message, StringComparison.Ordinal);
@@ -629,8 +628,7 @@ public sealed class MySqlDefensiveValidationTests
         };
 
         // Act
-        var exception = Record.Exception(
-            () => generator.Generate([operation], context.Model));
+        var exception = Record.Exception(() => generator.Generate([operation], context.Model));
 
         // Assert
         Assert.IsType<ArgumentException>(exception);
@@ -652,7 +650,8 @@ public sealed class MySqlDefensiveValidationTests
         };
 
         // Act
-        var sql = Assert.Single(generator.Generate([operation], context.Model)).CommandText;
+        var sql = Assert.Single(generator.Generate([operation], context.Model))
+            .CommandText;
 
         // Assert
         Assert.Contains("COLLATE utf8mb4_0900_ai_ci", sql, StringComparison.Ordinal);
@@ -771,12 +770,15 @@ public sealed class MySqlDefensiveValidationTests
     )
     {
         using var context = CreateContext();
-        var generator = context.GetService<IQuerySqlGeneratorFactory>().Create();
+        var generator = context
+            .GetService<IQuerySqlGeneratorFactory>()
+            .Create();
+
         var method = generator
             .GetType()
             .GetMethod(
                 "EscapeJsonPathPropertyName",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                BindingFlags.NonPublic | BindingFlags.Static);
 
         Assert.NotNull(method);
 

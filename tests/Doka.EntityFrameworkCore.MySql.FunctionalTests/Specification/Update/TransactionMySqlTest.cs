@@ -15,9 +15,7 @@ public sealed class TransactionMySqlTest
 {
     public TransactionMySqlTest(
         TransactionMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override bool SnapshotSupported => true;
 
@@ -53,13 +51,23 @@ public sealed class TransactionMySqlTest
         public override async Task ReseedAsync()
         {
             await using var context = CreateContext();
-            context.Set<TransactionCustomer>().RemoveRange(
-                await context.Set<TransactionCustomer>().ToListAsync());
-            context.Set<TransactionOrder>().RemoveRange(
-                await context.Set<TransactionOrder>().ToListAsync());
+            context
+                .Set<TransactionCustomer>()
+                .RemoveRange(
+                    await context
+                        .Set<TransactionCustomer>()
+                        .ToListAsync());
+
+            context
+                .Set<TransactionOrder>()
+                .RemoveRange(
+                    await context
+                        .Set<TransactionOrder>()
+                        .ToListAsync());
+
             await context.SaveChangesAsync();
 
-            await base.SeedAsync(context);
+            await SeedAsync(context);
         }
     }
 }

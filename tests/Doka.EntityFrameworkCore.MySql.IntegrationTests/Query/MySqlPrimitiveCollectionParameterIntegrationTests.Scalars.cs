@@ -19,7 +19,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Id)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Id)),
             CancellationToken.None);
 
         // Assert
@@ -42,7 +44,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Name)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Name)),
             CancellationToken.None);
 
         // Assert
@@ -65,7 +69,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalName)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalName)),
             CancellationToken.None);
 
         // Assert
@@ -88,7 +94,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedName)),
             CancellationToken.None);
 
         // Assert
@@ -111,7 +119,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedName)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedName)),
             CancellationToken.None);
 
         // Assert
@@ -134,7 +144,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.CaseInsensitiveName)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.CaseInsensitiveName)),
             CancellationToken.None);
 
         // Assert
@@ -157,7 +169,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Status)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Status)),
             CancellationToken.None);
 
         // Assert
@@ -180,7 +194,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Status)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Status)),
             CancellationToken.None);
 
         // Assert
@@ -203,7 +219,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalStatus)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalStatus)),
             CancellationToken.None);
 
         // Assert
@@ -226,7 +244,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Name)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Name)),
             CancellationToken.None);
 
         // Assert
@@ -249,7 +269,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.Payload)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.Payload)),
             CancellationToken.None);
 
         // Assert

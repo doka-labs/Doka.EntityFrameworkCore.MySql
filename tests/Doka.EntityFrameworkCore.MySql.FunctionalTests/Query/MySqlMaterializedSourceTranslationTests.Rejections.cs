@@ -14,7 +14,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<BindingChild>().Include(child => child.Node)
+        var query = context
+            .Set<BindingChild>()
+            .Include(child => child.Node)
             .WithMaterializedSource(shared => shared);
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -36,7 +38,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<BindingChild>()
+        var query = context
+            .Set<BindingChild>()
             .WithMaterializedSource(shared => shared.Include(child => child.Node));
 
         var sql = query.ToQueryString();
@@ -58,7 +61,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<BindingChild>().Include(child => child.Node).Select(child => child.Id)
+        var query = context
+            .Set<BindingChild>()
+            .Include(child => child.Node)
+            .Select(child => child.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -82,7 +88,13 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => new { node.Id, Name = ClientOnly(node.Name) })
+        var query = context
+            .Nodes
+            .Select(node => new
+            {
+                node.Id,
+                Name = ClientOnly(node.Name),
+            })
             .WithMaterializedSource(shared => shared);
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -107,7 +119,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var other = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 other.Nodes,
                 id => id,
@@ -136,7 +150,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => new
+        var query = context
+            .Nodes
+            .Select(node => new
             {
                 node.Id,
                 Children = node.Children.ToList(),
@@ -163,7 +179,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Include(node => node.Children)
+        var query = context
+            .Nodes
+            .Include(node => node.Children)
             .WithMaterializedSource(shared => shared);
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -186,7 +204,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Include(nameof(BindingNode.Children))
+        var query = context
+            .Nodes
+            .Include(nameof(BindingNode.Children))
             .WithMaterializedSource(shared => shared);
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -209,7 +229,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<BindingChild>()
+        var query = context
+            .Set<BindingChild>()
             .Include(child => child.Node)
             .ThenInclude(node => node.Children)
             .WithMaterializedSource(shared => shared);
@@ -234,7 +255,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.SelectMany(outer => context.Nodes
+        var query = context.Nodes.SelectMany(outer => context
+            .Nodes
             .Where(inner => inner.Id == outer.Id)
             .WithMaterializedSource(shared => shared));
 
@@ -258,7 +280,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.SelectMany(outer => shared
                 .Where(inner => inner == outer)
                 .WithMaterializedSource(inner => inner)));
@@ -305,7 +329,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.WithMaterializedSource(shared => shared)
+        var query = context
+            .Nodes
+            .WithMaterializedSource(shared => shared)
             .Include(node => node.Children);
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -328,7 +354,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
                 id => id,
@@ -357,7 +385,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb, splitQueryDefault: true);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
                 id => id,
@@ -385,7 +415,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Select(id => new
             {
                 Id = id,
@@ -412,7 +444,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Name)
+        var query = context
+            .Nodes
+            .Select(node => node.Name)
             .WithMaterializedSource(shared => shared.Where(name => ClientOnly(name) == "alpha"));
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);

@@ -1,3 +1,6 @@
+using System.Transactions;
+using IsolationLevel = System.Data.IsolationLevel;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -233,15 +236,18 @@ public sealed class MySqlTransactionOperabilityTests
 
         await AssertSavepointsPreserveStateAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
+
         await AssertUserManagedTransactionsAreRejectedAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
+
         await AssertVerifySucceededPatternAsync(target, serverVersion, cancellationToken)
             .ConfigureAwait(false);
+
         await AssertTransactionScopeAsyncFlowAsync(
-            target,
-            serverVersion,
-            complete: true,
-            cancellationToken: cancellationToken)
+                target,
+                serverVersion,
+                complete: true,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -267,47 +273,52 @@ public sealed class MySqlTransactionOperabilityTests
             // WHY: Both writes and rollback belong to one transaction; the final
             // state proves the savepoint preserved only the earlier write.
             await strategy
-                .ExecuteAsync(async (executionCancellationToken) =>
-                {
-                    await using var transaction = await context
-                        .Database.BeginTransactionAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                .ExecuteAsync(
+                    async executionCancellationToken =>
+                    {
+                        await using var transaction = await context
+                            .Database
+                            .BeginTransactionAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    supportsSavepoints = transaction.SupportsSavepoints;
+                        supportsSavepoints = transaction.SupportsSavepoints;
 
-                    context.Entities.Add(
-                        new TransactionEntity
-                        {
-                            Name = "before-savepoint",
-                        });
-                    await context
-                        .SaveChangesAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                        context.Entities.Add(
+                            new TransactionEntity
+                            {
+                                Name = "before-savepoint",
+                            });
 
-                    await transaction
-                        .CreateSavepointAsync(
-                            "before-second-insert",
-                            executionCancellationToken)
-                        .ConfigureAwait(false);
+                        await context
+                            .SaveChangesAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    context.Entities.Add(
-                        new TransactionEntity
-                        {
-                            Name = "after-savepoint",
-                        });
-                    await context
-                        .SaveChangesAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                        await transaction
+                            .CreateSavepointAsync(
+                                "before-second-insert",
+                                executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    await transaction
-                        .RollbackToSavepointAsync(
-                            "before-second-insert",
-                            executionCancellationToken)
-                        .ConfigureAwait(false);
-                    await transaction
-                        .CommitAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
-                },
+                        context.Entities.Add(
+                            new TransactionEntity
+                            {
+                                Name = "after-savepoint",
+                            });
+
+                        await context
+                            .SaveChangesAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
+
+                        await transaction
+                            .RollbackToSavepointAsync(
+                                "before-second-insert",
+                                executionCancellationToken)
+                            .ConfigureAwait(false);
+
+                        await transaction
+                            .CommitAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -315,7 +326,8 @@ public sealed class MySqlTransactionOperabilityTests
                 CreateOptions(connectionString, serverVersion));
 
             var names = await verificationContext
-                .Entities.OrderBy(entity => entity.Id)
+                .Entities
+                .OrderBy(entity => entity.Id)
                 .Select(entity => entity.Name)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -346,21 +358,24 @@ public sealed class MySqlTransactionOperabilityTests
 
         await using var context = new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion));
         await using var transaction = await context
-            .Database.BeginTransactionAsync(cancellationToken)
+            .Database
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var strategy = context.Database.CreateExecutionStrategy();
 
         // Act
         var caught = await Record
-            .ExceptionAsync(() => strategy.ExecuteAsync(async (executionCancellationToken) =>
-            {
-                await context
-                    .Database.ExecuteSqlRawAsync("SELECT 1", executionCancellationToken)
-                    .ConfigureAwait(false);
+            .ExceptionAsync(() => strategy.ExecuteAsync(
+                async executionCancellationToken =>
+                {
+                    await context
+                        .Database
+                        .ExecuteSqlRawAsync("SELECT 1", executionCancellationToken)
+                        .ConfigureAwait(false);
 
-                return 1;
-            },
+                    return 1;
+                },
                 cancellationToken))
             .ConfigureAwait(false);
 
@@ -398,12 +413,14 @@ public sealed class MySqlTransactionOperabilityTests
                             {
                                 Name = "verify-succeeded",
                             });
+
                         await context
                             .SaveChangesAsync(cancellationToken)
                             .ConfigureAwait(false);
                     },
                     async cancellationToken => await context
-                        .Entities.AnyAsync(entity => entity.Name == "verify-succeeded", cancellationToken)
+                        .Entities
+                        .AnyAsync(entity => entity.Name == "verify-succeeded", cancellationToken)
                         .ConfigureAwait(false),
                     IsolationLevel.ReadCommitted,
                     callerCancellationToken)
@@ -414,7 +431,8 @@ public sealed class MySqlTransactionOperabilityTests
             // Assert
             Assert.True(
                 await context
-                    .Entities.AnyAsync(
+                    .Entities
+                    .AnyAsync(
                         entity => entity.Name == "verify-succeeded",
                         callerCancellationToken)
                     .ConfigureAwait(false));
@@ -450,30 +468,32 @@ public sealed class MySqlTransactionOperabilityTests
             // WHY: Scope completion and the independent readback form one
             // commit-or-rollback lifecycle for the same ambient transaction.
             await using (var context =
-                         new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion)))
+                new TransactionOperabilityContext(CreateOptions(connectionString, serverVersion)))
             {
                 var strategy = context.Database.CreateExecutionStrategy();
 
                 await strategy
-                    .ExecuteAsync(async (executionCancellationToken) =>
-                    {
-                        using var scope = new System.Transactions.TransactionScope(
-                            System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
-
-                        context.Entities.Add(
-                            new TransactionEntity
-                            {
-                                Name = "ambient-transaction",
-                            });
-                        await context
-                            .SaveChangesAsync(executionCancellationToken)
-                            .ConfigureAwait(false);
-
-                        if (complete)
+                    .ExecuteAsync(
+                        async executionCancellationToken =>
                         {
-                            scope.Complete();
-                        }
-                    },
+                            using var scope = new TransactionScope(
+                                TransactionScopeAsyncFlowOption.Enabled);
+
+                            context.Entities.Add(
+                                new TransactionEntity
+                                {
+                                    Name = "ambient-transaction",
+                                });
+
+                            await context
+                                .SaveChangesAsync(executionCancellationToken)
+                                .ConfigureAwait(false);
+
+                            if (complete)
+                            {
+                                scope.Complete();
+                            }
+                        },
                         cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -485,7 +505,8 @@ public sealed class MySqlTransactionOperabilityTests
             Assert.Equal(
                 complete,
                 await verificationContext
-                    .Entities.AnyAsync(entity => entity.Name == "ambient-transaction", cancellationToken)
+                    .Entities
+                    .AnyAsync(entity => entity.Name == "ambient-transaction", cancellationToken)
                     .ConfigureAwait(false));
         }
         finally

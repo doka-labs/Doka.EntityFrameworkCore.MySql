@@ -52,8 +52,15 @@ public sealed partial class MySqlGuidStoreGenerationTests
         // Assert
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
-            entry.Property(value => value.Id).Metadata.GetMySqlValueGenerationStrategy());
-        Assert.False(entry.Property(value => value.Id).IsTemporary);
+            entry
+                .Property(value => value.Id)
+                .Metadata
+                .GetMySqlValueGenerationStrategy());
+
+        Assert.False(
+            entry.Property(value => value.Id)
+                .IsTemporary);
+
         Assert.NotEqual(Guid.Empty, row.Id);
         Assert.Equal(7, row.Id.Version);
     }
@@ -77,11 +84,24 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var entry = context.Add(row);
 
         // Assert
-        Assert.Equal("UUID()", entry.Property(value => value.Id).Metadata.GetDefaultValueSql());
+        Assert.Equal(
+            "UUID()",
+            entry
+                .Property(value => value.Id)
+                .Metadata
+                .GetDefaultValueSql());
+
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
-            entry.Property(value => value.Id).Metadata.GetMySqlValueGenerationStrategy());
-        Assert.False(entry.Property(value => value.Id).IsTemporary);
+            entry
+                .Property(value => value.Id)
+                .Metadata
+                .GetMySqlValueGenerationStrategy());
+
+        Assert.False(
+            entry.Property(value => value.Id)
+                .IsTemporary);
+
         Assert.Equal(7, row.Id.Version);
     }
 
@@ -105,8 +125,16 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         // Assert
         Assert.Equal(s_factoryGuid, row.Id);
-        Assert.False(entry.Property(value => value.Id).IsTemporary);
-        Assert.Equal("UUID()", entry.Property(value => value.Id).Metadata.GetDefaultValueSql());
+        Assert.False(
+            entry.Property(value => value.Id)
+                .IsTemporary);
+
+        Assert.Equal(
+            "UUID()",
+            entry
+                .Property(value => value.Id)
+                .Metadata
+                .GetDefaultValueSql());
     }
 
     /// <summary>An explicitly assigned key is not replaced or marked temporary by the SQL default.</summary>
@@ -122,7 +150,9 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         // Assert
         Assert.Equal(s_factoryGuid, row.Id);
-        Assert.False(entry.Property(value => value.Id).IsTemporary);
+        Assert.False(
+            entry.Property(value => value.Id)
+                .IsTemporary);
     }
 
     /// <summary>Explicit generation opt-outs remain disabled even when the schema has a default.</summary>
@@ -144,9 +174,15 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var entry = context.Add(row);
 
         // Assert
-        Assert.Equal(ValueGenerated.Never, entry.Property(value => value.Id).Metadata.ValueGenerated);
+        Assert.Equal(
+            ValueGenerated.Never,
+            entry.Property(value => value.Id)
+                .Metadata.ValueGenerated);
+
         Assert.Equal(Guid.Empty, row.Id);
-        Assert.False(entry.Property(value => value.Id).IsTemporary);
+        Assert.False(
+            entry.Property(value => value.Id)
+                .IsTemporary);
     }
 
     /// <summary>Defaults on required and nullable non-key GUIDs do not select an implicit client strategy.</summary>
@@ -159,11 +195,17 @@ public sealed partial class MySqlGuidStoreGenerationTests
     )
     {
         // Arrange
-        using var context = CreateStoreContext(nullable ? "nullable-default" : "required-default");
+        using var context = CreateStoreContext(
+            nullable
+                ? "nullable-default"
+                : "required-default");
 
         // Act
         var property = context.Model.FindEntityType(typeof(StoreRow))!
-            .FindProperty(nullable ? nameof(StoreRow.OptionalToken) : nameof(StoreRow.Token))!;
+            .FindProperty(
+                nullable
+                    ? nameof(StoreRow.OptionalToken)
+                    : nameof(StoreRow.Token))!;
 
         // Assert
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
@@ -181,11 +223,17 @@ public sealed partial class MySqlGuidStoreGenerationTests
     )
     {
         // Arrange
-        using var context = CreateStoreContext(nullable ? "nullable-computed" : "required-computed");
+        using var context = CreateStoreContext(
+            nullable
+                ? "nullable-computed"
+                : "required-computed");
 
         // Act
         var property = context.Model.FindEntityType(typeof(StoreRow))!
-            .FindProperty(nullable ? nameof(StoreRow.OptionalToken) : nameof(StoreRow.Token))!;
+            .FindProperty(
+                nullable
+                    ? nameof(StoreRow.OptionalToken)
+                    : nameof(StoreRow.Token))!;
 
         // Assert
         Assert.Equal(ValueGenerated.OnAddOrUpdate, property.ValueGenerated);
@@ -210,16 +258,26 @@ public sealed partial class MySqlGuidStoreGenerationTests
 
         // Act
         var entry = context.Add(row);
-        var property = entry.Property(value => value.Id).Metadata;
+        var property = entry.Property(value => value.Id)
+            .Metadata;
 
         // Assert
         Assert.Null(property.GetMySqlGuidFormat());
         Assert.Null(property.GetMySqlValueGenerationStrategy());
-        Assert.NotNull(property.GetTypeMapping().Converter);
+        Assert.NotNull(
+            property.GetTypeMapping()
+                .Converter);
+
         Assert.Equal(
-            configuration == "converted-text" ? typeof(string) : typeof(byte[]),
-            property.GetTypeMapping().Converter!.ProviderClrType);
-        Assert.True(entry.Property(value => value.Id).IsTemporary);
+            configuration == "converted-text"
+                ? typeof(string)
+                : typeof(byte[]),
+            property.GetTypeMapping()
+                .Converter!.ProviderClrType);
+
+        Assert.True(
+            entry.Property(value => value.Id)
+                .IsTemporary);
     }
 
     /// <summary>Complex scalar GUID defaults retain EF's relational generation facet.</summary>

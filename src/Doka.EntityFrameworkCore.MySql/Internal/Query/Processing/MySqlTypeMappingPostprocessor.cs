@@ -52,7 +52,7 @@ internal sealed class MySqlTypeMappingPostprocessor : RelationalTypeMappingPostp
     {
         if (expression is MySqlJsonTableExpression
             {
-                JsonExpression: SqlParameterExpression { TypeMapping: null, } parameter,
+                JsonExpression: SqlParameterExpression { TypeMapping: null } parameter,
             } jsonTable
             && TryGetInferredTypeMapping(jsonTable.Alias, "value", out var elementTypeMapping))
         {

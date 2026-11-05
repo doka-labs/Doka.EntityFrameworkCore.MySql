@@ -197,6 +197,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" TO ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.NewName))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -293,7 +294,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         ArgumentNullException.ThrowIfNull(operation);
 
-        return (operation.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?) == true;
+        return operation.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                ?.Value as bool?
+            == true;
     }
 
     private static bool IsFullTextIndex(
@@ -302,8 +305,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         ArgumentNullException.ThrowIfNull(operation);
 
-        return (operation.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
-                ?.Value as bool?)
+        return operation.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?
             == true;
     }
 
@@ -421,7 +424,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 $"The spatial index '{operation.Name}' cannot also be a full-text index.");
         }
 
-        if (GetIndexPrefixLengths(operation)?.Any(prefixLength => prefixLength > 0) == true)
+        if (GetIndexPrefixLengths(operation)
+                ?.Any(prefixLength => prefixLength > 0)
+            == true)
         {
             throw new InvalidOperationException(
                 $"The spatial index '{operation.Name}' cannot declare prefix lengths.");

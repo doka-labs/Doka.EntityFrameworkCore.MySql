@@ -22,7 +22,9 @@ public static class Program
                     args[2],
                     args[3],
                     args[4],
-                    args.Length == 6 ? args[5] : null,
+                    args.Length == 6
+                        ? args[5]
+                        : null,
                     PerformanceEvaluationPolicy.Current);
             }
 
@@ -49,7 +51,9 @@ public static class Program
                 summary.HasCriticalValidationErrors
                 || HasFailedBenchmarkReports(summary.Reports));
 
-            return failed ? InvalidEvidenceExitCode : 0;
+            return failed
+                ? InvalidEvidenceExitCode
+                : 0;
         }
         catch (Exception exception)
         {
@@ -85,5 +89,4 @@ public static class Program
         outputPath = Path.GetFullPath(args[1]);
         return true;
     }
-
 }

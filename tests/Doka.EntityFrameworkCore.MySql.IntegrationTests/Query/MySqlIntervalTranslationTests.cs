@@ -75,7 +75,8 @@ public sealed class MySqlIntervalTranslationTests
 
             var offsetDays = 1;
             var sql = context
-                .Items.Where(i => i.CreatedAt.AddDays(offsetDays) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddDays(offsetDays) > anchor)
                 .ToQueryString();
 
             Assert.Contains("DATE_ADD(", sql, StringComparison.Ordinal);
@@ -83,7 +84,8 @@ public sealed class MySqlIntervalTranslationTests
             Assert.Contains(" Day)", sql, StringComparison.OrdinalIgnoreCase);
 
             var matched = await context
-                .Items.Where(i => i.CreatedAt.AddDays(offsetDays) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddDays(offsetDays) > anchor)
                 .CountAsync(
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
@@ -110,7 +112,15 @@ public sealed class MySqlIntervalTranslationTests
 
         try
         {
-            var anchor = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            var anchor = new DateTime(
+                2026,
+                1,
+                1,
+                12,
+                0,
+                0,
+                DateTimeKind.Utc);
+
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddHours(-2) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddHours(2) });
             await context
@@ -120,7 +130,8 @@ public sealed class MySqlIntervalTranslationTests
 
             var offsetHours = 1;
             var sql = context
-                .Items.Where(i => i.CreatedAt.AddHours(offsetHours) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddHours(offsetHours) > anchor)
                 .ToQueryString();
 
             Assert.Contains("DATE_ADD(", sql, StringComparison.Ordinal);
@@ -128,7 +139,8 @@ public sealed class MySqlIntervalTranslationTests
             Assert.Contains(" Hour)", sql, StringComparison.OrdinalIgnoreCase);
 
             var matched = await context
-                .Items.Where(i => i.CreatedAt.AddHours(offsetHours) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddHours(offsetHours) > anchor)
                 .CountAsync(
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
@@ -155,7 +167,15 @@ public sealed class MySqlIntervalTranslationTests
 
         try
         {
-            var anchor = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            var anchor = new DateTime(
+                2026,
+                1,
+                1,
+                12,
+                0,
+                0,
+                DateTimeKind.Utc);
+
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(-5) });
             context.Items.Add(new IntervalItem { CreatedAt = anchor.AddDays(5) });
             await context
@@ -164,7 +184,8 @@ public sealed class MySqlIntervalTranslationTests
                 .ConfigureAwait(false);
 
             var sql = context
-                .Items.Where(i => i.CreatedAt.AddDays(1) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddDays(1) > anchor)
                 .ToQueryString();
 
             Assert.Contains("DATE_ADD(", sql, StringComparison.Ordinal);
@@ -172,7 +193,8 @@ public sealed class MySqlIntervalTranslationTests
             Assert.Contains(" Day)", sql, StringComparison.OrdinalIgnoreCase);
 
             var matched = await context
-                .Items.Where(i => i.CreatedAt.AddDays(1) > anchor)
+                .Items
+                .Where(i => i.CreatedAt.AddDays(1) > anchor)
                 .CountAsync(
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
@@ -211,6 +233,7 @@ public sealed class MySqlIntervalTranslationTests
             .OpenAsync(
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"CREATE TABLE `{TableName}` ("
@@ -218,6 +241,7 @@ public sealed class MySqlIntervalTranslationTests
             + "  `CreatedAt` DATETIME(6) NOT NULL,"
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
+
         await command
             .ExecuteNonQueryAsync(
                 cancellationToken: cancellationToken)
@@ -233,6 +257,7 @@ public sealed class MySqlIntervalTranslationTests
         await connection
             .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
         await command

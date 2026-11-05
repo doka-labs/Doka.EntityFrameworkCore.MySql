@@ -57,9 +57,9 @@ public sealed class MySqlScaffoldingClrTypeTests
         }
 
         foreach (var type in new[]
-        {
-            typeof(DateTimeOffset?), typeof(TimeSpan?), typeof(UnsupportedEnum?), typeof(UnsupportedValue?),
-        })
+            {
+                typeof(DateTimeOffset?), typeof(TimeSpan?), typeof(UnsupportedEnum?), typeof(UnsupportedValue?),
+            })
         {
             yield return [type, false];
             yield return [type, true];
@@ -71,7 +71,10 @@ public sealed class MySqlScaffoldingClrTypeTests
     /// <param name="expectedType">Its expected nullable counterpart.</param>
     [Theory]
     [MemberData(nameof(SupportedTypes))]
-    public void Nullable_scalar_uses_explicit_nullable_mapping(Type clrType, Type expectedType)
+    public void Nullable_scalar_uses_explicit_nullable_mapping(
+        Type clrType,
+        Type expectedType
+    )
     {
         // Arrange: The theory supplies the scalar and expected nullable type.
 
@@ -86,7 +89,9 @@ public sealed class MySqlScaffoldingClrTypeTests
     /// <param name="clrType">A supported or unsupported unwrapped value type.</param>
     [Theory]
     [MemberData(nameof(RequiredValueTypes))]
-    public void Required_value_type_is_unchanged(Type clrType)
+    public void Required_value_type_is_unchanged(
+        Type clrType
+    )
     {
         // Arrange: The theory supplies the required value type.
 
@@ -102,7 +107,10 @@ public sealed class MySqlScaffoldingClrTypeTests
     /// <param name="isNullable">The requested store-column nullability.</param>
     [Theory]
     [MemberData(nameof(AlreadyNullableTypes))]
-    public void Already_nullable_value_type_is_unchanged(Type clrType, bool isNullable)
+    public void Already_nullable_value_type_is_unchanged(
+        Type clrType,
+        bool isNullable
+    )
     {
         // Arrange: The theory supplies an existing wrapper and column nullability.
 
@@ -123,7 +131,10 @@ public sealed class MySqlScaffoldingClrTypeTests
     [InlineData(typeof(byte[]), true)]
     [InlineData(typeof(object), false)]
     [InlineData(typeof(object), true)]
-    public void Reference_type_is_unchanged(Type clrType, bool isNullable)
+    public void Reference_type_is_unchanged(
+        Type clrType,
+        bool isNullable
+    )
     {
         // Arrange: The theory supplies the reference type and column nullability.
 
@@ -138,7 +149,9 @@ public sealed class MySqlScaffoldingClrTypeTests
     /// <param name="clrType">An unwrapped type outside the supported scalar set.</param>
     [Theory]
     [MemberData(nameof(UnsupportedValueTypes))]
-    public void Unsupported_nullable_value_type_is_rejected(Type clrType)
+    public void Unsupported_nullable_value_type_is_rejected(
+        Type clrType
+    )
     {
         // Arrange: The theory supplies the unsupported value type.
 

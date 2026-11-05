@@ -44,7 +44,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.MultipleParameters(values).Contains(item.BinaryId))
+            .Where(item => EF
+                .MultipleParameters(values)
+                .Contains(item.BinaryId))
             .ToQueryString();
 
         // Assert
@@ -92,7 +94,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.Payload))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.Payload))
             .ToQueryString();
 
         // Assert

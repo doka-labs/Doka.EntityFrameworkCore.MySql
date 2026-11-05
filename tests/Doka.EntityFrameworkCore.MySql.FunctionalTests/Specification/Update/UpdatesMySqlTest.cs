@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 
 /// <summary>
 /// Updates specification subclass. Exercises the modification-command-batch pipeline end-to-end
-/// against the MySQL provider's <see cref="MySqlModificationCommandBatch"/> implementation: insert
+/// against the MySQL provider's <see cref="MySqlModificationCommandBatch" /> implementation: insert
 /// + update + delete shapes, store-generated keys, concurrency tokens, and multi-statement
 /// batching at the MySQL <c>max_allowed_packet</c> + 65535-placeholder cap.
 /// </summary>
@@ -15,9 +15,7 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
 {
     public UpdatesMySqlTest(
         UpdatesMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     public override void Identifiers_are_generated_correctly()
     {
@@ -33,13 +31,36 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
             ))!;
 
         AssertIdentifier(firstEntityType.GetTableName());
-        AssertIdentifier(firstEntityType.GetKeys().Single().GetName());
-        AssertIdentifier(firstEntityType.GetForeignKeys().Single().GetConstraintName());
-        AssertIdentifier(firstEntityType.GetIndexes().Single().GetDatabaseName());
+        AssertIdentifier(
+            firstEntityType
+                .GetKeys()
+                .Single()
+                .GetName());
+
+        AssertIdentifier(
+            firstEntityType
+                .GetForeignKeys()
+                .Single()
+                .GetConstraintName());
+
+        AssertIdentifier(
+            firstEntityType
+                .GetIndexes()
+                .Single()
+                .GetDatabaseName());
 
         AssertIdentifier(secondEntityType.GetTableName());
-        AssertIdentifier(secondEntityType.GetKeys().Single().GetName());
-        AssertIdentifier(secondEntityType.GetIndexes().Single().GetDatabaseName());
+        AssertIdentifier(
+            secondEntityType
+                .GetKeys()
+                .Single()
+                .GetName());
+
+        AssertIdentifier(
+            secondEntityType
+                .GetIndexes()
+                .Single()
+                .GetDatabaseName());
 
         Assert.NotEqual(firstEntityType.GetTableName(), secondEntityType.GetTableName());
 
@@ -91,23 +112,42 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
             // convention then materializes each concrete type as its own table because both
             // Product and ProductWithBytes carry a DbSet. Forcing TPH on the abstract base
             // mirrors the SqlServer spec-test schema (which emits INSERT INTO [ProductBase]).
-            modelBuilder.Entity<ProductBase>().UseTphMappingStrategy();
+            modelBuilder
+                .Entity<ProductBase>()
+                .UseTphMappingStrategy();
 
             modelBuilder
-                .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb =>
+                .Entity<
+                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb =>
                 {
-                    eb.Property(l => l.ProfileId1).HasMaxLength(64);
+                    eb
+                        .Property(l => l.ProfileId1)
+                        .HasMaxLength(64);
                 });
 
             modelBuilder
-                .Entity<LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>(eb =>
+                .Entity<
+                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>(eb =>
                 {
-                    eb.Property(l => l.ProfileId1).HasMaxLength(64);
+                    eb
+                        .Property(l => l.ProfileId1)
+                        .HasMaxLength(64);
                 });
 
-            modelBuilder.Entity<Profile>().Property(p => p.Id1).HasMaxLength(64);
-            modelBuilder.Entity<Product>().Property(p => p.Name).HasMaxLength(255);
-            modelBuilder.Entity<Rodney>().Property(r => r.Id).HasMaxLength(64);
+            modelBuilder
+                .Entity<Profile>()
+                .Property(p => p.Id1)
+                .HasMaxLength(64);
+
+            modelBuilder
+                .Entity<Product>()
+                .Property(p => p.Name)
+                .HasMaxLength(255);
+
+            modelBuilder
+                .Entity<Rodney>()
+                .Property(r => r.Id)
+                .HasMaxLength(64);
         }
     }
 }

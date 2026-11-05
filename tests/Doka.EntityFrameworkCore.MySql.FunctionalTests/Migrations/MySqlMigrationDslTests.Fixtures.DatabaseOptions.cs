@@ -36,7 +36,9 @@ public sealed partial class MySqlMigrationDslTests
             var entity = modelBuilder.Entity<DatabaseOptionEntity>();
             entity.ToTable("DatabaseOptionEntities");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.Name).HasMaxLength(64);
+            entity
+                .Property(item => item.Name)
+                .HasMaxLength(64);
 
             if (TableCollation is not null)
             {

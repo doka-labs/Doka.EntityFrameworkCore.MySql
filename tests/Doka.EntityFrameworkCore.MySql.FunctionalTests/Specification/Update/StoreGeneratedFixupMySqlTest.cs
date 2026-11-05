@@ -15,9 +15,9 @@ public sealed class StoreGeneratedFixupMySqlTest
 {
     public StoreGeneratedFixupMySqlTest(
         StoreGeneratedFixupMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
+
+    protected override bool EnforcesFKs => true;
 
     /// <summary>
     /// Verifies that a temporary key can be promoted to a permanent value without
@@ -25,26 +25,39 @@ public sealed class StoreGeneratedFixupMySqlTest
     /// </summary>
     [Fact]
     public Task Temp_values_can_be_made_permanent() =>
-        ExecuteWithStrategyInTransactionAsync(
-            async context =>
-            {
-                await context.Set<TestTemp>().ExecuteDeleteAsync();
+        ExecuteWithStrategyInTransactionAsync(async context =>
+        {
+            await context
+                .Set<TestTemp>()
+                .ExecuteDeleteAsync();
 
-                var entry = context.Add(new TestTemp());
+            var entry = context.Add(new TestTemp());
 
-                Assert.True(entry.Property(e => e.Id).IsTemporary);
-                Assert.False(entry.Property(e => e.NotId).IsTemporary);
+            Assert.True(
+                entry.Property(e => e.Id)
+                    .IsTemporary);
 
-                var temporaryValue = entry.Property(e => e.Id).CurrentValue;
-                entry.Property(e => e.Id).IsTemporary = false;
+            Assert.False(
+                entry.Property(e => e.NotId)
+                    .IsTemporary);
 
-                await context.SaveChangesAsync();
+            var temporaryValue = entry.Property(e => e.Id)
+                .CurrentValue;
 
-                Assert.False(entry.Property(e => e.Id).IsTemporary);
-                Assert.Equal(temporaryValue, entry.Property(e => e.Id).CurrentValue);
-            });
+            entry.Property(e => e.Id)
+                .IsTemporary = false;
 
-    protected override bool EnforcesFKs => true;
+            await context.SaveChangesAsync();
+
+            Assert.False(
+                entry.Property(e => e.Id)
+                    .IsTemporary);
+
+            Assert.Equal(
+                temporaryValue,
+                entry.Property(e => e.Id)
+                    .CurrentValue);
+        });
 
     protected override void UseTransaction(
         DatabaseFacade facade,

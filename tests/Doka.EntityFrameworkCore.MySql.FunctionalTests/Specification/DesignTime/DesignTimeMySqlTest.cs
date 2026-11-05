@@ -13,9 +13,7 @@ public class DesignTimeMySqlTest : DesignTimeTestBase<DesignTimeMySqlTest.Design
 {
     public DesignTimeMySqlTest(
         DesignTimeMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override Assembly ProviderAssembly => typeof(MySqlDesignTimeServices).Assembly;
 

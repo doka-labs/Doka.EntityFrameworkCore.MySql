@@ -96,7 +96,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         List<MigrationOperation> operations
     )
     {
-        foreach (var transition in operations.OfType<AlterTableOperation>().ToArray())
+        foreach (var transition in operations
+            .OfType<AlterTableOperation>()
+            .ToArray())
         {
             if (!TryGetApplicationTimePeriodIdentity(transition, sourceContract: true, out var sourceIdentity)
                 || !TryGetApplicationTimePeriodIdentity(transition, sourceContract: false, out var targetIdentity)
@@ -124,7 +126,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
             operations.RemoveAt(transitionIndex);
             operations.Insert(transitionIndex, deactivation);
 
-            if (transition.GetAnnotations().Any()
+            if (transition
+                    .GetAnnotations()
+                    .Any()
                 || !string.Equals(transition.Comment, transition.OldTable.Comment, StringComparison.Ordinal))
             {
                 operations.Insert(++transitionIndex, transition);
@@ -175,14 +179,16 @@ internal sealed partial class MySqlMigrationsModelDiffer
     )
     {
         string[] annotationNames = sourceContract
-            ? [
+            ?
+            [
                 MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime,
                 MySqlAnnotationNames.ApplicationTimeSourcePeriodName,
                 MySqlAnnotationNames.ApplicationTimeSourcePeriodStartColumn,
                 MySqlAnnotationNames.ApplicationTimeSourcePeriodEndColumn,
                 MySqlAnnotationNames.ApplicationTimeSourceWithoutOverlaps,
             ]
-            : [
+            :
+            [
                 MySqlAnnotationNames.IsApplicationTime,
                 MySqlAnnotationNames.ApplicationTimePeriodName,
                 MySqlAnnotationNames.ApplicationTimePeriodStartColumn,
@@ -206,7 +212,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         List<MigrationOperation> operations
     )
     {
-        foreach (var transition in operations.OfType<AlterTableOperation>().ToArray())
+        foreach (var transition in operations
+            .OfType<AlterTableOperation>()
+            .ToArray())
         {
             var sourceIsApplicationTime = transition
                 .FindAnnotation(MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime)
@@ -356,7 +364,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
                 ApplyApplicationTimeContract(operation, alterTable.OldTable, sourceContract: true);
             }
             else if (sourceName is not null
-                     && source is not null)
+                && source is not null)
             {
                 ApplyApplicationTimeContract(
                     operation,
@@ -377,7 +385,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
             {
                 ApplyApplicationTimeContract(
                     primaryKey,
-                    targetName is null ? null : target?.FindTable(targetName, targetSchema),
+                    targetName is null
+                        ? null
+                        : target?.FindTable(targetName, targetSchema),
                     sourceContract: false);
             }
         }
@@ -400,7 +410,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
         }
 
         if (table?.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
-                ?.Value is not true)
+            ?.Value is not true)
         {
             return;
         }

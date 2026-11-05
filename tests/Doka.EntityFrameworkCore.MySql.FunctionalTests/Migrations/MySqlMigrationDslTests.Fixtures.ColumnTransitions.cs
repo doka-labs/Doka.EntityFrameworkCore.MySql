@@ -2,6 +2,68 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationDslTests
 {
+    private static AlterColumnOperation CreateJsonAlterColumn(
+        Type clrType,
+        bool? isUnicode,
+        int? maxLength
+    ) => new()
+    {
+        Name = "Name",
+        Table = "Entity",
+        ClrType = clrType,
+        ColumnType = "json",
+        IsUnicode = isUnicode,
+        MaxLength = maxLength,
+        IsNullable = true,
+        OldColumn = new AddColumnOperation
+        {
+            Name = "Name",
+            Table = "Entity",
+            ClrType = typeof(string),
+            ColumnType = "longtext",
+            IsUnicode = true,
+            IsNullable = true,
+        },
+    };
+
+    private static AlterColumnOperation CreateRequiredJsonAlterColumn(
+        Type clrType,
+        string defaultValueSql
+    )
+    {
+        var operation = CreateJsonAlterColumn(clrType, isUnicode: null, maxLength: null);
+        operation.IsNullable = false;
+        operation.DefaultValueSql = defaultValueSql;
+        operation.OldColumn.IsNullable = true;
+
+        return operation;
+    }
+
+    private static void ConfigurePeople(
+        ModelBuilder modelBuilder,
+        string tableName,
+        bool hasKey,
+        string propertyName
+    )
+    {
+        modelBuilder.Entity(
+            "Person",
+            entity =>
+            {
+                entity.ToTable(tableName);
+                entity.Property<int>(propertyName);
+
+                if (hasKey)
+                {
+                    entity.HasKey(propertyName);
+                }
+                else
+                {
+                    entity.HasNoKey();
+                }
+            });
+    }
+
     private sealed class KeylessPeopleContext : DbContext
     {
         /// <summary>
@@ -83,43 +145,6 @@ public sealed partial class MySqlMigrationDslTests
         ) => ConfigurePeople(modelBuilder, "People", hasKey: false, propertyName: "ReplacementField");
     }
 
-    private static AlterColumnOperation CreateJsonAlterColumn(
-        Type clrType,
-        bool? isUnicode,
-        int? maxLength
-    ) => new()
-    {
-        Name = "Name",
-        Table = "Entity",
-        ClrType = clrType,
-        ColumnType = "json",
-        IsUnicode = isUnicode,
-        MaxLength = maxLength,
-        IsNullable = true,
-        OldColumn = new AddColumnOperation
-        {
-            Name = "Name",
-            Table = "Entity",
-            ClrType = typeof(string),
-            ColumnType = "longtext",
-            IsUnicode = true,
-            IsNullable = true,
-        },
-    };
-
-    private static AlterColumnOperation CreateRequiredJsonAlterColumn(
-        Type clrType,
-        string defaultValueSql
-    )
-    {
-        var operation = CreateJsonAlterColumn(clrType, isUnicode: null, maxLength: null);
-        operation.IsNullable = false;
-        operation.DefaultValueSql = defaultValueSql;
-        operation.OldColumn.IsNullable = true;
-
-        return operation;
-    }
-
     private sealed class FixedMigrationsModelDiffer : IMigrationsModelDiffer
     {
         private readonly MigrationOperation[] _operations;
@@ -145,30 +170,5 @@ public sealed partial class MySqlMigrationDslTests
             IRelationalModel? source,
             IRelationalModel? target
         ) => _operations;
-    }
-
-    private static void ConfigurePeople(
-        ModelBuilder modelBuilder,
-        string tableName,
-        bool hasKey,
-        string propertyName
-    )
-    {
-        modelBuilder.Entity(
-            "Person",
-            entity =>
-            {
-                entity.ToTable(tableName);
-                entity.Property<int>(propertyName);
-
-                if (hasKey)
-                {
-                    entity.HasKey(propertyName);
-                }
-                else
-                {
-                    entity.HasNoKey();
-                }
-            });
     }
 }

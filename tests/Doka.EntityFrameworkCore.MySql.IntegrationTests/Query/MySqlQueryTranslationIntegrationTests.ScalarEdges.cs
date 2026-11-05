@@ -188,9 +188,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 Assert.Equal(
                     source.UnsignedLongValue << source.ShiftCount,
                     result.UnsignedLongLeftShift);
+
                 Assert.Equal(
                     source.UnsignedLongValue >> source.ShiftCount,
                     result.UnsignedLongRightShift);
+
                 Assert.Equal(~source.SignedValue, result.Complement);
                 Assert.Equal(token.ToString(), result.Token);
             }

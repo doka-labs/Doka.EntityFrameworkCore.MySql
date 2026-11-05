@@ -6,12 +6,12 @@ namespace Doka.Caching.MySql;
 public sealed class MySqlCacheOptions
 {
     /// <summary>
-    /// Gets or sets the MySQL connection string used by the cache when <see cref="DataSource"/> is not supplied.
+    /// Gets or sets the MySQL connection string used by the cache when <see cref="DataSource" /> is not supplied.
     /// </summary>
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a caller-owned MySQL data source used instead of <see cref="ConnectionString"/>.
+    /// Gets or sets a caller-owned MySQL data source used instead of <see cref="ConnectionString" />.
     /// The data source must disable automatic ambient transaction enlistment with <c>AutoEnlist=false</c>.
     /// The caller must keep it alive until the cache is disposed; the cache never disposes a supplied data source.
     /// </summary>

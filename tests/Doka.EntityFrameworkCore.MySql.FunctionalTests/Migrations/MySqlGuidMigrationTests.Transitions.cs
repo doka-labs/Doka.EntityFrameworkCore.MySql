@@ -19,16 +19,32 @@ public sealed partial class MySqlGuidMigrationTests
         using var native = new NativeChar36GuidContext(CreateOptions<NativeChar36GuidContext>());
 
         // Act
-        var result = ProbeTransition(nativeIsSource ? native : converted, nativeIsSource ? converted : native);
+        var result = ProbeTransition(
+            nativeIsSource
+                ? native
+                : converted,
+            nativeIsSource
+                ? converted
+                : native);
 
         // Assert
         AssertTransition(
             result,
-            nativeIsSource ? "char(36)" : "varchar(36)",
-            nativeIsSource ? "varchar(36)" : "char(36)",
-            nativeIsSource ? typeof(Guid) : typeof(string),
-            nativeIsSource ? typeof(string) : typeof(Guid),
-            nativeIsSource ? "AlterColumn<string>" : "AlterColumn<Guid>");
+            nativeIsSource
+                ? "char(36)"
+                : "varchar(36)",
+            nativeIsSource
+                ? "varchar(36)"
+                : "char(36)",
+            nativeIsSource
+                ? typeof(Guid)
+                : typeof(string),
+            nativeIsSource
+                ? typeof(string)
+                : typeof(Guid),
+            nativeIsSource
+                ? "AlterColumn<string>"
+                : "AlterColumn<Guid>");
     }
 
     /// <summary>
@@ -48,8 +64,12 @@ public sealed partial class MySqlGuidMigrationTests
 
         // Act
         var result = ProbeTransition(
-            nativeIsSource ? binary : converted,
-            nativeIsSource ? converted : binary);
+            nativeIsSource
+                ? binary
+                : converted,
+            nativeIsSource
+                ? converted
+                : binary);
 
         // Assert
         AssertApplicationNativeBinaryTransitionRejected(result);
@@ -73,8 +93,12 @@ public sealed partial class MySqlGuidMigrationTests
 
         // Act
         var result = ProbeTransition(
-            nativeIsSource ? binary : converted,
-            nativeIsSource ? converted : binary);
+            nativeIsSource
+                ? binary
+                : converted,
+            nativeIsSource
+                ? converted
+                : binary);
 
         // Assert
         AssertApplicationNativeBinaryTransitionRejected(result);
@@ -98,17 +122,28 @@ public sealed partial class MySqlGuidMigrationTests
     {
         // Arrange
         using var context = new NativeBinary16GuidContext(CreateOptions<NativeBinary16GuidContext>());
-        var applicationClrType = applicationStoreType == "binary(16)" ? typeof(byte[]) : typeof(string);
+        var applicationClrType = applicationStoreType == "binary(16)"
+            ? typeof(byte[])
+            : typeof(string);
+
         var operation = new AlterColumnOperation
         {
             Table = "Records",
             Name = "Id",
-            ClrType = nativeIsSource ? applicationClrType : typeof(Guid),
-            ColumnType = nativeIsSource ? applicationStoreType : "uuid",
+            ClrType = nativeIsSource
+                ? applicationClrType
+                : typeof(Guid),
+            ColumnType = nativeIsSource
+                ? applicationStoreType
+                : "uuid",
             OldColumn =
             {
-                ClrType = nativeIsSource ? typeof(Guid) : applicationClrType,
-                ColumnType = nativeIsSource ? "uuid" : applicationStoreType,
+                ClrType = nativeIsSource
+                    ? typeof(Guid)
+                    : applicationClrType,
+                ColumnType = nativeIsSource
+                    ? "uuid"
+                    : applicationStoreType,
             },
         };
 
@@ -126,7 +161,8 @@ public sealed partial class MySqlGuidMigrationTests
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => generator.Generate(
             [operation],
-            context.GetService<IDesignTimeModel>().Model));
+            context.GetService<IDesignTimeModel>()
+                .Model));
 
         // Assert
         Assert.Contains("explicit data migration", exception.Message, StringComparison.Ordinal);
@@ -157,7 +193,13 @@ public sealed partial class MySqlGuidMigrationTests
             CreateOptions<RequiredBackfillTargetContext>(guidFormat));
 
         // Act
-        var result = ProbeTransition(targetIsNullable ? required : nullable, targetIsNullable ? nullable : required);
+        var result = ProbeTransition(
+            targetIsNullable
+                ? required
+                : nullable,
+            targetIsNullable
+                ? nullable
+                : required);
 
         // Assert
         AssertNullabilityTransition(
@@ -274,8 +316,14 @@ public sealed partial class MySqlGuidMigrationTests
         var operations = target
             .GetService<IMigrationsModelDiffer>()
             .GetDifferences(
-                source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-                target.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+                source
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel(),
+                target
+                    .GetService<IDesignTimeModel>()
+                    .Model
+                    .GetRelationalModel());
 
         var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());
 

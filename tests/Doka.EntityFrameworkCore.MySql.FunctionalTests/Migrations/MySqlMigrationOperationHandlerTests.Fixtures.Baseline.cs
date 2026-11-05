@@ -192,6 +192,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
                 ColumnType = "int",
                 IsNullable = false,
             });
+
         operation.PrimaryKey = new AddPrimaryKeyOperation
         {
             Name = "PK_Entries",

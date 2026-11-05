@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Derives the database-scoped MySQL advisory lock name used by
-/// <see cref="MySqlHistoryRepository"/> for migration serialization. Database
+/// <see cref="MySqlHistoryRepository" /> for migration serialization. Database
 /// scoping ensures applications that share a MySQL server but use different
 /// schemas do not block each other during migrations.
 /// </summary>
@@ -24,7 +24,7 @@ internal static class MySqlAdvisoryLockNaming
 
     /// <summary>
     /// Derives the lock name from the given connection string. A
-    /// <see langword="null"/> or whitespace input yields the prefix alone so a
+    /// <see langword="null" /> or whitespace input yields the prefix alone so a
     /// missing database name surfaces as an obvious collision-prone marker
     /// rather than silently re-introducing the historical server-global name.
     /// </summary>

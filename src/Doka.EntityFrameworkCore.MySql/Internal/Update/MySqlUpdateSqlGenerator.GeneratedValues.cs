@@ -23,7 +23,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
             // LAST_INSERT_ID() retrieves AUTO_INCREMENT values, not arbitrary defaults.
             // Omitting an unknown key from EF's fallback predicate could select an unrelated row.
-            if (modification is { IsKey: true, IsRead: true, IsWrite: false, }
+            if (modification is { IsKey: true, IsRead: true, IsWrite: false }
                 && !IsIdentityColumn(modification)
                 && !TryGetLiteralGeneratedKeyValue(modification, out _))
             {
@@ -44,7 +44,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
     {
         value = null;
 
-        if (modification is not { IsKey: true, IsRead: true, IsWrite: false, Property: { } property, })
+        if (modification is not { IsKey: true, IsRead: true, IsWrite: false, Property: { } property })
         {
             return false;
         }
@@ -86,7 +86,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
         // WHY: Identifiers can contain escaped delimiters and non-ASCII characters.
         // Four bytes per estimated character bounds UTF-8 SQL independently of their spelling.
-        var sqlCharacters = 96 + (2L * command.TableName.Length);
+        var sqlCharacters = 96 + 2L * command.TableName.Length;
 
         var modifications = command.ColumnModifications;
         var modificationCount = modifications.Count;
@@ -100,7 +100,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
 
             if (modification.IsRead)
             {
-                sqlCharacters += 6 + (2L * modification.ColumnName.Length);
+                sqlCharacters += 6 + 2L * modification.ColumnName.Length;
             }
         }
 
@@ -115,7 +115,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
             var column = keyColumns[columnIndex];
 
             var key = FindStableKey(command, column)!;
-            sqlCharacters += 16 + (2L * column.Name.Length);
+            sqlCharacters += 16 + 2L * column.Name.Length;
 
             if (key.UseCurrentValueParameter)
             {
@@ -126,10 +126,10 @@ internal sealed partial class MySqlUpdateSqlGenerator
             var value = GetProviderKeyValue(key);
             var valueBytes = value switch
             {
-                string text => (2L * Encoding.UTF8.GetByteCount(text)) + 2,
-                byte[] bytes => (2L * bytes.Length) + 3,
-                ReadOnlyMemory<byte> bytes => (2L * bytes.Length) + 3,
-                Memory<byte> bytes => (2L * bytes.Length) + 3,
+                string text => 2L * Encoding.UTF8.GetByteCount(text) + 2,
+                byte[] bytes => 2L * bytes.Length + 3,
+                ReadOnlyMemory<byte> bytes => 2L * bytes.Length + 3,
+                Memory<byte> bytes => 2L * bytes.Length + 3,
                 _ => 256L,
             };
 
@@ -181,7 +181,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
     {
         table = null;
 
-        if (command is not { EntityState: EntityState.Added, Table: { } physicalTable, StoreStoredProcedure: null, }
+        if (command is not { EntityState: EntityState.Added, Table: { } physicalTable, StoreStoredProcedure: null }
             || command.TableName != physicalTable.Name
             || command.Schema != physicalTable.Schema
             || !HasReadOperations(command.ColumnModifications))
@@ -241,14 +241,18 @@ internal sealed partial class MySqlUpdateSqlGenerator
     )
     {
         var primaryKey = table.PrimaryKey;
-        var eligible = primaryKey is { Columns.Count: > 0, }
+        var eligible = primaryKey is { Columns.Count: > 0 }
             && !table.Triggers.Any()
             && MySqlTemporalMetadata.FindTableMetadata(table) is null
-            && HasTransactionalEngine(table.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value);
+            && HasTransactionalEngine(
+                table.FindAnnotation(MySqlAnnotationNames.StorageEngine)
+                    ?.Value);
 
         foreach (var mapping in table.EntityTypeMappings)
         {
-            eligible &= HasTransactionalEngine(mapping.TypeBase.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value);
+            eligible &= HasTransactionalEngine(
+                mapping.TypeBase.FindAnnotation(MySqlAnnotationNames.StorageEngine)
+                    ?.Value);
         }
 
         // WHY: A trigger can permute an otherwise complete set of known keys. Neither
@@ -320,7 +324,8 @@ internal sealed partial class MySqlUpdateSqlGenerator
         IColumnModification modification
     )
     {
-        if (column.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)?.Value is not MySqlValueGenerationStrategy.AutoIncrement)
+        if (column.FindAnnotation(MySqlAnnotationNames.ValueGenerationStrategy)
+                ?.Value is not MySqlValueGenerationStrategy.AutoIncrement)
         {
             return false;
         }
@@ -355,7 +360,7 @@ internal sealed partial class MySqlUpdateSqlGenerator
             }
 
             while (actualIndex < actual.Count
-                   && !IsOperation(actual[actualIndex], kind))
+                && !IsOperation(actual[actualIndex], kind))
             {
                 actualIndex++;
             }
@@ -430,10 +435,12 @@ internal sealed partial class MySqlUpdateSqlGenerator
                 .Append(ordinal.ToString(CultureInfo.InvariantCulture))
                 .AppendLine()
                 .Append("FROM ");
+
             SqlGenerationHelper.DelimitIdentifier(builder, commands[ordinal].TableName, commands[ordinal].Schema);
             builder
                 .AppendLine()
                 .Append("WHERE ");
+
             AppendRowsAffectedWhereCondition(builder, commands.Count);
 
             var keyColumns = commands[ordinal].Table!.PrimaryKey!.Columns;

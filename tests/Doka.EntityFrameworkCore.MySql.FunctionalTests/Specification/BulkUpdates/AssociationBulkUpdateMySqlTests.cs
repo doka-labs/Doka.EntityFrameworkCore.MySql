@@ -20,9 +20,7 @@ public sealed class ComplexJsonBulkUpdateMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 }
 
 /// <summary>
@@ -50,9 +48,7 @@ public sealed class ComplexTableSplittingBulkUpdateMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 }
 
 /// <summary>
@@ -80,9 +76,7 @@ public sealed class OwnedJsonBulkUpdateMySqlTest
         ITestOutputHelper testOutputHelper
     ) : base(
         fixture,
-        testOutputHelper)
-    {
-    }
+        testOutputHelper) { }
 }
 
 /// <summary>

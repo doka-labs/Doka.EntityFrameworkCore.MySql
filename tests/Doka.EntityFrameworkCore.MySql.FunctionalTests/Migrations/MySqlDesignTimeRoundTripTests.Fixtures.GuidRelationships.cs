@@ -21,11 +21,12 @@ public sealed class MariaDbUuidDesignContext : DbContext
         {
             entity.ToTable("MariaDbUuidDesignRecords");
             entity.HasKey(record => record.Id);
-            entity.HasData(new MariaDbUuidDesignRecord
-            {
-                Id = new Guid("bf1da273-beed-4197-ab57-4cf8395244d4"),
-                OptionalId = null,
-            });
+            entity.HasData(
+                new MariaDbUuidDesignRecord
+                {
+                    Id = new Guid("bf1da273-beed-4197-ab57-4cf8395244d4"),
+                    OptionalId = null,
+                });
         });
     }
 }
@@ -80,6 +81,7 @@ public sealed class Char36DesignContext : DbContext
             entity
                 .Property(revision => revision.DocumentId)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
             entity
                 .HasOne(revision => revision.Document)
                 .WithMany(document => document.Revisions)
@@ -170,6 +172,7 @@ public sealed class DefaultChar36RelationshipDesignContext : DbContext
                 .HasOne(item => item.Left)
                 .WithMany()
                 .HasForeignKey(item => item.ReferenceId);
+
             entity
                 .HasOne(item => item.Right)
                 .WithMany()
@@ -183,6 +186,7 @@ public sealed class DefaultChar36RelationshipDesignContext : DbContext
                 .HasOne(item => item.Left)
                 .WithMany()
                 .HasForeignKey(item => item.OptionalReferenceId);
+
             entity
                 .HasOne(item => item.Right)
                 .WithMany()
@@ -310,6 +314,7 @@ public sealed class MixedGuidDesignContext : DbContext
             entity
                 .Property(record => record.BinaryReference)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
             entity
                 .HasIndex(record => new
                 {

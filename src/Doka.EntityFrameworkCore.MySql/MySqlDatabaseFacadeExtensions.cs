@@ -10,9 +10,9 @@ public static class MySqlDatabaseFacadeExtensions
     /// </summary>
     /// <param name="database">The database facade of a context configured with the Doka MySQL provider.</param>
     /// <returns>
-    /// <see langword="true"/> for a configured MariaDB target; <see langword="false"/> for a configured MySQL target.
+    /// <see langword="true" /> for a configured MariaDB target; <see langword="false" /> for a configured MySQL target.
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="database"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="database" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     /// The context does not configure the Doka MySQL provider or has no configured server version.
     /// </exception>

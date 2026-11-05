@@ -22,28 +22,35 @@ public sealed partial class MySqlTypeMappingBaselineTests
                 entity
                     .Property(item => item.BoundedText)
                     .HasMaxLength(32);
+
                 entity
                     .Property(item => item.FixedText)
                     .IsFixedLength()
                     .HasMaxLength(8);
+
                 entity
                     .Property(item => item.BoundedBinary)
                     .HasMaxLength(64);
+
                 entity
                     .Property(item => item.StringBackedStatus)
                     .HasConversion<string>()
                     .HasMaxLength(24);
+
                 entity
                     .Property(item => item.ExplicitAmount)
                     .HasPrecision(18, 2);
+
                 entity
                     .Property(item => item.AnsiHintText)
                     .HasMaxLength(20)
                     .IsUnicode(false);
+
                 entity
                     .Property(item => item.CollatedText)
                     .HasMaxLength(40)
                     .UseCollation("utf8mb4_0900_as_cs");
+
                 entity
                     .Property(item => item.ObservedAt)
                     .HasColumnType("timestamp(3)");
@@ -128,9 +135,11 @@ public sealed partial class MySqlTypeMappingBaselineTests
                 entity
                     .PrimitiveCollection(item => item.DateTimes)
                     .ElementType(element => element.HasPrecision(12));
+
                 entity
                     .PrimitiveCollection(item => item.Times)
                     .ElementType(element => element.HasPrecision(12));
+
                 entity
                     .PrimitiveCollection(item => item.Durations)
                     .ElementType(element => element.HasPrecision(12));
@@ -240,12 +249,20 @@ public sealed partial class MySqlTypeMappingBaselineTests
 
                 entity
                     .Property(item => item.IsActiveText)
-                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasConversion(
+                        v => v
+                            ? "Y"
+                            : "N",
+                        v => v == "Y")
                     .HasMaxLength(1);
 
                 entity
                     .Property(item => item.ExplicitText)
-                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasConversion(
+                        v => v
+                            ? "Y"
+                            : "N",
+                        v => v == "Y")
                     .HasMaxLength(1)
                     .HasColumnType("longtext");
 
@@ -268,7 +285,13 @@ public sealed partial class MySqlTypeMappingBaselineTests
 
                 entity
                     .Property(item => item.Website)
-                    .HasConversion(v => v == null ? null : v.AbsoluteUri, v => v == null ? null : new Uri(v))
+                    .HasConversion(
+                        v => v == null
+                            ? null
+                            : v.AbsoluteUri,
+                        v => v == null
+                            ? null
+                            : new Uri(v))
                     .HasMaxLength(2048);
 
                 entity

@@ -54,6 +54,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                     "json_constraint_table",
                     "Payload",
                     "json_valid(`Payload`)");
+
                 table.Rows.Add(
                     "json_constraint_table",
                     "CK_JsonConstraintTable_Payload",

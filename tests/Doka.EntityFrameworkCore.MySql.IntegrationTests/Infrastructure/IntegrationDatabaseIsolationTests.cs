@@ -14,6 +14,7 @@ public sealed class IntegrationDatabaseIsolationTests
         var firstConnectionString = IntegrationTestEnvironment.GetConnectionString(
             IntegrationDatabaseTarget.MySql84,
             "/tests/first/IsolationTests.cs");
+
         var secondConnectionString = IntegrationTestEnvironment.GetConnectionString(
             IntegrationDatabaseTarget.MySql84,
             "/tests/second/IsolationTests.cs");
@@ -26,6 +27,7 @@ public sealed class IntegrationDatabaseIsolationTests
             firstConnection,
             "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);",
             CancellationToken.None);
+
         await ExecuteAsync(
             secondConnection,
             "CREATE TABLE `ParallelIsolation` (`Value` int NOT NULL);",
@@ -36,6 +38,7 @@ public sealed class IntegrationDatabaseIsolationTests
             firstConnection,
             "INSERT INTO `ParallelIsolation` (`Value`) VALUES (1);",
             CancellationToken.None);
+
         await ExecuteAsync(
             secondConnection,
             "INSERT INTO `ParallelIsolation` (`Value`) VALUES (2);",
@@ -48,6 +51,7 @@ public sealed class IntegrationDatabaseIsolationTests
         Assert.NotEqual(
             new MySqlConnectionStringBuilder(firstConnectionString).Database,
             new MySqlConnectionStringBuilder(secondConnectionString).Database);
+
         Assert.Equal(1, firstValue);
         Assert.Equal(2, secondValue);
     }
@@ -63,6 +67,7 @@ public sealed class IntegrationDatabaseIsolationTests
         var firstConnectionString = IntegrationTestEnvironment.GetConnectionString(
             IntegrationDatabaseTarget.MySql84,
             ownerFilePath);
+
         var secondConnectionString = IntegrationTestEnvironment.GetConnectionString(
             IntegrationDatabaseTarget.MySql84,
             ownerFilePath);

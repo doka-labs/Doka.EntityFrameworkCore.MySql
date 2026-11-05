@@ -134,6 +134,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
                     options.UseParameterizedCollectionMode(ParameterTranslationMode.Parameter);
                 }
             });
+
         await using var context = new CollectionDefaultContext(builder.Options);
         await DropTablesAsync(context, cancellationToken);
 
@@ -146,6 +147,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken);
+
             context.Approvals.AddRange(
                 new CollectionApproval
                 {
@@ -170,13 +172,15 @@ public sealed class MySqlCollectionDefaultIntegrationTests
                     RequestId = unrelatedRequestId,
                     Responses = [new CollectionResponse { Id = 4 }],
                 });
+
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             var requestIds = new[] { includedRequestId, deletedRequestId };
 
             // Act
-            var query = context.Approvals
+            var query = context
+                .Approvals
                 .AsNoTracking()
                 .Where(approval => !approval.IsDeleted)
                 .Where(approval => requestIds.Contains(approval.RequestId))
@@ -203,7 +207,12 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             }
 
             Assert.Single(responses);
-            Assert.Equal([1, 2], responses[includedRequestId].Select(response => response.Id).Order());
+            Assert.Equal(
+                [1, 2],
+                responses[includedRequestId]
+                    .Select(response => response.Id)
+                    .Order());
+
             Assert.False(responses.ContainsKey(deletedRequestId));
             Assert.False(responses.ContainsKey(unrelatedRequestId));
         }
@@ -223,6 +232,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{ResponseTableName}`",
             cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{ApprovalTableName}`",
             cancellationToken);
@@ -242,7 +252,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             {
                 approval.ToTable(ApprovalTableName);
                 approval.HasKey(row => row.Id);
-                approval.HasMany(row => row.Responses)
+                approval
+                    .HasMany(row => row.Responses)
                     .WithOne()
                     .HasForeignKey(response => response.ApprovalId);
             });

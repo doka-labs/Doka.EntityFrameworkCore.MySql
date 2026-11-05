@@ -1,3 +1,6 @@
+using System.Transactions;
+using IsolationLevel = System.Data.IsolationLevel;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlRelationalConnection : RelationalConnection
@@ -33,6 +36,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                     dependencies.ContextOptions,
                     exception.Reason,
                     "ConnectionString");
+
                 throw;
             }
         }
@@ -42,7 +46,9 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
 
     public override string? ConnectionString
     {
-        get => _connectionStringOverridden ? _runtimeConnectionString : base.ConnectionString;
+        get => _connectionStringOverridden
+            ? _runtimeConnectionString
+            : base.ConnectionString;
         set
         {
             if (_activeConnectionPathIsBorrowed)
@@ -50,7 +56,9 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                 _optionsExtension.LogInvalidConfiguration(
                     Dependencies.ContextOptions,
                     MySqlConfigurationFailureReason.BorrowedConnectionStringMutation,
-                    _optionsExtension.DataSource is null ? nameof(DbConnection) : nameof(MySqlDataSource));
+                    _optionsExtension.DataSource is null
+                        ? nameof(DbConnection)
+                        : nameof(MySqlDataSource));
 
                 throw new InvalidOperationException(
                     "Database.SetConnectionString cannot replace caller-owned MySQL connection configuration.");
@@ -70,6 +78,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                         Dependencies.ContextOptions,
                         exception.Reason,
                         "ConnectionString");
+
                     throw;
                 }
             }
@@ -120,6 +129,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
                     Dependencies.ContextOptions,
                     exception.Reason,
                     nameof(DbConnection));
+
                 throw;
             }
         }
@@ -169,6 +179,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         }
 
         return _optionsExtension.Connection is not null
+
             // A provider cannot manufacture an equivalent arbitrary
             // DbConnection. Borrow the configured object so its custom TLS,
             // authentication, interception, and command behavior remain active.
@@ -189,7 +200,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         cancellationToken);
 
     public override void EnlistTransaction(
-        System.Transactions.Transaction? transaction
+        Transaction? transaction
     )
     {
         if (transaction is not null)
@@ -231,5 +242,7 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
     // state report the isolation level that the driver actually sends.
     private static IsolationLevel NormalizeIsolationLevel(
         IsolationLevel isolationLevel
-    ) => isolationLevel == IsolationLevel.Unspecified ? IsolationLevel.RepeatableRead : isolationLevel;
+    ) => isolationLevel == IsolationLevel.Unspecified
+        ? IsolationLevel.RepeatableRead
+        : isolationLevel;
 }

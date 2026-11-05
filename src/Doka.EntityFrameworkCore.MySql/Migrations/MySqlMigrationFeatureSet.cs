@@ -28,7 +28,7 @@ public sealed class MySqlMigrationFeatureSet
     /// <param name="feature">The feature to inspect.</param>
     /// <returns>The support route for the configured server profile.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="feature"/> is not a defined value.
+    /// <paramref name="feature" /> is not a defined value.
     /// </exception>
     public MySqlMigrationFeatureSupport GetSupport(
         MySqlMigrationFeature feature

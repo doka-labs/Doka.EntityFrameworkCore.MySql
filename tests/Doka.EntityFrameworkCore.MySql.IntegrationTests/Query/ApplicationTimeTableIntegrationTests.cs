@@ -59,6 +59,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 connection,
                 GetDifferences(emptyContext, bitemporalContext),
                 cancellationToken);
+
             await AssertPhysicalContractAsync(connection, target, cancellationToken);
             AssertScaffoldingContract(connectionString);
             await AssertPortionMutationContractAsync(target, cancellationToken);
@@ -101,9 +102,12 @@ public sealed class ApplicationTimeTableIntegrationTests
                 """,
                 cancellationToken,
                 ("@tableName", TableName)));
+
         if (!IntegrationTestEnvironment
-                .GetServerVersion(target)
-                .Profile.Engine.Has(EngineCapability.TemporalPeriodCatalog))
+            .GetServerVersion(target)
+            .Profile
+            .Engine
+            .Has(EngineCapability.TemporalPeriodCatalog))
         {
             var createTableSql = await ReadCreateTableAsync(connection, cancellationToken);
 
@@ -112,6 +116,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 + $"(`{ApplicationPeriodStartColumnName}`, `{ApplicationPeriodEndColumnName}`)",
                 createTableSql,
                 StringComparison.Ordinal);
+
             Assert.Contains(
                 $"`{ApplicationPeriodName}` WITHOUT OVERLAPS",
                 createTableSql,
@@ -138,6 +143,7 @@ public sealed class ApplicationTimeTableIntegrationTests
                 ("@periodName", ApplicationPeriodName),
                 ("@periodStart", ApplicationPeriodStartColumnName),
                 ("@periodEnd", ApplicationPeriodEndColumnName)));
+
         Assert.Equal(
             1,
             await CountAsync(
@@ -175,21 +181,26 @@ public sealed class ApplicationTimeTableIntegrationTests
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value as bool?);
+
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
                 ?.Value as bool?);
+
         Assert.Equal(
             ApplicationPeriodName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
                 ?.Value);
+
         Assert.Equal(
             ApplicationPeriodStartColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodStartColumn)
                 ?.Value);
+
         Assert.Equal(
             ApplicationPeriodEndColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodEndColumn)
                 ?.Value);
+
         Assert.True(
             sourceTable.PrimaryKey?.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
                 ?.Value as bool?);
@@ -212,6 +223,7 @@ public sealed class ApplicationTimeTableIntegrationTests
         Assert.Contains(
             $".HasPeriodStart(\"{ApplicationPeriodStartColumnName}\")",
             contextCode);
+
         Assert.Contains($".HasPeriodEnd(\"{ApplicationPeriodEndColumnName}\")", contextCode);
         Assert.Contains($".HasColumnName(\"{ApplicationPeriodStartColumnName}\")", contextCode);
         Assert.Contains($".HasColumnName(\"{ApplicationPeriodEndColumnName}\")", contextCode);
@@ -235,13 +247,15 @@ public sealed class ApplicationTimeTableIntegrationTests
                     BusinessValidFrom = s_initialFrom,
                     BusinessValidTo = s_initialTo,
                 });
+
             await seedContext.SaveChangesAsync(cancellationToken: cancellationToken);
         }
 
         await using (var updateContext = CreateBitemporalContext(target))
         {
             _ = await updateContext
-                .Items.ForPortionOf(s_updateFrom, s_updateTo)
+                .Items
+                .ForPortionOf(s_updateFrom, s_updateTo)
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(item => item.Name, "updated"),
                     cancellationToken: cancellationToken);
@@ -257,7 +271,8 @@ public sealed class ApplicationTimeTableIntegrationTests
         await using (var deleteContext = CreateBitemporalContext(target))
         {
             _ = await deleteContext
-                .Items.ForPortionOf(s_deleteFrom, s_deleteTo)
+                .Items
+                .ForPortionOf(s_deleteFrom, s_deleteTo)
                 .ExecuteDeleteAsync(cancellationToken: cancellationToken);
         }
 
@@ -286,7 +301,8 @@ public sealed class ApplicationTimeTableIntegrationTests
 
         // Act
         var actualRows = await context
-            .Items.AsNoTracking()
+            .Items
+            .AsNoTracking()
             .OrderBy(item => item.BusinessValidFrom)
             .Select(item => new ExpectedRow(item.Name, item.BusinessValidFrom, item.BusinessValidTo))
             .ToListAsync(cancellationToken: cancellationToken);
@@ -323,11 +339,13 @@ public sealed class ApplicationTimeTableIntegrationTests
     {
         var sourceModel = source
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         var targetModel = target
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         return target
             .GetService<IMigrationsModelDiffer>()
@@ -338,7 +356,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<BitemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<BitemporalContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -350,7 +370,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<EmptyApplicationTimeContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<EmptyApplicationTimeContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -480,13 +502,16 @@ public sealed class ApplicationTimeTableIntegrationTests
                         applicationTime
                             .HasPeriodStart(item => item.BusinessValidFrom)
                             .HasColumnName(ApplicationPeriodStartColumnName);
+
                         applicationTime
                             .HasPeriodEnd(item => item.BusinessValidTo)
                             .HasColumnName(ApplicationPeriodEndColumnName);
                     }));
+
             entity
                 .HasKey(item => item.Id)
                 .UseWithoutOverlaps();
+
             entity
                 .Property(item => item.Name)
                 .HasMaxLength(64);

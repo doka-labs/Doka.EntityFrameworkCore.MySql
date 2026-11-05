@@ -77,7 +77,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Act
         if (useAsync)
         {
-            await cache.RefreshAsync("absolute", CancellationToken.None).ConfigureAwait(false);
+            await cache
+                .RefreshAsync("absolute", CancellationToken.None)
+                .ConfigureAwait(false);
         }
         else
         {
@@ -239,11 +241,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Act
         if (useTryGet)
         {
-            found = await cache.TryGetAsync("capped", buffer, CancellationToken.None).ConfigureAwait(false);
+            found = await cache
+                .TryGetAsync("capped", buffer, CancellationToken.None)
+                .ConfigureAwait(false);
         }
         else
         {
-            await cache.RefreshAsync("capped", CancellationToken.None).ConfigureAwait(false);
+            await cache
+                .RefreshAsync("capped", CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         // Assert
@@ -275,7 +281,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-get-async" : "expired-get-sync";
+        var key = useAsync
+            ? "expired-get-async"
+            : "expired-get-sync";
+
         await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -284,6 +293,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             ? await cache
                 .GetAsync(key, CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies expired reads through synchronous Get.
             // ReSharper disable once MethodHasAsyncOverload
             : cache.Get(key);
@@ -306,7 +316,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-buffer-async" : "expired-buffer-sync";
+        var key = useAsync
+            ? "expired-buffer-async"
+            : "expired-buffer-sync";
+
         var destination = new ExactBufferWriter(0);
         await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
@@ -316,6 +329,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             ? await cache
                 .TryGetAsync(key, destination, CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies expired reads through synchronous TryGet.
             // ReSharper disable once MethodHasAsyncOverload
             : cache.TryGet(key, destination);
@@ -339,7 +353,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using var cache = store.CreateCache(new CacheManualTimeProvider());
-        var key = useAsync ? "expired-refresh-async" : "expired-refresh-sync";
+        var key = useAsync
+            ? "expired-refresh-async"
+            : "expired-refresh-sync";
+
         var expired = await CreateExpiredSlidingEntryAsync(store, cache, key, CancellationToken.None)
             .ConfigureAwait(false);
 

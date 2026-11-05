@@ -10,7 +10,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
     /// <summary>
     /// Collapses indexing into a naturally ordered <c>JSON_TABLE</c> rowset back
-    /// into one <see cref="JsonScalarExpression"/>. EF Core's ExecuteUpdate setter
+    /// into one <see cref="JsonScalarExpression" />. EF Core's ExecuteUpdate setter
     /// recognizer requires that scalar path form for updates such as
     /// <c>SetProperty(entity => entity.Values.ElementAt(1), value)</c>.
     /// </summary>
@@ -31,16 +31,16 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         switch (selectExpression)
         {
             case
-            {
-                Tables: [MySqlJsonTableExpression jsonTable],
-                Predicate: null,
-                GroupBy: [],
-                Having: null,
-                IsDistinct: false,
-                Orderings: [{ IsAscending: true, Expression: ColumnExpression orderingColumn }],
-                Limit: null,
-                Offset: null,
-            } when orderingColumn.TableAlias == jsonTable.Alias
+                {
+                    Tables: [MySqlJsonTableExpression jsonTable],
+                    Predicate: null,
+                    GroupBy: [],
+                    Having: null,
+                    IsDistinct: false,
+                    Orderings: [{ IsAscending: true, Expression: ColumnExpression orderingColumn }],
+                    Limit: null,
+                    Offset: null,
+                } when orderingColumn.TableAlias == jsonTable.Alias
                 && orderingColumn.Name == GetOrdinalityColumnName(jsonTable):
                 {
                     var path = jsonTable.Path?.ToList() ?? [];
@@ -69,7 +69,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 [
                     ValuesExpression
                     {
-                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
+                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName],
                         ValuesParameter: { } parameter,
                     },
                 ],
@@ -79,7 +79,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 IsDistinct: false,
                 Orderings:
                 [
-                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName } },
                 ],
                 Limit: null,
                 Offset: null,
@@ -92,7 +92,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                             _queryCompilationContext.Model,
                             elementMapping);
 
-                    var json = collectionMapping is null ? parameter : parameter.ApplyTypeMapping(collectionMapping);
+                    var json = collectionMapping is null
+                        ? parameter
+                        : parameter.ApplyTypeMapping(collectionMapping);
 
                     return UpdateElementQuery(
                         source,
@@ -109,7 +111,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 [
                     ValuesExpression
                     {
-                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName,],
+                        ColumnNames: [MySqlValuesOrderingColumnName, MySqlValuesValueColumnName],
                         RowValues: { } rows,
                     },
                 ],
@@ -119,7 +121,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 IsDistinct: false,
                 Orderings:
                 [
-                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName, }, },
+                    { IsAscending: true, Expression: ColumnExpression { Name: MySqlValuesOrderingColumnName } },
                 ],
                 Limit: null,
                 Offset: null,
@@ -165,10 +167,13 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         projectionColumn = sqlProjection switch
         {
             ColumnExpression column => column,
-            SqlUnaryExpression { OperatorType: ExpressionType.Convert, Operand: ColumnExpression column, } => column,
+            SqlUnaryExpression { OperatorType: ExpressionType.Convert, Operand: ColumnExpression column } => column,
             _ => null,
         };
-        projection = projectionColumn is null ? null : sqlProjection;
+
+        projection = projectionColumn is null
+            ? null
+            : sqlProjection;
 
         return projection is not null;
     }
@@ -187,8 +192,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
     }
 
     /// <summary>
-    /// Tells EF Core's translator that a <see cref="SelectExpression"/> whose row source is a
-    /// <see cref="MySqlJsonTableExpression"/> ordered by its synthetic <c>key</c> ordinality
+    /// Tells EF Core's translator that a <see cref="SelectExpression" /> whose row source is a
+    /// <see cref="MySqlJsonTableExpression" /> ordered by its synthetic <c>key</c> ordinality
     /// column is "naturally ordered" -- the ordering reflects the inherent row order JSON_TABLE
     /// produces (1, 2, 3, ...), not an explicit user OrderBy. Without this hook EF Core fires
     /// <c>DistinctAfterOrderByWithoutRowLimitingOperatorWarning</c> on every Distinct over a
@@ -196,7 +201,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
     /// `.OrderBy()` whose meaning would be lost across the Distinct. Mirrors the SqlServer
     /// <see href="https://github.com/dotnet/efcore/blob/release/10.0/src/EFCore.SqlServer/Query/Internal/SqlServerQueryableMethodTranslatingExpressionVisitor.cs">
     /// OPENJSON</see> recognition shape; differs only in not requiring a <c>Convert</c> wrapper
-    /// around the key column (our key is already typed <see cref="int"/>; SqlServer's OPENJSON
+    /// around the key column (our key is already typed <see cref="int" />; SqlServer's OPENJSON
     /// key is string and gets converted to int for ordering).
     /// </summary>
     protected override bool IsNaturallyOrdered(
@@ -280,6 +285,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             name: "value",
             tableAlias: tableAlias,
             type: jsonTableValueMapping?.ClrType ?? unwrapped,
+
             // A parameter collection has no element mapping until its consumer
             // is scanned. Applying the provider default here would conflict
             // with an explicit per-property mapping such as Char36.
@@ -327,7 +333,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
     }
 
     /// <summary>
-    /// Turns a <see cref="JsonQueryExpression"/> (an owned-JSON entity collection) into a
+    /// Turns a <see cref="JsonQueryExpression" /> (an owned-JSON entity collection) into a
     /// JSON_TABLE rowset. One typed column per primitive property (<c>PATH '$.PropertyName'</c>),
     /// one <c>JSON</c> column per nested complex/owned navigation (<c>JSON PATH '$.Nav'</c>),
     /// plus a <c>key FOR ORDINALITY</c> column for stable ordering. The base provider falls back
@@ -344,7 +350,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         // by wrapping the JSON source in JSON_EXTRACT(col, CONCAT('$...')) and using '$[*]' as
         // the static row-source path; both engines accept this composition.
         var structuralType = jsonQueryExpression.StructuralType;
-        var lastNamedSegment = jsonQueryExpression.Path.LastOrDefault(static segment => segment.PropertyName is not null);
+        var lastNamedSegment =
+            jsonQueryExpression.Path.LastOrDefault(static segment => segment.PropertyName is not null);
+
         var aliasHint = lastNamedSegment.PropertyName ?? jsonQueryExpression.JsonColumn.Name;
         var alias = _queryCompilationContext.SqlAliasManager.GenerateTableAlias(aliasHint);
 
@@ -371,7 +379,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     Path: [new PathSegment(jsonPropertyName)],
                     AsJson: asJson,
                     ForOrdinality: false,
-                    ResultTypeMapping: asJson ? null : typeMapping));
+                    ResultTypeMapping: asJson
+                        ? null
+                        : typeMapping));
         }
 
         var containerColumnName = structuralType.GetContainerColumnName()
@@ -535,5 +545,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             "Nullable<T> generic instantiation is preserved by the runtime; EF Core relies on this same construction throughout the query pipeline.")]
     private static Type MakeNullable(
         Type type
-    ) => type.IsValueType && Nullable.GetUnderlyingType(type) is null ? typeof(Nullable<>).MakeGenericType(type) : type;
+    ) => type.IsValueType && Nullable.GetUnderlyingType(type) is null
+        ? typeof(Nullable<>).MakeGenericType(type)
+        : type;
 }

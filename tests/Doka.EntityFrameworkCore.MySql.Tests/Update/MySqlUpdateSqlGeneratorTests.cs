@@ -183,15 +183,14 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var builder = new StringBuilder();
         var laterColumnNames = laterWriteColumnCount == 1
-            ? new[] { "WriteA", }
+            ? new[] { "WriteA" }
             : ["WriteA", "WriteB", "WriteC"];
+
         var laterModifications = laterColumnNames
-            .Select(
-                (
-                    columnName,
-                    index
-                ) => (IColumnModification)CreateWriteModification(columnName, $"p1_{index}"))
+            .Select((columnName,
+                index) => (IColumnModification)CreateWriteModification(columnName, $"p1_{index}"))
             .ToArray();
+
         IReadOnlyModificationCommand[] commands =
         [
             CreateMixedWriteCommand("Rows", "p0_a", "p0_b"),
@@ -200,11 +199,12 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
                 schema: null,
                 laterModifications),
         ];
+
         Action act = () => generator.AppendBulkInsertOperation(
-                builder,
-                commands,
-                commandPosition: 0,
-                out _);
+            builder,
+            commands,
+            commandPosition: 0,
+            out _);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -265,17 +265,19 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
         var generator = new MySqlUpdateSqlGenerator(
             context.GetService<UpdateSqlGeneratorDependencies>(),
             [new MySqlSingletonOptions()]);
+
         var builder = new StringBuilder();
         IReadOnlyModificationCommand[] commands =
         [
             CreateReadWriteCommand("Rows", "p0_value"),
             CreateReadWriteCommand("Rows", "p1_value"),
         ];
+
         Action act = () => generator.AppendBulkInsertOperation(
-                builder,
-                commands,
-                commandPosition: 0,
-                out _);
+            builder,
+            commands,
+            commandPosition: 0,
+            out _);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -285,6 +287,7 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
         Assert.Equal(
             "The MySQL update SQL generator requires an initialized provider profile.",
             exception.Message);
+
         Assert.Empty(builder.ToString());
     }
 

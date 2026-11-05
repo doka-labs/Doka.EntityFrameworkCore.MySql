@@ -41,6 +41,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{TableName}`;",
             cancellationToken: cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             $"""
              CREATE TABLE `{TableName}` (
@@ -112,6 +113,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(200);
+
                 e
                     .Property(x => x.Category)
                     .HasMaxLength(50);

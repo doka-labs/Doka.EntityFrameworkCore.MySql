@@ -2,8 +2,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Loads named CHECK constraints into provider-owned scaffolding annotations. EF Core's
-/// <see cref="DatabaseTable"/> has no CHECK collection, so the annotation bridges the
-/// database model to <see cref="MySqlScaffoldingModelFactory"/> without exposing a new
+/// <see cref="DatabaseTable" /> has no CHECK collection, so the annotation bridges the
+/// database model to <see cref="MySqlScaffoldingModelFactory" /> without exposing a new
 /// public provider API.
 /// </summary>
 internal static class CheckConstraintLoader
@@ -18,13 +18,18 @@ internal static class CheckConstraintLoader
         var catalogIncludesTableName = context.Profile.Engine.Has(
             EngineCapability.CheckConstraintCatalogIncludesTableName);
 
-        var sql = catalogIncludesTableName ? MariaDbQuery() : MySqlQuery();
+        var sql = catalogIncludesTableName
+            ? MariaDbQuery()
+            : MySqlQuery();
 
         ScaffoldingHelpers.AppendTableNameFilter(
             sql,
             command,
             context.TableFilter,
-            catalogIncludesTableName ? "checks.TABLE_NAME" : "constraints.TABLE_NAME");
+            catalogIncludesTableName
+                ? "checks.TABLE_NAME"
+                : "constraints.TABLE_NAME");
+
         sql.Append(" ORDER BY TABLE_NAME, CONSTRAINT_NAME;");
         command.CommandText = sql.ToString();
 

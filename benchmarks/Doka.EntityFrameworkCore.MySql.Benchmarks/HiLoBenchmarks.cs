@@ -19,10 +19,7 @@ public class HiLoStateCacheBenchmarks
         string.Empty);
 
     [GlobalSetup]
-    public void GlobalSetup()
-    {
-        _ = MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
-    }
+    public void GlobalSetup() => _ = MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
 
     [Benchmark]
     public object ResolveCachedHiLoState() =>
@@ -39,6 +36,12 @@ public class HiLoBulkInsertBenchmarks : IDisposable
 {
     private HiLoBenchmarkDatabase _database = null!;
 
+    public void Dispose()
+    {
+        _database?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     [GlobalSetup]
     public void GlobalSetup() => _database = new HiLoBenchmarkDatabase();
 
@@ -46,6 +49,7 @@ public class HiLoBulkInsertBenchmarks : IDisposable
     /// Resets the database and HiLo state before each measurement iteration.
     /// </summary>
     [IterationSetup]
+
     // WHY: BenchmarkDotNet does not supply a cancellation token to iteration hooks.
     public void IterationSetup() => _database.Reset(CancellationToken.None);
 
@@ -57,12 +61,6 @@ public class HiLoBulkInsertBenchmarks : IDisposable
         contextCount: 10,
         rowCount: 100,
         CancellationToken.None);
-
-    public void Dispose()
-    {
-        _database?.Dispose();
-        GC.SuppressFinalize(this);
-    }
 }
 
 internal sealed class HiLoBenchmarkDatabase : IDisposable
@@ -85,6 +83,20 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
         PrepareSchemaAsync(CancellationToken.None)
             .GetAwaiter()
             .GetResult();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        TearDownSchemaAsync()
+            .GetAwaiter()
+            .GetResult();
+
+        _disposed = true;
     }
 
     /// <summary>
@@ -188,10 +200,8 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
             .ForEachAsync(
                 Enumerable.Range(0, contextCount),
                 cancellationToken,
-                async (
-                    contextIndex,
-                    token
-                ) =>
+                async (contextIndex,
+                    token) =>
                 {
                     await using var context = new HiLoBenchContext(BuildOptions());
 
@@ -216,19 +226,6 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
 
         EnsureInsertedRowCount(rowCount, insertedRows);
         return insertedRows;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        TearDownSchemaAsync()
-            .GetAwaiter()
-            .GetResult();
-        _disposed = true;
     }
 
     private DbContextOptions<HiLoBenchContext> BuildOptions()
@@ -277,9 +274,11 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"TRUNCATE TABLE `{TableName}`;"
             + ResetSequenceSql();
+
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -307,16 +306,16 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
 
     private static string CreateSequenceSql() => BenchmarkEnvironment.SupportsNativeSequencesValue
         ? $"DROP SEQUENCE IF EXISTS `{SequenceName}`;"
-            + $"CREATE SEQUENCE `{SequenceName}` START WITH 1 INCREMENT BY 10 MINVALUE 1 NOCACHE;"
+        + $"CREATE SEQUENCE `{SequenceName}` START WITH 1 INCREMENT BY 10 MINVALUE 1 NOCACHE;"
         : $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
-            + $"CREATE TABLE `__efsequence_{SequenceName}` ("
-            + "  `id` TINYINT UNSIGNED NOT NULL,"
-            + "  `value` BIGINT NOT NULL,"
-            + "  `is_called` BOOLEAN NOT NULL,"
-            + "  PRIMARY KEY (`id`),"
-            + "  CHECK (`id` = 1)"
-            + ") ENGINE=InnoDB;"
-            + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);";
+        + $"CREATE TABLE `__efsequence_{SequenceName}` ("
+        + "  `id` TINYINT UNSIGNED NOT NULL,"
+        + "  `value` BIGINT NOT NULL,"
+        + "  `is_called` BOOLEAN NOT NULL,"
+        + "  PRIMARY KEY (`id`),"
+        + "  CHECK (`id` = 1)"
+        + ") ENGINE=InnoDB;"
+        + $"INSERT INTO `__efsequence_{SequenceName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);";
 
     private static string ResetSequenceSql() => BenchmarkEnvironment.SupportsNativeSequencesValue
         ? $"ALTER SEQUENCE `{SequenceName}` RESTART WITH 1;"
@@ -378,6 +377,7 @@ internal sealed class HiLoBenchmarkDatabase : IDisposable
                 builder
                     .Property(entity => entity.Id)
                     .UseHiLo(SequenceName);
+
                 builder
                     .Property(entity => entity.Name)
                     .HasMaxLength(64);

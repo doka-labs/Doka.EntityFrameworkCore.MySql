@@ -24,7 +24,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal([101, 202, 303], actual);
@@ -48,7 +51,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         // Arrange
-        var rows = Enumerable.Range(0, count)
+        var rows = Enumerable
+            .Range(0, count)
             .Reverse()
             .Select(slot => new object?[] { slot + 100, slot })
             .ToArray();
@@ -58,12 +62,18 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal(
-            Enumerable.Range(100, count).Cast<object>(),
+            Enumerable
+                .Range(100, count)
+                .Cast<object>(),
             actual);
+
         Assert.All(scenario.Commands, command => Assert.Equal(1, command.PropagationCount));
         Assert.Equal(count + 1, scenario.Reader.ReadCount);
     }
@@ -86,7 +96,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         // Arrange
-        var rows = Enumerable.Range(0, count)
+        var rows = Enumerable
+            .Range(0, count)
             .Reverse()
             .Select(slot => new object?[] { slot + 100, slot })
             .ToArray();
@@ -121,7 +132,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal([101, 202], actual);
@@ -148,7 +162,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal([null, 101, 102, 201, 202], actual);
@@ -176,7 +193,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal([101, 202], actual);
@@ -226,9 +246,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             prefixCommands: 1,
             trackEntries: true);
 
-        var expected = scenario.Commands.Skip(1)
+        var expected = scenario
+            .Commands
+            .Skip(1)
             .SelectMany(command => command.Entries)
-            .Select(entry => entry.ToEntityEntry().Entity)
+            .Select(entry => entry.ToEntityEntry()
+                .Entity)
             .ToArray();
 
         // Act
@@ -238,7 +261,11 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.Equal(expected, updateException.Entries.Select(entry => entry.Entity));
         Assert.DoesNotContain(
-            scenario.Commands[0].Entries[0].ToEntityEntry().Entity,
+            scenario
+                .Commands[0]
+                .Entries[0]
+                .ToEntityEntry()
+                .Entity,
             updateException.Entries.Select(entry => entry.Entity));
     }
 
@@ -259,9 +286,12 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             [new ResultRows([[101, 0], [202, 1]])],
             trackEntries: true);
 
-        var expected = scenario.Commands.Skip(2)
+        var expected = scenario
+            .Commands
+            .Skip(2)
             .SelectMany(command => command.Entries)
-            .Select(entry => entry.ToEntityEntry().Entity)
+            .Select(entry => entry.ToEntityEntry()
+                .Entity)
             .ToArray();
 
         // Act
@@ -299,7 +329,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Assert
         var updateException = Assert.IsType<DbUpdateException>(exception);
         Assert.Single(updateException.Entries);
-        Assert.Same(scenario.Commands[0].Entries[0].ToEntityEntry().Entity, updateException.Entries[0].Entity);
+        Assert.Same(
+            scenario
+                .Commands[0]
+                .Entries[0]
+                .ToEntityEntry()
+                .Entity,
+            updateException.Entries[0].Entity);
     }
 
     /// <summary>
@@ -375,7 +411,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Act
         await scenario.ConsumeAsync(asynchronous, CancellationToken.None);
 
-        var actual = scenario.Commands.Select(command => command.GeneratedValue).ToArray();
+        var actual = scenario
+            .Commands
+            .Select(command => command.GeneratedValue)
+            .ToArray();
 
         // Assert
         Assert.Equal([101, null], actual);

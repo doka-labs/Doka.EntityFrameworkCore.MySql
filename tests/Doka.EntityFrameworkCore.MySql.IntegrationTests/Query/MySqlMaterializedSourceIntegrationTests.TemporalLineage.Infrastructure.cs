@@ -17,7 +17,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     )
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<TemporalLineageContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<TemporalLineageContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -30,8 +31,18 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             await DropTemporalLineageTablesAsync(context, cancellationToken);
             await CreateTemporalLineageTablesAsync(context, cancellationToken);
-            var historicalNext = new BoundHistoricalChild { Id = 3, Name = "historical-next" };
-            var currentNext = new BoundHistoricalChild { Id = 4, Name = "current-next" };
+            var historicalNext = new BoundHistoricalChild
+            {
+                Id = 3,
+                Name = "historical-next",
+            };
+
+            var currentNext = new BoundHistoricalChild
+            {
+                Id = 4,
+                Name = "current-next",
+            };
+
             var historicalChild = new BoundHistoricalChild
             {
                 Id = 1,
@@ -39,8 +50,18 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 Next = historicalNext,
             };
 
-            var currentChild = new BoundHistoricalChild { Id = 2, Name = "current-parent-target" };
-            var parent = new BoundHistoricalParent { Id = 1, Child = historicalChild };
+            var currentChild = new BoundHistoricalChild
+            {
+                Id = 2,
+                Name = "current-parent-target",
+            };
+
+            var parent = new BoundHistoricalParent
+            {
+                Id = 1,
+                Child = historicalChild,
+            };
+
             context.AddRange(parent, currentChild, currentNext);
             await context.SaveChangesAsync(cancellationToken);
             parent.Child = currentChild;
@@ -50,21 +71,27 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
-            var parentPeriod = await context.Parents.TemporalAll()
+            var parentPeriod = await context
+                .Parents
+                .TemporalAll()
                 .Where(row => row.ChildId == 1)
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
                     EF.Property<DateTime>(row, TemporalEndColumn)))
                 .SingleAsync(cancellationToken);
 
-            var childPeriod = await context.Children.TemporalAll()
+            var childPeriod = await context
+                .Children
+                .TemporalAll()
                 .Where(row => row.Name == "historical-child")
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
                     EF.Property<DateTime>(row, TemporalEndColumn)))
                 .SingleAsync(cancellationToken);
 
-            var nextPeriod = await context.Children.TemporalAll()
+            var nextPeriod = await context
+                .Children
+                .TemporalAll()
                 .Where(row => row.Name == "historical-next")
                 .Select(row => new HistoricalPeriod(
                     EF.Property<DateTime>(row, TemporalStartColumn),
@@ -76,7 +103,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             var from = Math.Max(parentPeriod.From.Ticks, Math.Max(childPeriod.From.Ticks, nextPeriod.From.Ticks));
             var to = Math.Min(parentPeriod.To.Ticks, Math.Min(childPeriod.To.Ticks, nextPeriod.To.Ticks));
             Assert.True(from < to, "The seeded historical versions must have a common nonempty interval.");
-            var instant = new DateTime(from + ((to - from) / 2), DateTimeKind.Utc);
+            var instant = new DateTime(from + (to - from) / 2, DateTimeKind.Utc);
             probe.Reset();
 
             return new TemporalLineageFixture(context, probe, instant);
@@ -96,8 +123,13 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        var model = context.GetService<IDesignTimeModel>().Model;
-        var operations = context.GetService<IMigrationsModelDiffer>().GetDifferences(null, model.GetRelationalModel());
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
+            .GetDifferences(null, model.GetRelationalModel());
+
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
         // WHY: Keep provider-owned temporal trigger and native-versioning command
@@ -160,27 +192,49 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         {
             modelBuilder.Entity<BoundHistoricalParent>(entity =>
             {
-                entity.ToTable(TemporalParentTable, table => table.IsTemporal(temporal =>
-                {
-                    temporal.UseHistoryTable(TemporalParentHistoryTable);
-                    temporal.HasPeriodStart(TemporalStartColumn);
-                    temporal.HasPeriodEnd(TemporalEndColumn);
-                }));
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.HasOne(row => row.Child).WithMany().HasForeignKey(row => row.ChildId)
+                entity.ToTable(
+                    TemporalParentTable,
+                    table => table.IsTemporal(temporal =>
+                    {
+                        temporal.UseHistoryTable(TemporalParentHistoryTable);
+                        temporal.HasPeriodStart(TemporalStartColumn);
+                        temporal.HasPeriodEnd(TemporalEndColumn);
+                    }));
+
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .HasOne(row => row.Child)
+                    .WithMany()
+                    .HasForeignKey(row => row.ChildId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
             modelBuilder.Entity<BoundHistoricalChild>(entity =>
             {
-                entity.ToTable(TemporalChildTable, table => table.IsTemporal(temporal =>
-                {
-                    temporal.UseHistoryTable(TemporalChildHistoryTable);
-                    temporal.HasPeriodStart(TemporalStartColumn);
-                    temporal.HasPeriodEnd(TemporalEndColumn);
-                }));
-                entity.Property(row => row.Id).ValueGeneratedNever();
-                entity.Property(row => row.Name).HasMaxLength(64);
-                entity.HasOne(row => row.Next).WithMany().HasForeignKey(row => row.NextId)
+                entity.ToTable(
+                    TemporalChildTable,
+                    table => table.IsTemporal(temporal =>
+                    {
+                        temporal.UseHistoryTable(TemporalChildHistoryTable);
+                        temporal.HasPeriodStart(TemporalStartColumn);
+                        temporal.HasPeriodEnd(TemporalEndColumn);
+                    }));
+
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(row => row.Name)
+                    .HasMaxLength(64);
+
+                entity
+                    .HasOne(row => row.Next)
+                    .WithMany()
+                    .HasForeignKey(row => row.NextId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
         }

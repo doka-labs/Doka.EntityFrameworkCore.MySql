@@ -38,7 +38,7 @@ internal static class MySqlSpatialInputGuard
                 }
             }
             else if (character == ')'
-                     && depth > 0)
+                && depth > 0)
             {
                 depth--;
             }
@@ -62,11 +62,11 @@ internal static class MySqlSpatialInputGuard
         while (true)
         {
             if (!TryReadGeometryHeader(
-                    wkb,
-                    ref offset,
-                    out var geometryType,
-                    out var coordinateDimension,
-                    out var littleEndian))
+                wkb,
+                ref offset,
+                out var geometryType,
+                out var coordinateDimension,
+                out var littleEndian))
             {
                 return;
             }
@@ -166,7 +166,13 @@ internal static class MySqlSpatialInputGuard
         var hasM = (encodedType & 0x40000000u) != 0;
         var hasSrid = (encodedType & 0x20000000u) != 0;
         geometryType = encodedType & 0x1fffffffu;
-        coordinateDimension = 2 + (hasZ ? 1 : 0) + (hasM ? 1 : 0);
+        coordinateDimension = 2
+            + (hasZ
+                ? 1
+                : 0)
+            + (hasM
+                ? 1
+                : 0);
 
         if (geometryType >= 3000
             && geometryType < 4000)
@@ -175,13 +181,13 @@ internal static class MySqlSpatialInputGuard
             coordinateDimension = 4;
         }
         else if (geometryType >= 2000
-                 && geometryType < 3000)
+            && geometryType < 3000)
         {
             geometryType -= 2000;
             coordinateDimension = 3;
         }
         else if (geometryType >= 1000
-                 && geometryType < 2000)
+            && geometryType < 2000)
         {
             geometryType -= 1000;
             coordinateDimension = 3;
@@ -260,6 +266,7 @@ internal static class MySqlSpatialInputGuard
         result = littleEndian
             ? BinaryPrimitives.ReadUInt32LittleEndian(bytes)
             : BinaryPrimitives.ReadUInt32BigEndian(bytes);
+
         offset += sizeof(uint);
 
         return true;

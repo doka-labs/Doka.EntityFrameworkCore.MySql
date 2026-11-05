@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -11,10 +13,14 @@ public sealed class MySqlDriverDependencyContractTests
     {
         // Arrange
         var root = FindRepositoryRoot();
-        var packages = System.Xml.Linq.XDocument.Load(Path.Combine(root, "Directory.Packages.props"));
+        var packages = XDocument.Load(Path.Combine(root, "Directory.Packages.props"));
 
         // Act
-        var range = packages.Descendants("DokaMySqlConnectorVersion").Single().Value.Trim();
+        var range = packages
+            .Descendants("DokaMySqlConnectorVersion")
+            .Single()
+            .Value
+            .Trim();
 
         // Assert
         // WHY: A successful audit of a warm graph does not protect a new
@@ -34,11 +40,20 @@ public sealed class MySqlDriverDependencyContractTests
     {
         // Arrange
         var root = FindRepositoryRoot();
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "src", project, "packages.lock.json")));
+        using var document =
+            JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "src", project, "packages.lock.json")));
 
         // Act
-        var driver = document.RootElement.GetProperty("dependencies").GetProperty("net10.0").GetProperty("MySqlConnector");
-        var resolved = Version.Parse(driver.GetProperty("resolved").GetString()!);
+        var driver = document
+            .RootElement
+            .GetProperty("dependencies")
+            .GetProperty("net10.0")
+            .GetProperty("MySqlConnector");
+
+        var resolved = Version.Parse(
+            driver
+                .GetProperty("resolved")
+                .GetString()!);
 
         // Assert
         // WHY: Safe matrix overrides can request an exact or floating version.

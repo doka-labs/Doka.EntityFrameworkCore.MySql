@@ -5,8 +5,6 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
     private static readonly ConcurrentDictionary<
         (Type ClrType, string StoreType, bool UseLongLatAxisOrder), RelationalTypeMapping> s_mappingCache = new();
 
-    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
-
     private static readonly Dictionary<Type, string> s_defaultStoreTypes = new()
     {
         [typeof(Geometry)] = "geometry",
@@ -30,6 +28,8 @@ internal sealed class MySqlNetTopologySuiteTypeMappingSourcePlugin : IRelational
         ["multilinestring"] = typeof(MultiLineString),
         ["multipolygon"] = typeof(MultiPolygon),
     };
+
+    private readonly MySqlSingletonOptions _mySqlSingletonOptions;
 
     public MySqlNetTopologySuiteTypeMappingSourcePlugin(
         IEnumerable<ISingletonOptions> singletonOptions

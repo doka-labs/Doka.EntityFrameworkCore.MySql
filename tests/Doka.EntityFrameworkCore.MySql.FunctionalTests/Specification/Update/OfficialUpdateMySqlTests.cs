@@ -1,5 +1,6 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.JsonQuery;
+using Xunit.Sdk;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 
@@ -13,9 +14,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
 {
     public NonSharedModelUpdatesMySqlTest(
         NonSharedFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override ITestStoreFactory TestStoreFactory =>
         MySqlTestStoreFactory.Instance;
@@ -30,6 +29,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
             await base
                 .DbUpdateException_Entries_is_correct_with_multiple_inserts(
                     async);
+
             return;
         }
 
@@ -53,17 +53,16 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
                 context.Add(new Blog { Name = "Blog3" });
 
                 var exception = async
-                    ? await Assert.ThrowsAsync<DbUpdateException>(
-                        () => context.SaveChangesAsync())
-                    : Assert.Throws<DbUpdateException>(
-                        () => context.SaveChanges());
+                    ? await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync())
+                    : Assert.Throws<DbUpdateException>(() => context.SaveChanges());
 
                 // MariaDB aborts the complete multi-row INSERT before RETURNING
                 // produces rows. Error 1062 identifies the duplicate value and
                 // key, but no VALUES-row ordinal. Retaining every entry is the
                 // only deterministic and privacy-safe attribution.
                 Assert.Collection(
-                    exception.Entries
+                    exception
+                        .Entries
                         .Select(entry => (Blog)entry.Entity)
                         .OrderBy(blog => blog.Name),
                     blog => Assert.Equal("Blog1", blog.Name),
@@ -82,9 +81,7 @@ public sealed class JsonUpdateMySqlTest : JsonUpdateTestBase<JsonUpdateMySqlFixt
 {
     public JsonUpdateMySqlTest(
         JsonUpdateMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     // EF Core's RelationalModelValidator rejects nested primitive collections
     // before provider code runs. These overrides preserve the official
@@ -93,7 +90,7 @@ public sealed class JsonUpdateMySqlTest : JsonUpdateTestBase<JsonUpdateMySqlFixt
 
     /// <inheritdoc />
     public override Task Edit_single_property_collection_of_collection_of_bool() =>
-        Assert.ThrowsAsync<Xunit.Sdk.NotEqualException>(
+        Assert.ThrowsAsync<NotEqualException>(
             base.Edit_single_property_collection_of_collection_of_bool);
 
     /// <inheritdoc />
@@ -118,7 +115,7 @@ public sealed class JsonUpdateMySqlTest : JsonUpdateTestBase<JsonUpdateMySqlFixt
 
     /// <inheritdoc />
     public override Task Edit_single_property_collection_of_collection_of_nullable_enum_set_to_null() =>
-        Assert.ThrowsAsync<Xunit.Sdk.NullException>(
+        Assert.ThrowsAsync<NullException>(
             base.Edit_single_property_collection_of_collection_of_nullable_enum_set_to_null);
 
     /// <inheritdoc />
@@ -128,12 +125,12 @@ public sealed class JsonUpdateMySqlTest : JsonUpdateTestBase<JsonUpdateMySqlFixt
 
     /// <inheritdoc />
     public override Task Edit_single_property_collection_of_collection_of_nullable_int32() =>
-        Assert.ThrowsAsync<Xunit.Sdk.EqualException>(
+        Assert.ThrowsAsync<EqualException>(
             base.Edit_single_property_collection_of_collection_of_nullable_int32);
 
     /// <inheritdoc />
     public override Task Edit_single_property_collection_of_collection_of_nullable_int32_set_to_null() =>
-        Assert.ThrowsAsync<Xunit.Sdk.NullException>(
+        Assert.ThrowsAsync<NullException>(
             base.Edit_single_property_collection_of_collection_of_nullable_int32_set_to_null);
 
     /// <inheritdoc />
@@ -203,9 +200,7 @@ public sealed class ComplexCollectionJsonUpdateMySqlTest
 {
     public ComplexCollectionJsonUpdateMySqlTest(
         ComplexCollectionJsonUpdateMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override void ClearLog() =>
         Fixture.TestSqlLoggerFactory.Clear();

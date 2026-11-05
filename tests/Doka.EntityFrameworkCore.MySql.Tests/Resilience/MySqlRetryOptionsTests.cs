@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
-/// Tests <see cref="MySqlRetryOptions.Create"/> validation guards.
+/// Tests <see cref="MySqlRetryOptions.Create" /> validation guards.
 /// </summary>
 public sealed class MySqlRetryOptionsTests
 {

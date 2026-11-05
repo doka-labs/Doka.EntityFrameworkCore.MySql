@@ -64,7 +64,10 @@ public sealed class MySqlProviderConnectionContractTests
             Assert.Equal(2, inserted);
             context.ChangeTracker.Clear();
 
-            var id = converterBacked ? 2 : 1;
+            var id = converterBacked
+                ? 2
+                : 1;
+
             MatchedRowItem item;
 
             if (useAsync)
@@ -84,7 +87,10 @@ public sealed class MySqlProviderConnectionContractTests
             }
             else
             {
-                context.Entry(item).Property(row => row.Value).IsModified = true;
+                context
+                    .Entry(item)
+                    .Property(row => row.Value)
+                    .IsModified = true;
             }
 
             // Act
@@ -139,7 +145,10 @@ public sealed class MySqlProviderConnectionContractTests
             Assert.Equal(2, await context.SaveChangesAsync(CancellationToken.None));
             context.ChangeTracker.Clear();
 
-            var id = deletedRow ? 1 : 2;
+            var id = deletedRow
+                ? 1
+                : 2;
+
             var item = await context.Items.SingleAsync(row => row.Id == id, CancellationToken.None);
             var interference = deletedRow
                 ? $"DELETE FROM `{MatchedRowTable}` WHERE `Id` = 1;"
@@ -231,7 +240,10 @@ public sealed class MySqlProviderConnectionContractTests
                 await ExecuteScalarAsync(connection, "EXECUTE doka_contract_statement;", CancellationToken.None),
                 CultureInfo.InvariantCulture);
 
-            await ExecuteNonQueryAsync(connection, "DEALLOCATE PREPARE doka_contract_statement;", CancellationToken.None);
+            await ExecuteNonQueryAsync(
+                connection,
+                "DEALLOCATE PREPARE doka_contract_statement;",
+                CancellationToken.None);
 
             // Assert
             Assert.Equal(43L, result);
@@ -263,7 +275,9 @@ public sealed class MySqlProviderConnectionContractTests
             var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
 
             // Act
-            var tracked = await context.Items.Include(item => item.Children)
+            var tracked = await context
+                .Items
+                .Include(item => item.Children)
                 .SingleAsync(item => item.Id == expected.Id, CancellationToken.None);
 
             // Assert
@@ -272,7 +286,11 @@ public sealed class MySqlProviderConnectionContractTests
             Assert.Null(tracked.OptionalBinaryValue);
             Assert.Equal(expected.TextValue, tracked.TextValue);
             Assert.Null(tracked.OptionalTextValue);
-            Assert.Equal(expected.Children.Single().ExternalId, Assert.Single(tracked.Children).ExternalId);
+            Assert.Equal(
+                expected.Children.Single()
+                    .ExternalId,
+                Assert.Single(tracked.Children)
+                    .ExternalId);
         }
         finally
         {
@@ -301,7 +319,9 @@ public sealed class MySqlProviderConnectionContractTests
             var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
 
             // Act
-            var loaded = await context.Items.AsNoTracking()
+            var loaded = await context
+                .Items
+                .AsNoTracking()
                 .SingleAsync(item => item.AlternateId == expected.AlternateId, CancellationToken.None);
 
             // Assert
@@ -368,7 +388,8 @@ public sealed class MySqlProviderConnectionContractTests
             var query = CreateCompiledGuidQuery();
 
             // Act
-            var compiled = await query(context, expected.Id).SingleAsync(CancellationToken.None);
+            var compiled = await query(context, expected.Id)
+                .SingleAsync(CancellationToken.None);
 
             // Assert
             Assert.Equal(expected.Id, compiled.Id);
@@ -400,8 +421,12 @@ public sealed class MySqlProviderConnectionContractTests
         {
             var expected = await SeedGuidItemAsync(context, cancellationToken: CancellationToken.None);
             var query = CreateCompiledGuidQuery();
-            var compiled = await query(context, expected.Id).SingleAsync(CancellationToken.None);
-            var optionalBinary = expected.Children.Single().ExternalId;
+            var compiled = await query(context, expected.Id)
+                .SingleAsync(CancellationToken.None);
+
+            var optionalBinary = expected.Children.Single()
+                .ExternalId;
+
             compiled.OptionalBinaryValue = optionalBinary;
             compiled.OptionalTextValue = expected.TextValue;
 
@@ -448,7 +473,10 @@ public sealed class MySqlProviderConnectionContractTests
 
             // Act
             var binaryHex = Convert.ToString(
-                await ExecuteScalarAsync(connection, $"SELECT HEX(`Id`) FROM `{GuidItemTable}`;", CancellationToken.None),
+                await ExecuteScalarAsync(
+                    connection,
+                    $"SELECT HEX(`Id`) FROM `{GuidItemTable}`;",
+                    CancellationToken.None),
                 CultureInfo.InvariantCulture);
 
             var text = Convert.ToString(
@@ -528,7 +556,8 @@ public sealed class MySqlProviderConnectionContractTests
     }
 
     private static Func<GuidContext, Guid, IAsyncEnumerable<GuidItem>> CreateCompiledGuidQuery() =>
-        EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) => queryContext.Items
+        EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) => queryContext
+            .Items
             .Include(item => item.Children)
             .Where(item => item.Id == queryId));
 
@@ -658,7 +687,7 @@ public sealed class MySqlProviderConnectionContractTests
     /// Removes the GUID transport tables during setup or explicit cleanup.
     /// </summary>
     /// <remarks>
-    /// Setup observes its caller token; finally blocks pass <see cref="CancellationToken.None"/>
+    /// Setup observes its caller token; finally blocks pass <see cref="CancellationToken.None" />
     /// so cleanup can finish after cancellation.
     /// </remarks>
     /// <param name="cancellationToken">The token to observe while performing this operation.</param>
@@ -673,6 +702,7 @@ public sealed class MySqlProviderConnectionContractTests
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{GuidChildTable}`;",
             cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{GuidItemTable}`;",
             cancellationToken);
@@ -749,9 +779,17 @@ public sealed class MySqlProviderConnectionContractTests
             var entity = modelBuilder.Entity<MatchedRowItem>();
             entity.ToTable(MatchedRowTable);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.Value).HasMaxLength(64);
-            entity.Property(item => item.Token).HasMaxLength(64).IsConcurrencyToken();
-            entity.Property(item => item.NormalizedValue)
+            entity
+                .Property(item => item.Value)
+                .HasMaxLength(64);
+
+            entity
+                .Property(item => item.Token)
+                .HasMaxLength(64)
+                .IsConcurrencyToken();
+
+            entity
+                .Property(item => item.NormalizedValue)
                 .HasMaxLength(64)
                 .HasConversion(
                     value => value.ToLowerInvariant(),
@@ -786,9 +824,12 @@ public sealed class MySqlProviderConnectionContractTests
             item.ToTable(GuidItemTable);
             item.HasKey(entity => entity.Id);
             item.HasAlternateKey(entity => entity.AlternateId);
-            item.Property(entity => entity.TextValue)
+            item
+                .Property(entity => entity.TextValue)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-            item.Property(entity => entity.OptionalTextValue)
+
+            item
+                .Property(entity => entity.OptionalTextValue)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
 
             var child = modelBuilder.Entity<GuidChild>();
@@ -798,7 +839,9 @@ public sealed class MySqlProviderConnectionContractTests
                 entity.OwnerId,
                 entity.Sequence,
             });
-            child.HasOne(entity => entity.Owner)
+
+            child
+                .HasOne(entity => entity.Owner)
                 .WithMany(entity => entity.Children)
                 .HasForeignKey(entity => entity.OwnerId);
         }

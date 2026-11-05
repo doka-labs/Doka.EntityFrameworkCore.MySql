@@ -142,5 +142,6 @@ public sealed partial class MySqlScaffoldingRoundTripTests
 
     private static bool IsMariaDb(
         IntegrationDatabaseTarget target
-    ) => IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
+    ) => IntegrationTestEnvironment.GetServerVersion(target)
+        .IsMariaDb;
 }

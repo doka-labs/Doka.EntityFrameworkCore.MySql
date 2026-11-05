@@ -82,7 +82,9 @@ public sealed partial class AdrRepositoryValidatorTests
     [InlineData("qualification")]
     [InlineData("assemble")]
     [InlineData("attest")]
-    public void Qualification_does_not_acquire_publication_authority(string jobName)
+    public void Qualification_does_not_acquire_publication_authority(
+        string jobName
+    )
     {
         // Arrange
         var path = Path.Combine(FindRepositoryRoot(), ".github", "workflows", "release-candidate.yml");
@@ -145,6 +147,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
             preparation,
             StringComparison.Ordinal);
+
         Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", preparation, StringComparison.Ordinal);
         Assert.Contains("--source-ref \"${GITHUB_REF}\"", preparation, StringComparison.Ordinal);
         Assert.Contains("--source-digest \"${GITHUB_SHA}\"", preparation, StringComparison.Ordinal);

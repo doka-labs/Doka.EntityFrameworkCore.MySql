@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Defines provider-owned storage formats for <see cref="Guid"/> values.
+/// Defines provider-owned storage formats for <see cref="Guid" /> values.
 /// </summary>
 public enum MySqlGuidFormat
 {

@@ -5,8 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 public class ProviderWorkloadBenchmarks : IDisposable
 {
     private PerformanceWorkloadCatalog? _catalog;
-    private PerformanceWorkload? _workload;
     private int _operationsPerInvoke;
+    private PerformanceWorkload? _workload;
 
     [ParamsSource(nameof(Targets))]
     public string Target { get; set; } = string.Empty;
@@ -25,6 +25,15 @@ public class ProviderWorkloadBenchmarks : IDisposable
                 .Select(static definition => definition.Id)
                 .Order(StringComparer.Ordinal);
         }
+    }
+
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _catalog?.Dispose();
+        _catalog = null;
+        _workload = null;
+        GC.SuppressFinalize(this);
     }
 
     [GlobalSetup]
@@ -85,15 +94,6 @@ public class ProviderWorkloadBenchmarks : IDisposable
 
     [IterationCleanup]
     public void IterationCleanup() => InvokeLifecycle(_workload?.CleanupAsync);
-
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _catalog?.Dispose();
-        _catalog = null;
-        _workload = null;
-        GC.SuppressFinalize(this);
-    }
 
     private static IEnumerable<PerformanceWorkloadDefinition> ApplicableDefinitions(
         PerformanceContract contract

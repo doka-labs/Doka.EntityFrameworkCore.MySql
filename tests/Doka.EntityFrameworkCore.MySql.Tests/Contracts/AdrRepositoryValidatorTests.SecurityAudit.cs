@@ -36,7 +36,8 @@ public sealed partial class AdrRepositoryValidatorTests
     )
     {
         // Arrange
-        var workflow = ReadSecurityAuditWorkflow().Replace(original, replacement, StringComparison.Ordinal);
+        var workflow = ReadSecurityAuditWorkflow()
+            .Replace(original, replacement, StringComparison.Ordinal);
 
         // Act
         var errors = EngineeringSurfaceContract.ValidateSecurityAuditWorkflow(workflow);
@@ -62,7 +63,8 @@ public sealed partial class AdrRepositoryValidatorTests
         // Arrange
         var workflow = fragment.StartsWith("  ", StringComparison.Ordinal)
             && !fragment.StartsWith("    ", StringComparison.Ordinal)
-                ? ReadSecurityAuditWorkflow().Replace("on:\n", "on:\n" + fragment, StringComparison.Ordinal)
+                ? ReadSecurityAuditWorkflow()
+                    .Replace("on:\n", "on:\n" + fragment, StringComparison.Ordinal)
                 : ReadSecurityAuditWorkflow() + fragment;
 
         // Act

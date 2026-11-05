@@ -55,13 +55,15 @@ public sealed partial class AdrRepositoryValidatorTests
         var nextJob = workflow.IndexOf("\n  ", jobStart + 1, StringComparison.Ordinal);
 
         while (nextJob >= 0
-               && (nextJob + 3 >= workflow.Length
-                   || char.IsWhiteSpace(workflow[nextJob + 3])))
+            && (nextJob + 3 >= workflow.Length
+                || char.IsWhiteSpace(workflow[nextJob + 3])))
         {
             nextJob = workflow.IndexOf("\n  ", nextJob + 1, StringComparison.Ordinal);
         }
 
-        return nextJob < 0 ? workflow[jobStart..] : workflow[jobStart..nextJob];
+        return nextJob < 0
+            ? workflow[jobStart..]
+            : workflow[jobStart..nextJob];
     }
 
     private static string GetWorkflowTriggers(
@@ -117,8 +119,8 @@ public sealed partial class AdrRepositoryValidatorTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {
@@ -140,6 +142,14 @@ public sealed partial class AdrRepositoryValidatorTests
         }
 
         public string Root { get; }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Root))
+            {
+                Directory.Delete(Root, recursive: true);
+            }
+        }
 
         public static TestRepository Create() =>
             new(Path.Combine(Path.GetTempPath(), $"doka-adr-tests-{Guid.NewGuid():N}"));
@@ -257,16 +267,10 @@ public sealed partial class AdrRepositoryValidatorTests
             AdrIndexRenderer.WriteGeneratedArtifacts(Root, report.Documents);
         }
 
-        public void Dispose()
-        {
-            if (Directory.Exists(Root))
-            {
-                Directory.Delete(Root, recursive: true);
-            }
-        }
-
         private static string RenderList(
             IReadOnlyList<string>? values
-        ) => values is null || values.Count == 0 ? "[]" : $"[{string.Join(", ", values)}]";
+        ) => values is null || values.Count == 0
+            ? "[]"
+            : $"[{string.Join(", ", values)}]";
     }
 }

@@ -26,18 +26,32 @@ public sealed partial class MySqlMigrationDslTests
             createTable.Columns,
             column => column.Name == "ValidTo");
 
-        Assert.True(createTable.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value as bool?);
+        Assert.True(
+            createTable.FindAnnotation(MySqlAnnotationNames.IsTemporal)
+                ?.Value as bool?);
+
         Assert.Equal(
             "MigrationDslHistory",
-            createTable.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)?.Value);
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTable)
+                ?.Value);
+
         Assert.Equal(
             "ValidFrom",
-            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)?.Value);
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)
+                ?.Value);
+
         Assert.Equal(
             "ValidTo",
-            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)?.Value);
-        Assert.True(periodStart.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)?.Value as bool?);
-        Assert.True(periodEnd.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)?.Value as bool?);
+            createTable.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)
+                ?.Value);
+
+        Assert.True(
+            periodStart.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartColumn)
+                ?.Value as bool?);
+
+        Assert.True(
+            periodEnd.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndColumn)
+                ?.Value as bool?);
     }
 
     /// <summary>
@@ -62,14 +76,17 @@ public sealed partial class MySqlMigrationDslTests
             "`ValidFrom` timestamp(6) GENERATED ALWAYS AS ROW START",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "`ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("CREATE TRIGGER", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("CREATE TABLE `MigrationDslHistory`", sql, StringComparison.Ordinal);
@@ -98,14 +115,17 @@ public sealed partial class MySqlMigrationDslTests
             "PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "PRIMARY KEY (`Id`, `BusinessValidity` WITHOUT OVERLAPS)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ",\n    CONSTRAINT `PK_MigrationDsl` PRIMARY KEY",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
     }
 
@@ -133,6 +153,7 @@ public sealed partial class MySqlMigrationDslTests
             "PERIOD FOR `BusinessValidity` (`BusinessValidFrom`, `BusinessValidTo`)",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("WITH SYSTEM VERSIONING", sql, StringComparison.Ordinal);
     }
 

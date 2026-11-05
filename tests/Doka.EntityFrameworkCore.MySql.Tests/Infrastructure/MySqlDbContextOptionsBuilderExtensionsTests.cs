@@ -98,8 +98,10 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
         new MySqlDbContextOptionsBuilder(builder)
             .UseParameterizedCollectionMode((ParameterTranslationMode)99);
+
         var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
         var extension = Assert.IsType<MySqlOptionsExtension>(
             actual);

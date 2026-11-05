@@ -10,7 +10,10 @@ public sealed class BenchmarkDatabaseTargetTests
     /// <summary>
     /// Supplies every target from the contract without maintaining a duplicate engine list.
     /// </summary>
-    public static IEnumerable<object[]> ContractTargets() => PerformanceContract.Load().RequiredTargets.Keys
+    public static IEnumerable<object[]> ContractTargets() => PerformanceContract
+        .Load()
+        .RequiredTargets
+        .Keys
         .Select(targetId => new object[] { targetId });
 
     /// <summary>

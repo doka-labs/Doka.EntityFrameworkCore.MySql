@@ -20,7 +20,10 @@ public sealed partial class MySqlMigrationDslTests
             {
                 entity.ToTable("SplitInventory");
                 entity.HasKey(inventory => inventory.Id);
-                entity.Property(inventory => inventory.Id).UseMySqlAutoIncrementColumn();
+                entity
+                    .Property(inventory => inventory.Id)
+                    .UseMySqlAutoIncrementColumn();
+
                 entity.SplitToTable(
                     "SplitInventoryDetails",
                     split => split.Property(inventory => inventory.Description));
@@ -46,7 +49,10 @@ public sealed partial class MySqlMigrationDslTests
             {
                 entity.ToTable("ManualSplitInventory");
                 entity.HasKey(inventory => inventory.Id);
-                entity.Property(inventory => inventory.Id).ValueGeneratedNever();
+                entity
+                    .Property(inventory => inventory.Id)
+                    .ValueGeneratedNever();
+
                 entity.SplitToTable(
                     "ManualSplitInventoryDetails",
                     split => split.Property(inventory => inventory.Description));
@@ -78,7 +84,10 @@ public sealed partial class MySqlMigrationDslTests
             {
                 entity.ToTable("SplitInventory");
                 entity.HasKey(inventory => inventory.Id);
-                entity.Property(inventory => inventory.Id).ValueGeneratedNever();
+                entity
+                    .Property(inventory => inventory.Id)
+                    .ValueGeneratedNever();
+
                 entity.SplitToTable(
                     "SplitInventoryDetails",
                     split => split.Property(inventory => inventory.Description));

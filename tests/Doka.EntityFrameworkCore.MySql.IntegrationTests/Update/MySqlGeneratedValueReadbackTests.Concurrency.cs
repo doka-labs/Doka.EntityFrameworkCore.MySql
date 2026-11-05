@@ -15,8 +15,14 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         await using var context = CreateContext<int, StandardMode>(IntegrationDatabaseTarget.MySql84);
         await RecreateTableAsync(context, CancellationToken.None);
         await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.RepeatableRead, CancellationToken.None);
-        _ = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
+            IsolationLevel.RepeatableRead,
+            CancellationToken.None);
+
+        _ = await context
+            .Rows
+            .AsNoTracking()
+            .CountAsync(CancellationToken.None);
+
         await using var other = new MySqlConnection(context.Database.GetConnectionString());
         await other.OpenAsync(CancellationToken.None);
         await using var seed = other.CreateCommand();
@@ -28,7 +34,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         // Act
         await context.SaveChangesAsync(CancellationToken.None);
-        var visibleCount = await context.Rows.AsNoTracking().CountAsync(CancellationToken.None);
+        var visibleCount = await context
+            .Rows
+            .AsNoTracking()
+            .CountAsync(CancellationToken.None);
 
         // Assert
         Assert.All(rows, AssertGenerated);
@@ -128,6 +137,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         competing.CommandText = delete
             ? $"DELETE FROM `{TableName}` WHERE `Id` = 1;"
             : $"UPDATE `{TableName}` SET `Input` = 100 WHERE `Id` = 1;";
+
         capture.Enabled = true;
         var observedWait = false;
         var completedBeforeRelease = false;
@@ -141,7 +151,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken: cancellationToken);
             competingWrite = competing.ExecuteNonQueryAsync(cancellationToken);
             observedWait = await WaitForNativeLockAsync(
-                context.Database.GetConnectionString()!, contender.ServerThread, cancellationToken);
+                context.Database.GetConnectionString()!,
+                contender.ServerThread,
+                cancellationToken);
+
             completedBeforeRelease = competingWrite.IsCompleted;
         }
         finally
@@ -172,12 +185,15 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         await using var observer = new MySqlConnection(connectionString);
         await observer.OpenAsync(cancellationToken);
         await using var command = observer.CreateCommand();
+
         // WHY: data_lock_waits is live; INNODB_TRX can show an older snapshot
         // while this observer polls a short-lived blocked statement.
         command.CommandText = "SELECT COUNT(*) FROM performance_schema.data_lock_waits AS waits "
             + "JOIN performance_schema.threads AS threads ON threads.THREAD_ID = waits.REQUESTING_THREAD_ID "
             + "WHERE threads.PROCESSLIST_ID = @thread;";
+
         command.Parameters.AddWithValue("@thread", threadId);
+
         // WHY: The observer deadline bounds polling without swallowing cancellation requested by its caller.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(10));
@@ -187,7 +203,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             while (!deadline.IsCancellationRequested)
             {
                 var waiting = Convert.ToInt32(
-                    await command.ExecuteScalarAsync(deadline.Token), CultureInfo.InvariantCulture);
+                    await command.ExecuteScalarAsync(deadline.Token),
+                    CultureInfo.InvariantCulture);
 
                 if (waiting != 0)
                 {

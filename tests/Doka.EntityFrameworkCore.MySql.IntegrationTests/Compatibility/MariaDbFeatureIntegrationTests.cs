@@ -107,6 +107,7 @@ public sealed class MariaDbFeatureIntegrationTests
         await using var context = new JsonContext(CreateOptions<JsonContext>(connectionString, serverVersion));
 
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MdbJsonItems`;", cancellationToken);
+
         // MariaDB stores JSON as longtext with CHECK constraint.
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `MdbJsonItems` (`Id` int NOT NULL AUTO_INCREMENT, `Data` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Data`)), PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
@@ -156,6 +157,7 @@ public sealed class MariaDbFeatureIntegrationTests
         var generator = context.GetService<IMigrationsSqlGenerator>();
 
         var seqName = $"mdb_seq_{Guid.NewGuid():N}"[..25];
+
         // Backtick-escaped form for raw-SQL interpolation. The GUID:N format cannot
         // produce backticks today; escaping keeps the pattern safe-by-construction.
         var quotedSeqName = seqName.Replace("`", "``", StringComparison.Ordinal);
@@ -183,14 +185,14 @@ public sealed class MariaDbFeatureIntegrationTests
         try
         {
             // Verify sequence works.
-            await using var conn = new MySqlConnector.MySqlConnection(connectionString);
+            await using var conn = new MySqlConnection(connectionString);
             await conn.OpenAsync(CancellationToken.None);
             await using var fetchCmd = conn.CreateCommand();
             fetchCmd.CommandText = $"SELECT NEXT VALUE FOR `{quotedSeqName}`;";
 
             var value = Convert.ToInt64(
                 await fetchCmd.ExecuteScalarAsync(CancellationToken.None),
-                System.Globalization.CultureInfo.InvariantCulture);
+                CultureInfo.InvariantCulture);
 
             // Generate DROP SEQUENCE DDL.
             var dropOps = generator.Generate([new DropSequenceOperation { Name = seqName }], context.Model);
@@ -209,6 +211,7 @@ public sealed class MariaDbFeatureIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 $"DROP SEQUENCE IF EXISTS `{quotedSeqName}`;",
                 CancellationToken.None);
+
             throw;
         }
     }
@@ -235,21 +238,24 @@ public sealed class MariaDbFeatureIntegrationTests
                 new CrudItem
                 {
                     Name = "First",
-                    Score = 1.5
+                    Score = 1.5,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Second",
-                    Score = 2.5
+                    Score = 2.5,
                 });
+
             await context.SaveChangesAsync(CancellationToken.None);
 
             var insertedCount = await context.Items.CountAsync(CancellationToken.None);
 
             // Read.
             var first = await context
-                .Items.Where(e => e.Name == "First")
+                .Items
+                .Where(e => e.Name == "First")
                 .FirstAsync(CancellationToken.None);
 
             var insertedScore = first.Score;
@@ -301,25 +307,29 @@ public sealed class MariaDbFeatureIntegrationTests
                 new CrudItem
                 {
                     Name = "Alpha",
-                    Score = 10.0
+                    Score = 10.0,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Beta",
-                    Score = 20.0
+                    Score = 20.0,
                 });
+
             context.Items.Add(
                 new CrudItem
                 {
                     Name = "Gamma",
-                    Score = 30.0
+                    Score = 30.0,
                 });
+
             await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
             var filtered = await context
-                .Items.Where(e => e.Score > 15)
+                .Items
+                .Where(e => e.Score > 15)
                 .OrderBy(e => e.Name)
                 .ToListAsync(CancellationToken.None);
 
@@ -371,18 +381,29 @@ public sealed class MariaDbFeatureIntegrationTests
                 new TemporalItem
                 {
                     Created = new DateTime(2025, 3, 15, 9, 0, 0),
-                    BirthDate = new DateOnly(1990, 6, 1)
+                    BirthDate = new DateOnly(1990, 6, 1),
                 });
+
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
 
             // Act
             var actual = addMonths
-                ? (await context.Items.Select(e => e.BirthDate.AddMonths(6)).FirstAsync(cancellationToken)).Month
-                : (await context.Items.Select(e => e.Created.AddDays(10)).FirstAsync(cancellationToken)).Day;
+                ? (await context
+                    .Items
+                    .Select(e => e.BirthDate.AddMonths(6))
+                    .FirstAsync(cancellationToken)).Month
+                : (await context
+                    .Items
+                    .Select(e => e.Created.AddDays(10))
+                    .FirstAsync(cancellationToken)).Day;
 
             // Assert
-            Assert.Equal(addMonths ? 12 : 25, actual);
+            Assert.Equal(
+                addMonths
+                    ? 12
+                    : 25,
+                actual);
         }
         finally
         {

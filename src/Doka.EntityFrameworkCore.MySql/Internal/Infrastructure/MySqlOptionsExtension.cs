@@ -6,24 +6,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <remarks>
 /// This type is public because EF Core's standard relational options-builder base includes
 /// its extension type in the public generic signature. Application code should configure it
-/// through <see cref="MySqlDbContextOptionsBuilder"/> instead of constructing it directly.
+/// through <see cref="MySqlDbContextOptionsBuilder" /> instead of constructing it directly.
 /// </remarks>
 public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 {
     private DbContextOptionsExtensionInfo? _info;
-
-    internal MySqlDataSource? DataSource { get; private set; }
-
-    internal MySqlServerVersion? ServerVersion { get; private set; }
-
-    internal MySqlRetryOptions? RetryOptions { get; private set; }
-
-    internal MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
-
-    internal bool UserVariablesRequired { get; private set; }
-
-    /// <inheritdoc />
-    public override DbContextOptionsExtensionInfo Info => _info ??= new MySqlOptionsExtensionInfo(this);
 
     /// <summary>
     /// Creates an empty provider-options snapshot for EF Core infrastructure.
@@ -40,6 +27,19 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         DefaultGuidFormat = copyFrom.DefaultGuidFormat;
         UserVariablesRequired = copyFrom.UserVariablesRequired;
     }
+
+    internal MySqlDataSource? DataSource { get; private set; }
+
+    internal MySqlServerVersion? ServerVersion { get; private set; }
+
+    internal MySqlRetryOptions? RetryOptions { get; private set; }
+
+    internal MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
+
+    internal bool UserVariablesRequired { get; private set; }
+
+    /// <inheritdoc />
+    public override DbContextOptionsExtensionInfo Info => _info ??= new MySqlOptionsExtensionInfo(this);
 
     /// <inheritdoc />
     protected override RelationalOptionsExtension Clone() => new MySqlOptionsExtension(this);
@@ -263,7 +263,7 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         if (keep != ConnectionPath.Connection
             && Connection is not null)
         {
-            clone = (MySqlOptionsExtension)((RelationalOptionsExtension)clone).WithConnection(null, owned: false);
+            clone = (MySqlOptionsExtension)clone.WithConnection(null, owned: false);
         }
 
         if (keep != ConnectionPath.DataSource
@@ -273,13 +273,6 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         }
 
         return clone;
-    }
-
-    private enum ConnectionPath
-    {
-        ConnectionString,
-        Connection,
-        DataSource,
     }
 
     internal void LogInvalidConfiguration(
@@ -316,6 +309,15 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
             return nameof(DbConnection);
         }
 
-        return !string.IsNullOrWhiteSpace(ConnectionString) ? "ConnectionString" : "Unconfigured";
+        return !string.IsNullOrWhiteSpace(ConnectionString)
+            ? "ConnectionString"
+            : "Unconfigured";
+    }
+
+    private enum ConnectionPath
+    {
+        ConnectionString,
+        Connection,
+        DataSource,
     }
 }

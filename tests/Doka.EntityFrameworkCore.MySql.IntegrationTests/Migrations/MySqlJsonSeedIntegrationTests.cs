@@ -93,8 +93,12 @@ public sealed class MySqlJsonSeedIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -103,7 +107,8 @@ public sealed class MySqlJsonSeedIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -132,7 +137,9 @@ public sealed class MySqlJsonSeedIntegrationTests
                 .Options);
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var operations = context
             .GetService<IMigrationsModelDiffer>()
             .GetDifferences(null, model.GetRelationalModel());
@@ -166,7 +173,8 @@ public sealed class MySqlJsonSeedIntegrationTests
         var insert = Assert.Single(operations.OfType<InsertDataOperation>());
 
         Assert.All(
-            insert.Columns
+            insert
+                .Columns
                 .Select((column, index) => (column, index))
                 .Where(item => item.column != nameof(JsonSeedIntegrationRecord.Id)),
             item => Assert.IsType<string>(insert.Values[0, item.index]));
@@ -205,7 +213,9 @@ public sealed class MySqlJsonSeedIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{JsonSeedIntegrationContract.Table}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 
@@ -260,10 +270,22 @@ internal sealed class JsonSeedIntegrationContext : DbContext
         {
             entity.ToTable(JsonSeedIntegrationContract.Table);
             entity.HasKey(record => record.Id);
-            entity.Property(record => record.Document).IsRequired();
-            entity.Property(record => record.Node).IsRequired();
-            entity.Property(record => record.ObjectValue).IsRequired();
-            entity.Property(record => record.Array).IsRequired();
+            entity
+                .Property(record => record.Document)
+                .IsRequired();
+
+            entity
+                .Property(record => record.Node)
+                .IsRequired();
+
+            entity
+                .Property(record => record.ObjectValue)
+                .IsRequired();
+
+            entity
+                .Property(record => record.Array)
+                .IsRequired();
+
             entity.HasData(
                 new JsonSeedIntegrationRecord
                 {

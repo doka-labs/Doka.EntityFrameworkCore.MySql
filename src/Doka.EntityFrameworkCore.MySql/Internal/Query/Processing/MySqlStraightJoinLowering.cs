@@ -74,6 +74,7 @@ internal sealed class MySqlStraightJoinLowering : ExpressionVisitor
     }
 
     /// <summary>Marks only an inner input during translation; application code never executes this method.</summary>
+
     // WHY: EF's navigation expansion passes this marker through only for the exact
     // static unary IQueryable<T> -> IQueryable<T> shape with one generic type argument.
     private static IQueryable<T> MarkInner<T>(

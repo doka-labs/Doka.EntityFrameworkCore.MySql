@@ -32,6 +32,7 @@ public sealed partial class MySqlGuidMigrationTests
                 entity
                     .Property(revision => revision.Description)
                     .HasMaxLength(DescriptionLength);
+
                 entity.HasIndex(revision => revision.DocumentId);
                 entity
                     .HasOne(revision => revision.Document)
@@ -177,34 +178,38 @@ public sealed partial class MySqlGuidMigrationTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("GuidAssignee", entity =>
-            {
-                entity.ToTable("GuidAssignees");
-                entity.IndexerProperty<Guid>("Id");
-                entity.HasKey("Id");
-            });
-
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("GuidWorkItem", entity =>
-            {
-                entity.ToTable("GuidWorkItems");
-                entity.IndexerProperty<int>("Id");
-                entity.HasKey("Id");
-
-                if (AssigneeRequired)
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "GuidAssignee",
+                entity =>
                 {
-                    entity.IndexerProperty<Guid>("AssigneeId");
-                }
-                else
-                {
-                    entity.IndexerProperty<Guid?>("AssigneeId");
-                }
+                    entity.ToTable("GuidAssignees");
+                    entity.IndexerProperty<Guid>("Id");
+                    entity.HasKey("Id");
+                });
 
-                entity
-                    .HasOne("GuidAssignee", null)
-                    .WithMany()
-                    .HasForeignKey("AssigneeId")
-                    .OnDelete(DeleteBehavior.Restrict);
-            });
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "GuidWorkItem",
+                entity =>
+                {
+                    entity.ToTable("GuidWorkItems");
+                    entity.IndexerProperty<int>("Id");
+                    entity.HasKey("Id");
+
+                    if (AssigneeRequired)
+                    {
+                        entity.IndexerProperty<Guid>("AssigneeId");
+                    }
+                    else
+                    {
+                        entity.IndexerProperty<Guid?>("AssigneeId");
+                    }
+
+                    entity
+                        .HasOne("GuidAssignee", null)
+                        .WithMany()
+                        .HasForeignKey("AssigneeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
         }
     }
 
@@ -234,28 +239,30 @@ public sealed partial class MySqlGuidMigrationTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("BinaryOverrideRecord", entity =>
-            {
-                entity.ToTable("BinaryOverrideRecords");
-                entity.IndexerProperty<int>("Id");
-                entity.HasKey("Id");
-
-                if (!IncludesReference)
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "BinaryOverrideRecord",
+                entity =>
                 {
-                    return;
-                }
+                    entity.ToTable("BinaryOverrideRecords");
+                    entity.IndexerProperty<int>("Id");
+                    entity.HasKey("Id");
 
-                PropertyBuilder property = ReferenceRequired
-                    ? entity.IndexerProperty<Guid>("ReferenceId")
-                    : entity.IndexerProperty<Guid?>("ReferenceId");
+                    if (!IncludesReference)
+                    {
+                        return;
+                    }
 
-                property.HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+                    PropertyBuilder property = ReferenceRequired
+                        ? entity.IndexerProperty<Guid>("ReferenceId")
+                        : entity.IndexerProperty<Guid?>("ReferenceId");
 
-                if (HasReferenceDefault)
-                {
-                    property.HasDefaultValue(Guid.Parse(BinaryOverrideDefault));
-                }
-            });
+                    property.HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
+                    if (HasReferenceDefault)
+                    {
+                        property.HasDefaultValue(Guid.Parse(BinaryOverrideDefault));
+                    }
+                });
         }
     }
 

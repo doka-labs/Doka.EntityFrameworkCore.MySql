@@ -35,6 +35,7 @@ scannable. Per-test triage continues in subsequent triage phases as each categor
 provider-side fix or a documented permanent skip.
 
 (closed 2026-05-17 via two dispositions:
+
 - 18 anonymous-type / Tuple equality tests (`Where_compare_constructed_*`,
   `Where_compare_tuple_constructed_*`, `Where_compare_tuple_create_constructed_*`,
   9 methods x 2 async): mirror SqlServer's `AssertTranslationFailed(...)` override.
@@ -52,36 +53,34 @@ provider-side fix or a documented permanent skip.
   `'10ALFKI10'`. Override now emits `CONCAT(left, right)` when the binary's CLR Type is
   `string`. Nested chains of string-Adds produce nested CONCATs which MySQL evaluates with
   the documented concatenation semantics.)
-(closed 2026-05-17: root cause was an explicit `FindCollectionMapping(...) => null`
-override on `MySqlTypeMappingSource` that blocked EF Core's collection-mapping resolution
-path; without a collection mapping the `InExpression.ValuesParameter` produced for
-`list.Contains(x.Id)` queries never received an `ElementTypeMapping`, and the
-`RelationalTypeMappingPostprocessor` rejected the parameter with
-`NullTypeMappingInSqlTree`. Removing the override lets the base implementation build
-a JSON-collection-string mapping with the element mapping wired through to
-`SqlNullabilityProcessor.ProcessInExpressionValues`, which expands the parameter into
-inlined SQL constants per `ParameterTranslationMode.MultipleParameters` (the EF Core
-10 default). During 10.4.3 the inherited spec harness selected that mode
-explicitly because Doka's default was one JSON parameter. Version 10.4.4
-restores the EF Core default and removes the redundant harness override.
-Provider-owned functional and live integration tests separately cover explicit
-JSON transport for GUIDs, strings, nullable strings, and converted enums.
-The inherited suite continues to verify EF Core's other translation contracts.
-Closed 16 NorthwindWhereQueryMySqlTest failures across `@orderIds`, `@customerIds`,
-`@array`, `@cities`, and `@entity_equality_customer_Orders_OrderID` parameter cases.)
+  (closed 2026-05-17: root cause was an explicit `FindCollectionMapping(...) => null`
+  override on `MySqlTypeMappingSource` that blocked EF Core's collection-mapping resolution
+  path; without a collection mapping the `InExpression.ValuesParameter` produced for
+  `list.Contains(x.Id)` queries never received an `ElementTypeMapping`, and the
+  `RelationalTypeMappingPostprocessor` rejected the parameter with
+  `NullTypeMappingInSqlTree`. Removing the override lets the base implementation build
+  a JSON-collection-string mapping with the element mapping wired through to
+  `SqlNullabilityProcessor.ProcessInExpressionValues`, which expands the parameter into
+  inlined SQL constants per `ParameterTranslationMode.MultipleParameters` (the EF Core
+  10 default). During 10.4.3 the inherited spec harness selected that mode
+  explicitly because Doka's default was one JSON parameter. Version 10.4.4
+  restores the EF Core default and removes the redundant harness override.
+  Provider-owned functional and live integration tests separately cover explicit
+  JSON transport for GUIDs, strings, nullable strings, and converted enums.
+  The inherited suite continues to verify EF Core's other translation contracts.
+  Closed 16 NorthwindWhereQueryMySqlTest failures across `@orderIds`, `@customerIds`,
+  `@array`, `@cities`, and `@entity_equality_customer_Orders_OrderID` parameter cases.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 10 tests) -- "syntax error near 'bigint)'".
   CLOSED in this iteration: MySqlQuerySqlGenerator.VisitSqlUnary now translates column-level
   StoreType (int / bigint / longtext / etc.) into MySQL CAST-grammar keywords (SIGNED / CHAR /
   BINARY). Some of these tests now run + assert; any that still fail with wrong-value have
-  been reclassified to the "Assert.Equal / Assert.Single" categories below.
-(moved to Permanent skips below: "LIMIT & IN/ALL/ANY/SOME subquery" -- validated against
-both MySQL 8.4 and MariaDB 11.8.)
+  been reclassified to the "Assert.Equal / Assert.Single" categories below. (moved to Permanent skips below: "LIMIT & IN/ALL/ANY/SOME subquery" -- validated against
+  both MySQL 8.4 and MariaDB 11.8.)
 - NorthwindWhereQueryMySqlTest (mysql:8.4, 2 tests) -- "syntax error near 'longtext)'".
-  CLOSED in this iteration via the same VisitSqlUnary override (longtext / text / nchar -> CHAR).
-(closed 2026-05-17 via the string-Add CONCAT override on `MySqlQuerySqlGenerator.VisitSqlBinary`
- -- the per-test investigation showed both Assert.Equal failures collapsed to the same
- root cause as the 4 string-Add result-mismatch tests above.)
-(closed 2026-05-17 via two root-cause fixes:
+  CLOSED in this iteration via the same VisitSqlUnary override (longtext / text / nchar -> CHAR). (closed 2026-05-17 via the string-Add CONCAT override on `MySqlQuerySqlGenerator.VisitSqlBinary`
+  -- the per-test investigation showed both Assert.Equal failures collapsed to the same
+  root cause as the 4 string-Add result-mismatch tests above.)
+  (closed 2026-05-17 via two root-cause fixes:
 - The `MySqlTypeMappingSource.CreateEnumMapping` short-circuit returned a raw numeric
   mapping for enum CLR types without an `EnumToNumberConverter`, so EF Core's seed-write
   path emitted the unquoted enum name literal (`Enum16.SomeValue` -> `SomeValue`) which
@@ -99,8 +98,7 @@ both MySQL 8.4 and MariaDB 11.8.)
   Duplicate-PK failures (Ids 11, 12, 100, 'Gumball!', 799) deferred to a follow-up
   triage iteration: a deep-dive surfaced a separate latent bug --
   `MySqlValueGenerationConvention.ApplyValueGenerationStrategy` unconditionally
-  overrode user-set `ValueGenerated.Never` with `OnAdd` for integer primary keys
-  (every `eb.Property(e => e.Id).ValueGeneratedNever()` was silently flipped back
+  overrode user-set `ValueGenerated.Never` with `OnAdd` for integer primary keys (every `eb.Property(e => e.Id).ValueGeneratedNever()` was silently flipped back
   to AUTO_INCREMENT) -- which is now fixed at the convention layer. Even with the
   schema correctly emitting `Id int NOT NULL` (no AUTO_INCREMENT) the 6 Duplicate-PK
   tests still fail. (closed 2026-05-17: root cause was a fixture-level
@@ -116,18 +114,17 @@ both MySQL 8.4 and MariaDB 11.8.)
   `_as_literal`, `_nullable_data_type`, `_nullable_data_type_as_literal`, and
   shadow variants now pass.)
 - BuiltInDataTypesMySqlTest (mysql:8.4, 4 tests) -- "syntax error near 'int)'".
-  CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED).
-(closed 2026-05-17: root cause was NOT missing entity registration but a CREATE TABLE
-failure on MaxLengthDataTypes whose varchar(9000) + varbinary(9000) columns exceeded MySQL's
-65535-byte row-size limit under utf8mb4. EF Core's EnsureCreatedAsync emits tables in
-declaration order and throws on the first failure; every subsequent table (AnimalIdentification,
-StringEnclosure, MaxLengthDataTypes itself, UnicodeDataTypes, ObjectBackedDataTypes,
-NullableBackedDataTypes, NonNullableBackedDataTypes, BinaryForeignKeyDataType,
-StringKeyDataType, StringForeignKeyDataType, AnimalDetails) was silently skipped. The
-fixture-level fix maps String9000 / StringUnbounded / ByteArray9000 to longtext / longblob
-column types which store off-row and bypass the row-size limit. The MySQL general-log
-diagnostic that surfaced the SQL "CREATE TABLE MaxLengthDataTypes ... varchar(9000) ... ;
-rollback" was decisive in identifying the cutoff point.)
+  CLOSED in this iteration via the same VisitSqlUnary override (int -> SIGNED). (closed 2026-05-17: root cause was NOT missing entity registration but a CREATE TABLE
+  failure on MaxLengthDataTypes whose varchar (9000) + varbinary (9000) columns exceeded MySQL's
+  65535-byte row-size limit under utf8mb4. EF Core's EnsureCreatedAsync emits tables in
+  declaration order and throws on the first failure; every subsequent table (AnimalIdentification,
+  StringEnclosure, MaxLengthDataTypes itself, UnicodeDataTypes, ObjectBackedDataTypes,
+  NullableBackedDataTypes, NonNullableBackedDataTypes, BinaryForeignKeyDataType,
+  StringKeyDataType, StringForeignKeyDataType, AnimalDetails) was silently skipped. The
+  fixture-level fix maps String9000 / StringUnbounded / ByteArray9000 to longtext / longblob
+  column types which store off-row and bypass the row-size limit. The MySQL general-log
+  diagnostic that surfaced the SQL "CREATE TABLE MaxLengthDataTypes ... varchar (9000) ... ;
+  rollback" was decisive in identifying the cutoff point.)
 - BuiltInDataTypesMySqlTest.Can_read_back_bool_mapped_as_int_through_navigation (mysql:8.4)
   -- `InvalidOperationException : No coercion operator is defined between types 'System.Int32'
   and 'System.Nullable\`1[System.Boolean]'.` raised from query-translation. Surfaces a real
@@ -136,7 +133,7 @@ rollback" was decisive in identifying the cutoff point.)
   StrictEquality=false fix unblocked the surrounding tests.)
 
 - UpdatesMySqlTest.Save_with_shared_foreign_key (mysql:8.4, mariadb:11.8) -- the spec
-  test creates a Product (binary(16) Guid PK) plus a ProductWithBytes (same Guid PK
+  test creates a Product (binary (16) Guid PK) plus a ProductWithBytes (same Guid PK
   shape) and inserts a ProductCategory row whose FK column would reference either of
   them depending on which polymorphic principal is present. EF Core emits a single
   `FK_ProductCategory_Products_ProductId` constraint pointing at the Products table;
@@ -226,8 +223,7 @@ do not provide.
   (https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/subqueries/subquery-limitations,
   retrieved 2026-05-17) carries the same error 1235 (42000). Empirical probe 2026-05-17
   against doka-mysql84 + doka-mariadb118 docker containers confirmed both reject the pattern
-  with and without ORDER BY. The spec tests assume an engine that supports the construct
-  (SQL Server, PostgreSQL, SQLite); structural inapplicability per ADR D-011 bucket 3.
+  with and without ORDER BY. The spec tests assume an engine that supports the construct (SQL Server, PostgreSQL, SQLite); structural inapplicability per ADR D-011 bucket 3.
 - UpdatesMySqlTest.Identifiers_are_generated_correctly (mysql:8.4, mariadb:11.8) -- the spec
   asserts that the deliberately-long entity-type name flows through the identifier pipeline
   UNTRUNCATED into table / key / constraint / index names. Doka's MySqlModelValidator rejects
@@ -254,27 +250,26 @@ skipped and the re-evaluation trigger.
     FROM JSON_TABLE(j.OwnedReferenceRoot, '$.x' COLUMNS (id int PATH '$.id')) o)
     o0) > 0 LIMIT 1` returns ERROR 1054 "Unknown column 'j.OwnedReferenceRoot' in
     'JSON_TABLE'" (TWO subquery levels).
-  MySQL 8.4 accepts both forms (6 tests green there). The 6 affected spec tests
-  emit two-level-nested-subquery shapes for `Json_collection_Distinct_Count_with
+    MySQL 8.4 accepts both forms (6 tests green there). The 6 affected spec tests
+    emit two-level-nested-subquery shapes for `Json_collection_Distinct_Count_with
   _predicate` (`COUNT` over `DISTINCT` over JSON_TABLE), `Json_collection_Skip`
-  (subquery wraps the JSON_TABLE-derived row source for SKIP/Offset translation),
-  and `Json_collection_OrderByDescending_Skip_ElementAt` (descending ORDER BY +
-  Skip wraps in a derived subquery before ElementAt projects out). Primary source:
-  MariaDB has a cluster of open JSON_TABLE name-resolution issues
-  ([MDEV-25254](https://jira.mariadb.org/browse/MDEV-25254) "JSON_TABLE: Inconsistent
-  name resolution with right joins",
-  [MDEV-25256](https://jira.mariadb.org/browse/MDEV-25256) "ER_VIEW_INVALID upon
-  running query via view",
-  [MDEV-25346](https://jira.mariadb.org/browse/MDEV-25346) "Server crashes in
-  Item_field::fix_outer_field upon subquery with unknown column",
-  [MDEV-25352](https://jira.mariadb.org/browse/MDEV-25352) "Inconsistent name
-  resolution and ER_VIEW_INVALID upon combination of RIGHT and NATURAL JOIN")
-  -- all OPEN, no fix version, retrieved 2026-05-17. MDEV-30623 fixed the
-  related "JSON_TABLE in subquery not marked as correlated" bug in 11.5.2 but
-  did not address the depth-of-nesting limitation. Re-evaluation trigger: remove
-  when MariaDB lands a JSON_TABLE name-resolution fix that allows outer column
-  references from deeper subquery nesting; verify empirically against the probe
-  above. Structural engine inapplicability per ADR D-011 bucket 3.
+    (subquery wraps the JSON_TABLE-derived row source for SKIP/Offset translation),
+    and `Json_collection_OrderByDescending_Skip_ElementAt` (descending ORDER BY +
+    Skip wraps in a derived subquery before ElementAt projects out). Primary source:
+    MariaDB has a cluster of open JSON_TABLE name-resolution issues ([MDEV-25254](https://jira.mariadb.org/browse/MDEV-25254) "JSON_TABLE: Inconsistent
+    name resolution with right joins",
+    [MDEV-25256](https://jira.mariadb.org/browse/MDEV-25256) "ER_VIEW_INVALID upon
+    running query via view",
+    [MDEV-25346](https://jira.mariadb.org/browse/MDEV-25346) "Server crashes in
+    Item_field::fix_outer_field upon subquery with unknown column",
+    [MDEV-25352](https://jira.mariadb.org/browse/MDEV-25352) "Inconsistent name
+    resolution and ER_VIEW_INVALID upon combination of RIGHT and NATURAL JOIN")
+    -- all OPEN, no fix version, retrieved 2026-05-17. MDEV-30623 fixed the
+    related "JSON_TABLE in subquery not marked as correlated" bug in 11.5.2 but
+    did not address the depth-of-nesting limitation. Re-evaluation trigger: remove
+    when MariaDB lands a JSON_TABLE name-resolution fix that allows outer column
+    references from deeper subquery nesting; verify empirically against the probe
+    above. Structural engine inapplicability per ADR D-011 bucket 3.
 
 - JsonQueryMySqlTest JSON-collection-projection cluster (mariadb:11.8 ONLY; 32 tests)
   -- MariaDB 11.8 does NOT implement SQL-standard LATERAL derived tables in any JOIN
@@ -309,11 +304,9 @@ skipped and the re-evaluation trigger.
   - 4 `Json_collection_*Where_ElementAt` + `Json_collection_index_in_projection_using_
     untranslatable_client_method` variants
   - 4 misc nested-collection composition tests
-  Re-evaluation trigger: remove from this list when EITHER (a) MDEV-19078 closes in a
-  consumed MariaDB minor / major version (Doka tracks 11.4 LTS + 11.8 LTS today), OR
-  (b) EF Core's translator produces a non-LATERAL equivalent for these query shapes
-  (e.g., correlated scalar subqueries inside SELECT projection, or stream-only
-  per-row materialization).
+    Re-evaluation trigger: remove from this list when EITHER (a) MDEV-19078 closes in a
+    consumed MariaDB minor / major version (Doka tracks 11.4 LTS + 11.8 LTS today), OR (b) EF Core's translator produces a non-LATERAL equivalent for these query shapes (e.g., correlated scalar subqueries inside SELECT projection, or stream-only
+    per-row materialization).
 
 - JsonQueryMySqlTest JSON_TABLE-EXISTS-correlated-COUNT cluster (mysql:8.4 ONLY;
   2 tests) -- `Json_collection_within_collection_Count` (async + sync). MySQL
@@ -349,7 +342,7 @@ Entry shape:
   mapping returns the MySQL `json` store-type so EF Core's owned-JSON validator
   passes; RelationalModelValidator.ValidateConstraintNameLengths skips IsMappedToJson
   entities so their auto-generated FK / index names do not trip the 64-character
-  limit; per-property Ignore() on the 12 nested primitive collections of
+  limit; per-property `Ignore()` on the 12 nested primitive collections of
   JsonEntityAllTypes + JsonOwnedAllTypes works around the EF Core core
   `ValidatePrimitiveCollections` limit; MySqlJsonContainerTypeMapping overrides
   `CustomizeDataReaderExpression` to wrap MySqlConnector's `GetString` result in a
@@ -361,8 +354,7 @@ Entry shape:
   provider engineering, each tracked as concrete follow-up work:
   56 LINQ translation failures (`j.OwnedCollectionRoot Q-> ...`) need a
   `MySqlSqlExpressionFactory.MakeJsonTable` plus a `MySqlQuerySqlGenerator.VisitJsonTable`
-  override that emits MySQL's native `JSON_TABLE(col, '$.path' COLUMNS (...))` shape
-  (the base `RelationalQuerySqlGenerator` emits SQL Server's `OPENJSON` shape that
+  override that emits MySQL's native `JSON_TABLE(col, '$.path' COLUMNS (...))` shape (the base `RelationalQuerySqlGenerator` emits SQL Server's `OPENJSON` shape that
   MySQL cannot parse and falls back to a double-quoted identifier subquery shape
   that fails with "syntax near '\"JsonEntitiesInheritance\" AS j'"). 56 JSON-path
   errors at characters 2 / 24 / 27 / 32 / 47 come from EF Core's

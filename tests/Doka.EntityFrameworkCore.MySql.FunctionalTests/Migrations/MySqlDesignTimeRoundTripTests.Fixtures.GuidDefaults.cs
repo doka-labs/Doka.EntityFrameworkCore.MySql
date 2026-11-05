@@ -57,22 +57,24 @@ public abstract class GuidSqlDefaultDesignContextBase : DbContext
         string defaultSql
     )
     {
-        modelBuilder.SharedTypeEntity<Dictionary<string, object>>(entityName, entity =>
-        {
-            entity.ToTable(entityName);
-
-            var property = entity
-                .IndexerProperty<Guid>("Id")
-                .HasMySqlGuidFormat(format)
-                .HasDefaultValueSql(defaultSql);
-
-            entity.HasKey("Id");
-
-            if (UseExplicitClientGuid)
+        modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+            entityName,
+            entity =>
             {
-                // Serialized annotations are explicit user configuration when an old snapshot is replayed.
-                property.UseMySqlClientGuidValueGeneration();
-            }
-        });
+                entity.ToTable(entityName);
+
+                var property = entity
+                    .IndexerProperty<Guid>("Id")
+                    .HasMySqlGuidFormat(format)
+                    .HasDefaultValueSql(defaultSql);
+
+                entity.HasKey("Id");
+
+                if (UseExplicitClientGuid)
+                {
+                    // Serialized annotations are explicit user configuration when an old snapshot is replayed.
+                    property.UseMySqlClientGuidValueGeneration();
+                }
+            });
     }
 }

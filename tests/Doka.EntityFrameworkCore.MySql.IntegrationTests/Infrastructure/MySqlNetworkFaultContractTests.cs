@@ -94,12 +94,16 @@ public sealed class MySqlNetworkFaultContractTests
         {
             await AssertDisconnectBeforeQueryAsync(directConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertDisconnectDuringReadAsync(directConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertCommitRequestLossAsync(directConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertDisconnectBeforeCommitResponseAsync(directConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertDisconnectAfterCommitResponseAsync(directConnectionString, serverVersion, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -123,14 +127,16 @@ public sealed class MySqlNetworkFaultContractTests
         await using var context = CreateContext(proxy.BuildConnectionString(directConnectionString), serverVersion);
 
         await context
-            .Database.OpenConnectionAsync(cancellationToken)
+            .Database
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         // Act
         var droppedConnectionCount = proxy.DropActiveConnections();
         var exception = await Record
             .ExceptionAsync(() => context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+                .Database
+                .SqlQueryRaw<int>("SELECT 1 AS Value")
                 .SingleAsync(cancellationToken))
             .ConfigureAwait(false);
 
@@ -154,11 +160,13 @@ public sealed class MySqlNetworkFaultContractTests
         await using var context = CreateContext(proxy.BuildConnectionString(directConnectionString), serverVersion);
 
         await context
-            .Database.OpenConnectionAsync(cancellationToken)
+            .Database
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var command = context
-            .Database.GetDbConnection()
+            .Database
+            .GetDbConnection()
             .CreateCommand();
 
         command.CommandText = """
@@ -170,6 +178,7 @@ public sealed class MySqlNetworkFaultContractTests
                               )
                               SELECT value, value * 2 FROM sequence
                               """;
+
         command.CommandTimeout = 10;
         proxy.ArmQueryResponseFault("doka_stream_fault", responsePacketsToForward: 5);
 
@@ -182,8 +191,8 @@ public sealed class MySqlNetworkFaultContractTests
                     .ConfigureAwait(false);
 
                 while (await reader
-                           .ReadAsync(cancellationToken)
-                           .ConfigureAwait(false)) { }
+                    .ReadAsync(cancellationToken)
+                    .ConfigureAwait(false)) { }
             })
             .ConfigureAwait(false);
 
@@ -211,14 +220,18 @@ public sealed class MySqlNetworkFaultContractTests
         await using var context = CreateContext(proxy.BuildConnectionString(directConnectionString), serverVersion);
 
         await context
-            .Database.OpenConnectionAsync(cancellationToken)
+            .Database
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var transaction = await context
-            .Database.BeginTransactionAsync(cancellationToken)
+            .Database
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await InsertOperationAsync(context, operationId, cancellationToken)
             .ConfigureAwait(false);
+
         proxy.ArmCommitFault(CommitFaultMode.BeforeRequest);
 
         // Act
@@ -226,7 +239,8 @@ public sealed class MySqlNetworkFaultContractTests
             .ExceptionAsync(() => transaction.CommitAsync(cancellationToken))
             .ConfigureAwait(false);
 
-        var faultMode = await proxy.WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
+        var faultMode = await proxy
+            .WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
             .ConfigureAwait(false);
 
         var operationCount = await CountOperationAsync(directConnectionString, operationId, cancellationToken)
@@ -236,6 +250,7 @@ public sealed class MySqlNetworkFaultContractTests
         Assert.True(
             exception is not null,
             $"COMMIT request loss did not fail. Observed queries: {string.Join(" | ", proxy.GetObservedQueries())}");
+
         Assert.Equal(CommitFaultMode.BeforeRequest, faultMode);
         Assert.Equal(0, operationCount);
     }
@@ -259,15 +274,18 @@ public sealed class MySqlNetworkFaultContractTests
             loggerFactory);
 
         await context
-            .Database.OpenConnectionAsync(cancellationToken)
+            .Database
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var transaction = await context
-            .Database.BeginTransactionAsync(cancellationToken)
+            .Database
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await InsertOperationAsync(context, operationId, cancellationToken)
             .ConfigureAwait(false);
+
         proxy.ArmCommitFault(CommitFaultMode.BeforeResponse);
 
         // Act
@@ -277,7 +295,8 @@ public sealed class MySqlNetworkFaultContractTests
             .ExceptionAsync(() => transaction.CommitAsync(cancellationToken))
             .ConfigureAwait(false);
 
-        var faultMode = await proxy.WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
+        var faultMode = await proxy
+            .WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
             .ConfigureAwait(false);
 
         var operationCountBeforeReplay = await CountOperationAsync(
@@ -312,8 +331,11 @@ public sealed class MySqlNetworkFaultContractTests
         Assert.All(
             telemetry.CommitUnknownTagSets,
             tags => Assert.Equal(
-                serverVersion.IsMariaDb ? MySqlDiagnosticTags.MariaDb : MySqlDiagnosticTags.MySql,
+                serverVersion.IsMariaDb
+                    ? MySqlDiagnosticTags.MariaDb
+                    : MySqlDiagnosticTags.MySql,
                 tags[MySqlDiagnosticTags.Engine]));
+
         Assert.Equal(1, operationCountBeforeReplay);
 
         var duplicateException = Assert.IsType<MySqlException>(duplicateFailure);
@@ -334,15 +356,18 @@ public sealed class MySqlNetworkFaultContractTests
         await using var context = CreateContext(proxy.BuildConnectionString(directConnectionString), serverVersion);
 
         await context
-            .Database.OpenConnectionAsync(cancellationToken)
+            .Database
+            .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await using var transaction = await context
-            .Database.BeginTransactionAsync(cancellationToken)
+            .Database
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
         await InsertOperationAsync(context, operationId, cancellationToken)
             .ConfigureAwait(false);
+
         proxy.ArmCommitFault(CommitFaultMode.AfterResponse);
 
         // Act
@@ -350,12 +375,14 @@ public sealed class MySqlNetworkFaultContractTests
             .CommitAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var faultMode = await proxy.WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
+        var faultMode = await proxy
+            .WaitForCommitFaultAsync(TimeSpan.FromSeconds(10), cancellationToken)
             .ConfigureAwait(false);
 
         var queryException = await Record
             .ExceptionAsync(() => context
-                .Database.SqlQueryRaw<int>("SELECT 1 AS Value")
+                .Database
+                .SqlQueryRaw<int>("SELECT 1 AS Value")
                 .SingleAsync(cancellationToken))
             .ConfigureAwait(false);
 
@@ -400,7 +427,8 @@ public sealed class MySqlNetworkFaultContractTests
         string operationId,
         CancellationToken cancellationToken
     ) => _ = await context
-        .Database.ExecuteSqlRawAsync(
+        .Database
+        .ExecuteSqlRawAsync(
             $"INSERT INTO {TableName} (OperationId, EffectCount) VALUES ({{0}}, 1)",
             new object[] { operationId },
             cancellationToken)
@@ -416,6 +444,7 @@ public sealed class MySqlNetworkFaultContractTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"INSERT INTO {TableName} (OperationId, EffectCount) VALUES (@operationId, 1)";
         command.Parameters.AddWithValue("@operationId", operationId);
@@ -434,6 +463,7 @@ public sealed class MySqlNetworkFaultContractTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM {TableName} WHERE OperationId = @operationId";
         command.Parameters.AddWithValue("@operationId", operationId);
@@ -455,6 +485,7 @@ public sealed class MySqlNetworkFaultContractTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
 
@@ -474,6 +505,7 @@ public sealed class MySqlNetworkFaultContractTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
                                DROP TABLE IF EXISTS {TableName};
@@ -482,6 +514,7 @@ public sealed class MySqlNetworkFaultContractTests
                                    EffectCount int NOT NULL
                                );
                                """;
+
         _ = await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -497,8 +530,8 @@ public sealed class MySqlNetworkFaultContractTests
     private sealed class CommitUnknownTelemetrySink : IDisposable
     {
         private readonly ActivityListener _activityListener;
-        private readonly MeterListener _meterListener = new();
         private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _commitUnknownTagSets = new();
+        private readonly MeterListener _meterListener = new();
         private long _commitUnknownMeasurements;
 
         public CommitUnknownTelemetrySink()
@@ -510,12 +543,11 @@ public sealed class MySqlNetworkFaultContractTests
                     ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = Activities.Enqueue,
             };
+
             ActivitySource.AddActivityListener(_activityListener);
 
-            _meterListener.InstrumentPublished = (
-                instrument,
-                listener
-            ) =>
+            _meterListener.InstrumentPublished = (instrument,
+                listener) =>
             {
                 if (instrument.Meter.Name == MySqlDiagnostics.SourceName
                     && instrument.Name == MySqlDiagnostics.CommitUnknownTotalMetricName)
@@ -523,12 +555,11 @@ public sealed class MySqlNetworkFaultContractTests
                     listener.EnableMeasurementEvents(instrument);
                 }
             };
-            _meterListener.SetMeasurementEventCallback<long>((
-                instrument,
+
+            _meterListener.SetMeasurementEventCallback<long>((instrument,
                 measurement,
                 tags,
-                state
-            ) =>
+                state) =>
             {
                 Interlocked.Add(ref _commitUnknownMeasurements, measurement);
                 _commitUnknownTagSets.Enqueue(
@@ -536,6 +567,7 @@ public sealed class MySqlNetworkFaultContractTests
                         .ToArray()
                         .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
             });
+
             _meterListener.Start();
         }
 

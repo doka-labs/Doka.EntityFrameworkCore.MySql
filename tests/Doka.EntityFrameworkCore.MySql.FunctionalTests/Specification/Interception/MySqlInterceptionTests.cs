@@ -13,9 +13,7 @@ public abstract class CommandInterceptionMySqlTestBase
 {
     protected CommandInterceptionMySqlTestBase(
         InterceptionMySqlFixtureBase fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     public override async Task<string> Intercept_query_passively(
         bool async,
@@ -82,13 +80,11 @@ public abstract class CommandInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class CommandInterceptionMySqlTest
         : CommandInterceptionMySqlTestBase,
-        IClassFixture<CommandInterceptionMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<CommandInterceptionMySqlTest.InterceptionMySqlFixture>
     {
         public CommandInterceptionMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -103,13 +99,11 @@ public abstract class CommandInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class CommandInterceptionWithDiagnosticsMySqlTest
         : CommandInterceptionMySqlTestBase,
-        IClassFixture<CommandInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<CommandInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
     {
         public CommandInterceptionWithDiagnosticsMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -137,9 +131,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
 
     protected ConnectionInterceptionMySqlTestBase(
         InterceptionMySqlFixtureBase fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override DbContextOptionsBuilder ConfigureProvider(
         DbContextOptionsBuilder optionsBuilder
@@ -211,13 +203,11 @@ public abstract class ConnectionInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class ConnectionInterceptionMySqlTest
         : ConnectionInterceptionMySqlTestBase,
-        IClassFixture<ConnectionInterceptionMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<ConnectionInterceptionMySqlTest.InterceptionMySqlFixture>
     {
         public ConnectionInterceptionMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -233,13 +223,11 @@ public abstract class ConnectionInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class ConnectionInterceptionWithDiagnosticsMySqlTest
         : ConnectionInterceptionMySqlTestBase,
-        IClassFixture<ConnectionInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<ConnectionInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
     {
         public ConnectionInterceptionWithDiagnosticsMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -257,9 +245,7 @@ public abstract class SaveChangesInterceptionMySqlTestBase
 {
     protected SaveChangesInterceptionMySqlTestBase(
         InterceptionMySqlFixtureBase fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     public abstract class InterceptionMySqlFixtureBase : InterceptionFixtureBase
     {
@@ -283,13 +269,11 @@ public abstract class SaveChangesInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class SaveChangesInterceptionMySqlTest
         : SaveChangesInterceptionMySqlTestBase,
-        IClassFixture<SaveChangesInterceptionMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<SaveChangesInterceptionMySqlTest.InterceptionMySqlFixture>
     {
         public SaveChangesInterceptionMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -304,13 +288,11 @@ public abstract class SaveChangesInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class SaveChangesInterceptionWithDiagnosticsMySqlTest
         : SaveChangesInterceptionMySqlTestBase,
-        IClassFixture<SaveChangesInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<SaveChangesInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
     {
         public SaveChangesInterceptionWithDiagnosticsMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -328,9 +310,7 @@ public abstract class TransactionInterceptionMySqlTestBase
 {
     protected TransactionInterceptionMySqlTestBase(
         InterceptionMySqlFixtureBase fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     public abstract class InterceptionMySqlFixtureBase : InterceptionFixtureBase
     {
@@ -354,13 +334,11 @@ public abstract class TransactionInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class TransactionInterceptionMySqlTest
         : TransactionInterceptionMySqlTestBase,
-        IClassFixture<TransactionInterceptionMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<TransactionInterceptionMySqlTest.InterceptionMySqlFixture>
     {
         public TransactionInterceptionMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {
@@ -375,13 +353,11 @@ public abstract class TransactionInterceptionMySqlTestBase
     [Collection(FunctionalDatabaseTestGroup.Name)]
     public sealed class TransactionInterceptionWithDiagnosticsMySqlTest
         : TransactionInterceptionMySqlTestBase,
-        IClassFixture<TransactionInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
+            IClassFixture<TransactionInterceptionWithDiagnosticsMySqlTest.InterceptionMySqlFixture>
     {
         public TransactionInterceptionWithDiagnosticsMySqlTest(
             InterceptionMySqlFixture fixture
-        ) : base(fixture)
-        {
-        }
+        ) : base(fixture) { }
 
         public sealed class InterceptionMySqlFixture : InterceptionMySqlFixtureBase
         {

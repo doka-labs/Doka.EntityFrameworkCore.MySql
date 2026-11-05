@@ -7,9 +7,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 public sealed class Ef6GroupByMySqlFixture : Ef6GroupByTestBase<Ef6GroupByMySqlFixture>.Ef6GroupByFixtureBase,
     ITestSqlLoggerFactory
 {
-    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
 }
 
 [Trait("Category", "Spec")]
@@ -30,9 +29,8 @@ public sealed class
     FunkyDataQueryMySqlFixture : FunkyDataQueryTestBase<FunkyDataQueryMySqlFixture>.FunkyDataQueryFixtureBase,
     ITestSqlLoggerFactory
 {
-    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
 }
 
 [Trait("Category", "Spec")]
@@ -57,9 +55,8 @@ public sealed class
     IncludeOneToOneMySqlFixture : IncludeOneToOneTestBase<IncludeOneToOneMySqlFixture>.OneToOneQueryFixtureBase,
     ITestSqlLoggerFactory
 {
-    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
-
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    public TestSqlLoggerFactory TestSqlLoggerFactory => (TestSqlLoggerFactory)ListLoggerFactory;
 }
 
 [Trait("Category", "Spec")]
@@ -132,7 +129,9 @@ public sealed class MappingQueryMySqlTest : MappingQueryTestBase<MappingQueryMyS
             {
                 entity
                     .Property(customer => customer.CompanyName2)
-                    .Metadata.SetColumnName("CompanyName");
+                    .Metadata
+                    .SetColumnName("CompanyName");
+
                 entity.Metadata.SetTableName("Customers");
             });
         }
@@ -151,6 +150,7 @@ public sealed class MappingQueryMySqlTest : MappingQueryTestBase<MappingQueryMyS
                         CustomerID = customer.CustomerID,
                         CompanyName2 = customer.CompanyName,
                     }));
+
             context
                 .Set<MappedEmployee>()
                 .AddRange(
@@ -159,13 +159,16 @@ public sealed class MappingQueryMySqlTest : MappingQueryTestBase<MappingQueryMyS
                         EmployeeID = employee.EmployeeID,
                         City2 = employee.City,
                     }));
+
             context
                 .Set<MappedOrder>()
                 .AddRange(
                     source.Orders.Select(order => new MappedOrder
                     {
                         OrderID = order.OrderID,
-                        ShipVia2 = order.ShipVia is null ? null : (ShipVia)order.ShipVia,
+                        ShipVia2 = order.ShipVia is null
+                            ? null
+                            : (ShipVia)order.ShipVia,
                     }));
 
             await context.SaveChangesAsync();

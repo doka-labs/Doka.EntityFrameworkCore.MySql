@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 /// <summary>
-/// Northwind-query fixture parameterized on the standard EF Core <see cref="ITestModelCustomizer"/>
-/// surface. Routes the spec base class to <see cref="MySqlNorthwindTestStoreFactory"/>, turns on
+/// Northwind-query fixture parameterized on the standard EF Core <see cref="ITestModelCustomizer" />
+/// surface. Routes the spec base class to <see cref="MySqlNorthwindTestStoreFactory" />, turns on
 /// detailed-errors, and applies MySQL-specific column-type and max-length overrides to the
 /// upstream Northwind model so the provider's <c>MySqlModelValidator</c> accepts the schema.
 /// </summary>
@@ -44,30 +44,75 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
         // fixture's shapes: 5-char customer + employee + territory ids, 30-40 char name fields.
         modelBuilder.Entity<Customer>(b =>
         {
-            b.Property(c => c.CustomerID).HasMaxLength(5);
-            b.Property(c => c.CompanyName).HasMaxLength(40);
-            b.Property(c => c.ContactName).HasMaxLength(30);
-            b.Property(c => c.ContactTitle).HasMaxLength(30);
-            b.Property(c => c.City).HasMaxLength(15);
-            b.Property(c => c.Country).HasMaxLength(15);
-            b.Property(c => c.Fax).HasMaxLength(24);
-            b.Property(c => c.Phone).HasMaxLength(24);
-            b.Property(c => c.PostalCode).HasMaxLength(10);
-            b.Property(c => c.Region).HasMaxLength(15);
-            b.Property(c => c.Address).HasMaxLength(60);
+            b
+                .Property(c => c.CustomerID)
+                .HasMaxLength(5);
+
+            b
+                .Property(c => c.CompanyName)
+                .HasMaxLength(40);
+
+            b
+                .Property(c => c.ContactName)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.ContactTitle)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Country)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Fax)
+                .HasMaxLength(24);
+
+            b
+                .Property(c => c.Phone)
+                .HasMaxLength(24);
+
+            b
+                .Property(c => c.PostalCode)
+                .HasMaxLength(10);
+
+            b
+                .Property(c => c.Region)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Address)
+                .HasMaxLength(60);
         });
 
         modelBuilder.Entity<Order>(b =>
         {
-            b.Property(o => o.CustomerID).HasMaxLength(5);
-            b.Property(o => o.OrderDate).HasColumnType("datetime");
+            b
+                .Property(o => o.CustomerID)
+                .HasMaxLength(5);
+
+            b
+                .Property(o => o.OrderDate)
+                .HasColumnType("datetime");
         });
 
         modelBuilder.Entity<Employee>(b =>
         {
-            b.Property(e => e.FirstName).HasMaxLength(10);
-            b.Property(e => e.City).HasMaxLength(15);
-            b.Property(e => e.Country).HasMaxLength(15);
+            b
+                .Property(e => e.FirstName)
+                .HasMaxLength(10);
+
+            b
+                .Property(e => e.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(e => e.Country)
+                .HasMaxLength(15);
         });
 
         modelBuilder.Entity<Product>(b =>
@@ -75,27 +120,42 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             // CategoryID is intentionally ignored by the official query model. A shadow
             // property keeps the physical Northwind column available to the ProductView
             // contract without making the CLR property queryable by the provider.
-            b.Property<int?>(StoreCategoryIdPropertyName)
+            b
+                .Property<int?>(StoreCategoryIdPropertyName)
                 .HasColumnName("CategoryID");
-            b.Property(p => p.ProductName).HasMaxLength(40);
-            b.Property(p => p.UnitPrice).HasColumnType("decimal(19,4)");
+
+            b
+                .Property(p => p.ProductName)
+                .HasMaxLength(40);
+
+            b
+                .Property(p => p.UnitPrice)
+                .HasColumnType("decimal(19,4)");
         });
 
-        modelBuilder.Entity<OrderDetail>()
+        modelBuilder
+            .Entity<OrderDetail>()
             .Property(od => od.UnitPrice)
             .HasColumnType("decimal(19,4)");
 
         modelBuilder.Entity<MostExpensiveProduct>(b =>
         {
             b.HasKey(product => product.TenMostExpensiveProducts);
-            b.Property(p => p.TenMostExpensiveProducts).HasMaxLength(40);
-            b.Property(p => p.UnitPrice).HasColumnType("decimal(19,4)");
+            b
+                .Property(p => p.TenMostExpensiveProducts)
+                .HasMaxLength(40);
+
+            b
+                .Property(p => p.UnitPrice)
+                .HasColumnType("decimal(19,4)");
         });
 
         modelBuilder.Entity<CustomerOrderHistory>(b =>
         {
             b.HasKey(history => history.ProductName);
-            b.Property(history => history.ProductName).HasMaxLength(40);
+            b
+                .Property(history => history.ProductName)
+                .HasMaxLength(40);
         });
 
         // CustomerQuery + OrderQuery are query-types whose schema mirrors the underlying
@@ -107,23 +167,42 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             b.ToSqlQuery(
                 "SELECT `c`.`Address`, `c`.`City`, `c`.`CompanyName`, "
                 + "`c`.`ContactName`, `c`.`ContactTitle` FROM `Customers` AS `c`");
-            b.Property(c => c.CompanyName).HasMaxLength(40);
-            b.Property(c => c.ContactName).HasMaxLength(30);
-            b.Property(c => c.ContactTitle).HasMaxLength(30);
-            b.Property(c => c.City).HasMaxLength(15);
-            b.Property(c => c.Address).HasMaxLength(60);
+
+            b
+                .Property(c => c.CompanyName)
+                .HasMaxLength(40);
+
+            b
+                .Property(c => c.ContactName)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.ContactTitle)
+                .HasMaxLength(30);
+
+            b
+                .Property(c => c.City)
+                .HasMaxLength(15);
+
+            b
+                .Property(c => c.Address)
+                .HasMaxLength(60);
         });
 
         modelBuilder.Entity<OrderQuery>(b =>
         {
             b.ToSqlQuery("SELECT * FROM `Orders`");
-            b.Property(o => o.CustomerID).HasMaxLength(5);
+            b
+                .Property(o => o.CustomerID)
+                .HasMaxLength(5);
         });
 
-        modelBuilder.Entity<ProductView>()
+        modelBuilder
+            .Entity<ProductView>()
             .ToView("Alphabetical list of products");
 
-        modelBuilder.Entity<CustomerQueryWithQueryFilter>()
+        modelBuilder
+            .Entity<CustomerQueryWithQueryFilter>()
             .ToSqlQuery(
                 """
                 SELECT `c`.`CompanyName`, COUNT(`o`.`OrderID`) AS `OrderCount`, 'A' AS `SearchTerm`
@@ -141,7 +220,8 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         foreach (var productEntry in context.ChangeTracker.Entries<Product>())
         {
-            productEntry.Property(StoreCategoryIdPropertyName).CurrentValue =
+            productEntry.Property(StoreCategoryIdPropertyName)
+                    .CurrentValue =
                 productEntry.Entity.CategoryID;
         }
 
@@ -174,6 +254,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         await context.Database.ExecuteSqlRawAsync(
             "DROP PROCEDURE IF EXISTS `Ten Most Expensive Products`");
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE PROCEDURE `Ten Most Expensive Products`()
@@ -187,6 +268,7 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
 
         await context.Database.ExecuteSqlRawAsync(
             "DROP PROCEDURE IF EXISTS `CustOrderHist`");
+
         await context.Database.ExecuteSqlRawAsync(
             """
             CREATE PROCEDURE `CustOrderHist`(IN `requestedCustomerId` varchar(5))
@@ -275,17 +357,28 @@ public class NorthwindQueryMySqlFixture<TModelCustomizer> : NorthwindQueryRelati
             await UpdateProductCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Product>().Select(entry => entry.Entity),
+                context
+                    .ChangeTracker
+                    .Entries<Product>()
+                    .Select(entry => entry.Entity),
                 cancellationToken: cancellationToken);
+
             await UpdateOrderCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Order>().Select(entry => entry.Entity),
+                context
+                    .ChangeTracker
+                    .Entries<Order>()
+                    .Select(entry => entry.Entity),
                 cancellationToken: cancellationToken);
+
             await UpdateEmployeeCompatibilityColumnsAsync(
                 connection,
                 transaction,
-                context.ChangeTracker.Entries<Employee>().Select(entry => entry.Entity),
+                context
+                    .ChangeTracker
+                    .Entries<Employee>()
+                    .Select(entry => entry.Entity),
                 cancellationToken: cancellationToken);
 
             await transaction.CommitAsync(cancellationToken: cancellationToken);

@@ -50,13 +50,19 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         // Assert
-        Assert.All(observations, observed =>
-        {
-            Assert.NotNull(observed);
-            Assert.Equal(64 * 1024, observed.Length);
-            Assert.InRange(observed[0], (byte)1, (byte)ConcurrentUpsertProbeCount);
-            Assert.True(observed.AsSpan().IndexOfAnyExcept(observed[0]) < 0);
-        });
+        Assert.All(
+            observations,
+            observed =>
+            {
+                Assert.NotNull(observed);
+                Assert.Equal(64 * 1024, observed.Length);
+                Assert.InRange(observed[0], (byte)1, (byte)ConcurrentUpsertProbeCount);
+                Assert.True(
+                    observed
+                        .AsSpan()
+                        .IndexOfAnyExcept(observed[0])
+                    < 0);
+            });
 
         Assert.Equal(
             1L,
@@ -133,6 +139,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         using var paused = new PausingBufferWriter(2);
+
         // Act
         var reading = Task.Run(
             async () => useAsync
@@ -140,6 +147,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     .Cache
                     .TryGetAsync(key, paused, CancellationToken.None)
                     .ConfigureAwait(false)
+
                 // WHY: The false variant holds synchronous TryGet across the replacement race.
                 // ReSharper disable once MethodHasAsyncOverload
                 : store.Cache.TryGet(key, paused),
@@ -221,6 +229,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     .Cache
                     .TryGetAsync(key, paused, CancellationToken.None)
                     .ConfigureAwait(false)
+
                 // WHY: The false variant holds synchronous TryGet across the removal race.
                 // ReSharper disable once MethodHasAsyncOverload
                 : store.Cache.TryGet(key, paused),

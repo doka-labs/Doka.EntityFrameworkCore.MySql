@@ -1,23 +1,18 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Maps CLR <see cref="char"/> values to MySQL-family character columns.
+/// Maps CLR <see cref="char" /> values to MySQL-family character columns.
 /// </summary>
 public sealed class MySqlCharTypeMapping : CharTypeMapping
 {
-    private static readonly MethodInfo s_getCharMethod = RelationalTypeMapping.GetDataReaderMethod(typeof(char));
+    private static readonly MethodInfo s_getCharMethod = GetDataReaderMethod(typeof(char));
 
     private static readonly MethodInfo s_readCharColumnMethod =
         typeof(MySqlCharTypeMapping).GetMethod(nameof(ReadCharColumn), BindingFlags.NonPublic | BindingFlags.Static)
         ?? throw new InvalidOperationException("The char reader method could not be resolved.");
 
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlCharTypeMapping Default { get; } = new();
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MySqlCharTypeMapping"/> class.
+    /// Initializes a new instance of the <see cref="MySqlCharTypeMapping" /> class.
     /// </summary>
     /// <param name="storeType">The database type name.</param>
     public MySqlCharTypeMapping(
@@ -27,6 +22,11 @@ public sealed class MySqlCharTypeMapping : CharTypeMapping
     private MySqlCharTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlCharTypeMapping Default { get; } = new();
 
     /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
@@ -48,7 +48,7 @@ public sealed class MySqlCharTypeMapping : CharTypeMapping
     {
         ArgumentNullException.ThrowIfNull(expression);
 
-        if (expression is MethodCallExpression { Method: { } method, Object: { } reader, Arguments: [{ } ordinal], }
+        if (expression is MethodCallExpression { Method: { } method, Object: { } reader, Arguments: [{ } ordinal] }
             && method == s_getCharMethod)
         {
             return Expression.Call(s_readCharColumnMethod, reader, ordinal);

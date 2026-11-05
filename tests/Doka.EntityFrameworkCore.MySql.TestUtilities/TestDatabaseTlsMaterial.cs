@@ -48,6 +48,18 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
     /// </summary>
     public TestDatabaseTlsOptions Options { get; }
 
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        CryptographicOperations.ZeroMemory(ServerKey);
+        Directory.Delete(_directory, recursive: true);
+    }
+
     /// <summary>
     /// Creates an isolated certificate authority plus server, client, and
     /// untrusted certificate material for one test-owned database.
@@ -86,6 +98,7 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
                 untrustedCaCertificateFile,
                 untrustedCaCertificate.ExportCertificatePem(),
                 Encoding.ASCII);
+
             File.WriteAllText(clientCertificateFile, clientCertificate.ExportCertificatePem(), Encoding.ASCII);
             File.WriteAllText(clientKeyFile, clientKey.ExportPkcs8PrivateKeyPem(), Encoding.ASCII);
             RestrictPrivateKey(clientKeyFile);
@@ -108,18 +121,6 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        CryptographicOperations.ZeroMemory(ServerKey);
-        Directory.Delete(_directory, recursive: true);
-    }
-
     private static X509Certificate2 CreateCertificateAuthority(
         RSA key
     )
@@ -132,8 +133,10 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
 
         request.CertificateExtensions.Add(
             new X509BasicConstraintsExtension(certificateAuthority: true, hasPathLengthConstraint: false, 0, true));
+
         request.CertificateExtensions.Add(
             new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, critical: true));
+
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
 
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(7));
@@ -154,15 +157,20 @@ internal sealed class TestDatabaseTlsMaterial : IDisposable
 
         request.CertificateExtensions.Add(
             new X509BasicConstraintsExtension(certificateAuthority: false, hasPathLengthConstraint: false, 0, true));
+
         request.CertificateExtensions.Add(
             new X509KeyUsageExtension(
                 X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
                 critical: true));
+
         request.CertificateExtensions.Add(
             new X509EnhancedKeyUsageExtension(
                 new OidCollection
                 {
-                    new(isServer ? "1.3.6.1.5.5.7.3.1" : "1.3.6.1.5.5.7.3.2"),
+                    new Oid(
+                        isServer
+                            ? "1.3.6.1.5.5.7.3.1"
+                            : "1.3.6.1.5.5.7.3.2"),
                 },
                 critical: true));
 

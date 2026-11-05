@@ -2,11 +2,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Loads columns from INFORMATION_SCHEMA.COLUMNS for every table the
-/// <see cref="TableLoader"/> registered. Resolves the EF Core store type, default
+/// <see cref="TableLoader" /> registered. Resolves the EF Core store type, default
 /// expression, computed-column SQL, value-generated kind, comment, and collation.
 /// Lifts MariaDB LONGTEXT columns with utf8mb4_bin collation back to "json" when the
-/// <see cref="JsonCheckConstraintLoader"/> recorded a matching json_valid CHECK
-/// constraint. Populates <see cref="ScaffoldingPipelineContext.Columns"/> for the
+/// <see cref="JsonCheckConstraintLoader" /> recorded a matching json_valid CHECK
+/// constraint. Populates <see cref="ScaffoldingPipelineContext.Columns" /> for the
 /// downstream key / index / FK loaders.
 /// </summary>
 internal static class ColumnLoader
@@ -60,14 +60,25 @@ internal static class ColumnLoader
             var columnName = reader.GetString(1);
             var storeType = reader.GetString(3);
             var dataType = reader.GetString(4);
-            var extra = reader.IsDBNull(6) ? null : reader.GetString(6);
-            var computedColumnSql = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var rawCollation = reader.IsDBNull(9) ? null : reader.GetString(9);
+            var extra = reader.IsDBNull(6)
+                ? null
+                : reader.GetString(6);
+
+            var computedColumnSql = reader.IsDBNull(7)
+                ? null
+                : reader.GetString(7);
+
+            var rawCollation = reader.IsDBNull(9)
+                ? null
+                : reader.GetString(9);
+
             var collation = rawCollation;
             var tableCollation = table.FindAnnotation(RelationalAnnotationNames.Collation)
                 ?.Value as string;
 
-            var comment = reader.IsDBNull(8) ? null : reader.GetString(8);
+            var comment = reader.IsDBNull(8)
+                ? null
+                : reader.GetString(8);
 
             if (string.Equals(collation, tableCollation, StringComparison.OrdinalIgnoreCase))
             {
@@ -91,8 +102,12 @@ internal static class ColumnLoader
                     rawCollation,
                     context.MariaDbJsonColumns),
                 IsNullable = string.Equals(reader.GetString(2), "YES", StringComparison.OrdinalIgnoreCase),
-                DefaultValueSql = reader.IsDBNull(5) ? null : reader.GetString(5),
-                ComputedColumnSql = string.IsNullOrWhiteSpace(computedColumnSql) ? null : computedColumnSql,
+                DefaultValueSql = reader.IsDBNull(5)
+                    ? null
+                    : reader.GetString(5),
+                ComputedColumnSql = string.IsNullOrWhiteSpace(computedColumnSql)
+                    ? null
+                    : computedColumnSql,
                 IsStored = ScaffoldingHelpers.ResolveIsStored(extra),
                 Comment = comment,
                 Collation = collation,
@@ -123,7 +138,9 @@ internal static class ColumnLoader
             return storeType;
         }
 
-        return mariaDbJsonColumns.Contains((tableName, columnName)) ? "json" : storeType;
+        return mariaDbJsonColumns.Contains((tableName, columnName))
+            ? "json"
+            : storeType;
     }
 
     /// <summary>

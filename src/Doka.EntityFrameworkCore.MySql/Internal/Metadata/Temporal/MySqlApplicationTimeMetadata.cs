@@ -18,7 +18,8 @@ internal static class MySqlApplicationTimeMetadata
         ArgumentNullException.ThrowIfNull(table);
 
         var entityType = table
-            .EntityTypeMappings.Select(mapping => mapping.TypeBase)
+            .EntityTypeMappings
+            .Select(mapping => mapping.TypeBase)
             .OfType<IReadOnlyEntityType>()
             .FirstOrDefault(candidate => candidate.IsMySqlApplicationTime());
 
@@ -34,10 +35,10 @@ internal static class MySqlApplicationTimeMetadata
             FindColumnName(entityType, entityType.GetMySqlApplicationTimePeriodStartPropertyName(), storeObject),
             FindColumnName(entityType, entityType.GetMySqlApplicationTimePeriodEndPropertyName(), storeObject),
             entityType.GetMySqlApplicationTimeWithoutOverlaps()
-            || (entityType
+            || entityType
                 .FindPrimaryKey()
                 ?.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
-                ?.Value as bool?)
+                ?.Value as bool?
             == true);
     }
 

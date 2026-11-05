@@ -91,8 +91,10 @@ public sealed class MigrationProcessRecoveryTests
 
             await RunMigratorAsync(connectionString, serverVersion, "migrate", cancellationToken)
                 .ConfigureAwait(false);
+
             await RunMigratorAsync(connectionString, serverVersion, "migrate", cancellationToken)
                 .ConfigureAwait(false);
+
             await RunMigratorAsync(connectionString, serverVersion, "verify-latest", cancellationToken)
                 .ConfigureAwait(false);
 
@@ -155,6 +157,7 @@ public sealed class MigrationProcessRecoveryTests
 
             await AssertLockIsHeldAsync(connectionString, lockName, cancellationToken)
                 .ConfigureAwait(false);
+
             await TerminateProcessAsync(process, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -385,7 +388,9 @@ public sealed class MigrationProcessRecoveryTests
         command.Parameters.AddWithValue("@name", lockName);
 
         // Act
-        var lockOwner = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var lockOwner = await command
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.NotNull(lockOwner);
@@ -485,8 +490,8 @@ public sealed class MigrationProcessRecoveryTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

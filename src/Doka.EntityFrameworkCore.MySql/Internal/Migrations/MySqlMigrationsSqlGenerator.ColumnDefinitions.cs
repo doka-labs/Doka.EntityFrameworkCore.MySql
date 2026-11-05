@@ -173,7 +173,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" GENERATED ALWAYS AS (")
             .Append(computedColumnSql)
             .Append(") ")
-            .Append(operation.IsStored == true ? GetStoredGeneratedColumnKeyword() : "VIRTUAL");
+            .Append(
+                operation.IsStored == true
+                    ? GetStoredGeneratedColumnKeyword()
+                    : "VIRTUAL");
 
         if (!operation.IsNullable
             && _mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.GeneratedColumnNullabilityClause)
@@ -238,7 +241,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(spatialReferenceSystemId.Value.ToString(CultureInfo.InvariantCulture));
         }
 
-        builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
+        builder.Append(
+            operation.IsNullable
+                ? " NULL"
+                : " NOT NULL");
 
         DefaultValue(operation.DefaultValue, operation.DefaultValueSql, columnType, builder);
     }
@@ -276,7 +282,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             ?.Value is true;
 
         var hasComment = operation.Comment is not null
-            || operation is AlterColumnOperation { OldColumn.Comment: not null, };
+            || operation is AlterColumnOperation { OldColumn.Comment: not null };
 
         if (Profile.Engine.Has(EngineCapability.ColumnCommentPrecedesVisibilityAttribute))
         {
@@ -321,7 +327,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns) == ProviderSupportStatus.Emulated)
+        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.JsonColumns)
+            == ProviderSupportStatus.Emulated)
         {
             return;
         }
@@ -449,12 +456,15 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return default;
         }
 
-        var value = storeType.AsSpan().Trim();
+        var value = storeType
+            .AsSpan()
+            .Trim();
+
         var length = 0;
 
         while (length < value.Length
-               && value[length] != '('
-               && !char.IsWhiteSpace(value[length]))
+            && value[length] != '('
+            && !char.IsWhiteSpace(value[length]))
         {
             length++;
         }

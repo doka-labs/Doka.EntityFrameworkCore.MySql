@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Storage.Internal;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class MySqlRuntimeBaselineTests
@@ -50,7 +52,7 @@ public sealed partial class MySqlRuntimeBaselineTests
 
 #pragma warning disable EF1001 // Test double for EF's named-connection-string resolution boundary.
     private sealed class RecordingNamedConnectionStringResolver
-        : Microsoft.EntityFrameworkCore.Storage.Internal.INamedConnectionStringResolver
+        : INamedConnectionStringResolver
     {
         private readonly string _expectedInput;
         private readonly string _resolvedConnectionString;
@@ -144,9 +146,9 @@ public sealed partial class MySqlRuntimeBaselineTests
     {
         public List<AsyncAwareDbConnection> DatabaseConnections { get; } = new();
 
-        public string DriverName => "AsyncAware";
-
         public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
+
+        public string DriverName => "AsyncAware";
 
         public DbConnection CreateConnection(
             string connectionString

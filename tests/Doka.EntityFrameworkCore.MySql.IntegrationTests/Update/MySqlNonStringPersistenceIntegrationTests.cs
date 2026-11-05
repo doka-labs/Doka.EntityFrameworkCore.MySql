@@ -16,7 +16,11 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
     /// Provides separately reported character cases under both SQL modes.
     /// </summary>
     public static TheoryData<string, bool, char> CharacterCases => CreateCharacterCases(
-        '\'', '"', '\\', '\0', '\u00E4');
+        '\'',
+        '"',
+        '\\',
+        '\0',
+        '\u00E4');
 
     /// <summary>
     /// Reports each selected engine and SQL mode as a separate binary case.
@@ -98,12 +102,13 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         try
         {
             await using var context = CreateContext(connection, target);
-            context.Items.Add(new NonStringValue
-            {
-                Id = 1,
-                CharacterValue = value,
-                BinaryValue = [0x01],
-            });
+            context.Items.Add(
+                new NonStringValue
+                {
+                    Id = 1,
+                    CharacterValue = value,
+                    BinaryValue = [0x01],
+                });
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -143,6 +148,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `CharacterValue`, `BinaryValue`) "
                     + "VALUES (1, 'x', X'01'), (2, 'y', X'02');";
+
                 _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -155,7 +161,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             };
 
             context.Attach(item);
-            context.Entry(item).Property(entry => entry.CharacterValue).IsModified = true;
+            context
+                .Entry(item)
+                .Property(entry => entry.CharacterValue)
+                .IsModified = true;
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -190,12 +199,13 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         try
         {
             await using var context = CreateContext(connection, target);
-            context.Items.Add(new NonStringValue
-            {
-                Id = 1,
-                CharacterValue = 'x',
-                BinaryValue = s_binaryValue,
-            });
+            context.Items.Add(
+                new NonStringValue
+                {
+                    Id = 1,
+                    CharacterValue = 'x',
+                    BinaryValue = s_binaryValue,
+                });
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -233,6 +243,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `CharacterValue`, `BinaryValue`) "
                     + "VALUES (1, 'x', X'01'), (2, 'y', X'02');";
+
                 _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -245,7 +256,10 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             };
 
             context.Attach(item);
-            context.Entry(item).Property(entry => entry.BinaryValue).IsModified = true;
+            context
+                .Entry(item)
+                .Property(entry => entry.BinaryValue)
+                .IsModified = true;
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -317,6 +331,7 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         command.CommandText = $"CREATE TEMPORARY TABLE `{TableName}` "
             + "(`Id` int NOT NULL PRIMARY KEY, `CharacterValue` char(1) NOT NULL, "
             + "`BinaryValue` varbinary(16) NOT NULL) CHARACTER SET utf8mb4;";
+
         _ = await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -367,7 +382,8 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
         MySqlConnection connection,
         IntegrationDatabaseTarget target
     ) => new(
-        IntegrationTestDbContextOptions.Create<NonStringContext>()
+        IntegrationTestDbContextOptions
+            .Create<NonStringContext>()
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
@@ -415,7 +431,9 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
 
     private sealed class NonStringContext : DbContext
     {
-        public NonStringContext(DbContextOptions<NonStringContext> options) : base(options) { }
+        public NonStringContext(
+            DbContextOptions<NonStringContext> options
+        ) : base(options) { }
 
         public DbSet<NonStringValue> Items => Set<NonStringValue>();
 
@@ -427,9 +445,19 @@ public sealed class MySqlNonStringPersistenceIntegrationTests
             {
                 entity.ToTable(TableName);
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).ValueGeneratedNever();
-                entity.Property(item => item.CharacterValue).HasColumnType("char(1)").IsRequired();
-                entity.Property(item => item.BinaryValue).HasColumnType("varbinary(16)").IsRequired();
+                entity
+                    .Property(item => item.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(item => item.CharacterValue)
+                    .HasColumnType("char(1)")
+                    .IsRequired();
+
+                entity
+                    .Property(item => item.BinaryValue)
+                    .HasColumnType("varbinary(16)")
+                    .IsRequired();
             });
         }
     }

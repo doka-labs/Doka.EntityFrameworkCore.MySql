@@ -125,11 +125,13 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void ShouldUseSameServiceProvider_for_different_server_version_is_false()
     {
         // Arrange
-        var infoA = InfoFor(new MySqlOptionsExtension()
-            .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))));
+        var infoA = InfoFor(
+            new MySqlOptionsExtension()
+                .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))));
 
-        var infoB = InfoFor(new MySqlOptionsExtension()
-            .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))));
+        var infoB = InfoFor(
+            new MySqlOptionsExtension()
+                .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))));
 
         // Act
         var actual = infoA.ShouldUseSameServiceProvider(infoB);
@@ -145,11 +147,13 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void ShouldUseSameServiceProvider_for_different_retry_options_is_false()
     {
         // Arrange
-        var infoA = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithRetryOptions(new MySqlRetryOptions(3, TimeSpan.FromSeconds(1))));
+        var infoA = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithRetryOptions(new MySqlRetryOptions(3, TimeSpan.FromSeconds(1))));
 
-        var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithRetryOptions(new MySqlRetryOptions(5, TimeSpan.FromSeconds(2))));
+        var infoB = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithRetryOptions(new MySqlRetryOptions(5, TimeSpan.FromSeconds(2))));
 
         // Act
         var actual = infoA.ShouldUseSameServiceProvider(infoB);
@@ -165,11 +169,13 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void ShouldUseSameServiceProvider_for_different_guid_format_is_false()
     {
         // Arrange
-        var infoA = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithDefaultGuidFormat(MySqlGuidFormat.Binary16));
+        var infoA = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithDefaultGuidFormat(MySqlGuidFormat.Binary16));
 
-        var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithDefaultGuidFormat(MySqlGuidFormat.Char36));
+        var infoB = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithDefaultGuidFormat(MySqlGuidFormat.Char36));
 
         // Act
         var actual = infoA.ShouldUseSameServiceProvider(infoB);
@@ -198,6 +204,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         Assert.NotEqual(
             parameter.Info.GetServiceProviderHashCode(),
             actual);
+
         Assert.False(parameter.Info.ShouldUseSameServiceProvider(multiple.Info));
         Assert.False(multiple.Info.ShouldUseSameServiceProvider(parameter.Info));
     }
@@ -210,8 +217,9 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         // Arrange
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
-        var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithConnection(new MySqlConnection("Server=localhost;GuidFormat=Binary16")));
+        var infoB = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithConnection(new MySqlConnection("Server=localhost;GuidFormat=Binary16")));
 
         // Act
         var actual = infoA.ShouldUseSameServiceProvider(infoB);
@@ -228,9 +236,11 @@ public sealed class MySqlOptionsExtensionInfoTests
     {
         // Arrange
         var infoA = InfoFor(WithVersion(new MySqlOptionsExtension()));
-        var infoB = InfoFor(WithVersion(new MySqlOptionsExtension())
-            .WithDataSource(new MySqlDataSourceBuilder(
-                "Server=localhost;GuidFormat=Binary16").Build()));
+        var infoB = InfoFor(
+            WithVersion(new MySqlOptionsExtension())
+                .WithDataSource(
+                    new MySqlDataSourceBuilder(
+                        "Server=localhost;GuidFormat=Binary16").Build()));
 
         // Act
         var actual = infoA.ShouldUseSameServiceProvider(infoB);
@@ -256,6 +266,7 @@ public sealed class MySqlOptionsExtensionInfoTests
         Assert.Equal(
             optional.Info.GetServiceProviderHashCode(),
             actual);
+
         Assert.True(optional.Info.ShouldUseSameServiceProvider(required.Info));
         Assert.True(required.Info.ShouldUseSameServiceProvider(optional.Info));
     }
@@ -269,10 +280,12 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void GetServiceProviderHashCode_is_stable_for_equivalent_extensions()
     {
         // Arrange
-        var hashA = InfoFor(WithVersion(new MySqlOptionsExtension())).GetServiceProviderHashCode();
+        var hashA = InfoFor(WithVersion(new MySqlOptionsExtension()))
+            .GetServiceProviderHashCode();
 
         // Act
-        var hashB = InfoFor(WithVersion(new MySqlOptionsExtension())).GetServiceProviderHashCode();
+        var hashB = InfoFor(WithVersion(new MySqlOptionsExtension()))
+            .GetServiceProviderHashCode();
 
         // Assert
         Assert.Equal(hashA, hashB);
@@ -285,20 +298,24 @@ public sealed class MySqlOptionsExtensionInfoTests
     public void GetServiceProviderHashCode_differs_when_server_version_changes()
     {
         // Arrange
-        var hashA = InfoFor(new MySqlOptionsExtension()
-                .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))))
+        var hashA = InfoFor(
+                new MySqlOptionsExtension()
+                    .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 0, 0))))
             .GetServiceProviderHashCode();
 
         // Act
-        var hashB = InfoFor(new MySqlOptionsExtension()
-                .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))))
+        var hashB = InfoFor(
+                new MySqlOptionsExtension()
+                    .WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0))))
             .GetServiceProviderHashCode();
 
         // Assert
         Assert.NotEqual(hashA, hashB);
     }
 
-    private static MySqlOptionsExtension WithVersion(MySqlOptionsExtension extension) =>
+    private static MySqlOptionsExtension WithVersion(
+        MySqlOptionsExtension extension
+    ) =>
         extension.WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
     private static DbContextOptionsExtensionInfo InfoFor(
@@ -311,14 +328,26 @@ public sealed class MySqlOptionsExtensionInfoTests
         public override bool IsDatabaseProvider => false;
         public override string LogFragment => "other";
         public override int GetServiceProviderHashCode() => 0;
-        public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) { }
-        public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) => false;
+
+        public override void PopulateDebugInfo(
+            IDictionary<string, string> debugInfo
+        ) { }
+
+        public override bool ShouldUseSameServiceProvider(
+            DbContextOptionsExtensionInfo other
+        ) => false;
     }
 
     private sealed class OtherExtension : IDbContextOptionsExtension
     {
         public DbContextOptionsExtensionInfo Info => null!;
-        public void ApplyServices(IServiceCollection services) { }
-        public void Validate(IDbContextOptions options) { }
+
+        public void ApplyServices(
+            IServiceCollection services
+        ) { }
+
+        public void Validate(
+            IDbContextOptions options
+        ) { }
     }
 }

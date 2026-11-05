@@ -22,6 +22,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .Cache
                 .GetAsync("missing", CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies the synchronous Get contract.
             // ReSharper disable once MethodHasAsyncOverload
             : store.Cache.Get("missing");
@@ -51,6 +52,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .Cache
                 .TryGetAsync("missing", writer, CancellationToken.None)
                 .ConfigureAwait(false)
+
             // WHY: The false theory row verifies the synchronous buffer-read contract.
             // ReSharper disable once MethodHasAsyncOverload
             : store.Cache.TryGet("missing", writer);
@@ -149,6 +151,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // WHY: This case verifies both synchronous byte-array entry points.
         // ReSharper disable once MethodHasAsyncOverload
         store.Cache.Set(key, value, new DistributedCacheEntryOptions());
+
         // WHY: The same case also verifies the synchronous Get entry point.
         // ReSharper disable once MethodHasAsyncOverload
         var actual = store.Cache.Get(key);

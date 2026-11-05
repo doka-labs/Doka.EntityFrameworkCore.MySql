@@ -7,7 +7,7 @@ internal static class IntegrationDatabaseUtilities
     /// </summary>
     /// <param name="baseConnectionString">Connection string for the target server.</param>
     /// <param name="databaseName">Name of the isolated database.</param>
-    /// <returns>A connection string that selects <paramref name="databaseName"/>.</returns>
+    /// <returns>A connection string that selects <paramref name="databaseName" />.</returns>
     public static string BuildConnectionString(
         string baseConnectionString,
         string databaseName
@@ -48,6 +48,7 @@ internal static class IntegrationDatabaseUtilities
         connection.Open();
 
         using var command = connection.CreateCommand();
+
         // WHY: A run-owned schema must never silently reuse another run's data.
         command.CommandText = $"CREATE DATABASE {DelimitIdentifier(databaseName)};";
         command.ExecuteNonQuery();

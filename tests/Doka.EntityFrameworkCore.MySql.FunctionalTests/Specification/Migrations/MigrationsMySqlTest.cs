@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migration
 /// <summary>
 /// Migrations-infrastructure specification subclass. Exercises the standard EF Core migration
 /// runner (apply, generate-script, revert, idempotent-script) against the MySQL provider's
-/// <see cref="MySqlHistoryRepository"/> + <c>__EFMigrationsHistory</c> table contract.
+/// <see cref="MySqlHistoryRepository" /> + <c>__EFMigrationsHistory</c> table contract.
 /// </summary>
 [Trait("Category", "Spec")]
 [Collection(FunctionalDatabaseTestGroup.Name)]
@@ -26,9 +26,7 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
 
     public MigrationsMySqlTest(
         MigrationsMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     protected override async Task ExecuteSqlAsync(
         string value
@@ -73,8 +71,8 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
     /// <summary>
     /// The base spec test opens the user transaction via
     /// <c>using var transaction = db.Database.BeginTransactionAsync();</c> -- without
-    /// <c>await</c>. The result is a <see cref="Task{T}"/> that is disposed as if it were the
-    /// transaction itself; the actual <see cref="IDbContextTransaction"/> never enters scope.
+    /// <c>await</c>. The result is a <see cref="Task{T}" /> that is disposed as if it were the
+    /// transaction itself; the actual <see cref="IDbContextTransaction" /> never enters scope.
     /// On providers whose <c>BeginTransactionAsync</c> completes synchronously the transaction
     /// is open by the time the migrator runs, so <c>MigrationsUserTransactionWarning</c> fires
     /// and the migration proceeds inside the user transaction. MySqlConnector's
@@ -87,7 +85,9 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
     {
         using var db = Fixture.CreateContext();
         await db.Database.EnsureDeletedAsync();
-        await db.GetService<IRelationalDatabaseCreator>().CreateAsync();
+        await db
+            .GetService<IRelationalDatabaseCreator>()
+            .CreateAsync();
 
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
@@ -107,8 +107,8 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
 
         Assert.Equal(
             LogLevel.Warning,
-            Fixture.TestSqlLoggerFactory.Log.First(
-                l => l.Id == RelationalEventId.MigrationsUserTransactionWarning).Level);
+            Fixture.TestSqlLoggerFactory.Log.First(l => l.Id == RelationalEventId.MigrationsUserTransactionWarning)
+                .Level);
     }
 
     public class MigrationsMySqlFixture : MigrationsInfrastructureFixtureBase
@@ -117,12 +117,12 @@ public class MigrationsMySqlTest : MigrationsInfrastructureTestBase<MigrationsMy
     }
 
     /// <summary>
-    /// Test-store factory variant that produces a <see cref="MySqlTestStore"/> with
-    /// <see cref="MySqlTestStore.UseSharedConnectionInProviderOptions"/> set to
-    /// <see langword="false"/>. The Migrations spec tests spawn
+    /// Test-store factory variant that produces a <see cref="MySqlTestStore" /> with
+    /// <see cref="MySqlTestStore.UseSharedConnectionInProviderOptions" /> set to
+    /// <see langword="false" />. The Migrations spec tests spawn
     /// <c>Parallel.For(0, Environment.ProcessorCount, ...)</c> across freshly created contexts
     /// and call <c>Migrate</c> on each; the shared-connection default would race them on a
-    /// single <see cref="DbConnection"/> and surface as <c>Cannot Open when State is Connecting</c>.
+    /// single <see cref="DbConnection" /> and surface as <c>Cannot Open when State is Connecting</c>.
     /// </summary>
     private sealed class PerContextConnectionFactory : MySqlTestStoreFactory
     {

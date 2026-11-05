@@ -30,8 +30,14 @@ public sealed partial class MySqlMigrationDslTests
             .ToArray();
 
         Assert.Empty(operations.OfType<CreateTableOperation>());
-        Assert.True(transition.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)?.Value as bool?);
-        Assert.True(addPrimaryKey.FindAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps)?.Value as bool?);
+        Assert.True(
+            transition.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
+                ?.Value as bool?);
+
+        Assert.True(
+            addPrimaryKey.FindAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps)
+                ?.Value as bool?);
+
         Assert.True(operations.IndexOf(dropPrimaryKey) < operations.IndexOf(transition));
         Assert.True(operations.IndexOf(transition) < operations.IndexOf(addPrimaryKey));
         Assert.Equal(2, periodColumns.Length);
@@ -68,8 +74,14 @@ public sealed partial class MySqlMigrationDslTests
             .ToArray();
 
         Assert.Empty(operations.OfType<CreateTableOperation>());
-        Assert.True(transition.FindAnnotation(MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime)?.Value as bool?);
-        Assert.True(dropPrimaryKey.FindAnnotation(MySqlAnnotationNames.ApplicationTimeSourceWithoutOverlaps)?.Value as bool?);
+        Assert.True(
+            transition.FindAnnotation(MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime)
+                ?.Value as bool?);
+
+        Assert.True(
+            dropPrimaryKey.FindAnnotation(MySqlAnnotationNames.ApplicationTimeSourceWithoutOverlaps)
+                ?.Value as bool?);
+
         Assert.True(operations.IndexOf(dropPrimaryKey) < operations.IndexOf(transition));
         Assert.True(operations.IndexOf(transition) < operations.IndexOf(addPrimaryKey));
         Assert.Equal(2, periodColumns.Length);

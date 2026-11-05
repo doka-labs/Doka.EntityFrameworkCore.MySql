@@ -13,13 +13,13 @@ internal static class MySqlTemporalMetadata
 {
     private const string EmulationMarkerPrefix = "doka-temporal-v1:";
 
-    private static readonly UTF8Encoding s_strictUtf8 = new(
-        encoderShouldEmitUTF8Identifier: false,
-        throwOnInvalidBytes: true);
-
     public const string DefaultPeriodStartPropertyName = "PeriodStart";
 
     public const string DefaultPeriodEndPropertyName = "PeriodEnd";
+
+    private static readonly UTF8Encoding s_strictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
 
     public static string CreateHierarchyPeriodPropertyName(
         string tableName,
@@ -28,7 +28,10 @@ internal static class MySqlTemporalMetadata
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-        var boundary = isStart ? DefaultPeriodStartPropertyName : DefaultPeriodEndPropertyName;
+        var boundary = isStart
+            ? DefaultPeriodStartPropertyName
+            : DefaultPeriodEndPropertyName;
+
         var candidate = boundary + "_" + tableName;
 
         if (candidate.Length <= MySqlConventionSetBuilder.MaxIdentifierLength)
@@ -55,7 +58,8 @@ internal static class MySqlTemporalMetadata
         ArgumentNullException.ThrowIfNull(table);
 
         var temporalEntityType = table
-            .EntityTypeMappings.Select(mapping => mapping.TypeBase)
+            .EntityTypeMappings
+            .Select(mapping => mapping.TypeBase)
             .OfType<IReadOnlyEntityType>()
             .FirstOrDefault(entityType => entityType.IsMySqlTemporal());
 
@@ -186,7 +190,11 @@ internal static class MySqlTemporalMetadata
         var markerStart = actionStatement.IndexOf(commentPrefix, StringComparison.Ordinal);
 
         if (markerStart < 0
-            || actionStatement.IndexOf(commentPrefix, markerStart + commentPrefix.Length, StringComparison.Ordinal) >= 0)
+            || actionStatement.IndexOf(
+                commentPrefix,
+                markerStart + commentPrefix.Length,
+                StringComparison.Ordinal)
+            >= 0)
         {
             return false;
         }
@@ -216,7 +224,9 @@ internal static class MySqlTemporalMetadata
         }
 
         marker = new MySqlTemporalEmulationMarker(
-            string.IsNullOrEmpty(historySchema) ? null : historySchema,
+            string.IsNullOrEmpty(historySchema)
+                ? null
+                : historySchema,
             historyTable,
             periodStartColumn,
             periodEndColumn);

@@ -27,7 +27,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     )
     {
         await using var connection = CreateConnection(target);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         await AssertFailedRuntimeMigrationDoesNotAdvanceHistoryAsync(
                 connection,
                 IntegrationTestEnvironment.GetServerVersion(target),
@@ -80,20 +83,20 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 + $"FROM `{TimestampRepairMigrationContract.HistoryTable}`;";
 
             var appliedMigration = Convert.ToString(
-                    await command
-                        .ExecuteScalarAsync(cancellationToken)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture);
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             command.CommandText = "SELECT COUNT(*) "
                 + $"FROM `{TimestampRepairMigrationContract.Table}` "
                 + "WHERE `OccurredAt` IS NULL;";
 
             var remainingNulls = Convert.ToInt64(
-                    await command
-                        .ExecuteScalarAsync(cancellationToken)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture);
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             // Assert
             Assert.Contains(nameof(AlterColumnOperation), exception.Message, StringComparison.Ordinal);
@@ -119,14 +122,15 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     )
     {
         await ExecuteRawAsync(
-            connection,
-            $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.Table}`;",
-            cancellationToken)
+                connection,
+                $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.Table}`;",
+                cancellationToken)
             .ConfigureAwait(false);
+
         await ExecuteRawAsync(
-            connection,
-            $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.HistoryTable}`;",
-            cancellationToken)
+                connection,
+                $"DROP TABLE IF EXISTS `{TimestampRepairMigrationContract.HistoryTable}`;",
+                cancellationToken)
             .ConfigureAwait(false);
     }
 }

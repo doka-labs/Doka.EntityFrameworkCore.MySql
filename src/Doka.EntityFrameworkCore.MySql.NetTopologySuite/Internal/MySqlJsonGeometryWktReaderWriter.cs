@@ -8,9 +8,11 @@ internal sealed class MySqlJsonGeometryWktReaderWriter : JsonValueReaderWriter<G
     private static readonly PropertyInfo s_instanceProperty =
         typeof(MySqlJsonGeometryWktReaderWriter).GetProperty(nameof(Instance))!;
 
+    private MySqlJsonGeometryWktReaderWriter() { }
+
     public static MySqlJsonGeometryWktReaderWriter Instance { get; } = new();
 
-    private MySqlJsonGeometryWktReaderWriter() { }
+    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 
     public override Geometry FromJsonTyped(
         ref Utf8JsonReaderManager manager,
@@ -31,6 +33,4 @@ internal sealed class MySqlJsonGeometryWktReaderWriter : JsonValueReaderWriter<G
         Utf8JsonWriter writer,
         Geometry value
     ) => writer.WriteStringValue(value.ToText());
-
-    public override Expression ConstructorExpression => Expression.Property(null, s_instanceProperty);
 }

@@ -9,8 +9,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 internal sealed class CountingDbConnection : DbConnection
 {
-    private readonly DbConnection _innerConnection;
     private readonly ConcurrentQueue<string> _executedCommandTexts = new();
+    private readonly DbConnection _innerConnection;
     private int _executedCommandCount;
 
     public CountingDbConnection(

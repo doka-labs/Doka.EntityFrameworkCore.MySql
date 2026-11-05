@@ -1,4 +1,5 @@
 using Doka.Caching.MySql;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -36,7 +37,7 @@ public sealed class MySqlCacheOptionsTests
         var options = new MySqlCacheOptions
         {
             DefaultSlidingExpiration = TimeSpan.Zero,
-            ExpiredItemsDeletionInterval = TimeSpan.Zero
+            ExpiredItemsDeletionInterval = TimeSpan.Zero,
         };
 
         // Act
@@ -47,9 +48,14 @@ public sealed class MySqlCacheOptionsTests
         Assert.Contains(result.Failures, failure => failure.Contains("ConnectionString", StringComparison.Ordinal));
         Assert.Contains(result.Failures, failure => failure.Contains("SchemaName", StringComparison.Ordinal));
         Assert.Contains(result.Failures, failure => failure.Contains("TableName", StringComparison.Ordinal));
-        Assert.Contains(result.Failures, failure => failure.Contains("DefaultSlidingExpiration", StringComparison.Ordinal));
-        Assert.Contains(result.Failures, failure =>
-            failure.Contains("ExpiredItemsDeletionInterval", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("DefaultSlidingExpiration", StringComparison.Ordinal));
+
+        Assert.Contains(
+            result.Failures,
+            failure =>
+                failure.Contains("ExpiredItemsDeletionInterval", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -69,7 +75,8 @@ public sealed class MySqlCacheOptionsTests
             options.ConnectionString = connectionString!);
 
         Func<object?> act = () =>
-            provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value;
+            provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+                .Value;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -116,7 +123,8 @@ public sealed class MySqlCacheOptionsTests
 
         await using var provider = MySqlCacheTestFactory.CreateProvider(options => options.DataSource = dataSource);
         Func<object?> act = () =>
-            provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value;
+            provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+                .Value;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -145,7 +153,7 @@ public sealed class MySqlCacheOptionsTests
             options.DataSource = dataSource;
         });
 
-        Action act = () =>
+        var act = () =>
             provider
                 .GetRequiredService<IStartupValidator>()
                 .Validate();
@@ -193,7 +201,8 @@ public sealed class MySqlCacheOptionsTests
         options.DefaultSlidingExpiration = TimeSpan.FromTicks(ticks);
 
         // Act
-        var actual = new MySqlCacheOptionsValidator().Validate(null, options).Failed;
+        var actual = new MySqlCacheOptionsValidator().Validate(null, options)
+            .Failed;
 
         // Assert
         Assert.True(actual);
@@ -211,7 +220,8 @@ public sealed class MySqlCacheOptionsTests
         options.ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5);
 
         // Act
-        var actual = new MySqlCacheOptionsValidator().Validate(null, options).Succeeded;
+        var actual = new MySqlCacheOptionsValidator().Validate(null, options)
+            .Succeeded;
 
         // Assert
         Assert.True(actual);
@@ -228,7 +238,8 @@ public sealed class MySqlCacheOptionsTests
         options.ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5) - TimeSpan.FromTicks(1);
 
         // Act
-        var actual = new MySqlCacheOptionsValidator().Validate(null, options).Failed;
+        var actual = new MySqlCacheOptionsValidator().Validate(null, options)
+            .Failed;
 
         // Assert
         Assert.True(actual);
@@ -244,10 +255,12 @@ public sealed class MySqlCacheOptionsTests
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ExpiredItemsDeletionInterval = TimeSpan.MaxValue);
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        provider
+            .GetRequiredService<IStartupValidator>()
+            .Validate();
 
         // Act
-        var actual = provider.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>();
+        var actual = provider.GetRequiredService<IDistributedCache>();
 
         // Assert
         Assert.NotNull(actual);
@@ -275,7 +288,10 @@ public sealed class MySqlCacheOptionsTests
 
         // Assert
         Assert.StartsWith($"CREATE TABLE IF NOT EXISTS {quotedName} (", script, StringComparison.Ordinal);
-        Assert.Contains($"Doka.Caching.MySql schema version {MySqlCacheSchema.Version}", script, StringComparison.Ordinal);
+        Assert.Contains(
+            $"Doka.Caching.MySql schema version {MySqlCacheSchema.Version}",
+            script,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -304,7 +320,8 @@ public sealed class MySqlCacheOptionsTests
         var sql = new MySqlCacheSql("`cache_database`.`cache_entries`").Set;
 
         // Act
-        var actual = sql.Split("@value", StringSplitOptions.None).Length;
+        var actual = sql.Split("@value")
+            .Length;
 
         // Assert
         Assert.Equal(2, actual);
@@ -325,8 +342,14 @@ public sealed class MySqlCacheOptionsTests
     {
         // Arrange
         var identifier = CreateInvalidIdentifier(scenario);
-        var schemaName = tableIdentifier ? "cache" : identifier!;
-        var tableName = tableIdentifier ? identifier! : "entries";
+        var schemaName = tableIdentifier
+            ? "cache"
+            : identifier!;
+
+        var tableName = tableIdentifier
+            ? identifier!
+            : "entries";
+
         Action act = () => MySqlCacheSchema.GetCreateScript(schemaName, tableName);
 
         // Act
@@ -372,17 +395,17 @@ public sealed class MySqlCacheOptionsTests
     public static IEnumerable<object[]> InvalidIdentifierCases()
     {
         foreach (var scenario in new[]
-                 {
-                     "null",
-                     "empty",
-                     "whitespace",
-                     "null_character",
-                     "trailing_space",
-                     "supplementary_character",
-                     "oversized",
-                     "unpaired_high_surrogate",
-                     "unpaired_low_surrogate"
-                 })
+            {
+                "null",
+                "empty",
+                "whitespace",
+                "null_character",
+                "trailing_space",
+                "supplementary_character",
+                "oversized",
+                "unpaired_high_surrogate",
+                "unpaired_low_surrogate",
+            })
         {
             yield return [scenario, false];
             yield return [scenario, true];
@@ -390,7 +413,9 @@ public sealed class MySqlCacheOptionsTests
     }
 
     /// <summary>Constructs invalid UTF-16 locally so theory serialization cannot replace its surrogate code units.</summary>
-    private static string? CreateInvalidIdentifier(string scenario) => scenario switch
+    private static string? CreateInvalidIdentifier(
+        string scenario
+    ) => scenario switch
     {
         "null" => null,
         "empty" => string.Empty,

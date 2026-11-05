@@ -20,15 +20,23 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var idMapping = entity.FindProperty(nameof(GuidDefaultLiteralKeyRow.Id))!.GetRelationalTypeMapping();
         var seedId = new MySqlParameter("seedId", idMapping.Converter?.ConvertToProvider(id) ?? id);
         var flagLiteral = entity.FindProperty(nameof(GuidDefaultLiteralKeyRow.Flag))!
-            .GetRelationalTypeMapping().GenerateSqlLiteral(true);
+            .GetRelationalTypeMapping()
+            .GenerateSqlLiteral(true);
 
-        const string seedSql = "INSERT INTO `" + GuidDefaultLiteralKeyTable
+        const string seedSql = "INSERT INTO `"
+            + GuidDefaultLiteralKeyTable
             + "` (`Id`, `Flag`, `Marker`) VALUES (@seedId, FALSE, 41);";
 
         // WHY: A row with the same GUID and a different bool key makes a
         // partial readback predicate ambiguous instead of accidentally unique.
         await context.Database.ExecuteSqlRawAsync(seedSql, [seedId], CancellationToken.None);
-        var row = new GuidDefaultLiteralKeyRow { Id = id, Flag = false, Marker = 73 };
+        var row = new GuidDefaultLiteralKeyRow
+        {
+            Id = id,
+            Flag = false,
+            Marker = 73,
+        };
+
         context.Add(row);
         capture.Enabled = true;
 
@@ -36,22 +44,26 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var written = await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidDefaultLiteralKeyRow>().AsNoTracking()
-            .OrderBy(item => item.Flag).ToListAsync(CancellationToken.None);
+        var persisted = await context
+            .Set<GuidDefaultLiteralKeyRow>()
+            .AsNoTracking()
+            .OrderBy(item => item.Flag)
+            .ToListAsync(CancellationToken.None);
 
         // Assert
         Assert.Equal(1, written);
         Assert.Equal(id, row.Id);
         Assert.True(row.Flag);
         Assert.Equal(73, row.Marker);
-        Assert.Equal((73L * 17) + 3, row.Stamp);
-        Assert.Collection(persisted,
+        Assert.Equal(73L * 17 + 3, row.Stamp);
+        Assert.Collection(
+            persisted,
             seed =>
             {
                 Assert.Equal(id, seed.Id);
                 Assert.False(seed.Flag);
                 Assert.Equal(41, seed.Marker);
-                Assert.Equal((41L * 17) + 3, seed.Stamp);
+                Assert.Equal(41L * 17 + 3, seed.Stamp);
             },
             inserted =>
             {
@@ -60,12 +72,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 Assert.Equal(row.Marker, inserted.Marker);
                 Assert.Equal(row.Stamp, inserted.Stamp);
             });
+
         Assert.NotEmpty(GuidDefaultInsertHeaders(capture.Commands, GuidDefaultLiteralKeyTable));
-        Assert.All(GuidDefaultInsertHeaders(capture.Commands, GuidDefaultLiteralKeyTable), header =>
-        {
-            Assert.Contains("`Id`", header, StringComparison.Ordinal);
-            Assert.DoesNotContain("`Flag`", header, StringComparison.Ordinal);
-        });
+        Assert.All(
+            GuidDefaultInsertHeaders(capture.Commands, GuidDefaultLiteralKeyTable),
+            header =>
+            {
+                Assert.Contains("`Id`", header, StringComparison.Ordinal);
+                Assert.DoesNotContain("`Flag`", header, StringComparison.Ordinal);
+            });
+
         Assert.DoesNotContain(capture.Commands, sql => sql.Contains("LAST_INSERT_ID", StringComparison.Ordinal));
 
         if (IsGuidDefaultMySqlTarget(target))

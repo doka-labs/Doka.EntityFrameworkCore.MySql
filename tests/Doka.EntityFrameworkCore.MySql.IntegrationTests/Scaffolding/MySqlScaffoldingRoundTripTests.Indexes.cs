@@ -169,7 +169,8 @@ public sealed partial class MySqlScaffoldingRoundTripTests
 
         Assert.Equal(
             "utf8mb4_bin",
-            table.Columns.Single(column => column.Name == "Name").Collation,
+            table.Columns.Single(column => column.Name == "Name")
+                .Collation,
             ignoreCase: true);
 
         var prefixIndex = table.Indexes.Single(index => index.Name == PrefixIndex);
@@ -181,20 +182,25 @@ public sealed partial class MySqlScaffoldingRoundTripTests
             s_prefixLengths,
             prefixIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength)
                 ?.Value as int[]);
+
         Assert.Equal(s_indexDirections, prefixIndex.IsDescending);
         Assert.True(
             fullTextIndex.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
                 ?.Value as bool?);
+
         Assert.Null(fullTextIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
         Assert.True(
             spatialIndex.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
                 ?.Value as bool?);
+
         Assert.Null(spatialIndex.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength));
         Assert.True(uniqueIndex.IsUnique);
         Assert.Contains(
             table.UniqueConstraints,
             constraint => constraint.Name == UniqueIndex
-                && constraint.Columns.Single().Name == "Code");
+                && constraint.Columns.Single()
+                    .Name
+                == "Code");
 
         if (IsMariaDb(target))
         {
@@ -222,10 +228,9 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         var contextCode = scaffoldedModel.ContextFile.Code;
 
         var entityCode = scaffoldedModel
-            .AdditionalFiles.Single(
-                file => file.Code.Contains(
-                    "class DokaScaffoldIndexStore",
-                    StringComparison.Ordinal))
+            .AdditionalFiles.Single(file => file.Code.Contains(
+                "class DokaScaffoldIndexStore",
+                StringComparison.Ordinal))
             .Code;
 
         Assert.Contains(".HasPrefixLength(32, 0)", contextCode, StringComparison.Ordinal);
@@ -279,34 +284,34 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await ExecuteNonQueryAsync(
                 connection,
                 $"""
-                CREATE TABLE `{IndexStoreTable}` (
-                    `Id` int NOT NULL AUTO_INCREMENT,
-                    `Name` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-                    `Code` varchar(64) NOT NULL,
-                    `Body` text NOT NULL,
-                    `EnumValue` enum('new','done') NOT NULL,
-                    `SetValue` set('a','b') NOT NULL,
-                    `TinyUnsigned` tinyint unsigned NOT NULL,
-                    `MediumSigned` mediumint NOT NULL,
-                    `MediumUnsigned` mediumint unsigned NOT NULL,
-                    `UnsignedValue` bigint unsigned NOT NULL,
-                    `Amount` decimal(20,6) unsigned NOT NULL,
-                    `Moment` datetime(3) NOT NULL,
-                    `Duration` time(4) NOT NULL,
-                    `FixedBinary` binary(8) NOT NULL,
-                    `BlobValue` mediumblob NOT NULL,
-                    `TextValue` mediumtext NOT NULL,
-                    `BitValue` bit(8) NOT NULL,
-                    `YearValue` year NOT NULL,
-                    `JsonValue` json NOT NULL,
-                    `Location` point NOT NULL,
-                    PRIMARY KEY (`Id`),
-                    UNIQUE INDEX `{UniqueIndex}` (`Code`),
-                    INDEX `{PrefixIndex}` (`Name`(32), `Code` DESC),
-                    FULLTEXT INDEX `{FullTextIndex}` (`Body`),
-                    SPATIAL INDEX `{SpatialIndex}` (`Location`)
-                ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-                """,
+                 CREATE TABLE `{IndexStoreTable}` (
+                     `Id` int NOT NULL AUTO_INCREMENT,
+                     `Name` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                     `Code` varchar(64) NOT NULL,
+                     `Body` text NOT NULL,
+                     `EnumValue` enum('new','done') NOT NULL,
+                     `SetValue` set('a','b') NOT NULL,
+                     `TinyUnsigned` tinyint unsigned NOT NULL,
+                     `MediumSigned` mediumint NOT NULL,
+                     `MediumUnsigned` mediumint unsigned NOT NULL,
+                     `UnsignedValue` bigint unsigned NOT NULL,
+                     `Amount` decimal(20,6) unsigned NOT NULL,
+                     `Moment` datetime(3) NOT NULL,
+                     `Duration` time(4) NOT NULL,
+                     `FixedBinary` binary(8) NOT NULL,
+                     `BlobValue` mediumblob NOT NULL,
+                     `TextValue` mediumtext NOT NULL,
+                     `BitValue` bit(8) NOT NULL,
+                     `YearValue` year NOT NULL,
+                     `JsonValue` json NOT NULL,
+                     `Location` point NOT NULL,
+                     PRIMARY KEY (`Id`),
+                     UNIQUE INDEX `{UniqueIndex}` (`Code`),
+                     INDEX `{PrefixIndex}` (`Name`(32), `Code` DESC),
+                     FULLTEXT INDEX `{FullTextIndex}` (`Body`),
+                     SPATIAL INDEX `{SpatialIndex}` (`Location`)
+                 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -315,13 +320,13 @@ public sealed partial class MySqlScaffoldingRoundTripTests
             await ExecuteNonQueryAsync(
                     connection,
                     $"""
-                    CREATE SEQUENCE `{IndexStoreSequence}`
-                        START WITH 7
-                        INCREMENT BY 3
-                        MINVALUE 7
-                        MAXVALUE 700
-                        CYCLE;
-                    """,
+                     CREATE SEQUENCE `{IndexStoreSequence}`
+                         START WITH 7
+                         INCREMENT BY 3
+                         MINVALUE 7
+                         MAXVALUE 700
+                         CYCLE;
+                     """,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -337,31 +342,31 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await ExecuteNonQueryAsync(
                 connection,
                 $"""
-                CREATE INDEX `{FunctionalIndex}`
-                    ON `{IndexStoreTable}` ((lower(`Name`)));
-                CREATE TABLE `{EmulatedSequenceTable}` (
-                    `id` tinyint unsigned NOT NULL,
-                    `value` bigint NOT NULL,
-                    `start_value` bigint NOT NULL,
-                    `increment_by` int NOT NULL,
-                    `min_value` bigint NOT NULL,
-                    `max_value` bigint NOT NULL,
-                    `is_cyclic` boolean NOT NULL,
-                    `is_called` boolean NOT NULL,
-                    PRIMARY KEY (`id`),
-                    CHECK (`id` = 1)
-                ) ENGINE=InnoDB;
-                INSERT INTO `{EmulatedSequenceTable}` (
-                    `id`,
-                    `value`,
-                    `start_value`,
-                    `increment_by`,
-                    `min_value`,
-                    `max_value`,
-                    `is_cyclic`,
-                    `is_called`
-                ) VALUES (1, 7, 7, 3, 7, 700, TRUE, FALSE);
-                """,
+                 CREATE INDEX `{FunctionalIndex}`
+                     ON `{IndexStoreTable}` ((lower(`Name`)));
+                 CREATE TABLE `{EmulatedSequenceTable}` (
+                     `id` tinyint unsigned NOT NULL,
+                     `value` bigint NOT NULL,
+                     `start_value` bigint NOT NULL,
+                     `increment_by` int NOT NULL,
+                     `min_value` bigint NOT NULL,
+                     `max_value` bigint NOT NULL,
+                     `is_cyclic` boolean NOT NULL,
+                     `is_called` boolean NOT NULL,
+                     PRIMARY KEY (`id`),
+                     CHECK (`id` = 1)
+                 ) ENGINE=InnoDB;
+                 INSERT INTO `{EmulatedSequenceTable}` (
+                     `id`,
+                     `value`,
+                     `start_value`,
+                     `increment_by`,
+                     `min_value`,
+                     `max_value`,
+                     `is_cyclic`,
+                     `is_called`
+                 ) VALUES (1, 7, 7, 3, 7, 700, TRUE, FALSE);
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -390,9 +395,9 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await ExecuteNonQueryAsync(
                 connection,
                 $"""
-                {dropSequenceSql}
-                DROP TABLE IF EXISTS `{IndexStoreTable}`;
-                """,
+                 {dropSequenceSql}
+                 DROP TABLE IF EXISTS `{IndexStoreTable}`;
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }

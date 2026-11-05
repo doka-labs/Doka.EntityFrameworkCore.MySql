@@ -27,10 +27,12 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             "modelBuilder.HasCharSet(\"utf8mb4\")",
             scaffoldedModel.ContextFile.Code,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "MySqlServerVersion.MySql(new System.Version(8, 4, 6))",
             scaffoldedModel.ContextFile.Code,
             StringComparison.Ordinal);
+
         Assert.Contains("HasCharSet(\"utf8mb4\")", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains("UseStorageEngine(\"InnoDB\")", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains(
@@ -38,10 +40,12 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "HasComputedColumnSql(\"JSON_LENGTH(`Payload`)\", true)",
             scaffoldedModel.ContextFile.Code,
             StringComparison.Ordinal);
+
         Assert.Contains("HasColumnType(\"json\")", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
     }
 
@@ -134,6 +138,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             "using Doka.EntityFrameworkCore.MySql;",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(".HasPrefixLength(32, 0)", contextCode, StringComparison.Ordinal);
         Assert.Contains(".IsDescending(false, true)", contextCode, StringComparison.Ordinal);
         Assert.Contains(".IsFullText()", contextCode, StringComparison.Ordinal);
@@ -158,23 +163,23 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         Assert.Contains("public short YearValue", entityCode, StringComparison.Ordinal);
 
         foreach (var storeType in new[]
-        {
-            "enum('new','done')",
-            "set('a','b')",
-            "tinyint unsigned",
-            "mediumint",
-            "mediumint unsigned",
-            "bigint unsigned",
-            "decimal(20,6) unsigned",
-            "datetime(3)",
-            "time(4)",
-            "binary(8)",
-            "mediumblob",
-            "mediumtext",
-            "bit(8)",
-            "year",
-            "json",
-        })
+            {
+                "enum('new','done')",
+                "set('a','b')",
+                "tinyint unsigned",
+                "mediumint",
+                "mediumint unsigned",
+                "bigint unsigned",
+                "decimal(20,6) unsigned",
+                "datetime(3)",
+                "time(4)",
+                "binary(8)",
+                "mediumblob",
+                "mediumtext",
+                "bit(8)",
+                "year",
+                "json",
+            })
         {
             Assert.Contains($"HasColumnType(\"{storeType}\")", contextCode, StringComparison.Ordinal);
         }
@@ -202,18 +207,22 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             "tableBuilder.IsTemporal(temporalTableBuilder =>",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "temporalTableBuilder.UseHistoryTable(\"audit_entries_history\", \"temporal_metadata\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(".HasColumnName(\"ValidFrom\")", contextCode, StringComparison.Ordinal);
         Assert.Contains(".HasColumnName(\"ValidTo\")", contextCode, StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -244,18 +253,22 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             "tableBuilder.HasApplicationTimePeriod(applicationTimeTableBuilder =>",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "applicationTimeTableBuilder.HasPeriodName(\"BusinessValidity\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasPeriodStart(\"ValidFrom\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasPeriodEnd(\"ValidTo\")",
             contextCode,
             StringComparison.Ordinal);
+
         Assert.Contains(".UseWithoutOverlaps()", contextCode, StringComparison.Ordinal);
         Assert.DoesNotContain(
             MySqlAnnotationNames.IsApplicationTime,
@@ -284,6 +297,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "Guid ExternalId",
             scaffoldedModel.AdditionalFiles.Single()
@@ -293,7 +307,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
 
     /// <summary>
     /// Verifies that the explicit reverse-engineering opt-in scaffolds textual GUID columns
-    /// as <see cref="Guid"/> properties.
+    /// as <see cref="Guid" /> properties.
     /// </summary>
     [Fact]
     public void Reverse_engineering_with_text_guid_opt_in_scaffolds_char36_columns_as_guid()
@@ -313,6 +327,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "HasMySqlGuidFormat(MySqlGuidFormat.Char36)",
             scaffoldedModel.ContextFile.Code,
@@ -333,13 +348,17 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             databaseModel,
             detectedServerVersionText: "11.8.3-MariaDB");
 
-        var entityCode = scaffoldedModel.AdditionalFiles.Single().Code;
+        var entityCode = scaffoldedModel.AdditionalFiles.Single()
+            .Code;
 
         // Assert
         Assert.Contains("public Guid ExternalId { get; set; }", entityCode, StringComparison.Ordinal);
         Assert.Contains("HasColumnType(\"uuid\")", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
-        Assert.Contains("HasMySqlGuidFormat(MySqlGuidFormat.Uuid)", scaffoldedModel.ContextFile.Code,
+        Assert.Contains(
+            "HasMySqlGuidFormat(MySqlGuidFormat.Uuid)",
+            scaffoldedModel.ContextFile.Code,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("HasMaxLength(36)", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("IsFixedLength()", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
     }
@@ -382,11 +401,13 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "public bool TinyValue { get; set; }",
             scaffoldedModel.AdditionalFiles.Single()
                 .Code,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "public string TinyValue { get; set; }",
             scaffoldedModel.AdditionalFiles.Single()

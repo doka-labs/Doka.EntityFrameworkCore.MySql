@@ -14,32 +14,6 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         /// <summary>Leaves seeding to the first selected test for each engine.</summary>
         public Task InitializeAsync() => Task.CompletedTask;
 
-        /// <summary>Ensures the 2,200-row fixture is written once for the selected engine.</summary>
-        /// <param name="target">The selected database engine.</param>
-        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
-        /// <returns>A task that completes when both primitive-collection tables are ready.</returns>
-        internal Task EnsureSeededAsync(
-            IntegrationDatabaseTarget target,
-            CancellationToken cancellationToken
-        )
-        {
-            // WHY: xUnit serializes methods in this class. Retaining the Task
-            // also retains seed failures, so later cases do not retry partial DDL.
-            if (!_seeds.TryGetValue(target, out var seed))
-            {
-                seed = SeedAsync(target, cancellationToken);
-                _seeds.Add(target, seed);
-            }
-
-            return seed;
-        }
-
-        /// <summary>Ensures the MariaDB SQL-mode rows are written once for this class.</summary>
-        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
-        internal Task EnsureSqlModeSeededAsync(
-            CancellationToken cancellationToken
-        ) => _sqlModeSeed ??= SeedSqlModeAsync(cancellationToken);
-
         /// <summary>Drops every table created by this class, including after test failure.</summary>
         public async Task DisposeAsync()
         {
@@ -92,6 +66,32 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
             }
         }
 
+        /// <summary>Ensures the 2,200-row fixture is written once for the selected engine.</summary>
+        /// <param name="target">The selected database engine.</param>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        /// <returns>A task that completes when both primitive-collection tables are ready.</returns>
+        internal Task EnsureSeededAsync(
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
+        )
+        {
+            // WHY: xUnit serializes methods in this class. Retaining the Task
+            // also retains seed failures, so later cases do not retry partial DDL.
+            if (!_seeds.TryGetValue(target, out var seed))
+            {
+                seed = SeedAsync(target, cancellationToken);
+                _seeds.Add(target, seed);
+            }
+
+            return seed;
+        }
+
+        /// <summary>Ensures the MariaDB SQL-mode rows are written once for this class.</summary>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        internal Task EnsureSqlModeSeededAsync(
+            CancellationToken cancellationToken
+        ) => _sqlModeSeed ??= SeedSqlModeAsync(cancellationToken);
+
         /// <summary>Seeds sql mode data for subsequent integration queries.</summary>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedSqlModeAsync(
@@ -103,6 +103,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken);
+
             context.AddRange(
                 new SqlModeStringCollectionEntity
                 {
@@ -137,6 +138,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                     ConvertedValue = "delta",
                     ConvertedText = new TextValue("gr\u00FCn"),
                 });
+
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -160,8 +162,12 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 {
                     Id = index + 1,
                     BinaryId = CreateGuid(index),
-                    OptionalBinaryId = index == 1 ? null : CreateGuid(index),
-                    OptionalCharId = index == 1 ? null : CreateGuid(index),
+                    OptionalBinaryId = index == 1
+                        ? null
+                        : CreateGuid(index),
+                    OptionalCharId = index == 1
+                        ? null
+                        : CreateGuid(index),
                     CharId = CreateGuid(index),
                     Name = index switch
                     {
@@ -170,25 +176,38 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                         2 => "\"\\q\"",
                         _ => $"value-{index}",
                     },
-                    OptionalName = index == 1 ? null : index == 0 ? "alpha" : $"optional-{index}",
+                    OptionalName = index == 1
+                        ? null
+                        : index == 0
+                            ? "alpha"
+                            : $"optional-{index}",
                     ConvertedName = index switch
                     {
                         0 => "alpha",
                         1 => "beta",
                         _ => $"converted-{index}",
                     },
-                    CaseInsensitiveName = index == 0 ? "alpha" : $"case-{index}",
-                    ConvertedText = new TextValue(index switch
-                    {
-                        0 => "\"\\q\"",
-                        1 => "gr\u00FCn",
-                        _ => $"text-{index}",
-                    }),
-                    Status = index == 0 ? CollectionStatus.Active : CollectionStatus.Inactive,
-                    OptionalStatus = index == 1 ? null : index == 0
+                    CaseInsensitiveName = index == 0
+                        ? "alpha"
+                        : $"case-{index}",
+                    ConvertedText = new TextValue(
+                        index switch
+                        {
+                            0 => "\"\\q\"",
+                            1 => "gr\u00FCn",
+                            _ => $"text-{index}",
+                        }),
+                    Status = index == 0
                         ? CollectionStatus.Active
                         : CollectionStatus.Inactive,
-                    ConvertedPrice = index == 0 ? new PriceValue(3.1m) : new PriceValue(index),
+                    OptionalStatus = index == 1
+                        ? null
+                        : index == 0
+                            ? CollectionStatus.Active
+                            : CollectionStatus.Inactive,
+                    ConvertedPrice = index == 0
+                        ? new PriceValue(3.1m)
+                        : new PriceValue(index),
                     ConvertedGuid = new StrongGuid(CreateGuid(index)),
                     ConvertedDuration = index == 0
                         ? new ElapsedValue(TimeSpan.FromHours(27))
@@ -210,6 +229,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken);
+
             context.Items.AddRange(entities);
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
@@ -217,12 +237,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
             await charContext.Database.ExecuteSqlRawAsync(
                 charContext.Database.GenerateCreateScript(),
                 cancellationToken);
+
             charContext.Add(
                 new CharGuidCollectionEntity
                 {
                     Id = 1,
                     GuidValues = [CreateGuid(10), Guid.Empty],
                 });
+
             await charContext.SaveChangesAsync(cancellationToken);
             charContext.ChangeTracker.Clear();
         }

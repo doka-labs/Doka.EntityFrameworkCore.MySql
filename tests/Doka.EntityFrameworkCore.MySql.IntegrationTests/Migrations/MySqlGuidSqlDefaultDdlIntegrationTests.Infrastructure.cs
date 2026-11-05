@@ -16,26 +16,31 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
     private static string DefaultSqlFor(
         MySqlGuidFormat format
-    ) => format == MySqlGuidFormat.Binary16 ? BinaryDefaultSql : "UUID()";
+    ) => format == MySqlGuidFormat.Binary16
+        ? BinaryDefaultSql
+        : "UUID()";
 
     private static MySqlConnection CreateConnection(
         IntegrationDatabaseTarget target
-    ) => new(new MySqlConnectionStringBuilder(GetConnectionString(target))
-    {
-        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
-        Pooling = false,
-    }.ConnectionString);
+    ) => new(
+        new MySqlConnectionStringBuilder(GetConnectionString(target))
+        {
+            GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
+            Pooling = false,
+        }.ConnectionString);
 
     private static GuidSqlDefaultDdlContext CreateContext(
         MySqlConnection connection,
         IntegrationDatabaseTarget target,
         MySqlGuidFormat format
-    ) => new(IntegrationTestDbContextOptions.Create<GuidSqlDefaultDdlContext>()
-        .UseMySql(
-            connection,
-            IntegrationTestEnvironment.GetServerVersion(target),
-            options => options.DefaultGuidFormat(format))
-        .Options);
+    ) => new(
+        IntegrationTestDbContextOptions
+            .Create<GuidSqlDefaultDdlContext>()
+            .UseMySql(
+                connection,
+                IntegrationTestEnvironment.GetServerVersion(target),
+                options => options.DefaultGuidFormat(format))
+            .Options);
 
     private static MigrationBuilder CreateGuidDefaultTable(
         string tableName,
@@ -105,11 +110,14 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     )
     {
         // WHY: A literal MigrationBuilder operation must work without a model supplying missing column facets.
-        var commands = context.GetService<IMigrationsSqlGenerator>().Generate(operations);
+        var commands = context
+            .GetService<IMigrationsSqlGenerator>()
+            .Generate(operations);
 
         foreach (var migrationCommand in commands)
         {
-            await ExecuteRawAsync(connection, migrationCommand.CommandText, cancellationToken).ConfigureAwait(false);
+            await ExecuteRawAsync(connection, migrationCommand.CommandText, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return string.Join(Environment.NewLine, commands.Select(command => command.CommandText));
@@ -129,7 +137,9 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -158,14 +168,23 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        var idExpression = format == MySqlGuidFormat.Binary16 ? "HEX(`Id`)" : "CAST(`Id` AS CHAR(36))";
+        var idExpression = format == MySqlGuidFormat.Binary16
+            ? "HEX(`Id`)"
+            : "CAST(`Id` AS CHAR(36))";
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT `Value`, {idExpression}, OCTET_LENGTH(`Id`) "
             + $"FROM `{tableName}` ORDER BY `Value`;";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var rows = new List<GuidDefaultRow>();
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             rows.Add(new GuidDefaultRow(reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2)));
         }
@@ -187,10 +206,15 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT `Value` FROM `{tableName}` ORDER BY `Value`;";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var values = new List<int>();
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             values.Add(reader.GetInt32(0));
         }
@@ -212,8 +236,13 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"SHOW CREATE TABLE `{tableName}`;";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        _ = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        _ = await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return reader.GetString(1);
     }
@@ -224,21 +253,45 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         int[] expectedValues
     )
     {
-        Assert.Equal(expectedValues, rows.Select(row => row.Value).ToArray());
-        Assert.Equal(rows.Length, rows.Select(row => row.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.All(rows, row =>
-        {
-            Assert.True(Guid.TryParseExact(row.Id, format == MySqlGuidFormat.Binary16 ? "N" : "D", out var id));
-            Assert.NotEqual(Guid.Empty, id);
+        Assert.Equal(
+            expectedValues,
+            rows
+                .Select(row => row.Value)
+                .ToArray());
 
-            if (format == MySqlGuidFormat.Binary16)
+        Assert.Equal(
+            rows.Length,
+            rows
+                .Select(row => row.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+
+        Assert.All(
+            rows,
+            row =>
             {
-                Assert.Equal(16, row.ByteLength);
-            }
-        });
+                Assert.True(
+                    Guid.TryParseExact(
+                        row.Id,
+                        format == MySqlGuidFormat.Binary16
+                            ? "N"
+                            : "D",
+                        out var id));
+
+                Assert.NotEqual(Guid.Empty, id);
+
+                if (format == MySqlGuidFormat.Binary16)
+                {
+                    Assert.Equal(16, row.ByteLength);
+                }
+            });
     }
 
-    private sealed record GuidDefaultRow(int Value, string Id, int ByteLength);
+    private sealed record GuidDefaultRow(
+        int Value,
+        string Id,
+        int ByteLength
+    );
 
     private sealed class GuidSqlDefaultDdlContext : DbContext
     {

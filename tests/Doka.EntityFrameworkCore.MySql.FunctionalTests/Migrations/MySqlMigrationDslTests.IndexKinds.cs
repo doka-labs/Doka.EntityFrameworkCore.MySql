@@ -15,11 +15,24 @@ public sealed partial class MySqlMigrationDslTests
         // Arrange
         using var plainContext = new PlainTextIndexContext(CreateOptions<PlainTextIndexContext>());
         using var fullTextContext = new FullTextIndexContext(CreateOptions<FullTextIndexContext>());
-        DbContext sourceContext = enableFullText ? plainContext : fullTextContext;
-        DbContext targetContext = enableFullText ? fullTextContext : plainContext;
+        DbContext sourceContext = enableFullText
+            ? plainContext
+            : fullTextContext;
+
+        DbContext targetContext = enableFullText
+            ? fullTextContext
+            : plainContext;
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var operations = differ
@@ -36,8 +49,12 @@ public sealed partial class MySqlMigrationDslTests
         Assert.True(hasDifferences);
         Assert.Equal(TextIndexContract.IndexName, drop.Name);
         Assert.Equal(
-            enableFullText ? true : null,
-            create.FindAnnotation(MySqlAnnotationNames.FullTextIndex)?.Value as bool?);
+            enableFullText
+                ? true
+                : null,
+            create.FindAnnotation(MySqlAnnotationNames.FullTextIndex)
+                ?.Value as bool?);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
 
         Assert.Contains(
@@ -61,11 +78,24 @@ public sealed partial class MySqlMigrationDslTests
         // Arrange
         using var plainContext = new PlainSpatialIndexContext(CreateOptions<PlainSpatialIndexContext>());
         using var spatialContext = new SpatialIndexContext(CreateOptions<SpatialIndexContext>());
-        DbContext sourceContext = enableSpatial ? plainContext : spatialContext;
-        DbContext targetContext = enableSpatial ? spatialContext : plainContext;
+        DbContext sourceContext = enableSpatial
+            ? plainContext
+            : spatialContext;
+
+        DbContext targetContext = enableSpatial
+            ? spatialContext
+            : plainContext;
+
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var operations = differ
@@ -82,8 +112,12 @@ public sealed partial class MySqlMigrationDslTests
         Assert.True(hasDifferences);
         Assert.Equal(SpatialIndexContract.IndexName, drop.Name);
         Assert.Equal(
-            enableSpatial ? true : null,
-            create.FindAnnotation(MySqlAnnotationNames.SpatialIndex)?.Value as bool?);
+            enableSpatial
+                ? true
+                : null,
+            create.FindAnnotation(MySqlAnnotationNames.SpatialIndex)
+                ?.Value as bool?);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
 
         Assert.Contains(

@@ -54,8 +54,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND `RepairTimestamp` IS NOT NULL;";
 
         var repairedRows = Convert.ToInt64(
-                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
         var invalidRepair = CreateRequiredColumnRepair<DateTime>(
             tableName,
@@ -73,8 +75,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND COLUMN_NAME = 'InvalidRepairTimestamp';";
 
         var invalidColumnNullability = Convert.ToString(
-                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
         // Assert
         Assert.Equal(2L, repairedRows);
@@ -160,15 +164,20 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
             + "AND `RepairChecked` = 1;";
 
         // Assert
-        Assert.All(implicitFailures, failure =>
-        {
-            Assert.Contains("application contract", failure.Exception.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain(failure.Name, failure.Exception.Message, StringComparison.Ordinal);
-        });
+        Assert.All(
+            implicitFailures,
+            failure =>
+            {
+                Assert.Contains("application contract", failure.Exception.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain(failure.Name, failure.Exception.Message, StringComparison.Ordinal);
+            });
+
         Assert.Equal(
             2L,
             Convert.ToInt64(
-                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+                await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
                 CultureInfo.InvariantCulture));
     }
 

@@ -8,6 +8,15 @@ internal sealed class PerformanceWorkloadCatalog : IDisposable
 
     public Dictionary<string, PerformanceWorkload> Workloads { get; } = new(StringComparer.Ordinal);
 
+    public void Dispose()
+    {
+        for (var index = _ownedResources.Count - 1; index >= 0; index--)
+        {
+            _ownedResources[index]
+                .Dispose();
+        }
+    }
+
     public static PerformanceWorkloadCatalog Create()
     {
         var catalog = new PerformanceWorkloadCatalog();
@@ -37,14 +46,5 @@ internal sealed class PerformanceWorkloadCatalog : IDisposable
     {
         _ownedResources.Add(resource);
         return resource;
-    }
-
-    public void Dispose()
-    {
-        for (var index = _ownedResources.Count - 1; index >= 0; index--)
-        {
-            _ownedResources[index]
-                .Dispose();
-        }
     }
 }

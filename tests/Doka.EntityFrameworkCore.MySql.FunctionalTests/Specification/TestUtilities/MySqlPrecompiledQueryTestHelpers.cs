@@ -9,15 +9,15 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// </summary>
 public sealed class MySqlPrecompiledQueryTestHelpers : PrecompiledQueryTestHelpers
 {
-    public static MySqlPrecompiledQueryTestHelpers Instance { get; } = new();
-
     private MySqlPrecompiledQueryTestHelpers() { }
+    public static MySqlPrecompiledQueryTestHelpers Instance { get; } = new();
 
     protected override IEnumerable<MetadataReference> BuildProviderMetadataReferences()
     {
         yield return MetadataReference.CreateFromFile(typeof(MySqlOptionsExtension).Assembly.Location);
 
         yield return MetadataReference.CreateFromFile(
-            Assembly.GetExecutingAssembly().Location);
+            Assembly.GetExecutingAssembly()
+                .Location);
     }
 }

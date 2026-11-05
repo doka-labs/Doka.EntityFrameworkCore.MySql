@@ -42,6 +42,8 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

@@ -3,20 +3,18 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 internal static class PerformanceQueryWorkloads
 {
     private static readonly Func<BenchmarkContext, int, IEnumerable<BasicBenchmarkEntity>> s_compiledQuery =
-        EF.CompileQuery((
-            BenchmarkContext context,
-            int rowCount
-        ) => context
-            .BasicEntities.AsNoTracking()
+        EF.CompileQuery((BenchmarkContext context,
+            int rowCount) => context
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Take(rowCount));
 
     private static readonly Func<BenchmarkContext, int, IAsyncEnumerable<BasicBenchmarkEntity>> s_compiledAsyncQuery =
-        EF.CompileAsyncQuery((
-            BenchmarkContext context,
-            int rowCount
-        ) => context
-            .BasicEntities.AsNoTracking()
+        EF.CompileAsyncQuery((BenchmarkContext context,
+            int rowCount) => context
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Take(rowCount));
 
@@ -183,7 +181,8 @@ internal static class PerformanceQueryWorkloads
                 {
                     using var context = source.CreateContext();
                     var rows = context
-                        .BasicEntities.AsNoTracking()
+                        .BasicEntities
+                        .AsNoTracking()
                         .OrderBy(entity => entity.Id)
                         .Take(100)
                         .ToList();
@@ -199,7 +198,8 @@ internal static class PerformanceQueryWorkloads
                     await using var context = source.CreateContext();
 
                     var rows = await context
-                        .BasicEntities.AsNoTracking()
+                        .BasicEntities
+                        .AsNoTracking()
                         .OrderBy(entity => entity.Id)
                         .Select(entity => new BenchmarkProjection
                         {
@@ -230,7 +230,8 @@ internal static class PerformanceQueryWorkloads
                 ? s_compiledQuery(context, rowCount)
                     .ToList()
                 : context
-                    .BasicEntities.AsNoTracking()
+                    .BasicEntities
+                    .AsNoTracking()
                     .OrderBy(entity => entity.Id)
                     .Take(rowCount)
                     .ToList();
@@ -243,7 +244,8 @@ internal static class PerformanceQueryWorkloads
         if (!compiled)
         {
             var rows = await asyncContext
-                .BasicEntities.AsNoTracking()
+                .BasicEntities
+                .AsNoTracking()
                 .OrderBy(entity => entity.Id)
                 .Take(rowCount)
                 .ToListAsync(cancellationToken)
@@ -254,8 +256,8 @@ internal static class PerformanceQueryWorkloads
 
         long checksum = 0;
         await foreach (var entity in s_compiledAsyncQuery(asyncContext, rowCount)
-                           .WithCancellation(cancellationToken)
-                           .ConfigureAwait(false))
+            .WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
         {
             checksum = unchecked(checksum + entity.Id + entity.Name.Length);
         }
@@ -294,12 +296,22 @@ internal static class PerformanceQueryWorkloads
     private sealed class EfDiagnosticSubscription : IObserver<DiagnosticListener>,
         IObserver<KeyValuePair<string, object?>>, IDisposable
     {
-        private readonly List<IDisposable> _subscriptions = [];
         private readonly IDisposable _allListenersSubscription;
+        private readonly List<IDisposable> _subscriptions = [];
 
         public EfDiagnosticSubscription()
         {
             _allListenersSubscription = DiagnosticListener.AllListeners.Subscribe(this);
+        }
+
+        public void Dispose()
+        {
+            _allListenersSubscription.Dispose();
+
+            foreach (var subscription in _subscriptions)
+            {
+                subscription.Dispose();
+            }
         }
 
         public void OnNext(
@@ -312,30 +324,14 @@ internal static class PerformanceQueryWorkloads
             }
         }
 
-        public void OnNext(
-            KeyValuePair<string, object?> value
-        )
-        {
-            _ = value.Key;
-        }
-
         public void OnCompleted() { }
 
         public void OnError(
             Exception error
-        )
-        {
-            _ = error;
-        }
+        ) => _ = error;
 
-        public void Dispose()
-        {
-            _allListenersSubscription.Dispose();
-
-            foreach (var subscription in _subscriptions)
-            {
-                subscription.Dispose();
-            }
-        }
+        public void OnNext(
+            KeyValuePair<string, object?> value
+        ) => _ = value.Key;
     }
 }

@@ -58,10 +58,11 @@ internal sealed class MySqlTemporalMethodCallTranslator : IMethodCallTranslator
         nameof(DateTimeOffset.ToUnixTimeMilliseconds),
         Type.EmptyTypes)!;
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _dateOnlyTypeMapping;
     private readonly RelationalTypeMapping _dateTimeTypeMapping;
     private readonly RelationalTypeMapping _longTypeMapping;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalTypeMapping _timeOnlyTypeMapping;
 
     public MySqlTemporalMethodCallTranslator(
@@ -178,7 +179,10 @@ internal sealed class MySqlTemporalMethodCallTranslator : IMethodCallTranslator
     )
     {
         var localDateTime = ParseDateTimeOffsetLocalValue(instance);
-        var unit = milliseconds ? "MICROSECOND" : "SECOND";
+        var unit = milliseconds
+            ? "MICROSECOND"
+            : "SECOND";
+
         var difference = _sqlExpressionFactory.Function(
             "TIMESTAMPDIFF",
             [
@@ -191,7 +195,10 @@ internal sealed class MySqlTemporalMethodCallTranslator : IMethodCallTranslator
             typeof(long),
             _longTypeMapping);
 
-        var normalizedDifference = milliseconds ? IntegerDivide(difference, 1000) : difference;
+        var normalizedDifference = milliseconds
+            ? IntegerDivide(difference, 1000)
+            : difference;
+
         var offsetSeconds = ReadDateTimeOffsetSeconds(instance);
         var normalizedOffset = milliseconds
             ? _sqlExpressionFactory.Multiply(offsetSeconds, _sqlExpressionFactory.Constant(1000L))

@@ -3,13 +3,13 @@ using FsCheck.Xunit;
 namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;
 
 /// <summary>
-/// Property-style coverage for <see cref="MySqlServerVersion.Parse(string)"/>.
+/// Property-style coverage for <see cref="MySqlServerVersion.Parse(string)" />.
 /// Three complementary surfaces are pinned:
 /// (1) Representative real-world <c>@@version</c> strings from supported and
 ///     legacy MySQL and MariaDB deployments must parse to the expected version
 ///     and engine.
 /// (2) For any randomized non-null input the parser either succeeds or throws an
-///     <see cref="ArgumentException"/> family member; no other exception type may escape.
+/// <see cref="ArgumentException" /> family member; no other exception type may escape.
 /// (3) A version-token prefixed with non-digit text and suffixed with a non-digit-non-dot
 ///     character still parses to the leading numeric token; this property pins the
 ///     "find the first digit, consume until non-digit-non-dot" parser contract.

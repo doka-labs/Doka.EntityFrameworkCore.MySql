@@ -247,7 +247,7 @@ internal sealed partial class MySqlModelValidator
     )
     {
         if (properties.Any(property => property.Name == periodStartPropertyName
-                || property.Name == periodEndPropertyName))
+            || property.Name == periodEndPropertyName))
         {
             ThrowInvalidApplicationTime(
                 logger,
@@ -307,11 +307,11 @@ internal sealed partial class MySqlModelValidator
     )
     {
         foreach (var tableGroup in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.GetTableName() is not null)
-                     .GroupBy(
-                         entityType => (entityType.GetSchema(), entityType.GetTableName()),
-                         StringTupleComparer.OrdinalIgnoreCase))
+            .GetEntityTypes()
+            .Where(entityType => entityType.GetTableName() is not null)
+            .GroupBy(
+                entityType => (entityType.GetSchema(), entityType.GetTableName()),
+                StringTupleComparer.OrdinalIgnoreCase))
         {
             var entityTypes = tableGroup.ToArray();
             var applicationTimeEntityTypes = entityTypes
@@ -360,8 +360,9 @@ internal sealed partial class MySqlModelValidator
             entityType
                 .FindProperty(entityType.GetMySqlApplicationTimePeriodStartPropertyName()!)!
                 .GetColumnName(storeObject)!,
-            entityType.FindProperty(entityType
-                .GetMySqlApplicationTimePeriodEndPropertyName()!)!
+            entityType.FindProperty(
+                    entityType
+                        .GetMySqlApplicationTimePeriodEndPropertyName()!)!
                 .GetColumnName(storeObject)!,
             entityType.GetMySqlApplicationTimeWithoutOverlaps()
             || entityType

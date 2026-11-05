@@ -1,3 +1,5 @@
+using System.Data.Common;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class
@@ -5,8 +7,6 @@ internal sealed class
     IMySqlProviderOwnedModelTypeMapping
     where TGeometry : Geometry
 {
-    private readonly bool _useLongLatAxisOrder;
-
     private static readonly MethodInfo s_convertFromProviderMethod =
         typeof(MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>).GetMethod(
             nameof(ConvertFromProviderExpression),
@@ -17,9 +17,11 @@ internal sealed class
             nameof(ReadSpatialColumn),
             BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    private static readonly MethodInfo s_getValueMethod = typeof(System.Data.Common.DbDataReader).GetMethod(
-        nameof(System.Data.Common.DbDataReader.GetValue),
+    private static readonly MethodInfo s_getValueMethod = typeof(DbDataReader).GetMethod(
+        nameof(DbDataReader.GetValue),
         [typeof(int)])!;
+
+    private readonly bool _useLongLatAxisOrder;
 
     public MySqlNetTopologySuiteGeometryTypeMapping(
         ValueConverter<TGeometry, MySqlGeometry> converter,
@@ -40,6 +42,8 @@ internal sealed class
         _useLongLatAxisOrder = useLongLatAxisOrder;
     }
 
+    protected override Type WktReaderType => typeof(WKTReader);
+
     Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType => typeof(MySqlGeometry);
 
     object IMySqlProviderOwnedModelTypeMapping.ConvertToModelValue(
@@ -50,8 +54,6 @@ internal sealed class
     protected override RelationalTypeMapping Clone(
         RelationalTypeMappingParameters parameters
     ) => new MySqlNetTopologySuiteGeometryTypeMapping<TGeometry>(parameters, SpatialConverter!, _useLongLatAxisOrder);
-
-    protected override Type WktReaderType => typeof(WKTReader);
 
     public override MethodInfo GetDataReaderMethod() => s_getValueMethod;
 
@@ -90,7 +92,9 @@ internal sealed class
         object value
     )
     {
-        var wkt = AsText(value).Replace("'", "''", StringComparison.Ordinal);
+        var wkt = AsText(value)
+            .Replace("'", "''", StringComparison.Ordinal);
+
         var srid = GetSrid(value);
 
         var sridLiteral = srid.ToString(CultureInfo.InvariantCulture);
@@ -174,7 +178,7 @@ internal sealed class
     /// <summary>
     /// Reads a spatial column from the data reader and converts whatever shape
     /// the driver returned into the typed geometry. Two shapes are recognized:
-    /// <see cref="MySqlGeometry"/> (the typical MySQL path) and raw <c>byte[]</c>
+    /// <see cref="MySqlGeometry" /> (the typical MySQL path) and raw <c>byte[]</c>
     /// (the MariaDB path where MySqlConnector does not wrap the value). MariaDB
     /// spatial column bytes either start with the byte-order indicator (canonical
     /// OGC WKB) or with a 4-byte little-endian SRID prefix followed by the
@@ -182,7 +186,7 @@ internal sealed class
     /// extracted SRID lands on the materialized geometry.
     /// </summary>
     private static TGeometry ReadSpatialColumn(
-        System.Data.Common.DbDataReader reader,
+        DbDataReader reader,
         int ordinal
     )
     {
@@ -246,7 +250,9 @@ internal sealed class
             // A zero SRID prefix also starts with a valid WKB byte-order marker.
             // Re-serializing detects that ambiguous layout because the first,
             // incorrectly parsed geometry consumes only part of the byte stream.
-            return new WKBWriter().Write(geometry).Length == candidate.Length;
+            return new WKBWriter().Write(geometry)
+                    .Length
+                == candidate.Length;
         }
         catch (ParseException)
         {

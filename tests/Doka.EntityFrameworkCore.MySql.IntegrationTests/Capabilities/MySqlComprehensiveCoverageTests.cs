@@ -99,7 +99,7 @@ public sealed class MySqlComprehensiveCoverageTests
                     tables:
                     [
                         "ScaffoldParent",
-                        "ScaffoldChild"
+                        "ScaffoldChild",
                     ]));
 
             // Assert
@@ -112,9 +112,11 @@ public sealed class MySqlComprehensiveCoverageTests
             Assert.Contains(
                 parentTable.Columns,
                 c => c.Name == "Name" && c.StoreType!.Contains("varchar", StringComparison.OrdinalIgnoreCase));
+
             Assert.Contains(
                 parentTable.Columns,
                 c => c.Name == "Score" && c.StoreType!.Contains("decimal", StringComparison.OrdinalIgnoreCase));
+
             Assert.Contains(parentTable.Columns, c => c.Name == "CreatedAt");
             Assert.Contains(parentTable.Columns, c => c.Name == "IsActive");
 
@@ -163,15 +165,17 @@ public sealed class MySqlComprehensiveCoverageTests
                 {
                     Name = "Hello World",
                     Value = 42.5,
-                    CreatedAt = new DateTime(2025, 1, 15, 10, 0, 0)
+                    CreatedAt = new DateTime(2025, 1, 15, 10, 0, 0),
                 });
+
             context.Items.Add(
                 new ParityItem
                 {
                     Name = "Goodbye",
                     Value = 7.0,
-                    CreatedAt = new DateTime(2025, 6, 1, 0, 0, 0)
+                    CreatedAt = new DateTime(2025, 6, 1, 0, 0, 0),
                 });
+
             // Act: This case owns the dependent create/read/update/delete lifecycle.
             await context.SaveChangesAsync();
             var insertedCount = await context.Items.CountAsync();
@@ -186,8 +190,10 @@ public sealed class MySqlComprehensiveCoverageTests
 
             context.Items.Remove(
                 await context
-                    .Items.OrderBy(e => e.Id)
+                    .Items
+                    .OrderBy(e => e.Id)
                     .LastAsync());
+
             await context.SaveChangesAsync();
 
             var remainingCount = await context.Items.CountAsync();
@@ -225,13 +231,15 @@ public sealed class MySqlComprehensiveCoverageTests
                 new ParityDog
                 {
                     Name = "Buddy",
-                    Breed = "Lab"
+                    Breed = "Lab",
                 });
+
             await context.SaveChangesAsync();
 
             // Act
             var dogs = await context
-                .Animals.OfType<ParityDog>()
+                .Animals
+                .OfType<ParityDog>()
                 .ToListAsync();
 
             // Assert
@@ -298,10 +306,13 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
-        await using var context = new ParityContext(CreateOptions<ParityContext>(connectionString, GetServerVersion(target)));
+        await using var context =
+            new ParityContext(CreateOptions<ParityContext>(connectionString, GetServerVersion(target)));
+
         await context.Database.ExecuteSqlRawAsync(
             "DROP TABLE IF EXISTS `ParityItems`;",
             cancellationToken: cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `ParityItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(200) NOT NULL, `Value` double NOT NULL, `CreatedAt` datetime(6) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
             cancellationToken: cancellationToken);
@@ -312,18 +323,33 @@ public sealed class MySqlComprehensiveCoverageTests
             context.Items.AddRange(
                 new ParityItem
                 {
-                    Name = mariaDb ? "MariaDB Test" : "Hello World",
-                    Value = mariaDb ? 99.9 : 42.5,
-                    CreatedAt = mariaDb ? new DateTime(2025, 3, 1, 12, 0, 0) : new DateTime(2025, 1, 15, 10, 0, 0),
+                    Name = mariaDb
+                        ? "MariaDB Test"
+                        : "Hello World",
+                    Value = mariaDb
+                        ? 99.9
+                        : 42.5,
+                    CreatedAt = mariaDb
+                        ? new DateTime(2025, 3, 1, 12, 0, 0)
+                        : new DateTime(2025, 1, 15, 10, 0, 0),
                 },
                 new ParityItem
                 {
-                    Name = mariaDb ? "Another" : "Goodbye",
-                    Value = mariaDb ? -5 : 7,
-                    CreatedAt = mariaDb ? new DateTime(2025, 7, 20, 8, 0, 0) : new DateTime(2025, 6, 1),
+                    Name = mariaDb
+                        ? "Another"
+                        : "Goodbye",
+                    Value = mariaDb
+                        ? -5
+                        : 7,
+                    CreatedAt = mariaDb
+                        ? new DateTime(2025, 7, 20, 8, 0, 0)
+                        : new DateTime(2025, 6, 1),
                 });
+
             await context.SaveChangesAsync(cancellationToken: cancellationToken);
-            var contains = mariaDb ? "MariaDB" : "Hello";
+            var contains = mariaDb
+                ? "MariaDB"
+                : "Hello";
 
             // Act
             var actual = scenario switch
@@ -341,22 +367,26 @@ public sealed class MySqlComprehensiveCoverageTests
                         item => item.Name.EndsWith("Test"),
                         cancellationToken: cancellationToken),
                 "days" =>
-                    (await context.Items
+                    (await context
+                        .Items
                         .OrderBy(item => item.Id)
                         .Select(item => item.CreatedAt.AddDays(10))
                         .FirstAsync(cancellationToken: cancellationToken)).Day,
                 "months" =>
-                    (await context.Items
+                    (await context
+                        .Items
                         .OrderBy(item => item.Id)
                         .Select(item => item.CreatedAt.AddMonths(2))
                         .FirstAsync(cancellationToken: cancellationToken)).Month,
                 "absolute" when mariaDb =>
-                    await context.Items
+                    await context
+                        .Items
                         .Where(item => item.Value < 0)
                         .Select(item => Math.Abs(item.Value))
                         .FirstAsync(cancellationToken: cancellationToken),
                 "absolute" =>
-                    await context.Items
+                    await context
+                        .Items
                         .OrderBy(item => item.Id)
                         .Select(item => Math.Abs(item.Value))
                         .FirstAsync(cancellationToken: cancellationToken),
@@ -391,11 +421,15 @@ public sealed class MySqlComprehensiveCoverageTests
                 new ParityDog
                 {
                     Name = "Max",
-                    Breed = "Poodle"
+                    Breed = "Poodle",
                 });
+
             // Act
             await context.SaveChangesAsync();
-            var dogs = await context.Animals.OfType<ParityDog>().ToListAsync();
+            var dogs = await context
+                .Animals
+                .OfType<ParityDog>()
+                .ToListAsync();
 
             // Assert
             Assert.Single(dogs);
@@ -425,21 +459,24 @@ public sealed class MySqlComprehensiveCoverageTests
                 {
                     Name = "abc123",
                     Value = 0,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             context.Items.Add(
                 new ParityItem
                 {
                     Name = "xyz",
                     Value = 0,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
             // Act
             var count = await context
-                .Items.Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
+                .Items
+                .Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
                 .CountAsync();
 
             // Assert
@@ -460,11 +497,12 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+
         // seqName is a compile-time literal used as a HiLo sequence-table suffix;
         // the DDL that interpolates it below is fixture-controlled, not user input.
         var seqName = "HiLoE2ESeq";
 
-        await using var conn = new MySqlConnector.MySqlConnection(connectionString);
+        await using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
 
         await ExecuteRawAsync(conn, "DROP TABLE IF EXISTS `HiLoE2EItems`;", CancellationToken.None);
@@ -479,10 +517,12 @@ public sealed class MySqlComprehensiveCoverageTests
             + "CHECK (`id` = 1)"
             + ") ENGINE=InnoDB;",
             CancellationToken.None);
+
         await ExecuteRawAsync(
             conn,
             $"INSERT INTO `__efsequence_{seqName}` (`id`, `value`, `is_called`) VALUES (1, 1, FALSE);",
             CancellationToken.None);
+
         await ExecuteRawAsync(
             conn,
             "CREATE TABLE `HiLoE2EItems` (`Id` int NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
@@ -499,7 +539,8 @@ public sealed class MySqlComprehensiveCoverageTests
 
             // Act
             var items = await context
-                .Items.OrderBy(e => e.Id)
+                .Items
+                .OrderBy(e => e.Id)
                 .ToListAsync();
 
             // Assert
@@ -656,30 +697,32 @@ public sealed class MySqlComprehensiveCoverageTests
                 {
                     Name = "A1",
                     Value = 1,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 },
                 new ParityItem
                 {
                     Name = "A2",
                     Value = 1,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 },
                 new ParityItem
                 {
                     Name = "B1",
                     Value = 2,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 
             // Act
             var groups = await context
-                .Items.GroupBy(e => e.Value)
+                .Items
+                .GroupBy(e => e.Value)
                 .Select(g => new
                 {
                     Val = g.Key,
-                    Names = string.Join(",", g.Select(e => e.Name))
+                    Names = string.Join(",", g.Select(e => e.Name)),
                 })
                 .OrderBy(g => g.Val)
                 .ToListAsync();
@@ -820,13 +863,16 @@ public sealed class MySqlComprehensiveCoverageTests
                 e
                     .HasDiscriminator<string>("Type")
                     .HasValue<ParityDog>("Dog");
+
                 e
                     .Property("Type")
                     .HasMaxLength(64);
+
                 e
                     .Property(a => a.Name)
                     .HasMaxLength(100);
             });
+
             m.Entity<ParityDog>(e => e
                 .Property(d => d.Breed)
                 .HasMaxLength(100));
@@ -858,6 +904,7 @@ public sealed class MySqlComprehensiveCoverageTests
                 e
                     .Property(x => x.Id)
                     .UseHiLo("HiLoE2ESeq");
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(100);

@@ -82,7 +82,6 @@ public sealed partial class MySqlModelingBaselineTests
         Assert.Equal("CURRENT_TIMESTAMP", property.GetDefaultValueSql());
     }
 
-
     /// <summary>
     /// Check constraint DDL -- HasCheckConstraint produces valid model.
     /// </summary>
@@ -188,6 +187,139 @@ public sealed partial class MySqlModelingBaselineTests
 
         // Assert
         Assert.False(nameProperty.IsNullable);
+    }
+
+    /// <summary>
+    /// HasData produces valid seed data configuration.
+    /// </summary>
+    [Fact]
+    public void Has_data_seed_configuration_is_preserved()
+    {
+        // Arrange
+        using var context = new SeedDataContext(CreateOptions<SeedDataContext>());
+        var designModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
+        // Act
+        var entityType = designModel.FindEntityType(typeof(SeedEntity))!;
+        var seedData = entityType
+            .GetSeedData()
+            .ToList();
+
+        // Assert
+        Assert.Equal(2, seedData.Count);
+    }
+
+    /// <summary>
+    /// Compiled query produces valid SQL.
+    /// </summary>
+    [Fact]
+    public void Compiled_query_produces_valid_model()
+    {
+        // Arrange
+        using var context = new TphContext(CreateOptions<TphContext>());
+
+        // Verify that a compiled query can be created without error.
+
+        // Act
+        var compiledQuery = EF.CompileQuery((TphContext ctx,
+            int id) => ctx.Animals.Where(a => a.Id == id));
+
+        // Assert
+        Assert.NotNull(compiledQuery);
+    }
+
+    /// <summary>
+    /// Sequence value generator -- MySQL atomic increment SQL pattern.
+    /// </summary>
+    [Fact]
+    public void Sequence_value_generator_produces_correct_mysql_sql()
+    {
+        // Arrange
+        const string sequenceName = "TestSeq";
+
+        // Act
+        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: false);
+
+        // Assert
+        Assert.Contains("UPDATE `__efsequence_TestSeq`", sql, StringComparison.Ordinal);
+        Assert.Contains("LAST_INSERT_ID(IF(`is_called`, `value` + 1, `value`))", sql, StringComparison.Ordinal);
+        Assert.Contains("SELECT LAST_INSERT_ID();", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// MariaDB native sequence SQL pattern.
+    /// </summary>
+    [Fact]
+    public void Sequence_value_generator_produces_correct_mariadb_sql()
+    {
+        // Arrange
+        const string sequenceName = "TestSeq";
+
+        // Act
+        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: true);
+
+        // Assert
+        Assert.Equal("SELECT NEXT VALUE FOR `TestSeq`;", sql);
+    }
+
+    /// <summary>
+    /// HasDefaultValue(42) -> literal default.
+    /// </summary>
+    [Fact]
+    public void Has_default_value_literal_is_preserved()
+    {
+        // Arrange
+        using var context = new DefaultValueContext(CreateOptions<DefaultValueContext>());
+
+        // Act
+        var entityType = context.Model.FindEntityType(typeof(DefaultValueEntity))!;
+        var idProperty = entityType.FindProperty(nameof(DefaultValueEntity.Id))!;
+
+        // Int PK with auto-increment uses ValueGenerated.OnAdd.
+
+        // Assert
+        Assert.Equal(ValueGenerated.OnAdd, idProperty.ValueGenerated);
+    }
+
+    /// <summary>
+    /// HasDbFunction -- user-defined scalar function mapping.
+    /// </summary>
+    [Fact]
+    public void Has_db_function_is_preserved_in_model()
+    {
+        // Arrange
+        using var context = new DbFunctionContext(CreateOptions<DbFunctionContext>());
+
+        // Act
+        var model = context.Model;
+        var function = model
+            .GetDbFunctions()
+            .FirstOrDefault(f => f.Name == "CalculateDiscount");
+
+        // Assert
+        Assert.NotNull(function);
+        Assert.Equal(typeof(decimal), function.ReturnType);
+    }
+
+    /// <summary>
+    /// ModificationCommandBatch IsValid respects MaxBatchSize.
+    /// </summary>
+    [Fact]
+    public void Modification_command_batch_respects_max_batch_size()
+    {
+        // Arrange
+        using var context = new TphContext(CreateOptions<TphContext>());
+        var batchFactory = context.GetService<IModificationCommandBatchFactory>();
+
+        // Act
+        var batch = batchFactory.Create();
+
+        // The batch should be created successfully.
+
+        // Assert
+        Assert.NotNull(batch);
+        Assert.IsType<MySqlModificationCommandBatch>(batch);
     }
 
     private sealed class PricedItem
@@ -311,6 +443,7 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .HasSequence<long>("OrderNumbers")
                 .StartsAt(1000);
+
             modelBuilder
                 .Entity<SequenceEntity>()
                 .ToTable("SequenceEntities");
@@ -374,145 +507,6 @@ public sealed partial class MySqlModelingBaselineTests
         }
     }
 
-
-    /// <summary>
-    /// HasData produces valid seed data configuration.
-    /// </summary>
-    [Fact]
-    public void Has_data_seed_configuration_is_preserved()
-    {
-        // Arrange
-        using var context = new SeedDataContext(CreateOptions<SeedDataContext>());
-        var designModel = context.GetService<IDesignTimeModel>()
-            .Model;
-
-        // Act
-        var entityType = designModel.FindEntityType(typeof(SeedEntity))!;
-        var seedData = entityType
-            .GetSeedData()
-            .ToList();
-
-        // Assert
-        Assert.Equal(2, seedData.Count);
-    }
-
-
-    /// <summary>
-    /// Compiled query produces valid SQL.
-    /// </summary>
-    [Fact]
-    public void Compiled_query_produces_valid_model()
-    {
-        // Arrange
-        using var context = new TphContext(CreateOptions<TphContext>());
-        // Verify that a compiled query can be created without error.
-
-        // Act
-        var compiledQuery = EF.CompileQuery((
-            TphContext ctx,
-            int id
-        ) => ctx.Animals.Where(a => a.Id == id));
-
-        // Assert
-        Assert.NotNull(compiledQuery);
-    }
-
-
-    /// <summary>
-    /// Sequence value generator -- MySQL atomic increment SQL pattern.
-    /// </summary>
-    [Fact]
-    public void Sequence_value_generator_produces_correct_mysql_sql()
-    {
-        // Arrange
-        const string sequenceName = "TestSeq";
-
-        // Act
-        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: false);
-
-        // Assert
-        Assert.Contains("UPDATE `__efsequence_TestSeq`", sql, StringComparison.Ordinal);
-        Assert.Contains("LAST_INSERT_ID(IF(`is_called`, `value` + 1, `value`))", sql, StringComparison.Ordinal);
-        Assert.Contains("SELECT LAST_INSERT_ID();", sql, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// MariaDB native sequence SQL pattern.
-    /// </summary>
-    [Fact]
-    public void Sequence_value_generator_produces_correct_mariadb_sql()
-    {
-        // Arrange
-        const string sequenceName = "TestSeq";
-
-        // Act
-        var sql = MySqlSequenceValueGenerator.GenerateNextValueSql(sequenceName, 1, supportsNativeSequences: true);
-
-        // Assert
-        Assert.Equal("SELECT NEXT VALUE FOR `TestSeq`;", sql);
-    }
-
-
-    /// <summary>
-    /// HasDefaultValue(42) -> literal default.
-    /// </summary>
-    [Fact]
-    public void Has_default_value_literal_is_preserved()
-    {
-        // Arrange
-        using var context = new DefaultValueContext(CreateOptions<DefaultValueContext>());
-
-        // Act
-        var entityType = context.Model.FindEntityType(typeof(DefaultValueEntity))!;
-        var idProperty = entityType.FindProperty(nameof(DefaultValueEntity.Id))!;
-
-        // Int PK with auto-increment uses ValueGenerated.OnAdd.
-
-        // Assert
-        Assert.Equal(ValueGenerated.OnAdd, idProperty.ValueGenerated);
-    }
-
-
-    /// <summary>
-    /// HasDbFunction -- user-defined scalar function mapping.
-    /// </summary>
-    [Fact]
-    public void Has_db_function_is_preserved_in_model()
-    {
-        // Arrange
-        using var context = new DbFunctionContext(CreateOptions<DbFunctionContext>());
-
-        // Act
-        var model = context.Model;
-        var function = model
-            .GetDbFunctions()
-            .FirstOrDefault(f => f.Name == "CalculateDiscount");
-
-        // Assert
-        Assert.NotNull(function);
-        Assert.Equal(typeof(decimal), function.ReturnType);
-    }
-
-    /// <summary>
-    /// ModificationCommandBatch IsValid respects MaxBatchSize.
-    /// </summary>
-    [Fact]
-    public void Modification_command_batch_respects_max_batch_size()
-    {
-        // Arrange
-        using var context = new TphContext(CreateOptions<TphContext>());
-        var batchFactory = context.GetService<IModificationCommandBatchFactory>();
-
-        // Act
-        var batch = batchFactory.Create();
-
-        // The batch should be created successfully.
-
-        // Assert
-        Assert.NotNull(batch);
-        Assert.IsType<MySqlModificationCommandBatch>(batch);
-    }
-
     // -- DbFunction Context ----------------------------------------------
 
     private sealed class DbFunctionEntity
@@ -542,6 +536,7 @@ public sealed partial class MySqlModelingBaselineTests
             modelBuilder
                 .Entity<DbFunctionEntity>()
                 .ToTable("DbFunctionEntities");
+
             modelBuilder.HasDbFunction(() => CalculateDiscount(0, 0));
         }
     }

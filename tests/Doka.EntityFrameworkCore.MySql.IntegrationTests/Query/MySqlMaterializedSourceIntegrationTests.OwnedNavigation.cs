@@ -29,9 +29,20 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         Assert.Equal("owned-1", profile.Name);
         Assert.Equal(s_binaryToken, profile.Token);
         Assert.Null(actual[1].Profile);
-        Assert.Equal(2, fixture.Context.ChangeTracker.Entries<OptionalOwnedOwner>().Count());
+        Assert.Equal(
+            2,
+            fixture
+                .Context
+                .ChangeTracker
+                .Entries<OptionalOwnedOwner>()
+                .Count());
+
         Assert.Single(fixture.Context.ChangeTracker.Entries<OptionalOwnedProfile>());
-        Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(profile).State);
+        Assert.Equal(
+            EntityState.Unchanged,
+            fixture.Context.Entry(profile)
+                .State);
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -43,7 +54,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     )
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<OptionalOwnedContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<OptionalOwnedContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -61,15 +73,28 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 {
                     Id = 1,
                     Label = "owner-1",
-                    Profile = new OptionalOwnedProfile { Name = "owned-1", Token = s_binaryToken },
+                    Profile = new OptionalOwnedProfile
+                    {
+                        Name = "owned-1",
+                        Token = s_binaryToken,
+                    },
                 },
-                new OptionalOwnedOwner { Id = 2, Label = "owner-2" },
+                new OptionalOwnedOwner
+                {
+                    Id = 2,
+                    Label = "owner-2",
+                },
                 new OptionalOwnedOwner
                 {
                     Id = 3,
                     Label = "excluded-owner",
-                    Profile = new OptionalOwnedProfile { Name = "excluded-profile", Token = Guid.Empty },
+                    Profile = new OptionalOwnedProfile
+                    {
+                        Name = "excluded-profile",
+                        Token = Guid.Empty,
+                    },
                 });
+
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
             probe.Reset();
@@ -128,15 +153,31 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             modelBuilder.Entity<OptionalOwnedOwner>(entity =>
             {
                 entity.ToTable(OptionalOwnedOwnerTable);
-                entity.Property(owner => owner.Id).ValueGeneratedNever();
-                entity.Property(owner => owner.Label).HasMaxLength(64);
-                entity.OwnsOne(owner => owner.Profile, owned =>
-                {
-                    owned.ToTable(OptionalOwnedProfileTable);
-                    owned.Property(profile => profile.Name).HasMaxLength(64);
-                    owned.Property(profile => profile.Token).HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                });
-                entity.Navigation(owner => owner.Profile).IsRequired(false);
+                entity
+                    .Property(owner => owner.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(owner => owner.Label)
+                    .HasMaxLength(64);
+
+                entity.OwnsOne(
+                    owner => owner.Profile,
+                    owned =>
+                    {
+                        owned.ToTable(OptionalOwnedProfileTable);
+                        owned
+                            .Property(profile => profile.Name)
+                            .HasMaxLength(64);
+
+                        owned
+                            .Property(profile => profile.Token)
+                            .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+                    });
+
+                entity
+                    .Navigation(owner => owner.Profile)
+                    .IsRequired(false);
             });
         }
     }

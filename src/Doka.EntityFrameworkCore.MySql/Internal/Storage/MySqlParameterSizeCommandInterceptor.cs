@@ -1,11 +1,11 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Enforces the ADO.NET <see cref="DbParameter.Size"/> contract for input
+/// Enforces the ADO.NET <see cref="DbParameter.Size" /> contract for input
 /// values before MySqlConnector sends the command.
 /// </summary>
 /// <remarks>
-/// MySqlConnector retains <see cref="DbParameter.Size"/> as metadata but sends
+/// MySqlConnector retains <see cref="DbParameter.Size" /> as metadata but sends
 /// the complete input value. Truncating the command-local parameter clone keeps
 /// raw and generated parameters consistent with EF Core's relational contract
 /// without mutating the parameter supplied by the application.

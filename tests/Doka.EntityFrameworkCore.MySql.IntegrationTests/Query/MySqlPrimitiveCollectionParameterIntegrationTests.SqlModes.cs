@@ -13,8 +13,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await ExecuteWithNoBackslashEscapesAsync(
-            (context, cancellationToken) => context.Items
-                .Where(item => EF.Parameter(values).Contains(item.Value))
+            (context, cancellationToken) => context
+                .Items
+                .Where(item => EF
+                    .Parameter(values)
+                    .Contains(item.Value))
                 .OrderBy(item => item.Id)
                 .Select(item => item.Id)
                 .ToArrayAsync(cancellationToken),
@@ -34,8 +37,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await ExecuteWithNoBackslashEscapesAsync(
-            (context, cancellationToken) => context.Items
-                .Where(item => EF.Parameter(values).Contains(item.OptionalValue))
+            (context, cancellationToken) => context
+                .Items
+                .Where(item => EF
+                    .Parameter(values)
+                    .Contains(item.OptionalValue))
                 .OrderBy(item => item.Id)
                 .Select(item => item.Id)
                 .ToArrayAsync(cancellationToken),
@@ -55,8 +61,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await ExecuteWithNoBackslashEscapesAsync(
-            (context, cancellationToken) => context.Items
-                .Where(item => EF.Parameter(values).Contains(item.ConvertedValue))
+            (context, cancellationToken) => context
+                .Items
+                .Where(item => EF
+                    .Parameter(values)
+                    .Contains(item.ConvertedValue))
                 .Select(item => item.Id)
                 .ToArrayAsync(cancellationToken),
             CancellationToken.None);
@@ -75,8 +84,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await ExecuteWithNoBackslashEscapesAsync(
-            (context, cancellationToken) => context.Items
-                .Where(item => EF.Parameter(values).Contains(item.ConvertedText))
+            (context, cancellationToken) => context
+                .Items
+                .Where(item => EF
+                    .Parameter(values)
+                    .Contains(item.ConvertedText))
                 .OrderBy(item => item.Id)
                 .Select(item => item.Id)
                 .ToArrayAsync(cancellationToken),
@@ -96,7 +108,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var values = await ExecuteWithNoBackslashEscapesAsync(
-            (context, cancellationToken) => context.Items
+            (context, cancellationToken) => context
+                .Items
                 .Where(item => item.Id == 1)
                 .SelectMany(item => item.Values)
                 .ToArrayAsync(cancellationToken),
@@ -125,7 +138,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
                 return (
                     query.ToQueryString(),
-                    await query.Select(item => item.Id).ToArrayAsync(cancellationToken));
+                    await query
+                        .Select(item => item.Id)
+                        .ToArrayAsync(cancellationToken));
             },
             CancellationToken.None,
             configureConnector: true);
@@ -210,11 +225,15 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         try
         {
-            await using var command = context.Database.GetDbConnection().CreateCommand();
+            await using var command = context
+                .Database
+                .GetDbConnection()
+                .CreateCommand();
+
             command.CommandText = """
-                SELECT COERCIBILITY(
-                    JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64('YQ==') USING utf8mb4))));
-                """;
+                                  SELECT COERCIBILITY(
+                                      JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64('YQ==') USING utf8mb4))));
+                                  """;
 
             return Convert.ToInt32(
                 await command.ExecuteScalarAsync(cancellationToken),

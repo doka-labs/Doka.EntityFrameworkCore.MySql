@@ -127,7 +127,8 @@ internal sealed class MySqlCacheSql
                 .Append("`Id` = ")
                 .Append(parameterName);
 
-            command.Parameters.Add(parameterName, MySqlDbType.VarBinary).Value = candidates[index];
+            command.Parameters.Add(parameterName, MySqlDbType.VarBinary)
+                .Value = candidates[index];
         }
 
         command.CommandText = sql

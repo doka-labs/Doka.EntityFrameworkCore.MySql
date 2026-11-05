@@ -62,7 +62,11 @@ internal sealed partial class MySqlQuerySqlGenerator
             case MySqlSentinelKind.OrderDescending:
                 {
                     Visit(arguments[0]);
-                    Sql.Append(sentinel.Kind == MySqlSentinelKind.OrderAscending ? " ASC" : " DESC");
+                    Sql.Append(
+                        sentinel.Kind == MySqlSentinelKind.OrderAscending
+                            ? " ASC"
+                            : " DESC");
+
                     return sqlFunctionExpression;
                 }
 
@@ -121,6 +125,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                     EmitShift(
                         sqlFunctionExpression,
                         isRightShift: sentinel.Kind == MySqlSentinelKind.RightShift);
+
                     return sqlFunctionExpression;
                 }
 
@@ -139,6 +144,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                         sqlFunctionExpression,
                         sentinel.IntervalUnit
                         ?? throw new InvalidOperationException("Date/time addition sentinel has no interval unit."));
+
                     return sqlFunctionExpression;
                 }
 
@@ -346,7 +352,9 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         var arguments = GetRequiredArguments(expression, 2);
         var resultType = expression.Type.UnwrapNullableType();
-        var bitWidth = resultType == typeof(long) || resultType == typeof(ulong) ? 64 : 32;
+        var bitWidth = resultType == typeof(long) || resultType == typeof(ulong)
+            ? 64
+            : 32;
 
         if (isRightShift)
         {
@@ -467,7 +475,10 @@ internal sealed partial class MySqlQuerySqlGenerator
     {
         Sql.Append("(");
         Visit(shift);
-        Sql.Append(bitWidth == 64 ? " & 63)" : " & 31)");
+        Sql.Append(
+            bitWidth == 64
+                ? " & 63)"
+                : " & 31)");
     }
 
     private static IReadOnlyList<SqlExpression> GetRequiredArguments(
@@ -503,14 +514,18 @@ internal sealed partial class MySqlQuerySqlGenerator
 
     /// <summary>
     /// Produces the provider's sortable DateTimeOffset text shape, including the
-    /// current session offset for <see cref="DateTimeOffset.Now"/>.
+    /// current session offset for <see cref="DateTimeOffset.Now" />.
     /// </summary>
     private void EmitDateTimeOffsetNow(
         bool utc
     )
     {
         Sql.Append("CONCAT(DATE_FORMAT(");
-        Sql.Append(utc ? "UTC_TIMESTAMP(6)" : "NOW(6)");
+        Sql.Append(
+            utc
+                ? "UTC_TIMESTAMP(6)"
+                : "NOW(6)");
+
         Sql.Append(", '%Y-%m-%d %H:%i:%s.%f'), '0', ");
 
         if (utc)
@@ -526,7 +541,7 @@ internal sealed partial class MySqlQuerySqlGenerator
 
     /// <summary>
     /// Subtracts a native <c>TIME</c> value from the local timestamp portion of
-    /// the provider's sortable <see cref="DateTimeOffset"/> text and retains its
+    /// the provider's sortable <see cref="DateTimeOffset" /> text and retains its
     /// seventh fractional digit and offset.
     /// </summary>
     private void EmitDateTimeOffsetSubtractTimeSpan(
@@ -547,7 +562,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     }
 
     /// <summary>
-    /// Emits a signed, range-preserving <see cref="TimeSpan"/> value as
+    /// Emits a signed, range-preserving <see cref="TimeSpan" /> value as
     /// 100-nanosecond ticks.
     /// </summary>
     /// <remarks>

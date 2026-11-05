@@ -74,6 +74,7 @@ public sealed class MySqlOptionsRegistrationTests
             services,
             descriptor => descriptor.ServiceType.FullName
                 == "Microsoft.EntityFrameworkCore.Design.Internal.ICSharpRuntimeAnnotationCodeGenerator");
+
         Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IScaffoldingModelFactory));
     }
 
@@ -103,18 +104,6 @@ public sealed class MySqlOptionsRegistrationTests
 #pragma warning restore EF1001
     }
 
-#pragma warning disable EF1001 // Stub implements an EF Core internal interface; required to simulate dotnet-ef pre-population.
-    private sealed class StubModelCodeGenerator : IModelCodeGenerator
-    {
-        public string Language => "C#";
-
-        public ScaffoldedModel GenerateModel(
-            IModel model,
-            ModelCodeGenerationOptions options
-        ) => throw new NotSupportedException("Test stub.");
-    }
-#pragma warning restore EF1001
-
     /// <summary>
     /// Verifies that repeated registration updates the same extension slot.
     /// </summary>
@@ -130,7 +119,9 @@ public sealed class MySqlOptionsRegistrationTests
         builder.UseMySql("Server=localhost;Database=doka;User ID=root;Password=password;", serverVersion);
 
         var extensions = builder
-            .Options.Extensions.OfType<MySqlOptionsExtension>()
+            .Options
+            .Extensions
+            .OfType<MySqlOptionsExtension>()
             .ToArray();
 
         // Assert
@@ -196,7 +187,9 @@ public sealed class MySqlOptionsRegistrationTests
         var extension = Assert.IsType<MySqlOptionsExtension>(builder.Options.FindExtension<MySqlOptionsExtension>());
 
         var extensions = builder
-            .Options.Extensions.OfType<MySqlOptionsExtension>()
+            .Options
+            .Extensions
+            .OfType<MySqlOptionsExtension>()
             .ToArray();
 
         // Assert
@@ -205,6 +198,18 @@ public sealed class MySqlOptionsRegistrationTests
         Assert.Null(extension.ConnectionString);
         Assert.Null(extension.Connection);
     }
+
+#pragma warning disable EF1001 // Stub implements an EF Core internal interface; required to simulate dotnet-ef pre-population.
+    private sealed class StubModelCodeGenerator : IModelCodeGenerator
+    {
+        public string Language => "C#";
+
+        public ScaffoldedModel GenerateModel(
+            IModel model,
+            ModelCodeGenerationOptions options
+        ) => throw new NotSupportedException("Test stub.");
+    }
+#pragma warning restore EF1001
 
     private sealed class TestDbContext : DbContext
     {

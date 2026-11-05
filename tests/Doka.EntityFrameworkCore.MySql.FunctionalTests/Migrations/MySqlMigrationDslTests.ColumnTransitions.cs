@@ -106,7 +106,8 @@ public sealed partial class MySqlMigrationDslTests
             null,
             target
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         // Assert
         var alterColumn = Assert.Single(operations.OfType<AlterColumnOperation>());

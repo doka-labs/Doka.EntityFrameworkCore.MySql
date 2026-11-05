@@ -54,7 +54,9 @@ internal sealed class MySqlCacheOptionsValidator : IValidateOptions<MySqlCacheOp
             failures.Add("ExpiredItemsDeletionInterval must be at least five minutes.");
         }
 
-        return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+        return failures.Count == 0
+            ? ValidateOptionsResult.Success
+            : ValidateOptionsResult.Fail(failures);
     }
 
     private static void ValidateIdentifier(

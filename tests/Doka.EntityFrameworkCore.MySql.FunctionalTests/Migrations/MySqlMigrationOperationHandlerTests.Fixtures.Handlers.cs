@@ -4,12 +4,6 @@ public sealed partial class MySqlMigrationOperationHandlerTests
 {
     private sealed class BaselineRenderingHandler : IMySqlMigrationOperationHandler
     {
-        /// <inheritdoc />
-        public string HandlerId => "tests.baseline";
-
-        /// <inheritdoc />
-        public Type OperationType => typeof(FirstCustomOperation);
-
         /// <summary>
         /// Gets the context observed by the most recent handler invocation.
         /// </summary>
@@ -19,6 +13,12 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         /// Gets or sets the my sql migration command spec.
         /// </summary>
         public IReadOnlyList<MySqlMigrationCommandSpec>? LastBaseline { get; private set; }
+
+        /// <inheritdoc />
+        public string HandlerId => "tests.baseline";
+
+        /// <inheritdoc />
+        public Type OperationType => typeof(FirstCustomOperation);
 
         /// <inheritdoc />
         public MySqlMigrationOperationResult Generate(
@@ -45,16 +45,16 @@ public sealed partial class MySqlMigrationOperationHandlerTests
 
     private sealed class SecondHandler : IMySqlMigrationOperationHandler
     {
+        /// <summary>
+        /// Gets the context observed by the most recent handler invocation.
+        /// </summary>
+        public MySqlMigrationOperationContext? LastContext { get; private set; }
+
         /// <inheritdoc />
         public string HandlerId => "tests.second";
 
         /// <inheritdoc />
         public Type OperationType => typeof(SecondCustomOperation);
-
-        /// <summary>
-        /// Gets the context observed by the most recent handler invocation.
-        /// </summary>
-        public MySqlMigrationOperationContext? LastContext { get; private set; }
 
         /// <inheritdoc />
         public MySqlMigrationOperationResult Generate(
@@ -71,16 +71,16 @@ public sealed partial class MySqlMigrationOperationHandlerTests
 
     private sealed class ConsumedHandler : IMySqlMigrationOperationHandler
     {
+        /// <summary>
+        /// Gets the context observed by the most recent handler invocation.
+        /// </summary>
+        public MySqlMigrationOperationContext? LastContext { get; private set; }
+
         /// <inheritdoc />
         public string HandlerId => "tests.consumed";
 
         /// <inheritdoc />
         public Type OperationType => typeof(ConsumedCustomOperation);
-
-        /// <summary>
-        /// Gets the context observed by the most recent handler invocation.
-        /// </summary>
-        public MySqlMigrationOperationContext? LastContext { get; private set; }
 
         /// <inheritdoc />
         public MySqlMigrationOperationResult Generate(

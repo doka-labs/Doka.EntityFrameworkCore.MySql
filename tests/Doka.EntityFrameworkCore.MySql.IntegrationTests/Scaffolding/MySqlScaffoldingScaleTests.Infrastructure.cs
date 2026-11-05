@@ -16,6 +16,7 @@ public sealed partial class MySqlScaffoldingScaleTests
             GCCollectionMode.Forced,
             blocking: true,
             compacting: true);
+
         GC.WaitForPendingFinalizers();
 
         var baselineHeapBytes = GC.GetTotalMemory(forceFullCollection: false);
@@ -25,11 +26,12 @@ public sealed partial class MySqlScaffoldingScaleTests
         ScaffoldedModel scaffoldedModel;
 
         using (var serviceProvider =
-               ScaffoldingTestServices.CreateDesignTimeServiceProvider())
+            ScaffoldingTestServices.CreateDesignTimeServiceProvider())
         using (var scope = serviceProvider.CreateScope())
         {
             scaffoldedModel = scope
-                .ServiceProvider.GetRequiredService<IReverseEngineerScaffolder>()
+                .ServiceProvider
+                .GetRequiredService<IReverseEngineerScaffolder>()
                 .ScaffoldModel(
                     connectionString,
                     new DatabaseModelFactoryOptions(tableNames, Array.Empty<string>()),
@@ -41,7 +43,8 @@ public sealed partial class MySqlScaffoldingScaleTests
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBytesBefore;
         var peakHeapGrowthBytes = heapSampler.Stop();
         var emittedPaths = scaffoldedModel
-            .AdditionalFiles.Select(file => file.Path)
+            .AdditionalFiles
+            .Select(file => file.Path)
             .ToArray();
 
         Assert.Equal(
@@ -104,10 +107,13 @@ public sealed partial class MySqlScaffoldingScaleTests
             metrics.CommandCount,
             1,
             maximumSetBasedMetadataCommands + expectedDefinitionCommands);
+
         Assert.All(
             metrics.CommandTexts,
             commandText => Assert.True(
-                commandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+                commandText
+                    .TrimStart()
+                    .StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
                 || IsTableDefinitionCommand(commandText),
                 $"Unexpected scaffolding metadata command: {commandText}"));
     }
@@ -127,9 +133,11 @@ public sealed partial class MySqlScaffoldingScaleTests
 
     private static bool IsTableDefinitionCommand(
         string commandText
-    ) => commandText.TrimStart().StartsWith(
-        "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 FOR SHOW CREATE TABLE ",
-        StringComparison.OrdinalIgnoreCase);
+    ) => commandText
+        .TrimStart()
+        .StartsWith(
+            "SET STATEMENT sql_mode = '', sql_quote_show_create = 1 FOR SHOW CREATE TABLE ",
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Creates large schema for the integration contract.
@@ -147,6 +155,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         var sql = new StringBuilder();
 
@@ -213,6 +222,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         var sql = new StringBuilder();
 
@@ -337,10 +347,12 @@ public sealed partial class MySqlScaffoldingScaleTests
             metrics.Elapsed.TotalMilliseconds <= budgets.MaximumElapsedMillisecondsPerRun,
             $"{target} run {run + 1} elapsed {metrics.Elapsed.TotalMilliseconds:F0} ms; "
             + $"budget {budgets.MaximumElapsedMillisecondsPerRun} ms.");
+
         Assert.True(
             metrics.AllocatedBytes <= budgets.MaximumAllocatedBytesPerRun,
             $"{target} run {run + 1} allocated {metrics.AllocatedBytes} bytes; "
             + $"budget {budgets.MaximumAllocatedBytesPerRun} bytes.");
+
         Assert.True(
             metrics.ManagedHeapGrowthBytes <= budgets.MaximumManagedHeapGrowthBytesPerRun,
             $"{target} run {run + 1} grew the managed heap by "
@@ -355,8 +367,8 @@ public sealed partial class MySqlScaffoldingScaleTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

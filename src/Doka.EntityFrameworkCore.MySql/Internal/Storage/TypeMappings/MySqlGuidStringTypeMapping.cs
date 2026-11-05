@@ -8,7 +8,7 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
 {
     private static readonly CaseInsensitiveValueComparer s_caseInsensitiveComparer = new();
 
-    private static readonly MethodInfo s_getStringMethod = RelationalTypeMapping.GetDataReaderMethod(typeof(string));
+    private static readonly MethodInfo s_getStringMethod = GetDataReaderMethod(typeof(string));
 
     private static readonly MethodInfo s_readGuidStringColumnMethod =
         typeof(MySqlGuidStringTypeMapping).GetMethod(
@@ -17,24 +17,7 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
         ?? throw new InvalidOperationException("The Guid string reader method could not be resolved.");
 
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlGuidStringTypeMapping Default { get; } = new(
-        "char(36)",
-        System.Data.DbType.StringFixedLength,
-        36,
-        useKeyComparison: false);
-
-    // Native UUID arrives as text on the wire. Do not bind its Guid model value
-    // through MySqlConnector's process-wide Binary16 transport contract.
-    internal static MySqlGuidStringTypeMapping Uuid { get; } = new(
-        "uuid",
-        System.Data.DbType.String,
-        size: null,
-        useKeyComparison: false);
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MySqlGuidStringTypeMapping"/> class.
+    /// Initializes a new instance of the <see cref="MySqlGuidStringTypeMapping" /> class.
     /// </summary>
     /// <param name="storeType">The database type name.</param>
     /// <param name="dbType">The ADO.NET parameter type.</param>
@@ -56,8 +39,12 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(
                 typeof(string),
-                comparer: useKeyComparison ? s_caseInsensitiveComparer : null,
-                keyComparer: useKeyComparison ? s_caseInsensitiveComparer : null,
+                comparer: useKeyComparison
+                    ? s_caseInsensitiveComparer
+                    : null,
+                keyComparer: useKeyComparison
+                    ? s_caseInsensitiveComparer
+                    : null,
                 jsonValueReaderWriter: JsonStringReaderWriter.Instance),
             storeType,
             StoreTypePostfix.None,
@@ -68,6 +55,23 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
     private MySqlGuidStringTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlGuidStringTypeMapping Default { get; } = new(
+        "char(36)",
+        System.Data.DbType.StringFixedLength,
+        36,
+        useKeyComparison: false);
+
+    // Native UUID arrives as text on the wire. Do not bind its Guid model value
+    // through MySqlConnector's process-wide Binary16 transport contract.
+    internal static MySqlGuidStringTypeMapping Uuid { get; } = new(
+        "uuid",
+        System.Data.DbType.String,
+        size: null,
+        useKeyComparison: false);
 
     /// <inheritdoc />
     protected override RelationalTypeMapping Clone(
@@ -86,7 +90,7 @@ public sealed class MySqlGuidStringTypeMapping : StringTypeMapping
     {
         ArgumentNullException.ThrowIfNull(expression);
 
-        if (expression is MethodCallExpression { Method: { } method, Object: { } reader, Arguments: [{ } ordinal], }
+        if (expression is MethodCallExpression { Method: { } method, Object: { } reader, Arguments: [{ } ordinal] }
             && method == s_getStringMethod)
         {
             return Expression.Call(s_readGuidStringColumnMethod, reader, ordinal);

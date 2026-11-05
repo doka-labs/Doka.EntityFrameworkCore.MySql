@@ -1,3 +1,5 @@
+using ExpressionExtensions = Microsoft.EntityFrameworkCore.Query.ExpressionExtensions;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
@@ -6,20 +8,18 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 /// <remarks>
 /// MySQL and MariaDB both provide native variadic <c>LEAST</c> and
-/// <c>GREATEST</c> functions, and both return <see langword="null"/> when any
-/// argument is <see langword="null"/>. Sources retrieved 2026-07-28:
+/// <c>GREATEST</c> functions, and both return <see langword="null" /> when any
+/// argument is <see langword="null" />. Sources retrieved 2026-07-28:
 /// <see href="https://dev.mysql.com/doc/refman/8.4/en/comparison-operators.html">
 /// MySQL 8.4 comparison functions</see>,
 /// <see href="https://mariadb.com/docs/server/reference/sql-structure/operators/comparison-operators/least">
 /// MariaDB LEAST</see>, and
 /// <see href="https://mariadb.com/docs/server/reference/sql-structure/operators/comparison-operators/greatest">
 /// MariaDB GREATEST</see>.
-///
 /// DateTime subtraction is translated through a private tick-valued SQL sentinel.
 /// The SQL generator emits signed <c>TIMESTAMPDIFF(MICROSECOND) * 10</c>, which avoids
 /// the database <c>TIME</c> range while preserving the engines' six-digit temporal
 /// precision.
-///
 /// JSON construction expands the CLR <c>params</c> array into the engines'
 /// variadic arguments. MySQL specifies an empty-or-valued list for
 /// <c>JSON_ARRAY</c> and complete key/value pairs for <c>JSON_OBJECT</c>:
@@ -57,20 +57,21 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
 
     private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
         .GetRuntimeMethods()
-        .Single(
-            method => method.Name == nameof(Enumerable.ElementAt)
-                && method.IsGenericMethodDefinition
-                && method.GetParameters() is
-                [
-                    _,
-                { ParameterType: var indexType, },
-                ]
-                && indexType == typeof(int));
+        .Single(method => method.Name == nameof(Enumerable.ElementAt)
+            && method.IsGenericMethodDefinition
+            && method.GetParameters() is
+            [
+                _,
+                { ParameterType: var indexType },
+            ]
+            && indexType == typeof(int));
 
     private static readonly MethodInfo s_enumerableContainsMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method is { Name: nameof(Enumerable.Contains), IsGenericMethodDefinition: true }
-            && method.GetParameters().Length == 2);
+            && method.GetParameters()
+                .Length
+            == 2);
 
     private static readonly MethodInfo s_convertEnumParameterToStringMethod =
         typeof(MySqlSqlTranslatingExpressionVisitor)
@@ -85,9 +86,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         true,
     ];
 
+    private readonly QueryCompilationContext _queryCompilationContext;
+
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly IRelationalTypeMappingSource _typeMappingSource;
-    private readonly QueryCompilationContext _queryCompilationContext;
 
     public MySqlSqlTranslatingExpressionVisitor(
         RelationalSqlTranslatingExpressionVisitorDependencies dependencies,
@@ -157,7 +159,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     ) => GenerateComparisonFunction("LEAST", expressions, resultType);
 
     /// <summary>
-    /// Preserves promoted coalesce result mappings, translates <see cref="DateTime"/>
+    /// Preserves promoted coalesce result mappings, translates <see cref="DateTime" />
     /// subtraction to the provider's tick-valued SQL sentinel, and delegates every
     /// other binary expression to EF Core.
     /// </summary>
@@ -284,7 +286,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     }
 
     /// <summary>
-    /// Translates non-aggregate <see cref="string.Join(string?, string?[])"/> calls
+    /// Translates non-aggregate <see cref="string.Join(string?, string?[])" /> calls
     /// whose inline array contains columns or parameters. EF Core cannot represent
     /// such an array as a scalar SQL value, so each element is translated separately.
     /// </summary>
@@ -373,7 +375,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         bool requirePairs
     )
     {
-        if (methodCallExpression.Arguments[1] is ConstantExpression { Value: object[] { Length: 0, }, })
+        if (methodCallExpression.Arguments[1] is ConstantExpression { Value: object[] { Length: 0 } })
         {
             return _sqlExpressionFactory.Function(
                 functionName,
@@ -384,7 +386,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
                 _typeMappingSource.FindMapping(typeof(string)));
         }
 
-        if (methodCallExpression.Arguments[1] is not NewArrayExpression { NodeType: ExpressionType.NewArrayInit, } values)
+        if (methodCallExpression.Arguments[1] is not NewArrayExpression
+            {
+                NodeType: ExpressionType.NewArrayInit,
+            } values)
         {
             throw new InvalidOperationException(
                 $"{methodCallExpression.Method.Name} requires inline params arguments so every JSON value can be "
@@ -412,7 +417,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             }
 
             arguments.Add(
-                translatedValue is SqlConstantExpression { Value: null, TypeMapping: null, }
+                translatedValue is SqlConstantExpression { Value: null, TypeMapping: null }
                     ? _sqlExpressionFactory.ApplyTypeMapping(translatedValue, nullTypeMapping)
                     : _sqlExpressionFactory.ApplyDefaultTypeMapping(translatedValue));
         }
@@ -452,7 +457,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         MethodCallExpression methodCallExpression
     )
     {
-        var enumType = methodCallExpression.Method.GetGenericArguments()[0];
+        var enumType = methodCallExpression
+            .Method
+            .GetGenericArguments()[0];
+
         if (!enumType.IsEnum
             || Visit(methodCallExpression.Arguments[0]) is not SqlExpression collection
             || collection.TypeMapping?.Converter?.ProviderClrType != typeof(string)
@@ -649,7 +657,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         Type resultType
     )
     {
-        var resultTypeMapping = Microsoft.EntityFrameworkCore.Query.ExpressionExtensions.InferTypeMapping(expressions);
+        var resultTypeMapping = ExpressionExtensions.InferTypeMapping(expressions);
 
         return _sqlExpressionFactory.Function(
             functionName,

@@ -10,7 +10,7 @@ internal static class BenchmarkProfiles
     /// Profiles that measure the complete workload matrix.
     /// </summary>
     /// <remarks>
-    /// Falling back to <see cref="SmokeProfile"/> for an unrecognized name is
+    /// Falling back to <see cref="SmokeProfile" /> for an unrecognized name is
     /// not safe because smoke narrows the workload set.
     /// </remarks>
     private static readonly string[] s_completeMatrixProfiles = [ScorecardProfile, StressProfile];

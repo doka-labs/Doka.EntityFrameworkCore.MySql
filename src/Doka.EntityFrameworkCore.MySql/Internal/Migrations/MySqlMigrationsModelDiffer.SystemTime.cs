@@ -28,7 +28,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
         List<MigrationOperation> operations
     )
     {
-        foreach (var transition in operations.OfType<AlterTableOperation>().ToArray())
+        foreach (var transition in operations
+            .OfType<AlterTableOperation>()
+            .ToArray())
         {
             var sourceIsTemporal = transition.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value is true;
@@ -93,12 +95,11 @@ internal sealed partial class MySqlMigrationsModelDiffer
             .FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
             ?.Value as string;
 
-        var firstPeriodColumnIndex = operations.FindIndex(
-            operation => operation is DropColumnOperation dropColumn
-                && SameTable(dropColumn.Table, deactivation.Name)
-                && string.Equals(dropColumn.Schema, deactivation.Schema, StringComparison.OrdinalIgnoreCase)
-                && (string.Equals(dropColumn.Name, periodStartColumn, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(dropColumn.Name, periodEndColumn, StringComparison.OrdinalIgnoreCase)));
+        var firstPeriodColumnIndex = operations.FindIndex(operation => operation is DropColumnOperation dropColumn
+            && SameTable(dropColumn.Table, deactivation.Name)
+            && string.Equals(dropColumn.Schema, deactivation.Schema, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(dropColumn.Name, periodStartColumn, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(dropColumn.Name, periodEndColumn, StringComparison.OrdinalIgnoreCase)));
 
         if (firstPeriodColumnIndex < 0
             || firstPeriodColumnIndex > deactivationIndex)
@@ -131,7 +132,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
                     alterTable.OldTable,
                     sourceContract: true);
             }
-            else if (sourceName is not null && source is not null)
+            else if (sourceName is not null
+                && source is not null)
             {
                 ApplyTemporalContract(
                     operation,
@@ -139,7 +141,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
                     sourceContract: true);
             }
 
-            if (targetName is not null && target is not null)
+            if (targetName is not null
+                && target is not null)
             {
                 ApplyTemporalContract(
                     operation,
@@ -154,8 +157,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
         string? SourceSchema,
         string? TargetName,
         string? TargetSchema) GetOperationTables(
-        MigrationOperation operation
-    ) => operation switch
+            MigrationOperation operation
+        ) => operation switch
     {
         CreateTableOperation create => (null, null, create.Name, create.Schema),
         DropTableOperation drop => (drop.Name, drop.Schema, null, null),
@@ -189,7 +192,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
             return;
         }
 
-        if (table?.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value is not true)
+        if (table?.FindAnnotation(MySqlAnnotationNames.IsTemporal)
+            ?.Value is not true)
         {
             return;
         }
@@ -278,7 +282,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
         string targetName
     )
     {
-        var value = source.FindAnnotation(sourceName)?.Value;
+        var value = source.FindAnnotation(sourceName)
+            ?.Value;
 
         if (value is not null)
         {

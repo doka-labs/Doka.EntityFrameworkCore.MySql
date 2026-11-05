@@ -18,7 +18,9 @@ public sealed class ScaffoldingHelpersTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void ResolveValueGenerated_for_null_or_blank_returns_null(string? extra)
+    public void ResolveValueGenerated_for_null_or_blank_returns_null(
+        string? extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -36,7 +38,9 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("auto_increment")]
     [InlineData("AUTO_INCREMENT")]
     [InlineData("on update CURRENT_TIMESTAMP auto_increment")]
-    public void ResolveValueGenerated_for_auto_increment_returns_on_add(string extra)
+    public void ResolveValueGenerated_for_auto_increment_returns_on_add(
+        string extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -53,7 +57,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("on update CURRENT_TIMESTAMP")]
     [InlineData("VIRTUAL GENERATED")]
-    public void ResolveValueGenerated_for_other_extras_returns_null(string extra)
+    public void ResolveValueGenerated_for_other_extras_returns_null(
+        string extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -73,7 +79,9 @@ public sealed class ScaffoldingHelpersTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void ResolveIsStored_for_null_or_blank_returns_null(string? extra)
+    public void ResolveIsStored_for_null_or_blank_returns_null(
+        string? extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -90,7 +98,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("STORED GENERATED")]
     [InlineData("stored generated")]
-    public void ResolveIsStored_for_stored_generated_returns_true(string extra)
+    public void ResolveIsStored_for_stored_generated_returns_true(
+        string extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -107,7 +117,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("VIRTUAL GENERATED")]
     [InlineData("virtual generated")]
-    public void ResolveIsStored_for_virtual_generated_returns_false(string extra)
+    public void ResolveIsStored_for_virtual_generated_returns_false(
+        string extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -124,7 +136,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("auto_increment")]
     [InlineData("on update CURRENT_TIMESTAMP")]
-    public void ResolveIsStored_for_other_extras_returns_null(string extra)
+    public void ResolveIsStored_for_other_extras_returns_null(
+        string extra
+    )
     {
         // Arrange: The theory supplies extra.
 
@@ -167,7 +181,8 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("no action", ReferentialAction.NoAction)]
     public void ResolveReferentialAction_for_known_rules_returns_mapped_action(
         string deleteRule,
-        ReferentialAction expected)
+        ReferentialAction expected
+    )
     {
         // Arrange: The theory supplies deleteRule, expected.
 
@@ -184,7 +199,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("UNKNOWN")]
     [InlineData("")]
-    public void ResolveReferentialAction_for_unknown_rule_returns_null(string deleteRule)
+    public void ResolveReferentialAction_for_unknown_rule_returns_null(
+        string deleteRule
+    )
     {
         // Arrange: The theory supplies deleteRule.
 
@@ -204,7 +221,9 @@ public sealed class ScaffoldingHelpersTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void DeriveCharSetFromCollation_for_null_or_blank_returns_null(string? collation)
+    public void DeriveCharSetFromCollation_for_null_or_blank_returns_null(
+        string? collation
+    )
     {
         // Arrange: The theory supplies collation.
 
@@ -224,7 +243,8 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("ascii_bin", "ascii")]
     public void DeriveCharSetFromCollation_for_underscore_form_returns_prefix(
         string collation,
-        string expected)
+        string expected
+    )
     {
         // Arrange: The theory supplies collation, expected.
 
@@ -241,7 +261,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("utf8mb4")]
     [InlineData("binary")]
-    public void DeriveCharSetFromCollation_for_no_underscore_returns_null(string collation)
+    public void DeriveCharSetFromCollation_for_no_underscore_returns_null(
+        string collation
+    )
     {
         // Arrange: The theory supplies collation.
 
@@ -260,7 +282,9 @@ public sealed class ScaffoldingHelpersTests
     [Theory]
     [InlineData("(`payload` <> 'x')")]
     [InlineData("CHECK (length(name) > 0)")]
-    public void ExtractJsonValidColumnName_without_json_valid_returns_null(string clause)
+    public void ExtractJsonValidColumnName_without_json_valid_returns_null(
+        string clause
+    )
     {
         // Arrange: The theory supplies clause.
 
@@ -279,7 +303,10 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("json_valid(payload)", "payload")]
     [InlineData("JSON_VALID(`data`)", "data")]
     [InlineData("JSON_VALID(`weird_name`)", "weird_name")]
-    public void ExtractJsonValidColumnName_returns_unquoted_column(string clause, string expected)
+    public void ExtractJsonValidColumnName_returns_unquoted_column(
+        string clause,
+        string expected
+    )
     {
         // Arrange: The theory supplies clause, expected.
 
@@ -301,7 +328,9 @@ public sealed class ScaffoldingHelpersTests
     [InlineData("json_valid(`payload`) AND `payload` IS NOT NULL")]
     [InlineData("NOT json_valid(`payload`)")]
     [InlineData("json_valid(`payload`.`value`)")]
-    public void ExtractJsonValidColumnName_for_noncanonical_clause_returns_null(string clause)
+    public void ExtractJsonValidColumnName_for_noncanonical_clause_returns_null(
+        string clause
+    )
     {
         // Arrange: The theory supplies clause.
 

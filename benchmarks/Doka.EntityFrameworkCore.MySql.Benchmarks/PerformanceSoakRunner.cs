@@ -34,24 +34,28 @@ internal static class PerformanceSoakRunner
                     () => RunHiLoCacheBound(profile.SoakIterations, contract.SoakBudgets),
                     cancellationToken)
                 .ConfigureAwait(false));
+
         results.Add(
             await RunScenarioAsync(
                     "soak.pooled-buffer-return",
                     () => RunPooledBufferReturn(profile.SoakIterations, contract.SoakBudgets),
                     cancellationToken)
                 .ConfigureAwait(false));
+
         results.Add(
             await RunScenarioAsync(
                     "soak.connection-cleanup",
                     () => RunConnectionCleanupAsync(profile.SoakIterations, contract.SoakBudgets, cancellationToken),
                     cancellationToken)
                 .ConfigureAwait(false));
+
         results.Add(
             await RunScenarioAsync(
                     "soak.migration-lock-cleanup",
                     () => RunMigrationLockCleanupAsync(profile.SoakIterations, contract.SoakBudgets, cancellationToken),
                     cancellationToken)
                 .ConfigureAwait(false));
+
         results.Add(
             await RunScenarioAsync(
                     "soak.working-set-stabilization",
@@ -61,6 +65,7 @@ internal static class PerformanceSoakRunner
                         cancellationToken),
                     cancellationToken)
                 .ConfigureAwait(false));
+
         results.Add(
             await RunScenarioAsync(
                     "soak.concurrent-throughput-retention",
@@ -90,7 +95,9 @@ internal static class PerformanceSoakRunner
             .WriteAsync(outputPath, report, cancellationToken)
             .ConfigureAwait(false);
 
-        return report.Success ? 0 : 1;
+        return report.Success
+            ? 0
+            : 1;
     }
 
     private static SoakScenarioResult RunHiLoCacheBound(
@@ -144,7 +151,7 @@ internal static class PerformanceSoakRunner
             index =>
             {
                 using var stream = new MySqlJsonValueComparers.PooledByteBufferStream(pool, initialCapacity: 32);
-                var bytes = new byte[1024 + (index % 8192)];
+                var bytes = new byte[1024 + index % 8192];
                 stream.Write(bytes);
             });
 
@@ -255,7 +262,9 @@ internal static class PerformanceSoakRunner
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var heldLockCount = holder is null || holder is DBNull ? 0 : 1;
+        var heldLockCount = holder is null || holder is DBNull
+            ? 0
+            : 1;
 
         return Result(
             "soak.migration-lock-cleanup",
@@ -295,7 +304,8 @@ internal static class PerformanceSoakRunner
                 {
                     await using var context = BenchmarkEnvironment.CreateContext();
                     _ = await context
-                        .BasicEntities.AsNoTracking()
+                        .BasicEntities
+                        .AsNoTracking()
                         .Take(10)
                         .CountAsync(cancellationToken)
                         .ConfigureAwait(false);
@@ -395,7 +405,8 @@ internal static class PerformanceSoakRunner
     {
         await using var context = BenchmarkEnvironment.CreateContext();
         return await context
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .Where(entity => entity.CreatedAt.Year == 2024)
             .Take(100)
             .CountAsync(cancellationToken)
@@ -414,8 +425,8 @@ internal static class PerformanceSoakRunner
             .ConfigureAwait(false);
 
         if (!await reader
-                .ReadAsync(cancellationToken)
-                .ConfigureAwait(false))
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             throw new InvalidOperationException("The server did not report Threads_connected.");
         }
@@ -471,7 +482,9 @@ internal static class PerformanceSoakRunner
         Success = success,
         Metrics = metrics,
         Budgets = budgets,
-        Error = success ? null : "One or more sustained-use budgets were exceeded.",
+        Error = success
+            ? null
+            : "One or more sustained-use budgets were exceeded.",
     };
 
     private static SoakScenarioResult Failed(

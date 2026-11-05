@@ -95,9 +95,9 @@ public sealed class MySqlOperabilityBaselineTests
     public async Task Cancellation_token_honors_driver_cancellation_and_logs_cancellation_path()
     {
         await AssertCancellationAsync(
-            IntegrationDatabaseTarget.MySql84,
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
-            CancellationToken.None)
+                IntegrationDatabaseTarget.MySql84,
+                MySqlServerVersion.MySql(new Version(8, 4, 0)),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -189,13 +189,15 @@ public sealed class MySqlOperabilityBaselineTests
             .ConfigureAwait(false);
 
         var timeoutEntries = sink
-            .Entries.Where(entry =>
+            .Entries
+            .Where(entry =>
                 entry.EventId.Id == MySqlEventId.CommandTimeoutExhausted.Id
                 && entry.Category == MySqlLoggerCategory.Resilience)
             .ToList();
 
         var resilienceEntries = sink
-            .Entries.Where(entry => entry.Category == MySqlLoggerCategory.Resilience)
+            .Entries
+            .Where(entry => entry.Category == MySqlLoggerCategory.Resilience)
             .Select(entry => $"{entry.EventId.Id}:{entry.Message}")
             .ToList();
 
@@ -206,6 +208,7 @@ public sealed class MySqlOperabilityBaselineTests
         Assert.True(
             timeoutEntries.Count == 1,
             $"Expected exactly one timeout exhaustion entry, but saw {timeoutEntries.Count}. Resilience entries: {string.Join(" | ", resilienceEntries)}");
+
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.RetryAttempt.Id);
     }
 

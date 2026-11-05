@@ -63,12 +63,19 @@ public sealed class MySqlBulkInsertReturningTests
 
             context.ChangeTracker.Clear();
             var roundTripped = await context
-                .Items.OrderBy(e => e.Id)
+                .Items
+                .OrderBy(e => e.Id)
                 .ToListAsync(cancellationToken: cancellationToken);
 
             // Assert
             Assert.All(items, item => Assert.True(item.Id > 0));
-            Assert.Equal(items.Count, items.Select(item => item.Id).Distinct().Count());
+            Assert.Equal(
+                items.Count,
+                items
+                    .Select(item => item.Id)
+                    .Distinct()
+                    .Count());
+
             Assert.Equal(5, roundTripped.Count);
             Assert.Equal("row-1", roundTripped[0].Name);
             Assert.Equal(50, roundTripped[4].Score);
@@ -93,6 +100,7 @@ public sealed class MySqlBulkInsertReturningTests
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `TriggerItems`;");
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `TriggerItems` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, `Stamp` int NOT NULL DEFAULT 0, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TRIGGER `TriggerItems_stamp_bi` BEFORE INSERT ON `TriggerItems` FOR EACH ROW SET NEW.`Stamp` = CHAR_LENGTH(NEW.`Name`) * 7;");
 
@@ -157,7 +165,8 @@ public sealed class MySqlBulkInsertReturningTests
             context.ChangeTracker.Clear();
 
             var roundTripped = await context
-                .Items.OrderBy(e => e.Id)
+                .Items
+                .OrderBy(e => e.Id)
                 .ToListAsync();
 
             // Assert
@@ -222,6 +231,7 @@ public sealed class MySqlBulkInsertReturningTests
                     .Distinct()
                     .Count(),
                 items.Count);
+
             Assert.Equal(items[1].Id, items[0].Id + 1);
             Assert.Equal(items[2].Id, items[1].Id + 1);
         }
@@ -246,6 +256,7 @@ public sealed class MySqlBulkInsertReturningTests
         await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `MixedB`;");
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `MixedA` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(64) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `MixedB` (`Id` int NOT NULL AUTO_INCREMENT, `Value` int NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
 
@@ -344,6 +355,7 @@ public sealed class MySqlBulkInsertReturningTests
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(64);
+
                 e
                     .Property(x => x.Stamp)
                     .ValueGeneratedOnAddOrUpdate()
@@ -377,6 +389,7 @@ public sealed class MySqlBulkInsertReturningTests
                 e
                     .Property(x => x.Id)
                     .ValueGeneratedNever();
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(64);
@@ -417,6 +430,7 @@ public sealed class MySqlBulkInsertReturningTests
                     .Property(x => x.Name)
                     .HasMaxLength(64);
             });
+
             modelBuilder.Entity<MixedB>(e =>
             {
                 e.ToTable("MixedB");

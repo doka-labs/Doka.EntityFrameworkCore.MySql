@@ -36,7 +36,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Name)
+            .Items
+            .Select(e => e.Name)
             .Distinct()
             .ToQueryString();
 
@@ -55,7 +56,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.TagWith("package6-verification")
+            .Items
+            .TagWith("package6-verification")
             .ToQueryString();
 
         // Assert
@@ -74,8 +76,10 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => context
-                .Items.Where(inner => inner.Value > threshold)
+            .Items
+            .Where(e => context
+                .Items
+                .Where(inner => inner.Value > threshold)
                 .Select(inner => inner.Id)
                 .Contains(e.Id))
             .ToQueryString();
@@ -96,7 +100,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.OrderBy(e => e.Id)
+            .Items
+            .OrderBy(e => e.Id)
             .Select(e => e.Id)
             .ToQueryString();
 
@@ -116,7 +121,10 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Value > 0 ? "positive" : "non-positive")
+            .Items
+            .Select(e => e.Value > 0
+                ? "positive"
+                : "non-positive")
             .ToQueryString();
 
         // Assert
@@ -137,7 +145,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.NullableName ?? "default")
+            .Items
+            .Select(e => e.NullableName ?? "default")
             .ToQueryString();
 
         // Assert
@@ -155,8 +164,10 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => context
-                .Items.Where(inner => inner.Value > 5)
+            .Items
+            .Where(e => context
+                .Items
+                .Where(inner => inner.Value > 5)
                 .Select(inner => inner.Id)
                 .Contains(e.Id))
             .ToQueryString();
@@ -176,7 +187,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => context.Items.Any(inner => inner.Id == e.Id && inner.Value > 10))
+            .Items
+            .Where(e => context.Items.Any(inner => inner.Id == e.Id && inner.Value > 10))
             .ToQueryString();
 
         // Assert
@@ -247,7 +259,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => new
+            .Items
+            .Select(e => new
             {
                 e.Name,
                 MaxValue = context.Items.Max(inner => inner.Value),
@@ -269,9 +282,11 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => e.Value
+            .Items
+            .Where(e => e.Value
                 > context
-                    .Items.Where(i => i.Name == e.Name)
+                    .Items
+                    .Where(i => i.Name == e.Name)
                     .Average(i => i.Value))
             .ToQueryString();
 
@@ -291,7 +306,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.OrderByDescending(e => e.CreatedAt)
+            .Items
+            .OrderByDescending(e => e.CreatedAt)
             .Take(1)
             .ToQueryString();
 
@@ -332,16 +348,17 @@ public sealed partial class MySqlQueryTranslationExtendedTests
         var minimumValue = 50D;
 
         // Act
-        var sql = context.Items
+        var sql = context
+            .Items
             .FromSqlInterpolated(
                 $"""
-                WITH `FilteredItems` AS (
-                    SELECT *
-                    FROM `TranslationTestItems`
-                    WHERE `Value` > {minimumValue}
-                )
-                SELECT * FROM `FilteredItems`
-                """)
+                 WITH `FilteredItems` AS (
+                     SELECT *
+                     FROM `TranslationTestItems`
+                     WHERE `Value` > {minimumValue}
+                 )
+                 SELECT * FROM `FilteredItems`
+                 """)
             .Where(item => item.Name.StartsWith('A'))
             .OrderBy(item => item.Id)
             .ToQueryString();
@@ -365,7 +382,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
                 new Version(8, 0, 0),
                 MySqlServerVersionCompatibilityMode.AllowUnsupported));
 
-        var query = context.Items
+        var query = context
+            .Items
             .FromSqlRaw(
                 """
                 WITH `Items` AS (
@@ -393,7 +411,12 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.Value > 100 ? "high" : e.Value > 50 ? "medium" : "low")
+            .Items
+            .Select(e => e.Value > 100
+                ? "high"
+                : e.Value > 50
+                    ? "medium"
+                    : "low")
             .ToQueryString();
 
         // Assert
@@ -409,7 +432,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(e => context.Items.Any(inner => inner.Id == e.Id))
+            .Items
+            .Where(e => context.Items.Any(inner => inner.Id == e.Id))
             .ToQueryString();
 
         // Assert
@@ -427,7 +451,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => new
+            .Items
+            .Select(e => new
             {
                 e.Id,
                 e.Name,
@@ -450,7 +475,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.OrderBy(e => e.Id)
+            .Items
+            .OrderBy(e => e.Id)
             .Skip(5)
             .Take(1)
             .ToQueryString();

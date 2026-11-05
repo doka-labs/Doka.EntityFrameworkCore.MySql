@@ -8,7 +8,8 @@ internal sealed partial class MySqlModificationCommandBatch
         RelationalDataReader reader
     )
     {
-        if (!ResultSetMappings[startCommandIndex].HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled))
+        if (!ResultSetMappings[startCommandIndex]
+            .HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled))
         {
             return base.ConsumeResultSet(startCommandIndex, reader);
         }
@@ -46,7 +47,8 @@ internal sealed partial class MySqlModificationCommandBatch
         int startCommandIndex,
         RelationalDataReader reader,
         CancellationToken cancellationToken
-    ) => ResultSetMappings[startCommandIndex].HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled)
+    ) => ResultSetMappings[startCommandIndex]
+        .HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled)
         ? ConsumeGeneratedValueResultSetAsync(startCommandIndex, reader, cancellationToken)
         : base.ConsumeResultSetAsync(startCommandIndex, reader, cancellationToken);
 
@@ -64,7 +66,9 @@ internal sealed partial class MySqlModificationCommandBatch
             var readback = CreateGeneratedValueReadback(startCommandIndex, reader.DbDataReader);
             for (var index = 0; index < readback.CommandCount; index++)
             {
-                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                if (!await reader
+                    .ReadAsync(cancellationToken)
+                    .ConfigureAwait(false))
                 {
                     throw InvalidGeneratedValueReadback("A generated-value row is missing.");
                 }
@@ -72,7 +76,9 @@ internal sealed partial class MySqlModificationCommandBatch
                 PropagateGeneratedValue(startCommandIndex, reader, ref readback);
             }
 
-            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            if (await reader
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false))
             {
                 throw InvalidGeneratedValueReadback("The result contains an unexpected generated-value row.");
             }
@@ -94,11 +100,13 @@ internal sealed partial class MySqlModificationCommandBatch
     )
     {
         var lastCommandIndex = startCommandIndex;
-        while (ResultSetMappings[lastCommandIndex].HasFlag(ResultSetMapping.NotLastInResultSet))
+        while (ResultSetMappings[lastCommandIndex]
+            .HasFlag(ResultSetMapping.NotLastInResultSet))
         {
             lastCommandIndex++;
             if (lastCommandIndex >= ResultSetMappings.Count
-                || !ResultSetMappings[lastCommandIndex].HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled))
+                || !ResultSetMappings[lastCommandIndex]
+                    .HasFlag(ResultSetMapping.IsPositionalResultMappingEnabled))
             {
                 throw InvalidGeneratedValueReadback("The positional command group is incomplete.");
             }
@@ -166,7 +174,8 @@ internal sealed partial class MySqlModificationCommandBatch
             throw InvalidGeneratedValueReadback("The generated-value slot occurs more than once.");
         }
 
-        ModificationCommands[startCommandIndex + (int)ordinal].PropagateResults(reader);
+        ModificationCommands[startCommandIndex + (int)ordinal]
+            .PropagateResults(reader);
     }
 
     /// <summary>
@@ -189,8 +198,9 @@ internal sealed partial class MySqlModificationCommandBatch
                     entries.Add(entry);
                 }
             }
-        } while (ResultSetMappings[commandIndex++].HasFlag(ResultSetMapping.NotLastInResultSet)
-                 && commandIndex < ResultSetMappings.Count);
+        } while (ResultSetMappings[commandIndex++]
+                .HasFlag(ResultSetMapping.NotLastInResultSet)
+            && commandIndex < ResultSetMappings.Count);
 
         return new DbUpdateException(RelationalStrings.UpdateStoreException, exception, entries);
     }
@@ -222,7 +232,9 @@ internal sealed partial class MySqlModificationCommandBatch
             OrdinalColumn = ordinalColumn;
             HasInt64Ordinal = hasInt64Ordinal;
             _firstSeenWord = 0;
-            _additionalSeenWords = commandCount > 64 ? new ulong[(commandCount - 1) / 64] : null;
+            _additionalSeenWords = commandCount > 64
+                ? new ulong[(commandCount - 1) / 64]
+                : null;
         }
 
         public int LastCommandIndex { get; }
@@ -241,7 +253,10 @@ internal sealed partial class MySqlModificationCommandBatch
         )
         {
             var bit = 1UL << (slot & 63);
-            ref var seenWord = ref (slot < 64 ? ref _firstSeenWord : ref _additionalSeenWords![(slot / 64) - 1]);
+            ref var seenWord = ref slot < 64
+                ? ref _firstSeenWord
+                : ref _additionalSeenWords![slot / 64 - 1];
+
             if ((seenWord & bit) != 0)
             {
                 return false;

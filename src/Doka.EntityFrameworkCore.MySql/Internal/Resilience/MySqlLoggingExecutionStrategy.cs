@@ -12,11 +12,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
 {
     private readonly ExecutionStrategyDependencies _dependencies;
-    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
+    private readonly EngineFamily _engineFamily;
     private readonly IExecutionStrategy _innerStrategy;
     private readonly ILogger? _logger;
     private readonly int? _maxRetryCount;
-    private readonly EngineFamily _engineFamily;
+    private readonly IMySqlTransientExceptionDetector _transientExceptionDetector;
 
     public MySqlLoggingExecutionStrategy(
         ExecutionStrategyDependencies dependencies,
@@ -227,13 +227,14 @@ internal sealed class MySqlLoggingExecutionStrategy : IExecutionStrategy
             diagnostic.CommandTimeout,
             diagnostic.ConnectionStateName,
             exception);
+
         return false;
     }
 
     /// <summary>
     /// Per-operation diagnostic snapshot. Holds the connection state at the moment the
     /// operation began plus the configured command-timeout in seconds. The
-    /// <see cref="Unknown"/> singleton is used when the snapshot cannot be captured
+    /// <see cref="Unknown" /> singleton is used when the snapshot cannot be captured
     /// (early-disposal of the DbContext, factory paths that bypass the service surface).
     /// </summary>
     private readonly record struct DiagnosticContext(

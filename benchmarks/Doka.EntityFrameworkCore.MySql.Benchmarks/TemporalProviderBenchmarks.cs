@@ -31,22 +31,43 @@ public class TemporalProviderBenchmarks
         """;
 
     private static readonly DateTime s_from =
-        new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        new(
+            2026,
+            1,
+            1,
+            0,
+            0,
+            0,
+            DateTimeKind.Utc);
 
     private static readonly DateTime s_to =
-        new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+        new(
+            2026,
+            2,
+            1,
+            0,
+            0,
+            0,
+            DateTimeKind.Utc);
 
     private static readonly DateTime s_pointInTime =
-        new(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
+        new(
+            2026,
+            1,
+            15,
+            12,
+            0,
+            0,
+            DateTimeKind.Utc);
 
     private static readonly MigrationOperation[] s_columnDefaultOperations = CreateColumnDefaultOperations();
-
-    private DbContextOptions<TemporalQueryBenchmarkContext> _mysqlQueryOptions = null!;
+    private DbContextOptions<EmptyMigrationContext> _mariaDbEmptyOptions = null!;
+    private DbContextOptions<TemporalMigrationBenchmarkContext> _mariaDbMigrationOptions = null!;
     private DbContextOptions<TemporalQueryBenchmarkContext> _mariaDbQueryOptions = null!;
     private DbContextOptions<EmptyMigrationContext> _mysqlEmptyOptions = null!;
-    private DbContextOptions<EmptyMigrationContext> _mariaDbEmptyOptions = null!;
     private DbContextOptions<TemporalMigrationBenchmarkContext> _mysqlMigrationOptions = null!;
-    private DbContextOptions<TemporalMigrationBenchmarkContext> _mariaDbMigrationOptions = null!;
+
+    private DbContextOptions<TemporalQueryBenchmarkContext> _mysqlQueryOptions = null!;
 
     /// <summary>
     /// Builds the engine-specific option sets outside the measured operations.
@@ -105,33 +126,43 @@ public class TemporalProviderBenchmarks
         const int minimumId = 7;
 
         var totalLength = context
-            .TemporalEntities.TemporalAsOf(s_pointInTime)
+            .TemporalEntities
+            .TemporalAsOf(s_pointInTime)
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
 
         totalLength += context
-            .TemporalEntities.TemporalAll()
+            .TemporalEntities
+            .TemporalAll()
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
+
         totalLength += context
-            .TemporalEntities.TemporalFromTo(s_from, s_to)
+            .TemporalEntities
+            .TemporalFromTo(s_from, s_to)
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
+
         totalLength += context
-            .TemporalEntities.TemporalBetween(s_from, s_to)
+            .TemporalEntities
+            .TemporalBetween(s_from, s_to)
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
+
         totalLength += context
-            .TemporalEntities.TemporalContainedIn(s_from, s_to)
+            .TemporalEntities
+            .TemporalContainedIn(s_from, s_to)
             .Where(entity => entity.Id >= minimumId)
             .ToQueryString()
             .Length;
+
         totalLength += context
-            .CteEntities.FromSqlInterpolated(
+            .CteEntities
+            .FromSqlInterpolated(
                 $"""
                  WITH filtered AS (
                      SELECT `Id`, `Name`
@@ -144,8 +175,10 @@ public class TemporalProviderBenchmarks
             .Where(entity => entity.Name != string.Empty)
             .ToQueryString()
             .Length;
+
         totalLength += context
-            .CteEntities.FromSqlRaw(RecursiveCteSql)
+            .CteEntities
+            .FromSqlRaw(RecursiveCteSql)
             .Where(entity => entity.Id <= 8)
             .ToQueryString()
             .Length;
@@ -163,10 +196,12 @@ public class TemporalProviderBenchmarks
         var operations = differ.GetDifferences(
             sourceContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel(),
+                .Model
+                .GetRelationalModel(),
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         return migrationsSqlGenerator
             .Generate(operations, targetContext.Model)
@@ -189,6 +224,7 @@ public class TemporalProviderBenchmarks
                 typeof(DateOnly),
                 "date",
                 new DateOnly(2026, 8, 17)));
+
         createTable.Columns.Add(
             CreateDefaultColumn<AddColumnOperation>(
                 "CreatedTime",
@@ -231,7 +267,7 @@ public class TemporalProviderBenchmarks
         object defaultValue
     )
         where TOperation : ColumnOperation, new() => new()
-        {
+    {
         Table = "DefaultBenchmarkEntries",
         Name = name,
         ClrType = clrType,
@@ -289,6 +325,7 @@ internal sealed class TemporalQueryBenchmarkContext : DbContext
             entity.ToTable(
                 "TemporalBenchmarkEntities",
                 table => table.IsTemporal(temporal => temporal.UseHistoryTable("TemporalBenchmarkEntityHistory")));
+
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);
@@ -319,6 +356,7 @@ internal sealed class TemporalMigrationBenchmarkContext : DbContext
             entity.ToTable(
                 "TemporalBenchmarkEntities",
                 table => table.IsTemporal(temporal => temporal.UseHistoryTable("TemporalBenchmarkEntityHistory")));
+
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);

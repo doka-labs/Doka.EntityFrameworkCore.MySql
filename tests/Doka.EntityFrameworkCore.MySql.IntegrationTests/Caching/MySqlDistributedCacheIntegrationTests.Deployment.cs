@@ -22,7 +22,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         // Assert
         Assert.IsType<MySqlException>(failure);
-        Assert.Equal(0L, await store.CountTablesAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.Equal(
+            0L,
+            await store
+                .CountTablesAsync(CancellationToken.None)
+                .ConfigureAwait(false));
     }
 
     /// <summary>Verifies that repeated deployment preserves the existing table and its entries.</summary>
@@ -37,19 +41,35 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         var script = MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName);
-        await store.Cache
+        await store
+            .Cache
             .SetAsync("deployment-marker", [1], new DistributedCacheEntryOptions(), CancellationToken.None)
             .ConfigureAwait(false);
 
         // Act
-        await store.ExecuteAsync(script, CancellationToken.None).ConfigureAwait(false);
+        await store
+            .ExecuteAsync(script, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
-        Assert.Equal(new byte[] { 1 },
-            await store.Cache.GetAsync("deployment-marker", CancellationToken.None).ConfigureAwait(false));
-        Assert.Equal(1L, await store.CountTablesAsync(CancellationToken.None).ConfigureAwait(false));
-        Assert.Equal($"Doka.Caching.MySql schema version {MySqlCacheSchema.Version}",
-            await store.ReadTableCommentAsync(CancellationToken.None).ConfigureAwait(false));
+        Assert.Equal(
+            new byte[] { 1 },
+            await store
+                .Cache
+                .GetAsync("deployment-marker", CancellationToken.None)
+                .ConfigureAwait(false));
+
+        Assert.Equal(
+            1L,
+            await store
+                .CountTablesAsync(CancellationToken.None)
+                .ConfigureAwait(false));
+
+        Assert.Equal(
+            $"Doka.Caching.MySql schema version {MySqlCacheSchema.Version}",
+            await store
+                .ReadTableCommentAsync(CancellationToken.None)
+                .ConfigureAwait(false));
     }
 
     /// <summary>Verifies writing and reading a value through a quoted table identifier.</summary>
@@ -60,10 +80,14 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture.GetStoreAsync(ParseTarget(targetName), CancellationToken.None).ConfigureAwait(false);
+        var store = await fixture
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
+            .ConfigureAwait(false);
+
         var tableName = store.TableName + "`quoted";
         var qualifiedName = MySqlCacheIdentifier.GetQualifiedName(store.SchemaName, tableName);
-        await store.ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, tableName), CancellationToken.None)
+        await store
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, tableName), CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -72,16 +96,22 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             var cache = provider.GetRequiredService<IDistributedCache>();
 
             // Act
-            await cache.SetAsync("quoted", [1, 2], new DistributedCacheEntryOptions(), CancellationToken.None)
+            await cache
+                .SetAsync("quoted", [1, 2], new DistributedCacheEntryOptions(), CancellationToken.None)
                 .ConfigureAwait(false);
-            var result = await cache.GetAsync("quoted", CancellationToken.None).ConfigureAwait(false);
+
+            var result = await cache
+                .GetAsync("quoted", CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(new byte[] { 1, 2 }, result);
         }
         finally
         {
-            await store.ExecuteAsync($"DROP TABLE {qualifiedName};", CancellationToken.None).ConfigureAwait(false);
+            await store
+                .ExecuteAsync($"DROP TABLE {qualifiedName};", CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -93,28 +123,40 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture.GetStoreAsync(ParseTarget(targetName), CancellationToken.None).ConfigureAwait(false);
+        var store = await fixture
+            .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
+            .ConfigureAwait(false);
+
         var tableName = store.TableName + "`quoted";
         var qualifiedName = MySqlCacheIdentifier.GetQualifiedName(store.SchemaName, tableName);
-        await store.ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, tableName), CancellationToken.None)
+        await store
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, tableName), CancellationToken.None)
             .ConfigureAwait(false);
 
         try
         {
             await using var provider = CreateQuotedCacheProvider(store, tableName);
             var cache = provider.GetRequiredService<IDistributedCache>();
-            await cache.SetAsync("quoted", [1, 2], new DistributedCacheEntryOptions(), CancellationToken.None)
+            await cache
+                .SetAsync("quoted", [1, 2], new DistributedCacheEntryOptions(), CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Act
-            await cache.RemoveAsync("quoted", CancellationToken.None).ConfigureAwait(false);
+            await cache
+                .RemoveAsync("quoted", CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
-            Assert.Null(await cache.GetAsync("quoted", CancellationToken.None).ConfigureAwait(false));
+            Assert.Null(
+                await cache
+                    .GetAsync("quoted", CancellationToken.None)
+                    .ConfigureAwait(false));
         }
         finally
         {
-            await store.ExecuteAsync($"DROP TABLE {qualifiedName};", CancellationToken.None).ConfigureAwait(false);
+            await store
+                .ExecuteAsync($"DROP TABLE {qualifiedName};", CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -128,26 +170,65 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture.GetStoreAsync(target, CancellationToken.None).ConfigureAwait(false);
+        var previousStore = await fixture
+            .GetStoreAsync(target, CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var nextStore = await CreateDeployedStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
         const string key = "deployment-write-isolation";
         var options = new DistributedCacheEntryOptions();
-        await previousStore.Cache.SetAsync(key, [1], options, CancellationToken.None).ConfigureAwait(false);
-        await nextStore.Cache.SetAsync(key, [2], options, CancellationToken.None).ConfigureAwait(false);
-        var selectedStore = useSecondTable ? nextStore : previousStore;
+        await previousStore
+            .Cache
+            .SetAsync(key, [1], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await nextStore
+            .Cache
+            .SetAsync(key, [2], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var selectedStore = useSecondTable
+            ? nextStore
+            : previousStore;
 
         // Act
-        await selectedStore.Cache.SetAsync(key, [3], options, CancellationToken.None).ConfigureAwait(false);
-        var previousValue = await previousStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var nextValue = await nextStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
+        await selectedStore
+            .Cache
+            .SetAsync(key, [3], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var previousValue = await previousStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var nextValue = await nextStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(previousStore.SchemaName, nextStore.SchemaName);
         Assert.NotEqual(previousStore.TableName, nextStore.TableName);
-        Assert.Equal(new byte[] { useSecondTable ? (byte)1 : (byte)3 }, previousValue);
-        Assert.Equal(new byte[] { useSecondTable ? (byte)3 : (byte)2 }, nextValue);
+        Assert.Equal(
+            new[]
+            {
+                useSecondTable
+                    ? (byte)1
+                    : (byte)3,
+            },
+            previousValue);
+
+        Assert.Equal(
+            new[]
+            {
+                useSecondTable
+                    ? (byte)3
+                    : (byte)2,
+            },
+            nextValue);
     }
 
     /// <summary>Verifies that refreshing one deployment leaves the other expiration unchanged.</summary>
@@ -160,33 +241,65 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture.GetStoreAsync(target, CancellationToken.None).ConfigureAwait(false);
+        var previousStore = await fixture
+            .GetStoreAsync(target, CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var nextStore = await CreateDeployedStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
         const string key = "deployment-refresh-isolation";
-        var options = new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10), };
+        var options = new DistributedCacheEntryOptions
+        {
+            SlidingExpiration = TimeSpan.FromMinutes(10),
+        };
 
         foreach (var store in new[] { previousStore, nextStore })
         {
-            await store.Cache.SetAsync(key, [1], options, CancellationToken.None).ConfigureAwait(false);
-            await store.ExecuteForKeyAsync(
+            await store
+                .Cache
+                .SetAsync(key, [1], options, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await store
+                .ExecuteForKeyAsync(
                     $"UPDATE {store.QualifiedTableName} "
                     + "SET `ExpiresAtUtc` = TIMESTAMPADD(MINUTE, 1, UTC_TIMESTAMP(6)) "
-                    + "WHERE `Id` = CAST(@key AS BINARY);", key,
+                    + "WHERE `Id` = CAST(@key AS BINARY);",
+                    key,
                     CancellationToken.None)
                 .ConfigureAwait(false);
         }
 
-        var selectedStore = useSecondTable ? nextStore : previousStore;
-        var untouchedStore = useSecondTable ? previousStore : nextStore;
-        var before = await selectedStore.ReadEntryAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var untouchedBefore = await untouchedStore.ReadEntryAsync(key, CancellationToken.None).ConfigureAwait(false);
+        var selectedStore = useSecondTable
+            ? nextStore
+            : previousStore;
+
+        var untouchedStore = useSecondTable
+            ? previousStore
+            : nextStore;
+
+        var before = await selectedStore
+            .ReadEntryAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var untouchedBefore = await untouchedStore
+            .ReadEntryAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Act
-        await selectedStore.Cache.RefreshAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var after = await selectedStore.ReadEntryAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var untouchedAfter = await untouchedStore.ReadEntryAsync(key, CancellationToken.None).ConfigureAwait(false);
+        await selectedStore
+            .Cache
+            .RefreshAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var after = await selectedStore
+            .ReadEntryAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var untouchedAfter = await untouchedStore
+            .ReadEntryAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.True(after.ExpiresAt > before.ExpiresAt);
@@ -203,25 +316,59 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture.GetStoreAsync(target, CancellationToken.None).ConfigureAwait(false);
+        var previousStore = await fixture
+            .GetStoreAsync(target, CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var nextStore = await CreateDeployedStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
         const string key = "deployment-remove-isolation";
         var options = new DistributedCacheEntryOptions();
-        await previousStore.Cache.SetAsync(key, [1], options, CancellationToken.None).ConfigureAwait(false);
-        await nextStore.Cache.SetAsync(key, [2], options, CancellationToken.None).ConfigureAwait(false);
-        var selectedStore = useSecondTable ? nextStore : previousStore;
-        var untouchedStore = useSecondTable ? previousStore : nextStore;
+        await previousStore
+            .Cache
+            .SetAsync(key, [1], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await nextStore
+            .Cache
+            .SetAsync(key, [2], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var selectedStore = useSecondTable
+            ? nextStore
+            : previousStore;
+
+        var untouchedStore = useSecondTable
+            ? previousStore
+            : nextStore;
 
         // Act
-        await selectedStore.Cache.RemoveAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var removed = await selectedStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
-        var untouched = await untouchedStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
+        await selectedStore
+            .Cache
+            .RemoveAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var removed = await selectedStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var untouched = await untouchedStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Null(removed);
-        Assert.Equal(new byte[] { useSecondTable ? (byte)1 : (byte)2 }, untouched);
+        Assert.Equal(
+            new[]
+            {
+                useSecondTable
+                    ? (byte)1
+                    : (byte)2,
+            },
+            untouched);
     }
 
     /// <summary>Verifies that disposing one deployment preserves reads and writes on another.</summary>
@@ -233,7 +380,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture.GetStoreAsync(target, CancellationToken.None).ConfigureAwait(false);
+        var previousStore = await fixture
+            .GetStoreAsync(target, CancellationToken.None)
+            .ConfigureAwait(false);
+
         const string key = "deployment-disposal-isolation";
         var options = new DistributedCacheEntryOptions();
 
@@ -243,13 +393,31 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         await using (var nextStore = await CreateDeployedStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false))
         {
-            await previousStore.Cache.SetAsync(key, [3], options, CancellationToken.None).ConfigureAwait(false);
-            await nextStore.Cache.SetAsync(key, [4], options, CancellationToken.None).ConfigureAwait(false);
+            await previousStore
+                .Cache
+                .SetAsync(key, [3], options, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await nextStore
+                .Cache
+                .SetAsync(key, [4], options, CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
-        var retained = await previousStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
-        await previousStore.Cache.SetAsync(key, [5], options, CancellationToken.None).ConfigureAwait(false);
-        var replacement = await previousStore.Cache.GetAsync(key, CancellationToken.None).ConfigureAwait(false);
+        var retained = await previousStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await previousStore
+            .Cache
+            .SetAsync(key, [5], options, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var replacement = await previousStore
+            .Cache
+            .GetAsync(key, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(new byte[] { 3 }, retained);
@@ -270,7 +438,8 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         try
         {
-            await store.ExecuteAsync(
+            await store
+                .ExecuteAsync(
                     MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -279,7 +448,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         }
         catch
         {
-            await store.DisposeAsync().ConfigureAwait(false);
+            await store
+                .DisposeAsync()
+                .ConfigureAwait(false);
 
             throw;
         }

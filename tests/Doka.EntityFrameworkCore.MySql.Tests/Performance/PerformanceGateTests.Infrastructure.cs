@@ -1,3 +1,5 @@
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -6,28 +8,31 @@ public sealed partial class PerformanceGateTests
         string maximumProperties,
         string metric = "meanRatio"
     ) => $$"""
-        [
-            {
-                "id": "ratio-control",
-                "type": "ControlBenchmark",
-                "method": "Measured",
-                "baselineMethod": "Baseline",
-                {{maximumProperties}}{{(maximumProperties.Length > 0 ? "," : string.Empty)}}
-                "metric": "{{metric}}"
-            }
-        ]
-        """;
+           [
+               {
+                   "id": "ratio-control",
+                   "type": "ControlBenchmark",
+                   "method": "Measured",
+                   "baselineMethod": "Baseline",
+                   {{maximumProperties}}{{(maximumProperties.Length > 0 ? "," : string.Empty)}}
+                   "metric": "{{metric}}"
+               }
+           ]
+           """;
 
     private static string ParameterizedCollectionControlsJson()
     {
         using var document = JsonDocument.Parse(
-            File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
 
-        var controls = document.RootElement
+        var controls = document
+            .RootElement
             .GetProperty("benchmarkDotNetControls")
             .EnumerateArray()
-            .Where(control => control.GetProperty("type").GetString()
-                == nameof(Benchmarks.ParameterizedCollectionBenchmark))
+            .Where(control => control
+                    .GetProperty("type")
+                    .GetString()
+                == nameof(ParameterizedCollectionBenchmark))
             .ToArray();
 
         return JsonSerializer.Serialize(controls);
@@ -39,35 +44,35 @@ public sealed partial class PerformanceGateTests
     ) =>
     [
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.JsonParameterBinary16),
+            nameof(ParameterizedCollectionBenchmark.JsonParameterBinary16),
             binaryJsonMean,
             allocatedBytes: 0.2,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.MultipleParametersBinary16),
+            nameof(ParameterizedCollectionBenchmark.MultipleParametersBinary16),
             mean: 1,
             allocatedBytes: 1,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.ConstantBinary16),
+            nameof(ParameterizedCollectionBenchmark.ConstantBinary16),
             mean: 1,
             allocatedBytes: 0.4,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.JsonParameterChar36),
+            nameof(ParameterizedCollectionBenchmark.JsonParameterChar36),
             mean: 0.4,
             allocatedBytes: charJsonAllocatedBytes,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.MultipleParametersChar36),
+            nameof(ParameterizedCollectionBenchmark.MultipleParametersChar36),
             mean: 1,
             allocatedBytes: 1,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
         PerformanceGateFixture.ControlObservation(
-            nameof(Benchmarks.ParameterizedCollectionBenchmark.ConstantChar36),
+            nameof(ParameterizedCollectionBenchmark.ConstantChar36),
             mean: 1,
             allocatedBytes: 0.5,
-            type: nameof(Benchmarks.ParameterizedCollectionBenchmark)),
+            type: nameof(ParameterizedCollectionBenchmark)),
     ];
 
     private sealed class PerformanceGateFixture : IDisposable
@@ -87,6 +92,8 @@ public sealed partial class PerformanceGateTests
 
         public string ReportsPath { get; }
 
+        public void Dispose() => Directory.Delete(Path, recursive: true);
+
         public static PerformanceGateFixture Create(
             double medianBudget = 10,
             string reportTarget = "mysql84",
@@ -104,18 +111,19 @@ public sealed partial class PerformanceGateTests
                 $"doka-performance-gate-{Guid.NewGuid():N}");
 
             var fixture = new PerformanceGateFixture(path);
-            using var controlsDocument = JsonDocument.Parse(controlsJson ??
-                """
-                [
-                    {
-                        "id": "allocation-control",
-                        "type": "ControlBenchmark",
-                        "method": "Execute",
-                        "metric": "allocatedBytes",
-                        "maximum": 0
-                    }
-                ]
-                """);
+            using var controlsDocument = JsonDocument.Parse(
+                controlsJson
+                ?? """
+                   [
+                       {
+                           "id": "allocation-control",
+                           "type": "ControlBenchmark",
+                           "method": "Execute",
+                           "metric": "allocatedBytes",
+                           "maximum": 0
+                       }
+                   ]
+                   """);
 
             File.WriteAllText(
                 fixture.ContractPath,
@@ -124,25 +132,27 @@ public sealed partial class PerformanceGateTests
                     {
                         schemaVersion = 11,
                         contractVersion = "test",
-                        requiredTargets = requiredTargets ?? JsonSerializer.SerializeToElement(new
-                        {
-                            mysql84 = new
-                            {
-                                displayName = "MySQL 8.4",
-                                engineFamily = "MySQL",
-                                serverVersion = "8.4.0",
-                                hostPort = 33068,
-                                serverImage = "mysql:8.4@test",
-                            },
-                            mariadb114 = new
-                            {
-                                displayName = "MariaDB 11.4",
-                                engineFamily = "MariaDB",
-                                serverVersion = "11.4.0",
-                                hostPort = 33070,
-                                serverImage = "mariadb:11.4@test",
-                            },
-                        }),
+                        requiredTargets = requiredTargets
+                            ?? JsonSerializer.SerializeToElement(
+                                new
+                                {
+                                    mysql84 = new
+                                    {
+                                        displayName = "MySQL 8.4",
+                                        engineFamily = "MySQL",
+                                        serverVersion = "8.4.0",
+                                        hostPort = 33068,
+                                        serverImage = "mysql:8.4@test",
+                                    },
+                                    mariadb114 = new
+                                    {
+                                        displayName = "MariaDB 11.4",
+                                        engineFamily = "MariaDB",
+                                        serverVersion = "11.4.0",
+                                        hostPort = 33070,
+                                        serverImage = "mariadb:11.4@test",
+                                    },
+                                }),
                         profiles = new
                         {
                             smoke = new
@@ -191,6 +201,7 @@ public sealed partial class PerformanceGateTests
                             minimumThroughputRetentionRatio = 0.7,
                         },
                     }));
+
             File.WriteAllText(
                 System.IO.Path.Combine(fixture.ReportsPath, "fixture-report-full.json"),
                 JsonSerializer.Serialize(
@@ -206,25 +217,27 @@ public sealed partial class PerformanceGateTests
                             Configuration = "RELEASE",
                             HasAttachedDebugger = false,
                         },
-                        Benchmarks = new object[]
-                        {
-                            Observation(
-                                "ProviderWorkloadBenchmarks",
-                                "Execute",
-                                $"Target={reportTarget}&WorkloadId=query.(...)-1 [17]",
-                                $"Doka.EntityFrameworkCore.MySql.Benchmarks.ProviderWorkloadBenchmarks.Execute("
-                                + $"Target: \"{reportTarget}\", WorkloadId: \"query.sync.rows-1\")",
-                                [10d * timeMultiplier, 12d * timeMultiplier, 11d * timeMultiplier],
-                                allocatedBytes: workloadAllocatedBytes,
-                                sampleCountOffset: sampleCountOffset,
-                                gen2Collections: gen2Collections),
-                        }.Concat(controlObservations ?? [ControlObservation("Execute", 1)]).ToArray(),
+                        Benchmarks = new[]
+                            {
+                                Observation(
+                                    "ProviderWorkloadBenchmarks",
+                                    "Execute",
+                                    $"Target={reportTarget}&WorkloadId=query.(...)-1 [17]",
+                                    $"Doka.EntityFrameworkCore.MySql.Benchmarks.ProviderWorkloadBenchmarks.Execute("
+                                    + $"Target: \"{reportTarget}\", WorkloadId: \"query.sync.rows-1\")",
+                                    [10d * timeMultiplier, 12d * timeMultiplier, 11d * timeMultiplier],
+                                    allocatedBytes: workloadAllocatedBytes,
+                                    sampleCountOffset: sampleCountOffset,
+                                    gen2Collections: gen2Collections),
+                            }
+                            .Concat(controlObservations ?? [ControlObservation("Execute", 1)])
+                            .ToArray(),
                     }));
 
             return fixture;
         }
 
-        public Benchmarks.PerformanceGateResult Evaluate(
+        public PerformanceGateResult Evaluate(
             string target = "mysql84"
         ) => BenchmarkPerformanceGate.Evaluate(ContractPath, ReportsPath, target, "smoke", soakPath: null);
 
@@ -266,7 +279,7 @@ public sealed partial class PerformanceGateTests
                         runnerClass = "test-runner",
                         generatedUtc = DateTimeOffset.UtcNow,
                         success = managedHeapGrowthBytes <= 1024,
-                        scenarios = new object[]
+                        scenarios = new[]
                         {
                             Scenario("soak.hilo-cache-bound", "cacheEntries", 0),
                             Scenario("soak.pooled-buffer-return", "outstandingBuffers", 0),
@@ -290,8 +303,6 @@ public sealed partial class PerformanceGateTests
 
             return soakPath;
         }
-
-        public void Dispose() => Directory.Delete(Path, recursive: true);
 
         private static object Observation(
             string type,

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -42,7 +44,7 @@ public sealed partial class DependencySecurityAuditTests
         params string[] arguments
     )
     {
-        var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+        var startInfo = new ProcessStartInfo("bash")
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardError = true,
@@ -61,25 +63,33 @@ public sealed partial class DependencySecurityAuditTests
             startInfo.Environment[name] = value;
         }
 
-        using var process = System.Diagnostics.Process.Start(startInfo)
+        using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start '{script}'.");
 
         // WHY: A failed restore can fill stderr while stdout is still being read.
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
+
         // WHY: The contract fixture is synchronous; both pipes are already
         // drained concurrently, so this wait cannot fill an unread error pipe.
         // ReSharper disable once MethodHasAsyncOverload
         process.WaitForExit();
 
-        return new ProcessResult(process.ExitCode, output.GetAwaiter().GetResult(), error.GetAwaiter().GetResult());
+        return new ProcessResult(
+            process.ExitCode,
+            output
+                .GetAwaiter()
+                .GetResult(),
+            error
+                .GetAwaiter()
+                .GetResult());
     }
 
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

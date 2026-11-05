@@ -195,10 +195,10 @@ internal static class ApplicationTimeTableLoader
     )
     {
         if (!string.Equals(
-                table.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
-                    ?.Value as string,
-                periodName,
-                StringComparison.Ordinal))
+            table.FindAnnotation(MySqlAnnotationNames.ApplicationTimePeriodName)
+                ?.Value as string,
+            periodName,
+            StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
                 $"Application-time constraint '{constraintName}' on table '{table.Name}' references unknown "

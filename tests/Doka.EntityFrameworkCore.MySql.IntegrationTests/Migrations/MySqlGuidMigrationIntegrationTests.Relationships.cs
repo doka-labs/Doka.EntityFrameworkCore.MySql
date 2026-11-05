@@ -41,6 +41,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                         new TextGuidDocumentRevision(),
                     },
                 });
+
             await converted.SaveChangesAsync(cancellationToken: cancellationToken);
 
             // WHY: The Down transition must consume the populated relationship produced by Up.
@@ -71,7 +72,6 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         string newStoreType
     )
     {
-
         var operationList = operations.ToList();
 
         var drop = Assert.Single(operations.OfType<DropForeignKeyOperation>());
@@ -106,7 +106,6 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         CancellationToken cancellationToken
     )
     {
-
         context.ChangeTracker.Clear();
 
         var document = await context
@@ -127,8 +126,14 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken: cancellationToken))
         {
             hasFirstRow = await reader.ReadAsync(cancellationToken);
-            id = hasFirstRow ? reader.GetString(0) : null;
-            documentId = hasFirstRow ? reader.GetString(1) : null;
+            id = hasFirstRow
+                ? reader.GetString(0)
+                : null;
+
+            documentId = hasFirstRow
+                ? reader.GetString(1)
+                : null;
+
             hasSecondRow = await reader.ReadAsync(cancellationToken);
         }
 
@@ -136,6 +141,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
             + "FROM information_schema.REFERENTIAL_CONSTRAINTS AS rc "
             + "WHERE rc.`CONSTRAINT_SCHEMA` = DATABASE() "
             + "AND rc.`CONSTRAINT_NAME` = @constraintName;";
+
         command.Parameters.Clear();
         command.Parameters.AddWithValue("@constraintName", ForeignKeyName);
 
@@ -152,7 +158,11 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     )
     {
         Assert.Equal(s_documentId, actual.Document.Id);
-        Assert.Equal(s_documentId, Assert.Single(actual.Document.Revisions).DocumentId);
+        Assert.Equal(
+            s_documentId,
+            Assert.Single(actual.Document.Revisions)
+                .DocumentId);
+
         Assert.True(actual.HasFirstRow);
         Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), actual.Id);
         Assert.Equal(s_documentId.ToString("D", CultureInfo.InvariantCulture), actual.DocumentId);

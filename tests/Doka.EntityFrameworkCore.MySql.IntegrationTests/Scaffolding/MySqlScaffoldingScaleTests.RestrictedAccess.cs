@@ -64,7 +64,8 @@ public sealed partial class MySqlScaffoldingScaleTests
                 .ToArray();
 
             var actualVisibleTables = databaseModel
-                .Tables.Select(table => table.Name)
+                .Tables
+                .Select(table => table.Name)
                 .OrderBy(tableName => tableName, StringComparer.Ordinal)
                 .ToArray();
 
@@ -84,6 +85,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         {
             await DropRestrictedAccountAsync(rootConnectionString, account)
                 .ConfigureAwait(false);
+
             await AssertRestrictedAccountRemovedAsync(rootConnectionString, account, CancellationToken.None)
                 .ConfigureAwait(false);
         }
@@ -116,6 +118,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         {
             createUser.CommandText =
                 $"CREATE USER '{account.UserName}'@'%' IDENTIFIED BY '{account.Password}';";
+
             await createUser
                 .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -127,6 +130,7 @@ public sealed partial class MySqlScaffoldingScaleTests
             grant.CommandText =
                 $"GRANT SELECT ON {DelimitIdentifier(databaseName)}.{DelimitIdentifier(tableName)} "
                 + $"TO '{account.UserName}'@'%';";
+
             await grant
                 .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -143,6 +147,7 @@ public sealed partial class MySqlScaffoldingScaleTests
         await connection
             .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
 
         command.CommandText = $"DROP USER IF EXISTS '{account.UserName}'@'%';";
@@ -171,7 +176,8 @@ public sealed partial class MySqlScaffoldingScaleTests
         await using var connection = new MySqlConnection(restrictedConnectionString);
 
         // Act
-        var exception = await Assert.ThrowsAsync<MySqlException>(() => connection.OpenAsync(cancellationToken))
+        var exception = await Assert
+            .ThrowsAsync<MySqlException>(() => connection.OpenAsync(cancellationToken))
             .ConfigureAwait(false);
 
         // Assert
@@ -195,12 +201,14 @@ public sealed partial class MySqlScaffoldingScaleTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
 
         command.CommandText = $"SELECT COUNT(*) FROM {DelimitIdentifier(deniedTableName)};";
 
         // Act
-        var exception = await Assert.ThrowsAsync<MySqlException>(() => command.ExecuteScalarAsync(cancellationToken))
+        var exception = await Assert
+            .ThrowsAsync<MySqlException>(() => command.ExecuteScalarAsync(cancellationToken))
             .ConfigureAwait(false);
 
         // Assert

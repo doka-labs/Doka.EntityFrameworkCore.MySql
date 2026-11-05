@@ -3,7 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 {
     private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment.GetSupportedTargets().Where(IntegrationTestEnvironment.IsTargetSelected);
+        IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>Builds the single scoped command required by the runtime fixture.</summary>
     private static GeneratedCommand GenerateCommand(
@@ -51,7 +53,9 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         await using var variable = connection.CreateCommand();
         variable.CommandText = $"SELECT {operation.VariableName} IS NULL;";
         var clearedVariable = Convert.ToInt64(
-            await variable.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+            await variable
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
 
         await using var table = connection.CreateCommand();
@@ -60,7 +64,9 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
         try
         {
-            _ = await table.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            _ = await table
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (MySqlException exception)
         {
@@ -117,10 +123,6 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         Assert.Equal(1146, exception.Number);
     }
 
-    private readonly record struct SessionObservation(
-        long ClearedVariable,
-        MySqlException? MissingTableException);
-
     /// <summary>Identifies the physical server session for quarantine and reuse assertions.</summary>
     /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     /// <param name="connection">The open database connection.</param>
@@ -163,6 +165,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
     ) => new(CreateConnectionString(target, pooling));
 
     /// <summary>Retains one schema owner and an explicit one-slot pool for physical-session assertions.</summary>
+
     // WHY: All topic partials resolve connections here so CallerFilePath cannot
     // assign different schemas to setup, execution, observation, or teardown.
     private static string CreateConnectionString(
@@ -174,8 +177,12 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         AllowUserVariables = true,
         ConnectionReset = connectionReset,
         GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
-        MinimumPoolSize = pooling ? 1u : 0u,
-        MaximumPoolSize = pooling ? 1u : 100u,
+        MinimumPoolSize = pooling
+            ? 1u
+            : 0u,
+        MaximumPoolSize = pooling
+            ? 1u
+            : 100u,
         Pooling = pooling,
     }.ConnectionString;
 
@@ -212,6 +219,11 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
     private static void AddHandlerExtension(
         DbContextOptionsBuilder<ScopedHandlerContext> builder
     ) => ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(new ScopedHandlerOptionsExtension());
+
+    private readonly record struct SessionObservation(
+        long ClearedVariable,
+        MySqlException? MissingTableException
+    );
 
     private readonly record struct GeneratedCommand(
         MigrationCommand Command,

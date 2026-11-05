@@ -39,7 +39,9 @@ public sealed partial class MySqlGuidStoreGenerationTests
     /// <summary>Selects a supported configured engine without opening a connection.</summary>
     private static MySqlServerVersion FragmentServerVersion(
         bool mariaDb
-    ) => mariaDb ? MySqlServerVersion.MariaDb(new Version(11, 8, 0)) : MySqlServerVersion.MySql(new Version(8, 4, 0));
+    ) => mariaDb
+        ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+        : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
     /// <summary>Maps a GUID to a secondary fragment while retaining unrelated data on the primary table.</summary>
     private sealed class FragmentGuidContext(
@@ -58,13 +60,20 @@ public sealed partial class MySqlGuidStoreGenerationTests
             var entity = modelBuilder.Entity<FragmentGuidRow>();
             entity.ToTable("FragmentGuidPayload");
             entity.HasKey(row => row.Id);
-            entity.Ignore(nullable ? nameof(FragmentGuidRow.Token) : nameof(FragmentGuidRow.OptionalToken));
+            entity.Ignore(
+                nullable
+                    ? nameof(FragmentGuidRow.Token)
+                    : nameof(FragmentGuidRow.OptionalToken));
+
             if (expression != "computed")
             {
                 entity.Ignore(row => row.Source);
             }
 
-            var propertyName = nullable ? nameof(FragmentGuidRow.OptionalToken) : nameof(FragmentGuidRow.Token);
+            var propertyName = nullable
+                ? nameof(FragmentGuidRow.OptionalToken)
+                : nameof(FragmentGuidRow.Token);
+
             var property = entity.Property(propertyName);
 
             if (expression == "computed")
@@ -115,6 +124,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
                 entity
                     .Property(row => row.Name)
                     .HasColumnName("PrincipalName");
+
                 entity.SplitToTable(
                     "FragmentSharedGuid",
                     table =>
@@ -129,14 +139,17 @@ public sealed partial class MySqlGuidStoreGenerationTests
                     entity
                         .Property(row => row.Token)
                         .HasDefaultValueSql("UUID()");
+
                     entity
                         .Property(row => row.ComputedToken)
                         .HasComputedColumnSql("'00112233-4455-4677-8899-aabbccddeeff'", stored: true);
+
                     entity
                         .Property(row => row.Literal)
                         .HasDefaultValue(17);
                 }
             });
+
             modelBuilder.Entity<SharedFragmentGuidDependent>(entity =>
             {
                 entity.ToTable("FragmentDependentPayload");
@@ -155,6 +168,7 @@ public sealed partial class MySqlGuidStoreGenerationTests
                 entity
                     .Property(row => row.Name)
                     .HasColumnName("DependentName");
+
                 entity.SplitToTable(
                     "FragmentSharedGuid",
                     table =>
@@ -164,11 +178,13 @@ public sealed partial class MySqlGuidStoreGenerationTests
                         table.Property(row => row.Literal);
                         table.Property(row => row.Detail);
                     });
+
                 entity
                     .HasOne(row => row.Principal)
                     .WithOne(row => row.Dependent)
                     .HasForeignKey<SharedFragmentGuidDependent>(row => row.Id);
             });
+
             modelBuilder
                 .Entity<SharedFragmentGuidPrincipal>()
                 .Navigation(row => row.Dependent)

@@ -19,7 +19,9 @@ public static class MySqlApplicationTimeEntityTypeExtensions
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return (entityType.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)?.Value as bool?) == true;
+        return entityType.FindAnnotation(MySqlAnnotationNames.IsApplicationTime)
+                ?.Value as bool?
+            == true;
     }
 
     /// <summary>
@@ -111,7 +113,9 @@ public static class MySqlApplicationTimeEntityTypeExtensions
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return (entityType.FindAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps)?.Value as bool?) == true;
+        return entityType.FindAnnotation(MySqlAnnotationNames.ApplicationTimeWithoutOverlaps)
+                ?.Value as bool?
+            == true;
     }
 
     /// <summary>

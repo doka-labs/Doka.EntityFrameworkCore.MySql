@@ -60,10 +60,11 @@ public sealed class MySqlGuidFormatTests
                         connectionString,
                         useMigrations,
                         cancellationToken: CancellationToken.None);
+
                     break;
                 case "db-connection":
                     await using (var connection = new MySqlConnection(
-                                     AddBinary16Transport(connectionString)))
+                        AddBinary16Transport(connectionString)))
                     {
                         await AssertDefaultChar36ContractAsync(
                             BuildDefaultChar36Options<DefaultChar36GuidContext>(
@@ -77,7 +78,7 @@ public sealed class MySqlGuidFormatTests
                     break;
                 case "data-source":
                     await using (var dataSource = new MySqlDataSourceBuilder(
-                                         AddBinary16Transport(connectionString)).Build())
+                            AddBinary16Transport(connectionString)).Build())
                     {
                         await AssertDefaultChar36ContractAsync(
                             BuildDefaultChar36Options<DefaultChar36GuidContext>(
@@ -116,37 +117,38 @@ public sealed class MySqlGuidFormatTests
         {
             // Act: Schema seeding and an explicit insert share one persisted format contract.
             await using (var seedContext =
-                         new Char36GuidContext(
-                             BuildOptions<Char36GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Char36GuidContext(
+                    BuildOptions<Char36GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 await seedContext.Database.EnsureCreatedAsync();
             }
 
             await using (var insertContext =
-                         new Char36GuidContext(
-                             BuildOptions<Char36GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Char36GuidContext(
+                    BuildOptions<Char36GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 insertContext.Entities.Add(
                     new Char36Entity
                     {
                         Id = s_insertedGuid,
-                        Name = "inserted"
+                        Name = "inserted",
                     });
+
                 await insertContext.SaveChangesAsync();
             }
 
             await using (var readContext =
-                         new Char36GuidContext(
-                             BuildOptions<Char36GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Char36GuidContext(
+                    BuildOptions<Char36GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
@@ -173,7 +175,7 @@ public sealed class MySqlGuidFormatTests
     /// <summary>
     /// Verifies that a Guid property mapped to <c>binary(16)</c> stores the value as the
     /// 16-byte binary form (MySQL hex literal <c>X'HEX16'</c>) for HasData-seeded rows
-    /// and reads back as the equivalent <see cref="Guid"/> instance for both seeded and
+    /// and reads back as the equivalent <see cref="Guid" /> instance for both seeded and
     /// runtime-inserted rows.
     /// </summary>
     [Fact]
@@ -187,37 +189,38 @@ public sealed class MySqlGuidFormatTests
         {
             // Act: The server must store seeded and explicit values with the same binary layout.
             await using (var seedContext =
-                         new Binary16GuidContext(
-                             BuildOptions<Binary16GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Binary16GuidContext(
+                    BuildOptions<Binary16GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 await seedContext.Database.EnsureCreatedAsync();
             }
 
             await using (var insertContext =
-                         new Binary16GuidContext(
-                             BuildOptions<Binary16GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Binary16GuidContext(
+                    BuildOptions<Binary16GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 insertContext.Entities.Add(
                     new Binary16Entity
                     {
                         Id = s_insertedGuid,
-                        Name = "inserted"
+                        Name = "inserted",
                     });
+
                 await insertContext.SaveChangesAsync();
             }
 
             await using (var readContext =
-                         new Binary16GuidContext(
-                             BuildOptions<Binary16GuidContext>(
-                                 connectionString,
-                                 dbName,
-                                 MySqlTestEnvironment.ServerVersion)))
+                new Binary16GuidContext(
+                    BuildOptions<Binary16GuidContext>(
+                        connectionString,
+                        dbName,
+                        MySqlTestEnvironment.ServerVersion)))
             {
                 var seeded = await readContext.Entities.SingleAsync(e => e.Id == s_seededGuid);
                 var inserted = await readContext.Entities.SingleAsync(e => e.Id == s_insertedGuid);
@@ -310,7 +313,6 @@ public sealed class MySqlGuidFormatTests
                 .BinaryEntities
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == s_explicitBinaryGuid, cancellationToken: cancellationToken);
-
         }
 
         await using var connection = new MySqlConnection(connectionString);
@@ -515,6 +517,7 @@ public sealed class MySqlGuidFormatTests
     /// </summary>
     /// <param name="baseConnectionString">The server connection used for cleanup.</param>
     /// <param name="databaseName">The test-owned database to remove.</param>
+
     // WHY: All callers are finally blocks; cancellation must not leave test databases behind.
     private static async Task DropDatabaseAsync(
         string baseConnectionString,
@@ -597,14 +600,19 @@ public sealed class MySqlGuidFormatTests
             {
                 entity.ToTable("DefaultChar36Principals");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Name).HasMaxLength(80);
+                entity
+                    .Property(item => item.Name)
+                    .HasMaxLength(80);
             });
 
             modelBuilder.Entity<DefaultChar36Dependent>(entity =>
             {
                 entity.ToTable("DefaultChar36Dependents");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Name).HasMaxLength(80);
+                entity
+                    .Property(item => item.Name)
+                    .HasMaxLength(80);
+
                 entity
                     .HasOne(item => item.Principal)
                     .WithMany(item => item.Dependents)
@@ -616,8 +624,13 @@ public sealed class MySqlGuidFormatTests
             {
                 entity.ToTable("ExplicitBinary16UnderChar36");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                entity.Property(item => item.Name).HasMaxLength(80);
+                entity
+                    .Property(item => item.Id)
+                    .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
+                entity
+                    .Property(item => item.Name)
+                    .HasMaxLength(80);
             });
         }
     }
@@ -641,9 +654,11 @@ public sealed class MySqlGuidFormatTests
                 entity
                     .Property(e => e.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 entity
                     .Property(e => e.Name)
                     .IsRequired();
+
                 entity.HasData(
                     new Char36Entity
                     {
@@ -673,9 +688,11 @@ public sealed class MySqlGuidFormatTests
                 entity
                     .Property(e => e.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 entity
                     .Property(e => e.Name)
                     .IsRequired();
+
                 entity.HasData(
                     new Binary16Entity
                     {

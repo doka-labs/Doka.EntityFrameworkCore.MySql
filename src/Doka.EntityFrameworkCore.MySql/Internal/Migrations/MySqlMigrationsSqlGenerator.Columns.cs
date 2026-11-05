@@ -17,6 +17,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Table,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             operation.Table,
@@ -65,6 +66,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 model,
                 targetTemporalContract,
                 builder);
+
             return;
         }
 
@@ -114,6 +116,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Table,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             operation.Table,
@@ -139,6 +142,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 model,
                 targetTemporalContract,
                 builder);
+
             return;
         }
 
@@ -161,6 +165,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(" DROP COLUMN ")
                 .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             EndStatement(builder);
 
             var requiresCommentSqlModeScope = RequiresDdlCommentSqlModeScope(operation.Comment);
@@ -260,7 +265,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     )
     {
         if (GetNativeGuidFormat(operation) == MySqlGuidFormat.Uuid
-            || operation.ColumnType.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase))
+            || operation
+                .ColumnType
+                .AsSpan()
+                .Trim()
+                .Equals("uuid", StringComparison.OrdinalIgnoreCase))
         {
             MySqlMariaDbUuidSupport.EnsureSupported(Profile);
         }
@@ -268,7 +277,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private static MySqlGuidFormat? GetNativeGuidFormat(
         ColumnOperation operation
-    ) => operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value is MySqlGuidFormat format
+    ) => operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+        ?.Value is MySqlGuidFormat format
         ? format
         : null;
 
@@ -288,7 +298,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return MySqlGuidFormat.Binary16;
         }
 
-        if (operation.ColumnType.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase))
+        if (operation
+            .ColumnType
+            .AsSpan()
+            .Trim()
+            .Equals("uuid", StringComparison.OrdinalIgnoreCase))
         {
             return MySqlGuidFormat.Uuid;
         }
@@ -302,7 +316,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         int expectedSize
     )
     {
-        var storeType = operation.ColumnType.AsSpan().Trim();
+        var storeType = operation
+            .ColumnType
+            .AsSpan()
+            .Trim();
 
         if (!storeType.StartsWith(typeName, StringComparison.OrdinalIgnoreCase))
         {
@@ -330,7 +347,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         return closingParenthesis > 1
             && int.TryParse(
-                suffix[1..closingParenthesis].Trim(),
+                suffix[1..closingParenthesis]
+                    .Trim(),
                 NumberStyles.None,
                 CultureInfo.InvariantCulture,
                 out var declaredSize)
@@ -341,7 +359,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         AddColumnOperation operation
     )
     {
-        if (operation.FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill)?.Value is not true
+        if (operation.FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill)
+                ?.Value is not true
             || operation.IsNullable
             || operation.DefaultValue is not null
             || !string.IsNullOrWhiteSpace(operation.DefaultValueSql)
@@ -380,6 +399,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             operation.Table,
             sourceContract: true,
             out var sourceTemporalContract);
+
         TryGetTemporalMigrationContract(
             operation,
             operation.Table,
@@ -428,6 +448,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 model,
                 targetTemporalContract,
                 builder);
+
             return;
         }
 
@@ -462,7 +483,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     /// The logical primary-key order remains unchanged because nested owned
     /// types can reference that exact order. MySQL and MariaDB only require
     /// the <c>AUTO_INCREMENT</c> column to lead any index.
-    ///
     /// Primary sources, retrieved 2026-07-29:
     /// https://dev.mysql.com/doc/refman/8.4/en/example-auto-increment.html
     /// https://mariadb.com/docs/server/reference/data-types/auto_increment
@@ -473,7 +493,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     )
     {
         var autoIncrementColumns = operation
-            .Columns.Where(IsAutoIncrementColumn)
+            .Columns
+            .Where(IsAutoIncrementColumn)
             .ToArray();
 
         if (autoIncrementColumns.Length > 1)
@@ -590,6 +611,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return null;
         }
 
-        return GetBaseStoreType(storeType).ToString().ToLowerInvariant();
+        return GetBaseStoreType(storeType)
+            .ToString()
+            .ToLowerInvariant();
     }
 }

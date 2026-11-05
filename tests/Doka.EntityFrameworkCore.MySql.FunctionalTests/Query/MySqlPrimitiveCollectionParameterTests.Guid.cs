@@ -62,7 +62,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.BinaryId))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.BinaryId))
             .ToQueryString();
 
         // Assert
@@ -84,7 +86,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.CharId))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.CharId))
             .ToQueryString();
 
         // Assert
@@ -107,7 +111,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.OptionalBinaryId))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalBinaryId))
             .ToQueryString();
 
         // Assert
@@ -130,7 +136,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.OptionalCharId))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalCharId))
             .ToQueryString();
 
         // Assert
@@ -154,7 +162,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedGuid))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedGuid))
             .ToQueryString();
 
         // Assert

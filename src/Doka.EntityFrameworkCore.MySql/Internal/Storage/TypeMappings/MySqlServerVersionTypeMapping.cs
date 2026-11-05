@@ -50,14 +50,12 @@ internal sealed class MySqlServerVersionTypeMapping : RelationalTypeMapping
         new RelationalTypeMappingParameters(
             new CoreTypeMappingParameters(typeof(MySqlServerVersion)),
             storeType: "varchar(32)",
-            StoreTypePostfix.None,
             dbType: System.Data.DbType.String,
             unicode: false,
             size: null,
             fixedLength: false,
             precision: null,
-            scale: null))
-    { }
+            scale: null)) { }
 
     private MySqlServerVersionTypeMapping(
         RelationalTypeMappingParameters parameters

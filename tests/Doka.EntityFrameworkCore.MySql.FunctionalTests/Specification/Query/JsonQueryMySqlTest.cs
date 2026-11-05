@@ -6,9 +6,9 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 /// <summary>
 /// JSON-query specification subclass. Exercises the EF Core JSON column query surface
 /// (JSON_EXTRACT, JSON_TABLE on MySQL 8.x, JSON path navigation, JSON array indexing)
-/// against the provider's <see cref="MySqlJsonTypeMapping"/> + JSON translator pipeline.
+/// against the provider's <see cref="MySqlJsonTypeMapping" /> + JSON translator pipeline.
 /// The provider supplies the JSON container column store-type ("json") via
-/// <see cref="MySqlTypeMappingSource"/>'s <c>JsonTypePlaceholder</c> handler so EF Core's
+/// <see cref="MySqlTypeMappingSource" />'s <c>JsonTypePlaceholder</c> handler so EF Core's
 /// owned-JSON entity stack can build the model without per-test column-type overrides.
 /// The 12 nested-primitive-collection properties on the base JsonEntityAllTypes and
 /// JsonOwnedAllTypes types remain Ignore()'d in the fixture because every relational
@@ -281,9 +281,11 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
-    public override Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(
-        bool async
-    ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async);
+    public override Task
+        Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(
+            bool async
+        ) => base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(
+        async);
 
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
@@ -321,9 +323,12 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
-    public override Task Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(
-        bool async
-    ) => base.Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(async);
+    public override Task
+        Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(
+            bool async
+        ) => base
+        .Json_nested_collection_anonymous_projection_of_primitives_in_projection_NoTrackingWithIdentityResolution(
+            async);
 
     [SpecEngineLimitationTheory(
         "MDB-CORRELATED-DERIVED-TABLE",
@@ -368,15 +373,15 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     )
     {
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Json_collection_index_in_projection_using_untranslatable_client_method(async));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Json_collection_index_in_projection_using_untranslatable_client_method(async));
 
         Assert.Contains("MyMethod", ex.Message);
         Assert.Contains("could not be translated", ex.Message);
     }
 
     /// <summary>
-    /// Sibling test of <see cref="Json_collection_index_in_projection_using_untranslatable_client_method"/>;
+    /// Sibling test of <see cref="Json_collection_index_in_projection_using_untranslatable_client_method" />;
     /// projects through a nested-collection indexer that also calls <c>MyMethod</c>.
     /// Same disposition rationale.
     /// </summary>
@@ -384,8 +389,8 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         bool async
     )
     {
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Json_collection_index_in_projection_using_untranslatable_client_method2(async));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            base.Json_collection_index_in_projection_using_untranslatable_client_method2(async));
 
         Assert.Contains("MyMethod", ex.Message);
         Assert.Contains("could not be translated", ex.Message);
@@ -402,7 +407,7 @@ public class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryMySqlTest
         /// <c>WarningBehavior</c> they configure (EF Core default: Log).
         /// <para>
         /// Both warnings are upstream false positives on the EF Core 8+ JSON owned-entity
-        /// projection path: every <see cref="MySqlJsonTableExpression"/>-backed collection
+        /// projection path: every <see cref="MySqlJsonTableExpression" />-backed collection
         /// projection increments <c>_collectionId</c> inside
         /// <c>RelationalShapedQueryCompilingExpressionVisitor.ShaperProcessingExpressionVisitor</c>,
         /// triggering <c>MultipleCollectionIncludeWarning</c> as soon as two JSON collections

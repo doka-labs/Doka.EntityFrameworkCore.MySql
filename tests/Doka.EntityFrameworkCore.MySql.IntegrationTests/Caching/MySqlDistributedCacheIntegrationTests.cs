@@ -32,6 +32,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistribut
     ];
 
     /// <summary>Returns one independently reported test case per selected database target.</summary>
+
     // WHY: xUnit v2 cannot skip individual InlineData rows at runtime. Select the
     // engine rows during discovery while keeping each selected engine visible in Rider.
     public static IEnumerable<object[]> SelectedTargets =>
@@ -60,7 +61,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistribut
     /// <summary>Returns each selected engine with one synchronous or asynchronous cache path.</summary>
     public static IEnumerable<object[]> SyncAsyncCases =>
         SelectedTargets.SelectMany(target =>
-            new[] { new[] { target[0], false }, new[] { target[0], true }, });
+            new[] { new[] { target[0], false }, new[] { target[0], true } });
 
     /// <summary>Returns each engine with either deployment selected for the isolation operation.</summary>
     public static IEnumerable<object[]> TableIsolationCases => SyncAsyncCases;

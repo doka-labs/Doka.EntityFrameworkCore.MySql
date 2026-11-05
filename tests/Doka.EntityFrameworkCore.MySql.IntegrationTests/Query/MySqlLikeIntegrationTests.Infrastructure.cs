@@ -15,6 +15,34 @@ public sealed partial class MySqlLikeIntegrationTests
         /// <inheritdoc />
         public Task InitializeAsync() => Task.CompletedTask;
 
+        /// <inheritdoc />
+        public async Task DisposeAsync()
+        {
+            List<Exception>? failures = null;
+
+            foreach (var target in _seeds.Keys)
+            {
+                try
+                {
+                    await using var context = CreateContext(target);
+                    await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
+                }
+                catch (Exception exception)
+                {
+                    // WHY: One unavailable engine must not prevent cleanup of others.
+                    (failures ??= []).Add(
+                        new InvalidOperationException(
+                            $"Could not drop {TableName} on {target}.",
+                            exception));
+                }
+            }
+
+            if (failures is not null)
+            {
+                throw new AggregateException("Scalar LIKE fixture cleanup failed.", failures);
+            }
+        }
+
         /// <summary>
         /// Seeds the selected engine once and returns a fresh context for one case.
         /// </summary>
@@ -37,32 +65,6 @@ public sealed partial class MySqlLikeIntegrationTests
             return CreateContext(target);
         }
 
-        /// <inheritdoc />
-        public async Task DisposeAsync()
-        {
-            List<Exception>? failures = null;
-
-            foreach (var target in _seeds.Keys)
-            {
-                try
-                {
-                    await using var context = CreateContext(target);
-                    await context.Database.ExecuteSqlRawAsync($"DROP TABLE IF EXISTS `{TableName}`;");
-                }
-                catch (Exception exception)
-                {
-                    // WHY: One unavailable engine must not prevent cleanup of others.
-                    (failures ??= []).Add(new InvalidOperationException(
-                        $"Could not drop {TableName} on {target}.", exception));
-                }
-            }
-
-            if (failures is not null)
-            {
-                throw new AggregateException("Scalar LIKE fixture cleanup failed.", failures);
-            }
-        }
-
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
@@ -74,6 +76,7 @@ public sealed partial class MySqlLikeIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 $"DROP TABLE IF EXISTS `{TableName}`;",
                 cancellationToken: cancellationToken);
+
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken: cancellationToken);
@@ -107,8 +110,22 @@ public sealed partial class MySqlLikeIntegrationTests
                     OptionalSingleValue = -123.5F,
                     OptionalDoubleValue = -123.5,
                     OptionalDecimalValue = -123.5M,
-                    CreatedAt = new DateTime(2026, 8, 25, 12, 34, 56, 123),
-                    OptionalCreatedAt = new DateTime(2026, 8, 25, 12, 34, 56, 123),
+                    CreatedAt = new DateTime(
+                        2026,
+                        8,
+                        25,
+                        12,
+                        34,
+                        56,
+                        123),
+                    OptionalCreatedAt = new DateTime(
+                        2026,
+                        8,
+                        25,
+                        12,
+                        34,
+                        56,
+                        123),
                     BinaryToken = s_matchingGuid,
                     TextToken = s_matchingGuid,
                     OptionalBinaryToken = s_matchingGuid,
@@ -170,24 +187,31 @@ public sealed partial class MySqlLikeIntegrationTests
                 entity
                     .Property(item => item.Id)
                     .ValueGeneratedNever();
+
                 entity
                     .Property(item => item.BinaryToken)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 entity
                     .Property(item => item.OptionalBinaryToken)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 entity
                     .Property(item => item.TextToken)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 entity
                     .Property(item => item.OptionalTextToken)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 entity
                     .Property(item => item.Text)
                     .HasMaxLength(100);
+
                 entity
                     .Property(item => item.OptionalText)
                     .HasMaxLength(100);
+
                 entity
                     .Property(item => item.Pattern)
                     .HasMaxLength(100);

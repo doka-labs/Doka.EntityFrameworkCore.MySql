@@ -5,28 +5,28 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <c>RelationalShapedQueryCompilingExpressionVisitor.GenerateJsonReader</c> when it constructs
 /// the read expression for the JSON container column of a <c>ToJson()</c>-mapped owned entity.
 /// The visitor calls <c>RelationalTypeMapping.GetDataReaderMethod()</c> on this mapping and
-/// assigns the result into a <see cref="MemoryStream"/> variable that a
+/// assigns the result into a <see cref="MemoryStream" /> variable that a
 /// <c>Utf8JsonReaderManager</c> then walks. The base
-/// <see cref="MySqlJsonStringTypeMapping"/> claims <see cref="string"/> as the CLR type, which
-/// makes the read expression return a <see cref="string"/> and trip
-/// <see cref="InvalidOperationException"/> ("No coercion operator is defined between
+/// <see cref="MySqlJsonStringTypeMapping" /> claims <see cref="string" /> as the CLR type, which
+/// makes the read expression return a <see cref="string" /> and trip
+/// <see cref="InvalidOperationException" /> ("No coercion operator is defined between
 /// <c>string</c> and <c>MemoryStream</c>") at the assignment step.
-/// This mapping keeps <see cref="string"/> as the CLR type so MySqlConnector's standard
+/// This mapping keeps <see cref="string" /> as the CLR type so MySqlConnector's standard
 /// <c>GetString</c> path handles the read and the write path stays compatible with EF Core's
 /// owned-JSON serializer (which produces a JSON string), but overrides
-/// <see cref="CustomizeDataReaderExpression"/> to wrap the raw string with a
+/// <see cref="CustomizeDataReaderExpression" /> to wrap the raw string with a
 /// <c>new MemoryStream(Encoding.UTF8.GetBytes(...))</c> call so the expression type matches the
-/// shaper's <see cref="MemoryStream"/> target.
+/// shaper's <see cref="MemoryStream" /> target.
 /// </summary>
 internal sealed class MySqlJsonContainerTypeMapping : JsonTypeMapping
 {
     private static readonly MethodInfo s_encodingGetBytesMethod = typeof(Encoding)
-        .GetMethod(nameof(Encoding.GetBytes), [typeof(string)])
+            .GetMethod(nameof(Encoding.GetBytes), [typeof(string)])
         ?? throw new InvalidOperationException(
             "Encoding.GetBytes(string) method not found; the JSON container mapping needs it to wrap reads as MemoryStream.");
 
     private static readonly ConstructorInfo s_memoryStreamCtor = typeof(MemoryStream)
-        .GetConstructor([typeof(byte[])])
+            .GetConstructor([typeof(byte[])])
         ?? throw new InvalidOperationException(
             "MemoryStream(byte[]) constructor not found; the JSON container mapping needs it to wrap reads as MemoryStream.");
 

@@ -15,9 +15,7 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
 {
     public BuiltInDataTypesMySqlTest(
         BuiltInDataTypesMySqlFixture fixture
-    ) : base(fixture)
-    {
-    }
+    ) : base(fixture) { }
 
     /// <summary>
     /// Executes the upstream server-side conversion contract under a deterministic culture.
@@ -50,8 +48,8 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
         /// <c>RecreateStore=true</c> the prior run's data leaks into the next, surfacing as
         /// <c>MySqlException: Duplicate entry</c> on every insert-based test. The framework
         /// reads this flag and routes the test-store request through
-        /// <see cref="MySqlTestStoreFactory.Create(string)"/>, which produces a non-shared
-        /// store; <see cref="MySqlTestStore.InitializeAsync"/> then drops any existing
+        /// <see cref="MySqlTestStoreFactory.Create(string)" />, which produces a non-shared
+        /// store; <see cref="MySqlTestStore.InitializeAsync" /> then drops any existing
         /// database before creating the schema afresh.
         /// </summary>
         protected override bool RecreateStore => true;
@@ -95,6 +93,7 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
                 b
                     .Property(e => e.BinaryKeyDataTypeId)
                     .HasMaxLength(36);
+
                 // The default FK constraint name "FK_BinaryForeignKeyDataType_BinaryKeyDataType_
                 // BinaryKeyDataTypeId" exceeds MySQL's 64-character identifier limit which
                 // MySqlModelValidator rejects at model-build time. The shorter explicit name
@@ -116,6 +115,7 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
                 b
                     .Property(e => e.StringKeyDataTypeId)
                     .HasMaxLength(64);
+
                 b
                     .HasOne(e => e.Principal)
                     .WithMany(e => e.Dependents)
@@ -133,9 +133,20 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
             // table in declaration order (AnimalIdentification, StringEnclosure, ...).
             modelBuilder.Entity<MaxLengthDataTypes>(b =>
             {
-                b.Property(e => e.String9000).HasMaxLength(0).HasColumnType("longtext");
-                b.Property(e => e.StringUnbounded).HasMaxLength(0).HasColumnType("longtext");
-                b.Property(e => e.ByteArray9000).HasMaxLength(0).HasColumnType("longblob");
+                b
+                    .Property(e => e.String9000)
+                    .HasMaxLength(0)
+                    .HasColumnType("longtext");
+
+                b
+                    .Property(e => e.StringUnbounded)
+                    .HasMaxLength(0)
+                    .HasColumnType("longtext");
+
+                b
+                    .Property(e => e.ByteArray9000)
+                    .HasMaxLength(0)
+                    .HasColumnType("longblob");
             });
         }
     }

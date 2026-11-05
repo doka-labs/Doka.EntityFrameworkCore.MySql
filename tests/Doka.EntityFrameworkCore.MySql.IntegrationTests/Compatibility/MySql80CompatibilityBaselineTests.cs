@@ -17,10 +17,14 @@ public sealed class MySql80CompatibilityBaselineTests
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql80);
 
-        await IntegrationDatabaseUtilities.EnsureDatabaseExistsAsync(connectionString, CancellationToken.None)
+        await IntegrationDatabaseUtilities
+            .EnsureDatabaseExistsAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Act
         var detectedServerVersion = MySqlServerVersion.AutoDetect(
@@ -34,6 +38,7 @@ public sealed class MySql80CompatibilityBaselineTests
         Assert.Equal(
             ProviderSupportStatus.Native,
             detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
+
         Assert.True(detectedServerVersion.Profile.Supports(ProviderCapability.Savepoints));
     }
 
@@ -54,7 +59,8 @@ public sealed class MySql80CompatibilityBaselineTests
             await using var context = new MySql80CompatibilityContext(CreateOptions(connectionString));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{TableName}` (
                          `Id` int NOT NULL AUTO_INCREMENT,
@@ -80,7 +86,8 @@ public sealed class MySql80CompatibilityBaselineTests
             context.ChangeTracker.Clear();
 
             var loadedEntity = await context
-                .Entities.SingleAsync(
+                .Entities
+                .SingleAsync(
                     candidate => candidate.Id == entity.Id,
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -154,6 +161,7 @@ public sealed class MySql80CompatibilityBaselineTests
                 entity
                     .Property(candidate => candidate.Id)
                     .UseMySqlAutoIncrementColumn();
+
                 entity.Property(candidate => candidate.Name);
             });
         }

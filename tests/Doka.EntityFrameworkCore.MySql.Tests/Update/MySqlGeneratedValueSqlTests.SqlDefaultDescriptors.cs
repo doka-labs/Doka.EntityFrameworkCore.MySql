@@ -38,13 +38,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
     )
     {
         // Arrange
-        using var context = new LiteralReadKeyContext(new DbContextOptionsBuilder<LiteralReadKeyContext>()
-            .UseMySql(
-                "Server=localhost;Database=doka;User ID=root;Password=unused;",
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
-            .Options);
+        using var context = new LiteralReadKeyContext(
+            new DbContextOptionsBuilder<LiteralReadKeyContext>()
+                .UseMySql(
+                    "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                    MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                .Options);
 
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
         var column = table.FindColumn("LiteralKey")!;
         var literal = CreatePropertyOnlyReadKeyDescriptor(column, provideTypeMapping);
         var command = new TestCommand(
@@ -68,6 +74,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
             $"WHERE ROW_COUNT() = 1 AND `Id` = @known AND `LiteralKey` = {expectedLiteral}",
             text,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("LAST_INSERT_ID()", text, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(text, "INSERT INTO"));
         Assert.Equal(1, Regex.Count(text, "SELECT "));
@@ -96,13 +103,19 @@ public sealed partial class MySqlGeneratedValueSqlTests
     )
     {
         // Arrange
-        using var context = new SqlDefaultDescriptorContext(new DbContextOptionsBuilder<SqlDefaultDescriptorContext>()
-            .UseMySql(
-                "Server=localhost;Database=doka;User ID=root;Password=unused;",
-                MySqlServerVersion.MySql(new Version(8, 4, 0)))
-            .Options);
+        using var context = new SqlDefaultDescriptorContext(
+            new DbContextOptionsBuilder<SqlDefaultDescriptorContext>()
+                .UseMySql(
+                    "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                    MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                .Options);
 
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
         var column = table.FindColumn("LiteralKey")!;
         var unknown = physicalColumn
             ? CreateModification(column, null, "unknown", read: true, write: false)
@@ -155,19 +168,22 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var property = column.PropertyMappings[0].Property;
 
         // The public name-based descriptor permits omitted mappings; the generator must resolve the mapped property.
-        return new ColumnModification(new ColumnModificationParameters(
-            columnName: column.Name,
-            originalValue: null,
-            value: null,
-            property,
-            columnType: column.StoreType,
-            typeMapping: provideTypeMapping ? property.GetRelationalTypeMapping() : null,
-            read: true,
-            write: false,
-            key: true,
-            condition: false,
-            sensitiveLoggingEnabled: false,
-            isNullable: false));
+        return new ColumnModification(
+            new ColumnModificationParameters(
+                columnName: column.Name,
+                originalValue: null,
+                value: null,
+                property,
+                columnType: column.StoreType,
+                typeMapping: provideTypeMapping
+                    ? property.GetRelationalTypeMapping()
+                    : null,
+                read: true,
+                write: false,
+                key: true,
+                condition: false,
+                sensitiveLoggingEnabled: false,
+                isNullable: false));
     }
 
     /// <summary>Models existing store-generated keys whose actual generated values are unknown to the client.</summary>
@@ -183,12 +199,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
             ModelBuilder modelBuilder
         )
         {
-            ConfigureUnknownDescriptor(modelBuilder, "SqlDescriptorKeys").HasDefaultValueSql("UUID()");
+            ConfigureUnknownDescriptor(modelBuilder, "SqlDescriptorKeys")
+                .HasDefaultValueSql("UUID()");
+
             ConfigureUnknownDescriptor(modelBuilder, "TriggerDescriptorKeys");
-            ConfigureUnknownDescriptor(modelBuilder, "NullDescriptorKeys").HasDefaultValue((object?)null);
+            ConfigureUnknownDescriptor(modelBuilder, "NullDescriptorKeys")
+                .HasDefaultValue(null);
 
             // HasDefaultValue() describes an existing database default without claiming its value is known.
-            ConfigureUnknownDescriptor(modelBuilder, "UnspecifiedDescriptorKeys").HasDefaultValue();
+            ConfigureUnknownDescriptor(modelBuilder, "UnspecifiedDescriptorKeys")
+                .HasDefaultValue();
         }
 
         /// <summary>
@@ -202,9 +222,12 @@ public sealed partial class MySqlGeneratedValueSqlTests
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>(tableName);
 
             entity.ToTable(tableName, table => table.HasTrigger($"{tableName}_BeforeInsert"));
-            entity.IndexerProperty<int>("Id").ValueGeneratedNever();
+            entity
+                .IndexerProperty<int>("Id")
+                .ValueGeneratedNever();
 
-            var property = entity.IndexerProperty<string>("LiteralKey")
+            var property = entity
+                .IndexerProperty<string>("LiteralKey")
                 .HasColumnType("varchar(64)")
                 .ValueGeneratedOnAdd();
 

@@ -7,6 +7,17 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlApplicationTimeMetadataTests
 {
+    private static readonly MySqlServerVersion s_mySql84 =
+        MySqlServerVersion.MySql(new Version(8, 4, 0));
+
+    private static readonly MySqlServerVersion s_mariaDb114 =
+        MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+
+    private static readonly MySqlServerVersion s_mariaDb1043 =
+        MySqlServerVersion.MariaDb(
+            new Version(10, 4, 3),
+            MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
     /// <summary>
     /// The typed table API preserves period identities, explicit columns and the
     /// primary-key <c>WITHOUT OVERLAPS</c> contract in the finalized model.
@@ -19,25 +30,37 @@ public sealed class MySqlApplicationTimeMetadataTests
 
         // Act
         var entityType = context.Model.FindEntityType(typeof(ApplicationTimeRecord))!;
-        var table = StoreObjectIdentifier.Table("BusinessRecords", null);
+        var table = StoreObjectIdentifier.Table("BusinessRecords");
 
         var actual = entityType.IsMySqlApplicationTime();
 
         // Assert
         Assert.True(actual);
         Assert.Equal("BusinessValidity", entityType.GetMySqlApplicationTimePeriodName());
-        Assert.Equal(nameof(ApplicationTimeRecord.ValidFrom),
+        Assert.Equal(
+            nameof(ApplicationTimeRecord.ValidFrom),
             entityType.GetMySqlApplicationTimePeriodStartPropertyName());
-        Assert.Equal(nameof(ApplicationTimeRecord.ValidTo),
+
+        Assert.Equal(
+            nameof(ApplicationTimeRecord.ValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
-        Assert.Equal("BusinessValidFrom",
+
+        Assert.Equal(
+            "BusinessValidFrom",
             entityType.FindProperty(nameof(ApplicationTimeRecord.ValidFrom))!.GetColumnName(table));
-        Assert.Equal("BusinessValidTo",
+
+        Assert.Equal(
+            "BusinessValidTo",
             entityType.FindProperty(nameof(ApplicationTimeRecord.ValidTo))!.GetColumnName(table));
-        Assert.Equal(ValueGenerated.Never,
+
+        Assert.Equal(
+            ValueGenerated.Never,
             entityType.FindProperty(nameof(ApplicationTimeRecord.ValidFrom))!.ValueGenerated);
-        Assert.Equal(ValueGenerated.Never,
+
+        Assert.Equal(
+            ValueGenerated.Never,
             entityType.FindProperty(nameof(ApplicationTimeRecord.ValidTo))!.ValueGenerated);
+
         Assert.True(
             entityType.FindPrimaryKey()!
                 .FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
@@ -65,9 +88,12 @@ public sealed class MySqlApplicationTimeMetadataTests
         Assert.Equal("SystemTo", entityType.GetMySqlTemporalPeriodEndPropertyName());
         Assert.True(entityType.IsMySqlApplicationTime());
         Assert.Equal("BusinessValidity", entityType.GetMySqlApplicationTimePeriodName());
-        Assert.Equal(nameof(ApplicationTimeRecord.ValidFrom),
+        Assert.Equal(
+            nameof(ApplicationTimeRecord.ValidFrom),
             entityType.GetMySqlApplicationTimePeriodStartPropertyName());
-        Assert.Equal(nameof(ApplicationTimeRecord.ValidTo),
+
+        Assert.Equal(
+            nameof(ApplicationTimeRecord.ValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
     }
 
@@ -90,9 +116,11 @@ public sealed class MySqlApplicationTimeMetadataTests
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
             actual);
+
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+
         Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
         Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName));
     }
@@ -117,9 +145,11 @@ public sealed class MySqlApplicationTimeMetadataTests
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
             actual);
+
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidTo),
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+
         Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
         Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName));
     }
@@ -143,11 +173,14 @@ public sealed class MySqlApplicationTimeMetadataTests
         Assert.Equal(
             nameof(CustomApplicationTimeRecord.BusinessValidFrom),
             actual);
+
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
+
         Assert.Null(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName));
-        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
+        Assert.True(
+            entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
     }
 
     /// <summary>
@@ -168,11 +201,16 @@ public sealed class MySqlApplicationTimeMetadataTests
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName,
             actual);
+
         Assert.Equal(
             MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName,
             entityType.GetMySqlApplicationTimePeriodEndPropertyName());
-        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!.IsShadowProperty());
-        Assert.True(entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
+
+        Assert.True(
+            entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!.IsShadowProperty());
+
+        Assert.True(
+            entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodEndPropertyName)!.IsShadowProperty());
     }
 
     /// <summary>
@@ -188,7 +226,7 @@ public sealed class MySqlApplicationTimeMetadataTests
         // Act
         var entityType = context.Model.FindEntityType(typeof(CustomApplicationTimeRecord))!;
         var callerOwnedProperty = entityType.FindProperty(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)!;
-        var table = StoreObjectIdentifier.Table("CustomApplicationTimeRecords", null);
+        var table = StoreObjectIdentifier.Table("CustomApplicationTimeRecords");
 
         var actual = callerOwnedProperty.IsShadowProperty();
 
@@ -253,20 +291,11 @@ public sealed class MySqlApplicationTimeMetadataTests
 
         // Assert
         var exception = Assert.IsType<InvalidOperationException>(recordedException);
-        Assert.Contains("must be unique before WITHOUT OVERLAPS can be used", exception.Message,
+        Assert.Contains(
+            "must be unique before WITHOUT OVERLAPS can be used",
+            exception.Message,
             StringComparison.Ordinal);
     }
-
-    private static readonly MySqlServerVersion s_mySql84 =
-        MySqlServerVersion.MySql(new Version(8, 4, 0));
-
-    private static readonly MySqlServerVersion s_mariaDb114 =
-        MySqlServerVersion.MariaDb(new Version(11, 4, 0));
-
-    private static readonly MySqlServerVersion s_mariaDb1043 =
-        MySqlServerVersion.MariaDb(
-            new Version(10, 4, 3),
-            MySqlServerVersionCompatibilityMode.AllowUnsupported);
 
     private static ApplicationTimeContext<TConfiguration> CreateContext<TConfiguration>(
         MySqlServerVersion serverVersion
@@ -297,12 +326,16 @@ public sealed class MySqlApplicationTimeMetadataTests
 
     private interface IApplicationTimeConfiguration
     {
-        void Configure(EntityTypeBuilder<ApplicationTimeRecord> entity);
+        void Configure(
+            EntityTypeBuilder<ApplicationTimeRecord> entity
+        );
     }
 
     private interface ICustomApplicationTimeConfiguration
     {
-        void Configure(EntityTypeBuilder<CustomApplicationTimeRecord> entity);
+        void Configure(
+            EntityTypeBuilder<CustomApplicationTimeRecord> entity
+        );
     }
 
     private sealed class ApplicationTimeConfiguration : IApplicationTimeConfiguration
@@ -314,10 +347,14 @@ public sealed class MySqlApplicationTimeMetadataTests
             table => table.HasApplicationTimePeriod(period =>
             {
                 period.HasPeriodName("BusinessValidity");
-                period.HasPeriodStart(record => record.ValidFrom)
+                period
+                    .HasPeriodStart(record => record.ValidFrom)
                     .HasColumnName("BusinessValidFrom");
-                period.HasPeriodEnd(record => record.ValidTo)
+
+                period
+                    .HasPeriodEnd(record => record.ValidTo)
                     .HasColumnName("BusinessValidTo");
+
                 period.UseWithoutOverlaps();
             }));
     }
@@ -349,7 +386,8 @@ public sealed class MySqlApplicationTimeMetadataTests
         )
         {
             entity.ToTable("BusinessRecords", table => table.HasApplicationTimePeriod());
-            entity.HasIndex(record => record.Code)
+            entity
+                .HasIndex(record => record.Code)
                 .UseWithoutOverlaps();
         }
     }
@@ -393,6 +431,7 @@ public sealed class MySqlApplicationTimeMetadataTests
             entity
                 .Property<DateTime>(MySqlApplicationTimeMetadata.DefaultPeriodStartPropertyName)
                 .HasColumnName("AuditValidFrom");
+
             entity.ToTable(
                 "CustomApplicationTimeRecords",
                 table => table.HasApplicationTimePeriod(period =>

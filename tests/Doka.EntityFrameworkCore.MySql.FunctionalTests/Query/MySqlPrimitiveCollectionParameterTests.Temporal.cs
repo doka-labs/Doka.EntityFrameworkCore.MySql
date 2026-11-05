@@ -14,13 +14,22 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         using var context = CreateContext();
         DateTimeOffset[] values =
         [
-            new(2026, 9, 19, 12, 34, 56, TimeSpan.FromHours(2)),
+            new(
+                2026,
+                9,
+                19,
+                12,
+                34,
+                56,
+                TimeSpan.FromHours(2)),
         ];
 
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedTimestamp))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedTimestamp))
             .ToQueryString();
 
         // Assert
@@ -39,13 +48,24 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         using var context = CreateContext();
         var values = new[]
         {
-            new DateTime(2026, 9, 19, 12, 34, 56, 500, DateTimeKind.Unspecified),
+            new DateTime(
+                2026,
+                9,
+                19,
+                12,
+                34,
+                56,
+                500,
+                DateTimeKind.Unspecified),
         };
 
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.OccurredAt) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.OccurredAt)
+                > 0)
             .ToQueryString();
 
         // Assert
@@ -62,12 +82,25 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
     {
         // Arrange
         using var context = CreateContext();
-        var values = new[] { new DateTime(2000, 1, 2, 12, 0, 0, DateTimeKind.Unspecified) };
+        var values = new[]
+        {
+            new DateTime(
+                2000,
+                1,
+                2,
+                12,
+                0,
+                0,
+                DateTimeKind.Unspecified),
+        };
 
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.BirthDate) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.BirthDate)
+                > 0)
             .ToQueryString();
 
         // Assert
@@ -86,13 +119,24 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         using var context = CreateContext();
         var values = new[]
         {
-            new DateTime(2026, 9, 19, 12, 34, 56, 500, DateTimeKind.Utc),
+            new DateTime(
+                2026,
+                9,
+                19,
+                12,
+                34,
+                56,
+                500,
+                DateTimeKind.Utc),
         };
 
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.RecordedAt) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.RecordedAt)
+                > 0)
             .ToQueryString();
 
         // Assert
@@ -114,7 +158,10 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.StartsAt) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.StartsAt)
+                > 0)
             .ToQueryString();
 
         // Assert

@@ -7,7 +7,8 @@ public static class MySqlTestEnvironment
 {
     private static TestDatabaseEndpoint? s_endpoint;
 
-    public static string ConnectionString => GetEndpoint().ConnectionString;
+    public static string ConnectionString => GetEndpoint()
+        .ConnectionString;
 
     public static MySqlServerVersion ServerVersion { get; private set; } = null!;
 
@@ -62,8 +63,13 @@ public static class MySqlTestEnvironment
                 $"The server-version token must use the form '<engine>:<version>'; got '{token}'.");
         }
 
-        var engine = token[..separatorIndex].Trim().ToLowerInvariant();
-        var versionText = token[(separatorIndex + 1)..].Trim();
+        var engine = token[..separatorIndex]
+            .Trim()
+            .ToLowerInvariant();
+
+        var versionText = token[(separatorIndex + 1)..]
+            .Trim();
+
         var version = Version.Parse(versionText);
 
         return engine switch

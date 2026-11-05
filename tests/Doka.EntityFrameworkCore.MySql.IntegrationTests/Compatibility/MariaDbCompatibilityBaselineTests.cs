@@ -73,6 +73,7 @@ public sealed class MariaDbCompatibilityBaselineTests
             Assert.Equal(
                 ProviderSupportStatus.Native,
                 detectedServerVersion.Profile.GetSupport(ProviderCapability.ReturningClause));
+
             Assert.Equal(
                 ProviderSupportStatus.Emulated,
                 detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns));
@@ -81,49 +82,54 @@ public sealed class MariaDbCompatibilityBaselineTests
             var strategy = context.Database.CreateExecutionStrategy();
 
             await strategy
-                .ExecuteAsync(async (executionCancellationToken) =>
-                {
-                    await using var transaction = await context
-                        .Database.BeginTransactionAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                .ExecuteAsync(
+                    async executionCancellationToken =>
+                    {
+                        await using var transaction = await context
+                            .Database
+                            .BeginTransactionAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    Assert.True(transaction.SupportsSavepoints);
+                        Assert.True(transaction.SupportsSavepoints);
 
-                    context.Entities.Add(
-                        new MariaDbEntity
-                        {
-                            Name = "before-savepoint",
-                            Payload = """{"kind":"alpha","items":[1,2]}""",
-                        });
-                    await context
-                        .SaveChangesAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                        context.Entities.Add(
+                            new MariaDbEntity
+                            {
+                                Name = "before-savepoint",
+                                Payload = """{"kind":"alpha","items":[1,2]}""",
+                            });
 
-                    await transaction
-                        .CreateSavepointAsync(
-                            "before-second-row",
-                            executionCancellationToken)
-                        .ConfigureAwait(false);
+                        await context
+                            .SaveChangesAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    context.Entities.Add(
-                        new MariaDbEntity
-                        {
-                            Name = "after-savepoint",
-                            Payload = """{"kind":"beta","items":[1,2,3]}""",
-                        });
-                    await context
-                        .SaveChangesAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
+                        await transaction
+                            .CreateSavepointAsync(
+                                "before-second-row",
+                                executionCancellationToken)
+                            .ConfigureAwait(false);
 
-                    await transaction
-                        .RollbackToSavepointAsync(
-                            "before-second-row",
-                            executionCancellationToken)
-                        .ConfigureAwait(false);
-                    await transaction
-                        .CommitAsync(executionCancellationToken)
-                        .ConfigureAwait(false);
-                },
+                        context.Entities.Add(
+                            new MariaDbEntity
+                            {
+                                Name = "after-savepoint",
+                                Payload = """{"kind":"beta","items":[1,2,3]}""",
+                            });
+
+                        await context
+                            .SaveChangesAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
+
+                        await transaction
+                            .RollbackToSavepointAsync(
+                                "before-second-row",
+                                executionCancellationToken)
+                            .ConfigureAwait(false);
+
+                        await transaction
+                            .CommitAsync(executionCancellationToken)
+                            .ConfigureAwait(false);
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -132,7 +138,8 @@ public sealed class MariaDbCompatibilityBaselineTests
 
             var entity = Assert.Single(
                 await verificationContext
-                    .Entities.OrderBy(candidate => candidate.Id)
+                    .Entities
+                    .OrderBy(candidate => candidate.Id)
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false));
 
@@ -162,6 +169,7 @@ public sealed class MariaDbCompatibilityBaselineTests
                 await reader
                     .ReadAsync(cancellationToken)
                     .ConfigureAwait(false));
+
             Assert.Equal("longtext", reader.GetString(0));
             Assert.Equal("utf8mb4_bin", reader.GetString(1));
         }
@@ -239,14 +247,17 @@ public sealed class MariaDbCompatibilityBaselineTests
                 entity
                     .Property(candidate => candidate.Id)
                     .UseMySqlAutoIncrementColumn();
+
                 entity.Property(candidate => candidate.Name);
                 entity
                     .Property(candidate => candidate.Payload)
                     .HasColumnType("json");
+
                 entity
                     .Property(candidate => candidate.VirtualKind)
                     .HasColumnType("varchar(64)")
                     .HasComputedColumnSql("JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))", stored: false);
+
                 entity
                     .Property(candidate => candidate.StoredCount)
                     .HasColumnType("int")

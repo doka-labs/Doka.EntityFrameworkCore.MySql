@@ -21,7 +21,7 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
     {
         source = GetSourceOrigin(source);
 
-        if (source is MySqlTemporalQueryRootExpression { Operation: MySqlTemporalQueryOperation.AsOf, } temporalRoot)
+        if (source is MySqlTemporalQueryRootExpression { Operation: MySqlTemporalQueryOperation.AsOf } temporalRoot)
         {
             // AsOf describes one consistent database instant and is therefore the only
             // temporal operation that can be propagated across separate table roots.
@@ -59,8 +59,8 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
             && !OwnedEntityMappedToSameTableAsOwner(entityType))
         {
             if (!entityType
-                    .GetRootType()
-                    .IsMySqlTemporal())
+                .GetRootType()
+                .IsMySqlTemporal())
             {
                 if (entityType.IsOwned())
                 {
@@ -144,7 +144,9 @@ internal sealed class MySqlNavigationExpansionExtensibilityHelper : NavigationEx
     /// <summary>Restores the exact original mapping and temporal semantics of a completed source leaf.</summary>
     private static EntityQueryRootExpression? GetSourceOrigin(
         EntityQueryRootExpression? source
-    ) => source is MySqlMaterializedEntityQueryRootExpression bound ? bound.SourceOrigin : source;
+    ) => source is MySqlMaterializedEntityQueryRootExpression bound
+        ? bound.SourceOrigin
+        : source;
 
     private static bool HaveEquivalentTemporalSemantics(
         MySqlTemporalQueryRootExpression first,

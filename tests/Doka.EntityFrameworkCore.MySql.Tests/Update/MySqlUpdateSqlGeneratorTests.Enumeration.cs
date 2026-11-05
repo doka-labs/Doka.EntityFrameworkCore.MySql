@@ -21,7 +21,8 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
     )
     {
         // Arrange
-        var firstColumns = Enumerable.Range(0, 50)
+        var firstColumns = Enumerable
+            .Range(0, 50)
             .Select(index => (Name: $"Column{index:D2}", Read: index % 2 != 0, Write: index % 2 == 0))
             .ToArray();
 

@@ -18,7 +18,9 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         command.CommandText = sql;
 
         return Convert.ToInt64(
-            await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
     }
 
@@ -36,7 +38,9 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static IReadOnlyList<MigrationOperation> GetDifferences(
@@ -97,7 +101,10 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         command.CommandText = "DROP TABLE IF EXISTS `TextGuidDocumentRevisions`; "
             + "DROP TABLE IF EXISTS `TextGuidDocuments`; "
             + $"DROP TABLE IF EXISTS `{StorageTransitionTable}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(

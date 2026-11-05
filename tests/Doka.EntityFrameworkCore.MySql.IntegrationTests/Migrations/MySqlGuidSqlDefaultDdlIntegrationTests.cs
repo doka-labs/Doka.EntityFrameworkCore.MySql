@@ -34,7 +34,8 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     /// Identifies each selected supported engine for the invalid Binary16 expression control.
     /// </summary>
     public static IEnumerable<object[]> BinaryDefaultCases =>
-        SelectedTargets().Select(target => new object[] { target.ToString() });
+        SelectedTargets()
+            .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// The literal table.Column&lt;Guid&gt; API retains its SQL expression and generates a fresh ID per omitted value.
@@ -50,7 +51,10 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         var databaseTarget = Enum.Parse<IntegrationDatabaseTarget>(target);
         var tableName = CreateTableName();
         await using var connection = CreateConnection(databaseTarget);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, databaseTarget, format);
         var migrationBuilder = CreateGuidDefaultTable(tableName, format, DefaultSqlFor(format));
 
@@ -58,18 +62,20 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         {
             // Act
             var sql = await ExecuteOperationsAsync(
-                context,
-                connection,
-                migrationBuilder.Operations,
-                CancellationToken.None)
+                    context,
+                    connection,
+                    migrationBuilder.Operations,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             await ExecuteRawAsync(
-                connection,
-                $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);",
-                CancellationToken.None)
+                    connection,
+                    $"INSERT INTO `{tableName}` (`Value`) VALUES (1), (2);",
+                    CancellationToken.None)
                 .ConfigureAwait(false);
-            var rows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None).ConfigureAwait(false);
+
+            var rows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Contains($"DEFAULT ({DefaultSqlFor(format)})", sql, StringComparison.OrdinalIgnoreCase);
@@ -77,7 +83,8 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -99,30 +106,36 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         var databaseTarget = Enum.Parse<IntegrationDatabaseTarget>(target);
         var tableName = CreateTableName();
         await using var connection = CreateConnection(databaseTarget);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, databaseTarget, format);
 
         try
         {
-            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var migrationBuilder = CreateAddGuidDefaultColumn(tableName, format);
 
             // Act
             var sql = await ExecuteOperationsAsync(
-                context,
-                connection,
-                migrationBuilder.Operations,
-                CancellationToken.None)
+                    context,
+                    connection,
+                    migrationBuilder.Operations,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
 
             var backfilledRows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await ExecuteRawAsync(
-                connection,
-                $"INSERT INTO `{tableName}` (`Value`) VALUES (3), (4);",
-                CancellationToken.None)
+                    connection,
+                    $"INSERT INTO `{tableName}` (`Value`) VALUES (3), (4);",
+                    CancellationToken.None)
                 .ConfigureAwait(false);
+
             var allRows = await ReadRowsAsync(connection, tableName, format, CancellationToken.None)
                 .ConfigureAwait(false);
 
@@ -130,11 +143,16 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
             Assert.Contains($"DEFAULT ({DefaultSqlFor(format)})", sql, StringComparison.OrdinalIgnoreCase);
             AssertGeneratedRows(backfilledRows, format, [1, 2]);
             AssertGeneratedRows(allRows, format, [1, 2, 3, 4]);
-            Assert.Equal(backfilledRows, allRows.Take(2).ToArray());
+            Assert.Equal(
+                backfilledRows,
+                allRows
+                    .Take(2)
+                    .ToArray());
         }
         finally
         {
-            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -152,12 +170,17 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         var databaseTarget = Enum.Parse<IntegrationDatabaseTarget>(target);
         var tableName = CreateTableName();
         await using var connection = CreateConnection(databaseTarget);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, databaseTarget, format);
 
         try
         {
-            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await CreatePopulatedTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
+
             var definitionBefore = await ReadTableDefinitionAsync(connection, tableName, CancellationToken.None)
                 .ConfigureAwait(false);
 
@@ -165,13 +188,17 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
 
             // Act
             // WHY: This is an engine restriction; changing binary logging would remove the tested contract.
-            var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteOperationsAsync(context, connection, migrationBuilder.Operations, CancellationToken.None));
+            var exception = await Assert.ThrowsAsync<MySqlException>(() => ExecuteOperationsAsync(
+                context,
+                connection,
+                migrationBuilder.Operations,
+                CancellationToken.None));
 
             var definitionAfter = await ReadTableDefinitionAsync(connection, tableName, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(1674, exception.Number);
@@ -180,7 +207,8 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -197,7 +225,10 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         var databaseTarget = Enum.Parse<IntegrationDatabaseTarget>(target);
         var tableName = CreateTableName();
         await using var connection = CreateConnection(databaseTarget);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, databaseTarget, MySqlGuidFormat.Binary16);
         var migrationBuilder = CreateGuidDefaultTable(tableName, MySqlGuidFormat.Binary16, "UUID()");
 
@@ -207,13 +238,13 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
                 .ConfigureAwait(false);
 
             // Act
-            var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteRawAsync(
-                    connection,
-                    $"INSERT INTO `{tableName}` (`Value`) VALUES (1);",
-                    CancellationToken.None));
+            var exception = await Assert.ThrowsAsync<MySqlException>(() => ExecuteRawAsync(
+                connection,
+                $"INSERT INTO `{tableName}` (`Value`) VALUES (1);",
+                CancellationToken.None));
 
-            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            var values = await ReadValuesAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(1406, exception.Number);
@@ -221,7 +252,8 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         }
         finally
         {
-            await DropTableAsync(connection, tableName, CancellationToken.None).ConfigureAwait(false);
+            await DropTableAsync(connection, tableName, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -231,11 +263,14 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     ) => IntegrationTestEnvironment.GetConnectionString(target);
 
     private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment.GetSupportedTargets().Where(IntegrationTestEnvironment.IsTargetSelected);
+        IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     private static bool IsMariaDb(
         IntegrationDatabaseTarget target
-    ) => IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
+    ) => IntegrationTestEnvironment.GetServerVersion(target)
+        .IsMariaDb;
 
     private static IEnumerable<MySqlGuidFormat> FormatsFor(
         IntegrationDatabaseTarget target

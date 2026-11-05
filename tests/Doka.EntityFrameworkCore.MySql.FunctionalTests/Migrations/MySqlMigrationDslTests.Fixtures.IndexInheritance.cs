@@ -2,6 +2,30 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationDslTests
 {
+    private static void ConfigureInheritedTpcIndex(
+        ModelBuilder modelBuilder,
+        string firstTable,
+        string secondTable,
+        string indexName,
+        int prefixLength
+    )
+    {
+        modelBuilder
+            .Entity<InheritedTpcIndexBase>()
+            .UseTpcMappingStrategy()
+            .HasIndex(entity => entity.AlternateId)
+            .HasDatabaseName(indexName)
+            .HasPrefixLength(prefixLength);
+
+        modelBuilder
+            .Entity<FirstInheritedTpcIndex>()
+            .ToTable(firstTable);
+
+        modelBuilder
+            .Entity<SecondInheritedTpcIndex>()
+            .ToTable(secondTable);
+    }
+
     private sealed class InheritedIndexContext : DbContext
     {
         /// <summary>
@@ -76,29 +100,6 @@ public sealed partial class MySqlMigrationDslTests
             prefixLength: 24);
     }
 
-    private static void ConfigureInheritedTpcIndex(
-        ModelBuilder modelBuilder,
-        string firstTable,
-        string secondTable,
-        string indexName,
-        int prefixLength
-    )
-    {
-        modelBuilder
-            .Entity<InheritedTpcIndexBase>()
-            .UseTpcMappingStrategy()
-            .HasIndex(entity => entity.AlternateId)
-            .HasDatabaseName(indexName)
-            .HasPrefixLength(prefixLength);
-
-        modelBuilder
-            .Entity<FirstInheritedTpcIndex>()
-            .ToTable(firstTable);
-        modelBuilder
-            .Entity<SecondInheritedTpcIndex>()
-            .ToTable(secondTable);
-    }
-
     private class InheritedIndexBase
     {
         /// <summary>
@@ -143,14 +144,17 @@ public sealed partial class MySqlMigrationDslTests
         /// The base table used by the migration fixture.
         /// </summary>
         public const string BaseTable = "InheritedIndexBase";
+
         /// <summary>
         /// The derived table used by the migration fixture.
         /// </summary>
         public const string DerivedTable = "InheritedIndexDerived";
+
         /// <summary>
         /// The base index used by the migration fixture.
         /// </summary>
         public const string BaseIndex = "IX_InheritedIndexBase_AlternateId_Id";
+
         /// <summary>
         /// The derived index used by the migration fixture.
         /// </summary>
@@ -163,22 +167,27 @@ public sealed partial class MySqlMigrationDslTests
         /// The first table used by the migration fixture.
         /// </summary>
         public const string FirstTable = "FirstInheritedTpcIndex";
+
         /// <summary>
         /// The second table used by the migration fixture.
         /// </summary>
         public const string SecondTable = "SecondInheritedTpcIndex";
+
         /// <summary>
         /// The renamed first table used by the migration fixture.
         /// </summary>
         public const string RenamedFirstTable = "RenamedFirstInheritedTpcIndex";
+
         /// <summary>
         /// The renamed second table used by the migration fixture.
         /// </summary>
         public const string RenamedSecondTable = "RenamedSecondInheritedTpcIndex";
+
         /// <summary>
         /// The index used by the migration fixture.
         /// </summary>
         public const string Index = "IX_InheritedTpcIndex_AlternateId";
+
         /// <summary>
         /// The renamed index used by the migration fixture.
         /// </summary>

@@ -18,7 +18,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         using var context = CreateStoreContext("ordinary");
         var modelBuilder = new ModelBuilder();
         var entity = modelBuilder.Entity<StoreRow>();
-        var property = entity.Property(row => row.Id)
+        var property = entity
+            .Property(row => row.Id)
             .ValueGeneratedOnAdd()
             .HasDefaultValueSql("UUID()");
 
@@ -40,7 +41,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var selectedProperty = (IProperty)property.Metadata;
 
         // Act
-        var selected = context.GetService<IValueGeneratorSelector>()
+        var selected = context
+            .GetService<IValueGeneratorSelector>()
             .TrySelect(selectedProperty, selectedProperty.DeclaringType, out var generator);
 
         var value = generator?.Next(context.Entry(new StoreRow()));
@@ -73,7 +75,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         using var context = CreateStoreContext("ordinary");
         var modelBuilder = new ModelBuilder();
         var entity = modelBuilder.Entity<StoreRow>();
-        var property = entity.Property(row => row.Id)
+        var property = entity
+            .Property(row => row.Id)
             .ValueGeneratedOnAdd()
             .HasDefaultValueSql("UUID()");
 
@@ -89,7 +92,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var selectedProperty = (IProperty)property.Metadata;
 
         // Act
-        var selected = context.GetService<IValueGeneratorSelector>()
+        var selected = context
+            .GetService<IValueGeneratorSelector>()
             .TrySelect(selectedProperty, selectedProperty.DeclaringType, out var generator);
 
         var value = generator?.Next(context.Entry(new StoreRow()));
@@ -119,7 +123,9 @@ public sealed partial class MySqlGuidStoreGenerationTests
                 new CoreTypeMappingParameters(
                     typeof(string),
                     converter: converter,
-                    valueGeneratorFactory: factoryOnMapping ? static (_, _) => new FixedGuidGenerator() : null),
+                    valueGeneratorFactory: factoryOnMapping
+                        ? static (_, _) => new FixedGuidGenerator()
+                        : null),
                 "varchar(36)")) { }
 
         /// <summary>Creates a mapping with an independently supplied factory delegate.</summary>

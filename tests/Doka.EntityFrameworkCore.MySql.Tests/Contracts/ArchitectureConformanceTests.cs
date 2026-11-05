@@ -54,21 +54,15 @@ public sealed class ArchitectureConformanceTests
             Path.Combine(repositoryRoot, "src", "Doka.EntityFrameworkCore.MySql.NetTopologySuite", "Internal"),
         };
 
-        var forbiddenFragments = new[]
-        {
-            ".IsMariaDb",
-            "EngineFamily.",
-        };
+        var forbiddenFragments = new[] { ".IsMariaDb", "EngineFamily." };
 
         // Act
         var violations = behaviorRoots
             .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
             .SelectMany(path => File
                 .ReadLines(path)
-                .Select((
-                    line,
-                    index
-                ) => (Path: path, Line: line, Number: index + 1)))
+                .Select((line,
+                    index) => (Path: path, Line: line, Number: index + 1)))
             .Where(candidate => forbiddenFragments.Any(fragment =>
                 candidate.Line.Contains(fragment, StringComparison.Ordinal)))
             .Select(candidate => $"{Path.GetRelativePath(repositoryRoot, candidate.Path)}:{candidate.Number}")
@@ -87,11 +81,7 @@ public sealed class ArchitectureConformanceTests
     {
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
-        var excludedFiles = new[]
-        {
-            "EngineCapability.cs",
-            "EngineProfileTable.cs",
-        };
+        var excludedFiles = new[] { "EngineCapability.cs", "EngineProfileTable.cs" };
 
         var sources = EnumerateProductSources(repositoryRoot)
             .Where(path => !excludedFiles.Contains(Path.GetFileName(path), StringComparer.Ordinal))
@@ -119,12 +109,7 @@ public sealed class ArchitectureConformanceTests
     {
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
-        var excludedFiles = new[]
-        {
-            "MySqlLoggerMessages.cs",
-            "ProviderCapability.cs",
-            "ProviderProfile.cs",
-        };
+        var excludedFiles = new[] { "MySqlLoggerMessages.cs", "ProviderCapability.cs", "ProviderProfile.cs" };
 
         var sources = EnumerateProductSources(repositoryRoot)
             .Where(path => !excludedFiles.Contains(Path.GetFileName(path), StringComparer.Ordinal))
@@ -172,8 +157,8 @@ public sealed class ArchitectureConformanceTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

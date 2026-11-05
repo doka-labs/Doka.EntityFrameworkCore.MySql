@@ -26,7 +26,7 @@ internal sealed class MySqlQueryTranslationPreprocessor(
 
         // Collect metadata globally in the same outer-to-inner order as ordinary EF before
         // extracting sources; per-source normalization must not change tracking/filter precedence.
-        query = base.NormalizeQueryableMethod(query);
+        query = NormalizeQueryableMethod(query);
         var compilation = (MySqlQueryCompilationContext)QueryCompilationContext;
         var definitions = new Dictionary<int, Expression>();
         query = new MySqlMaterializedSourceBinding(compilation.Model, definitions).Visit(query);
@@ -53,7 +53,9 @@ internal sealed class MySqlQueryTranslationPreprocessor(
             }
         }
 
-        return definitions.Count == 0 ? base.Process(query) : ProcessCore(query, navigationVisitor);
+        return definitions.Count == 0
+            ? base.Process(query)
+            : ProcessCore(query, navigationVisitor);
     }
 
     /// <summary>
@@ -69,7 +71,7 @@ internal sealed class MySqlQueryTranslationPreprocessor(
         // reapplying a global filter to occurrences already selected by their completed source.
 #pragma warning disable EF1001 // Narrow provider preprocessing seam, qualified on the EF patch matrix; see D-024.
         query = new InvocationExpressionRemovingExpressionVisitor().Visit(query);
-        query = base.NormalizeQueryableMethod(query);
+        query = NormalizeQueryableMethod(query);
         query = new CallForwardingExpressionVisitor().Visit(query);
         query = new NullCheckRemovingExpressionVisitor().Visit(query);
         query = new SubqueryMemberPushdownExpressionVisitor(QueryCompilationContext.Model).Visit(query);

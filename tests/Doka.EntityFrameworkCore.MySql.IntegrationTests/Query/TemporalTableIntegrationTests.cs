@@ -9,7 +9,9 @@ public sealed class TemporalTableIntegrationTests
     private const string TableName = "IntTemporalItems";
     private const string HistoryTableName = "IntTemporalItemsHistory";
     private const string PeriodStartColumnName = "ValidFrom";
+
     private const string PeriodEndColumnName = "ValidTo";
+
     // WHY: The history schema is part of this test's fixed model and source
     // assertions. No other parallel class uses the container's base database.
     private const string TestDatabaseName = "doka_provider";
@@ -88,6 +90,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(emptyContext, temporalContext),
             cancellationToken);
+
         await AssertPhysicalContractAsync(connection, target, cancellationToken);
         AssertScaffoldingContract(connection.ConnectionString, target);
         await WriteVersionsAsync(temporalContext, cancellationToken);
@@ -99,6 +102,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(temporalContext, emptyContext),
             cancellationToken);
+
         await AssertRemovedAsync(connection, cancellationToken);
     }
 
@@ -137,7 +141,8 @@ public sealed class TemporalTableIntegrationTests
             Assert.Empty(await verificationContext.Items.ToListAsync(cancellationToken: cancellationToken));
             Assert.Empty(
                 await verificationContext
-                    .Items.TemporalAll()
+                    .Items
+                    .TemporalAll()
                     .ToListAsync(cancellationToken: cancellationToken));
         }
 
@@ -146,6 +151,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(temporalContext, emptyContext),
             cancellationToken);
+
         await AssertRemovedAsync(connection, cancellationToken);
     }
 
@@ -182,8 +188,8 @@ public sealed class TemporalTableIntegrationTests
 
             stale.Name = "stale";
 
-            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
-                () => staleContext.SaveChangesAsync(cancellationToken: cancellationToken));
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+                staleContext.SaveChangesAsync(cancellationToken: cancellationToken));
         }
 
         await using (var verificationContext = CreateTemporalContext(target))
@@ -191,8 +197,10 @@ public sealed class TemporalTableIntegrationTests
             Assert.Equal(
                 ["winner"],
                 await verificationContext
-                    .Items.Select(item => item.Name)
+                    .Items
+                    .Select(item => item.Name)
                     .ToListAsync(cancellationToken: cancellationToken));
+
             Assert.Equal(
                 ["original", "winner"],
                 await ReadNamesAsync(verificationContext.Items.TemporalAll(), cancellationToken));
@@ -203,6 +211,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(temporalContext, emptyContext),
             cancellationToken);
+
         await AssertRemovedAsync(connection, cancellationToken);
     }
 
@@ -223,6 +232,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(emptyContext, nonTemporalContext),
             cancellationToken);
+
         await AssertNonTemporalContractAsync(connection, cancellationToken);
 
         await ExecuteOperationsAsync(
@@ -230,6 +240,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(nonTemporalContext, temporalContext),
             cancellationToken);
+
         await AssertPhysicalContractAsync(connection, target, cancellationToken);
         await WriteVersionsAsync(temporalContext, cancellationToken);
         await AssertTemporalQueriesAsync(target, cancellationToken);
@@ -240,6 +251,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(temporalContext, nonTemporalContext),
             cancellationToken);
+
         await AssertNonTemporalContractAsync(connection, cancellationToken);
 
         await ExecuteOperationsAsync(
@@ -247,6 +259,7 @@ public sealed class TemporalTableIntegrationTests
             connection,
             GetDifferences(nonTemporalContext, emptyContext),
             cancellationToken);
+
         await AssertRemovedAsync(connection, cancellationToken);
     }
 
@@ -282,15 +295,12 @@ public sealed class TemporalTableIntegrationTests
     {
         // Arrange
         await using var context = CreateTemporalContext(target);
-        var expectedVersions = new[]
-        {
-            "version-1",
-            "version-2",
-        };
+        var expectedVersions = new[] { "version-1", "version-2" };
 
         // Act
         var versions = await context
-            .Items.TemporalAll()
+            .Items
+            .TemporalAll()
             .Select(item => new
             {
                 item.Name,
@@ -344,10 +354,17 @@ public sealed class TemporalTableIntegrationTests
             cancellationToken);
 
         var allVersions = await ReadNamesAsync(context.Items.TemporalAll(), cancellationToken);
-        var versionCount = await context.Items.TemporalAll().CountAsync(cancellationToken: cancellationToken);
-        var secondVersionExists = await context.Items.TemporalAll().AnyAsync(
-            item => item.Name == "version-2",
-            cancellationToken: cancellationToken);
+        var versionCount = await context
+            .Items
+            .TemporalAll()
+            .CountAsync(cancellationToken: cancellationToken);
+
+        var secondVersionExists = await context
+            .Items
+            .TemporalAll()
+            .AnyAsync(
+                item => item.Name == "version-2",
+                cancellationToken: cancellationToken);
 
         var currentItems = await context.Items.ToListAsync(cancellationToken: cancellationToken);
 
@@ -356,6 +373,7 @@ public sealed class TemporalTableIntegrationTests
             versions,
             version => Assert.Equal("version-1", version.Name),
             version => Assert.Equal("version-2", version.Name));
+
         Assert.True(firstFrom < firstTo);
         Assert.Equal(firstTo, secondFrom);
         Assert.True(secondFrom < secondTo);
@@ -393,13 +411,15 @@ public sealed class TemporalTableIntegrationTests
         var interceptor = new CommandCancellationProbeInterceptor();
 
         await using var context = CreateTemporalContext(target, interceptor);
+
         // WHY: Keep the deliberate probe token distinct while honoring cancellation from its caller.
         using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var probeCancellationToken = cancellationSource.Token;
 
         // Act
         var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => context
-            .Items.TemporalAll()
+            .Items
+            .TemporalAll()
             .CountAsync(probeCancellationToken));
 
         // Assert
@@ -420,7 +440,7 @@ public sealed class TemporalTableIntegrationTests
         var databaseOptions = new DatabaseModelFactoryOptions(
             [
                 TableName,
-                HistoryTableName
+                HistoryTableName,
             ],
             Array.Empty<string>());
 
@@ -436,10 +456,12 @@ public sealed class TemporalTableIntegrationTests
         Assert.True(
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
                 ?.Value as bool?);
+
         Assert.Equal(
             PeriodStartColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)
                 ?.Value);
+
         Assert.Equal(
             PeriodEndColumnName,
             sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
@@ -451,6 +473,7 @@ public sealed class TemporalTableIntegrationTests
                 HistoryTableName,
                 sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)
                     ?.Value);
+
             Assert.Equal(
                 TestDatabaseName,
                 sourceTable.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistorySchema)
@@ -532,7 +555,9 @@ public sealed class TemporalTableIntegrationTests
                 ("@tableName", TableName),
                 ("@periodStart", PeriodStartColumnName),
                 ("@periodEnd", PeriodEndColumnName),
-                ("@dataType", IsMySql(target) ? "datetime" : "timestamp")));
+                ("@dataType", IsMySql(target)
+                    ? "datetime"
+                    : "timestamp")));
 
         if (IsMySql(target))
         {
@@ -544,6 +569,7 @@ public sealed class TemporalTableIntegrationTests
             Assert.Equal(
                 await CountColumnsAsync(connection, TableName, cancellationToken),
                 await CountColumnsAsync(connection, HistoryTableName, cancellationToken));
+
             Assert.Equal(
                 3,
                 await CountAsync(
@@ -632,6 +658,7 @@ public sealed class TemporalTableIntegrationTests
                 ("@tableName", TableName),
                 ("@periodStart", PeriodStartColumnName),
                 ("@periodEnd", PeriodEndColumnName)));
+
         Assert.Equal(
             0,
             await CountAsync(
@@ -674,11 +701,13 @@ public sealed class TemporalTableIntegrationTests
     {
         var sourceModel = source
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         var targetModel = target
             .GetService<IDesignTimeModel>()
-            .Model.GetRelationalModel();
+            .Model
+            .GetRelationalModel();
 
         return target
             .GetService<IMigrationsModelDiffer>()
@@ -694,9 +723,11 @@ public sealed class TemporalTableIntegrationTests
             TestDatabaseName,
             new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetBaseConnectionString(target)).Database);
 
-        var optionsBuilder = IntegrationTestDbContextOptions.Create<TemporalContext>().UseMySql(
-            IntegrationTestEnvironment.GetBaseConnectionString(target),
-            IntegrationTestEnvironment.GetServerVersion(target));
+        var optionsBuilder = IntegrationTestDbContextOptions
+            .Create<TemporalContext>()
+            .UseMySql(
+                IntegrationTestEnvironment.GetBaseConnectionString(target),
+                IntegrationTestEnvironment.GetServerVersion(target));
 
         if (interceptors.Length > 0)
         {
@@ -710,7 +741,9 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<NonTemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<NonTemporalContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetBaseConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -722,7 +755,9 @@ public sealed class TemporalTableIntegrationTests
         IntegrationDatabaseTarget target
     )
     {
-        var options = IntegrationTestDbContextOptions.Create<EmptyTemporalContext>().UseMySql(
+        var options = IntegrationTestDbContextOptions
+            .Create<EmptyTemporalContext>()
+            .UseMySql(
                 IntegrationTestEnvironment.GetBaseConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
             .Options;
@@ -777,7 +812,8 @@ public sealed class TemporalTableIntegrationTests
 
     private static bool IsMySql(
         IntegrationDatabaseTarget target
-    ) => !IntegrationTestEnvironment.GetServerVersion(target).IsMariaDb;
+    ) => !IntegrationTestEnvironment.GetServerVersion(target)
+        .IsMariaDb;
 
     /// <summary>Counts the columns in the current database.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -831,7 +867,7 @@ public sealed class TemporalTableIntegrationTests
                   AND TABLE_NAME = @tableName;
                 """,
                 cancellationToken,
-                [("@tableName", tableName)]));
+                ("@tableName", tableName)));
     }
 
     /// <summary>Reads the table engine from the current database.</summary>
@@ -852,7 +888,7 @@ public sealed class TemporalTableIntegrationTests
                   AND TABLE_NAME = @tableName;
                 """,
                 cancellationToken,
-                [("@tableName", tableName)]));
+                ("@tableName", tableName)));
     }
 
     /// <summary>Executes the scalar with the caller's cancellation token.</summary>
@@ -898,7 +934,38 @@ public sealed class TemporalTableIntegrationTests
     private static DateTime GetMidpoint(
         DateTime from,
         DateTime to
-    ) => new(from.Ticks + ((to.Ticks - from.Ticks) / 2), DateTimeKind.Utc);
+    ) => new(from.Ticks + (to.Ticks - from.Ticks) / 2, DateTimeKind.Utc);
+
+    private static void ConfigureTemporalItem(
+        ModelBuilder modelBuilder,
+        bool temporal
+    )
+    {
+        modelBuilder.Entity<TemporalItem>(entity =>
+        {
+            if (temporal)
+            {
+                entity.ToTable(
+                    TableName,
+                    table => table.IsTemporal(temporalTable =>
+                    {
+                        temporalTable.UseHistoryTable(HistoryTableName, TestDatabaseName);
+                        temporalTable.HasPeriodStart(PeriodStartColumnName);
+                        temporalTable.HasPeriodEnd(PeriodEndColumnName);
+                    }));
+            }
+            else
+            {
+                entity.ToTable(TableName);
+            }
+
+            entity.HasKey(item => item.Id);
+            entity
+                .Property(item => item.Name)
+                .HasMaxLength(64)
+                .IsConcurrencyToken();
+        });
+    }
 
     private sealed class TemporalItem
     {
@@ -941,36 +1008,5 @@ public sealed class TemporalTableIntegrationTests
         public EmptyTemporalContext(
             DbContextOptions<EmptyTemporalContext> options
         ) : base(options) { }
-    }
-
-    private static void ConfigureTemporalItem(
-        ModelBuilder modelBuilder,
-        bool temporal
-    )
-    {
-        modelBuilder.Entity<TemporalItem>(entity =>
-        {
-            if (temporal)
-            {
-                entity.ToTable(
-                    TableName,
-                    table => table.IsTemporal(temporalTable =>
-                    {
-                        temporalTable.UseHistoryTable(HistoryTableName, TestDatabaseName);
-                        temporalTable.HasPeriodStart(PeriodStartColumnName);
-                        temporalTable.HasPeriodEnd(PeriodEndColumnName);
-                    }));
-            }
-            else
-            {
-                entity.ToTable(TableName);
-            }
-
-            entity.HasKey(item => item.Id);
-            entity
-                .Property(item => item.Name)
-                .HasMaxLength(64)
-                .IsConcurrencyToken();
-        });
     }
 }

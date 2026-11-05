@@ -16,9 +16,12 @@ public sealed partial class AdrRepositoryValidatorTests
     {
         // Arrange
         var path = Path.Combine(FindRepositoryRoot(), ".github", "workflows", "benchmark.yml");
-        var workflow = File.ReadAllText(path).Replace(
-            "DOKA_BENCHMARK_EVALUATION: allocations-only",
-            $"DOKA_BENCHMARK_EVALUATION: {replacement}", StringComparison.Ordinal);
+        var workflow = File
+            .ReadAllText(path)
+            .Replace(
+                "DOKA_BENCHMARK_EVALUATION: allocations-only",
+                $"DOKA_BENCHMARK_EVALUATION: {replacement}",
+                StringComparison.Ordinal);
 
         // Act
         var errors = EngineeringSurfaceContract.ValidateHostedBenchmarkWorkflow(workflow);
@@ -43,6 +46,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "reports=\"${root}/${target}/reports/${run_id}\"",
             benchmarkGateScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "arguments=(--evaluate \"${contract}\" \"${reports}\" \"${target}\" \"${profile}\")",
             benchmarkGateScript,
@@ -65,20 +69,24 @@ public sealed partial class AdrRepositoryValidatorTests
             "\"${compose[@]}\" ps -q \"${target}\"",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "compose=(docker compose -p \"${compose_project}\"",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains("DOKA_BENCHMARK_DATABASE_PORT", benchmarkScript, StringComparison.Ordinal);
         Assert.Contains("down --volumes --remove-orphans", benchmarkScript, StringComparison.Ordinal);
         Assert.Contains(
             "docker inspect --format '{{.Config.Image}}'",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "actual_image=\"$(docker inspect --format '{{.Config.Image}}' \"${container}\")\"",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "source \"${repo_root}/eng/performance/host-preflight.sh\"",
             benchmarkScript,
@@ -101,6 +109,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "require_benchmark_host_headroom()",
             hostPreflightScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "maximumCpuUtilization",
             hostPreflightScript,
@@ -122,10 +131,12 @@ public sealed partial class AdrRepositoryValidatorTests
             "filters=(--filter '*ProviderWorkloadBenchmarks*')",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "dotnet \"${benchmark_assembly}\" \"${filters[@]}\" --artifacts \"${report_directory}\"",
             benchmarkScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "dotnet \"${benchmark_assembly}\" \"${gate_arguments[@]}\"",
             benchmarkScript,
@@ -179,6 +190,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "[ParamsSource(nameof(WorkloadIds))]",
             workloadBenchmarks,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "PerformanceWorkloadCatalog.Create()",
             workloadBenchmarks,
@@ -244,8 +256,10 @@ public sealed partial class AdrRepositoryValidatorTests
 
         var reportDirectory = NormalizeBenchmarkPathTemplate(
             ExtractQuotedAssignment(
-                benchmarkScript.Split('\n').Single(static line =>
-                    line.StartsWith("report_directory=", StringComparison.Ordinal))));
+                benchmarkScript
+                    .Split('\n')
+                    .Single(static line =>
+                        line.StartsWith("report_directory=", StringComparison.Ordinal))));
 
         var diagnosticPaths = workflow
             .Split('\n')

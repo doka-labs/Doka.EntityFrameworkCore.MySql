@@ -50,19 +50,35 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         Assert.Equal(
             """{"kind":"element","value":1}""",
-            Assert.IsType<JsonElement>(seed[nameof(ProviderConverterDesignRecord.Element)]).GetRawText());
+            Assert
+                .IsType<JsonElement>(seed[nameof(ProviderConverterDesignRecord.Element)])
+                .GetRawText());
+
         Assert.Equal(
             """{"kind":"document","value":2}""",
-            Assert.IsType<JsonDocument>(seed[nameof(ProviderConverterDesignRecord.Document)]).RootElement.GetRawText());
+            Assert
+                .IsType<JsonDocument>(seed[nameof(ProviderConverterDesignRecord.Document)])
+                .RootElement
+                .GetRawText());
+
         Assert.Equal(
             """{"kind":"node","value":3}""",
-            Assert.IsAssignableFrom<JsonNode>(seed[nameof(ProviderConverterDesignRecord.Node)]).ToJsonString());
+            Assert
+                .IsAssignableFrom<JsonNode>(seed[nameof(ProviderConverterDesignRecord.Node)])
+                .ToJsonString());
+
         Assert.Equal(
             """{"kind":"object","value":4}""",
-            Assert.IsType<JsonObject>(seed[nameof(ProviderConverterDesignRecord.ObjectValue)]).ToJsonString());
+            Assert
+                .IsType<JsonObject>(seed[nameof(ProviderConverterDesignRecord.ObjectValue)])
+                .ToJsonString());
+
         Assert.Equal(
             """["array",5,true]""",
-            Assert.IsType<JsonArray>(seed[nameof(ProviderConverterDesignRecord.Array)]).ToJsonString());
+            Assert
+                .IsType<JsonArray>(seed[nameof(ProviderConverterDesignRecord.Array)])
+                .ToJsonString());
+
         Assert.Equal(
             MySqlBytesToDateTimeConverter.ToBytes(s_providerRowVersion),
             Assert.IsType<byte[]>(seed[nameof(ProviderConverterDesignRecord.Version)]));
@@ -76,19 +92,34 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         Assert.Equal(
             """{"kind":"element","value":1}""",
-            Assert.IsType<string>(GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Element)).Single()));
+            Assert.IsType<string>(
+                GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Element))
+                    .Single()));
+
         Assert.Equal(
             """{"kind":"document","value":2}""",
-            Assert.IsType<string>(GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Document)).Single()));
+            Assert.IsType<string>(
+                GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Document))
+                    .Single()));
+
         Assert.Equal(
             """{"kind":"node","value":3}""",
-            Assert.IsType<string>(GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Node)).Single()));
+            Assert.IsType<string>(
+                GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Node))
+                    .Single()));
+
         Assert.Equal(
             """{"kind":"object","value":4}""",
-            Assert.IsType<string>(GetColumnValues(insert, nameof(ProviderConverterDesignRecord.ObjectValue)).Single()));
+            Assert.IsType<string>(
+                GetColumnValues(insert, nameof(ProviderConverterDesignRecord.ObjectValue))
+                    .Single()));
+
         Assert.Equal(
             """["array",5,true]""",
-            Assert.IsType<string>(GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Array)).Single()));
+            Assert.IsType<string>(
+                GetColumnValues(insert, nameof(ProviderConverterDesignRecord.Array))
+                    .Single()));
+
         Assert.DoesNotContain(nameof(ProviderConverterDesignRecord.Version), insert.Columns);
     }
 
@@ -100,28 +131,48 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         Assert.Equal(
             """{"kind":"default-element"}""",
-            Assert.IsType<JsonElement>(
-                    entityType?.FindProperty(nameof(ProviderConverterDesignRecord.Element))?.GetDefaultValue())
+            Assert
+                .IsType<JsonElement>(
+                    entityType
+                        ?.FindProperty(nameof(ProviderConverterDesignRecord.Element))
+                        ?.GetDefaultValue())
                 .GetRawText());
+
         Assert.Equal(
             """{"kind":"default-document"}""",
-            Assert.IsType<JsonDocument>(
-                    entityType?.FindProperty(nameof(ProviderConverterDesignRecord.Document))?.GetDefaultValue())
-                .RootElement.GetRawText());
+            Assert
+                .IsType<JsonDocument>(
+                    entityType
+                        ?.FindProperty(nameof(ProviderConverterDesignRecord.Document))
+                        ?.GetDefaultValue())
+                .RootElement
+                .GetRawText());
+
         Assert.Equal(
             """{"kind":"default-node"}""",
-            Assert.IsAssignableFrom<JsonNode>(
-                    entityType?.FindProperty(nameof(ProviderConverterDesignRecord.Node))?.GetDefaultValue())
+            Assert
+                .IsAssignableFrom<JsonNode>(
+                    entityType
+                        ?.FindProperty(nameof(ProviderConverterDesignRecord.Node))
+                        ?.GetDefaultValue())
                 .ToJsonString());
+
         Assert.Equal(
             """{"kind":"default-object"}""",
-            Assert.IsType<JsonObject>(
-                    entityType?.FindProperty(nameof(ProviderConverterDesignRecord.ObjectValue))?.GetDefaultValue())
+            Assert
+                .IsType<JsonObject>(
+                    entityType
+                        ?.FindProperty(nameof(ProviderConverterDesignRecord.ObjectValue))
+                        ?.GetDefaultValue())
                 .ToJsonString());
+
         Assert.Equal(
             """["default-array"]""",
-            Assert.IsType<JsonArray>(
-                    entityType?.FindProperty(nameof(ProviderConverterDesignRecord.Array))?.GetDefaultValue())
+            Assert
+                .IsType<JsonArray>(
+                    entityType
+                        ?.FindProperty(nameof(ProviderConverterDesignRecord.Array))
+                        ?.GetDefaultValue())
                 .ToJsonString());
     }
 
@@ -132,15 +183,19 @@ public sealed partial class MySqlDesignTimeRoundTripTests
         Assert.Equal(
             """{"kind":"default-element"}""",
             Assert.IsType<string>(columns[nameof(ProviderConverterDesignRecord.Element)].DefaultValue));
+
         Assert.Equal(
             """{"kind":"default-document"}""",
             Assert.IsType<string>(columns[nameof(ProviderConverterDesignRecord.Document)].DefaultValue));
+
         Assert.Equal(
             """{"kind":"default-node"}""",
             Assert.IsType<string>(columns[nameof(ProviderConverterDesignRecord.Node)].DefaultValue));
+
         Assert.Equal(
             """{"kind":"default-object"}""",
             Assert.IsType<string>(columns[nameof(ProviderConverterDesignRecord.ObjectValue)].DefaultValue));
+
         Assert.Equal(
             """["default-array"]""",
             Assert.IsType<string>(columns[nameof(ProviderConverterDesignRecord.Array)].DefaultValue));

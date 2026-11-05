@@ -21,13 +21,20 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        var query = context.Set<VersionedUuidEntity>().AsNoTracking()
-            .Where(entity => entity.Id >= 3).OrderBy(entity => entity.Id).Select(entity => entity.NativeId);
+        var query = context
+            .Set<VersionedUuidEntity>()
+            .AsNoTracking()
+            .Where(entity => entity.Id >= 3)
+            .OrderBy(entity => entity.Id)
+            .Select(entity => entity.NativeId);
 
         // Act
-        var actual = await query.ToArrayAsync(CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .ToArrayAsync(CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal([s_v7First, s_v7Last], actual);
@@ -46,14 +53,19 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        var query = context.Set<VersionedUuidEntity>().AsNoTracking();
+        var query = context
+            .Set<VersionedUuidEntity>()
+            .AsNoTracking();
 
         // Act
-        var actual = await query.SingleAsync(
-            entity => entity.NativeId == s_v7Last,
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync(
+                entity => entity.NativeId == s_v7Last,
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(4, actual.Id);
@@ -72,15 +84,22 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var membership = s_v7Membership;
-        var query = context.Set<VersionedUuidEntity>().AsNoTracking();
+        var query = context
+            .Set<VersionedUuidEntity>()
+            .AsNoTracking();
 
         // Act
-        var actual = await query.SingleAsync(
-            entity => EF.Parameter(membership).Contains(entity.NativeId),
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync(
+                entity => EF
+                    .Parameter(membership)
+                    .Contains(entity.NativeId),
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(4, actual.Id);
@@ -99,12 +118,16 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         // Act
-        var actual = await context.Set<VersionedUuidEntity>().AnyAsync(
-            entity => entity.NativeId == Guid.Empty,
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await context
+            .Set<VersionedUuidEntity>()
+            .AnyAsync(
+                entity => entity.NativeId == Guid.Empty,
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.False(actual);
@@ -124,18 +147,29 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var testCase = s_versionedOrderCases.Single(item => item.Name == scenario);
         var columnName = testCase.Column;
         var rows = testCase.FirstId == 1
-            ? context.Set<VersionedUuidEntity>().AsNoTracking().Where(entity => entity.Id <= 2)
-            : context.Set<VersionedUuidEntity>().AsNoTracking().Where(entity => entity.Id >= 3);
+            ? context
+                .Set<VersionedUuidEntity>()
+                .AsNoTracking()
+                .Where(entity => entity.Id <= 2)
+            : context
+                .Set<VersionedUuidEntity>()
+                .AsNoTracking()
+                .Where(entity => entity.Id >= 3);
 
-        var query = rows.OrderBy(entity => EF.Property<Guid>(entity, columnName)).Select(entity => entity.Id);
+        var query = rows
+            .OrderBy(entity => EF.Property<Guid>(entity, columnName))
+            .Select(entity => entity.Id);
 
         // Act
-        var actual = await query.ToArrayAsync(CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .ToArrayAsync(CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(testCase.ExpectedIds, actual);
@@ -155,33 +189,30 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateVersionedContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         var connection = (MySqlConnection)context.Database.GetDbConnection();
         var testCase = s_versionedOrderCases.Single(item => item.Name == scenario);
 
         // Act
         var actual = await ReadFirstIdAfterAsync(
-            connection,
-            testCase.Column,
-            testCase.FirstId,
-            testCase.LastId,
-            testCase.Pivot,
-            CancellationToken.None).ConfigureAwait(false);
+                connection,
+                testCase.Column,
+                testCase.FirstId,
+                testCase.LastId,
+                testCase.Pivot,
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(testCase.ExpectedNextId, actual);
     }
-
-    private sealed record VersionedOrderCase(
-        string Name,
-        string Column,
-        int FirstId,
-        int LastId,
-        int[] ExpectedIds,
-        Guid Pivot,
-        int? ExpectedNextId);
 
     /// <summary>Captures raw range semantics without routing through Guid.CompareTo translation.</summary>
     /// <param name="connection">The open database connection.</param>
@@ -200,13 +231,16 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     )
     {
         await using var command = connection.CreateCommand();
+
         // The server owns UUID ordering. Raw SQL isolates its range semantics
         // from Guid.CompareTo translation, which is not part of this feature.
         command.CommandText = $"SELECT `Id` FROM `{VersionedTable}` "
             + $"WHERE `Id` BETWEEN @firstId AND @lastId AND `{columnName}` > @pivot "
             + $"ORDER BY `{columnName}` LIMIT 1;";
+
         command.Parameters.AddWithValue("@firstId", firstId);
         command.Parameters.AddWithValue("@lastId", lastId);
+
         // The connector must bind Binary16 as Guid, but native UUID as text.
         // A text pivot against Binary16 would test coercion instead of key order.
         if (columnName == "BinaryId")
@@ -218,8 +252,22 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             command.Parameters.AddWithValue("@pivot", pivot.ToString("D", CultureInfo.InvariantCulture));
         }
 
-        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var value = await command
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        return value is null ? null : Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        return value is null
+            ? null
+            : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }
+
+    private sealed record VersionedOrderCase(
+        string Name,
+        string Column,
+        int FirstId,
+        int LastId,
+        int[] ExpectedIds,
+        Guid Pivot,
+        int? ExpectedNextId
+    );
 }

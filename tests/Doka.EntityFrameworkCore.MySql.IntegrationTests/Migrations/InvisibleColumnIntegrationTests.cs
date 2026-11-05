@@ -58,13 +58,15 @@ public sealed class InvisibleColumnIntegrationTests
                 connectionString,
                 GetDifferences(empty, withoutColumn),
                 cancellationToken);
+
             await InsertRecordAsync(connectionString, cancellationToken);
 
             var addColumn = Assert.Single(
                 GetDifferences(withoutColumn, invisible)
                     .OfType<AddColumnOperation>());
 
-            var addedInvisibleAnnotation = addColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
+            var addedInvisibleAnnotation = addColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value;
 
             await ExecuteOperationsAsync(invisible, connectionString, [addColumn], cancellationToken);
 
@@ -76,8 +78,11 @@ public sealed class InvisibleColumnIntegrationTests
                 GetDifferences(invisible, visible)
                     .OfType<AlterColumnOperation>());
 
-            var visibleAnnotation = makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
-            var oldInvisibleAnnotation = makeVisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
+            var visibleAnnotation = makeVisible.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value;
+
+            var oldInvisibleAnnotation = makeVisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value;
 
             await ExecuteOperationsAsync(visible, connectionString, [makeVisible], cancellationToken);
 
@@ -88,8 +93,11 @@ public sealed class InvisibleColumnIntegrationTests
                 GetDifferences(visible, invisible)
                     .OfType<AlterColumnOperation>());
 
-            var invisibleAnnotation = makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
-            var oldVisibleAnnotation = makeInvisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value;
+            var invisibleAnnotation = makeInvisible.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value;
+
+            var oldVisibleAnnotation = makeInvisible.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value;
 
             await ExecuteOperationsAsync(invisible, connectionString, [makeInvisible], cancellationToken);
 
@@ -187,6 +195,7 @@ public sealed class InvisibleColumnIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT EXTRA FROM information_schema.columns "
             + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column;";
+
         command.Parameters.AddWithValue("@table", TableName);
         command.Parameters.AddWithValue("@column", nameof(InvisibleColumnRecord.InternalData));
 

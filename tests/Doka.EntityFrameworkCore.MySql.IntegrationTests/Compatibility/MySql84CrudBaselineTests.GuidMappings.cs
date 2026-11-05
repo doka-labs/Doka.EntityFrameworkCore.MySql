@@ -19,7 +19,8 @@ public sealed partial class MySql84CrudBaselineTests
             await using var context = new GuidRoundtripContext(CreateGuidRoundtripOptions(connectionString));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{BinaryGuidTableName}` (
                          `Id` binary(16) NOT NULL,
@@ -59,13 +60,15 @@ public sealed partial class MySql84CrudBaselineTests
             context.ChangeTracker.Clear();
 
             var loadedBinary = await context
-                .BinaryGuidEntities.SingleAsync(
+                .BinaryGuidEntities
+                .SingleAsync(
                     entity => entity.Id == binaryEntity.Id,
                     CancellationToken.None)
                 .ConfigureAwait(false);
 
             var loadedChar = await context
-                .CharGuidEntities.SingleAsync(
+                .CharGuidEntities
+                .SingleAsync(
                     entity => entity.Id == charEntity.Id,
                     CancellationToken.None)
                 .ConfigureAwait(false);

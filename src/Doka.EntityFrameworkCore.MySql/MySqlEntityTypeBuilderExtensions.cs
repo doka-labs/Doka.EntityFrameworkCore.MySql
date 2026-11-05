@@ -10,7 +10,7 @@ public static class MySqlEntityTypeBuilderExtensions
     /// </summary>
     /// <param name="entityTypeBuilder">The entity-type builder.</param>
     /// <param name="charSet">The table character set.</param>
-    /// <returns>The same <see cref="EntityTypeBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="EntityTypeBuilder" /> instance.</returns>
     public static EntityTypeBuilder HasCharSet(
         this EntityTypeBuilder entityTypeBuilder,
         string charSet
@@ -30,7 +30,7 @@ public static class MySqlEntityTypeBuilderExtensions
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="entityTypeBuilder">The entity-type builder.</param>
     /// <param name="charSet">The table character set.</param>
-    /// <returns>The same <see cref="EntityTypeBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="EntityTypeBuilder{TEntity}" /> instance.</returns>
     public static EntityTypeBuilder<TEntity> HasCharSet<TEntity>(
         this EntityTypeBuilder<TEntity> entityTypeBuilder,
         string charSet
@@ -49,7 +49,7 @@ public static class MySqlEntityTypeBuilderExtensions
     /// </summary>
     /// <param name="entityTypeBuilder">The entity-type builder.</param>
     /// <param name="engine">The storage engine.</param>
-    /// <returns>The same <see cref="EntityTypeBuilder"/> instance.</returns>
+    /// <returns>The same <see cref="EntityTypeBuilder" /> instance.</returns>
     public static EntityTypeBuilder UseStorageEngine(
         this EntityTypeBuilder entityTypeBuilder,
         string engine
@@ -69,7 +69,7 @@ public static class MySqlEntityTypeBuilderExtensions
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="entityTypeBuilder">The entity-type builder.</param>
     /// <param name="engine">The storage engine.</param>
-    /// <returns>The same <see cref="EntityTypeBuilder{TEntity}"/> instance.</returns>
+    /// <returns>The same <see cref="EntityTypeBuilder{TEntity}" /> instance.</returns>
     public static EntityTypeBuilder<TEntity> UseStorageEngine<TEntity>(
         this EntityTypeBuilder<TEntity> entityTypeBuilder,
         string engine

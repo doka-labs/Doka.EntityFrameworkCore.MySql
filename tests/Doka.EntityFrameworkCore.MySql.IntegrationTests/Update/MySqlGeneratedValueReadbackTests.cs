@@ -77,37 +77,55 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task SignedLongKeysKeepTheirFullWidth() =>
         AssertGeneratedValuesAsync<long, StandardMode>(
-            IntegrationDatabaseTarget.MySql84, 64, value => long.MaxValue - value, CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            value => long.MaxValue - value,
+            CancellationToken.None);
 
     /// <summary>Correlates unsigned keys above the signed 64-bit range.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task UnsignedLongKeysKeepTheirFullWidth() =>
         AssertGeneratedValuesAsync<ulong, StandardMode>(
-            IntegrationDatabaseTarget.MySql84, 64, value => ulong.MaxValue - (ulong)value, CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            value => ulong.MaxValue - (ulong)value,
+            CancellationToken.None);
 
     /// <summary>Correlates supplied binary GUID keys through the installed type mapping.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task SuppliedBinaryGuidKeysRemainCorrelated() =>
         AssertGeneratedValuesAsync<Guid, StandardMode>(
-            IntegrationDatabaseTarget.MySql84, 64, CreateGuid, CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            CreateGuid,
+            CancellationToken.None);
 
     /// <summary>Correlates supplied character GUID keys through their value converter.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task SuppliedCharacterGuidKeysRemainCorrelated() =>
         AssertGeneratedValuesAsync<Guid, CharacterGuidMode>(
-            IntegrationDatabaseTarget.MySql84, 64, CreateGuid, CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            CreateGuid,
+            CancellationToken.None);
 
     /// <summary>Uses provider values when a key has a custom CLR value converter.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task ConvertedKeysRemainCorrelated() =>
         AssertGeneratedValuesAsync<StoredKey, StandardMode>(
-            IntegrationDatabaseTarget.MySql84, 64, value => new StoredKey(value), CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            value => new StoredKey(value),
+            CancellationToken.None);
 
     /// <summary>Reads composite shadow keys with the column's native comparison rules.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public Task CompositeShadowKeysUseNativeCollation() =>
         AssertGeneratedValuesAsync<long, ShadowCompositeMode>(
-            IntegrationDatabaseTarget.MySql84, 64, value => value, CancellationToken.None);
+            IntegrationDatabaseTarget.MySql84,
+            64,
+            value => value,
+            CancellationToken.None);
 
     /// <summary>Observes one save and its persisted readback without mixing assertions into either step.</summary>
     /// <typeparam name="TKey">The supplied key representation.</typeparam>
@@ -121,14 +139,20 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         int count,
         Func<int, TKey> keyFactory,
         CancellationToken cancellationToken
-    ) where TKey : notnull
+    )
+        where TKey : notnull
     {
         // Arrange
         var capture = new ReadbackCapture();
         await using var context = CreateContext<TKey, TMode>(target, capture);
         await RecreateTableAsync(context, cancellationToken);
-        var rows = Enumerable.Range(1, count)
-            .Select(value => new GeneratedRow<TKey> { Id = keyFactory(value), Input = value })
+        var rows = Enumerable
+            .Range(1, count)
+            .Select(value => new GeneratedRow<TKey>
+            {
+                Id = keyFactory(value),
+                Input = value,
+            })
             .Reverse()
             .ToArray();
 
@@ -141,12 +165,21 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         capture.Enabled = false;
         var saveSql = capture.Commands.ToArray();
 
-        var persisted = await context.Rows.AsNoTracking().OrderBy(row => row.Input)
+        var persisted = await context
+            .Rows
+            .AsNoTracking()
+            .OrderBy(row => row.Input)
             .ToListAsync(cancellationToken);
 
         var scopes = typeof(TMode) == typeof(ShadowCompositeMode)
-            ? await context.Rows.AsNoTracking()
-                .Select(row => new { row.Input, Scope = EF.Property<string>(row, "Tenant") })
+            ? await context
+                .Rows
+                .AsNoTracking()
+                .Select(row => new
+                {
+                    row.Input,
+                    Scope = EF.Property<string>(row, "Tenant"),
+                })
                 .ToListAsync(cancellationToken)
             : null;
 
@@ -157,18 +190,27 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         Assert.All(persisted, AssertGenerated);
         if (typeof(TMode) != typeof(ShadowCompositeMode))
         {
-            Assert.Equal(rows.OrderBy(row => row.Input).Select(row => row.Id), persisted.Select(row => row.Id));
+            Assert.Equal(
+                rows
+                    .OrderBy(row => row.Input)
+                    .Select(row => row.Id),
+                persisted.Select(row => row.Id));
         }
 
         if (scopes is not null)
         {
-            Assert.All(scopes, stored =>
-            {
-                var supplied = (string)context.Entry(rows.Single(row => row.Input == stored.Input))
-                    .Property("Tenant").CurrentValue!;
-                Assert.Equal(supplied.TrimEnd(' '), stored.Scope);
-                Assert.NotEqual(supplied, stored.Scope);
-            });
+            Assert.All(
+                scopes,
+                stored =>
+                {
+                    var supplied = (string)context
+                        .Entry(rows.Single(row => row.Input == stored.Input))
+                        .Property("Tenant")
+                        .CurrentValue!;
+
+                    Assert.Equal(supplied.TrimEnd(' '), stored.Scope);
+                    Assert.NotEqual(supplied, stored.Scope);
+                });
         }
 
         var expectedGroups = (count + 999) / 1000;
@@ -186,19 +228,32 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         }
     }
 
-    private static void AssertGenerated<TKey>(GeneratedRow<TKey> row) where TKey : notnull
+    private static void AssertGenerated<TKey>(
+        GeneratedRow<TKey> row
+    )
+        where TKey : notnull
     {
         // WHY: Constant outputs alone cannot reveal an ordinal or key permutation.
-        Assert.Equal((row.Input * 17L) + 3L, row.Stamp);
+        Assert.Equal(row.Input * 17L + 3L, row.Stamp);
         Assert.Equal(row.Input % 2 == 0, row.IsEven);
-        Assert.Equal(row.Input % 3 == 0 ? null : $"v{row.Input}", row.NullableValue);
+        Assert.Equal(
+            row.Input % 3 == 0
+                ? null
+                : $"v{row.Input}",
+            row.NullableValue);
+
         Assert.Equal("server-default", row.DefaultCode);
         Assert.Equal((ulong)row.Input * 31UL, row.Version);
     }
 
-    private static Guid CreateGuid(int value) => new(value, 0, 0, new byte[8]);
+    private static Guid CreateGuid(
+        int value
+    ) => new(value, 0, 0, new byte[8]);
 
-    private static int CountOccurrences(string text, string value)
+    private static int CountOccurrences(
+        string text,
+        string value
+    )
     {
         var count = 0;
         var offset = 0;

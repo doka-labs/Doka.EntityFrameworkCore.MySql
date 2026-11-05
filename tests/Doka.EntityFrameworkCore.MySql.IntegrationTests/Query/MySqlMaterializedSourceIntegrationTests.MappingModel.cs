@@ -17,13 +17,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 {
                     entity.ToTable(MappingTable);
                     entity.UseTptMappingStrategy();
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Value).HasMaxLength(64);
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
                 });
+
                 modelBuilder.Entity<TptLeaf>(entity =>
                 {
                     entity.ToTable(MappingExtraTable);
-                    entity.Property(node => node.Detail).HasMaxLength(64);
+                    entity
+                        .Property(node => node.Detail)
+                        .HasMaxLength(64);
                 });
             }
             else if (typeof(TNode) == typeof(TpcRoot))
@@ -31,26 +39,51 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 modelBuilder.Entity<TpcRoot>(entity =>
                 {
                     entity.UseTpcMappingStrategy();
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Value).HasMaxLength(64);
-                    entity.Property(node => node.Detail).HasMaxLength(64);
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
+
+                    entity
+                        .Property(node => node.Detail)
+                        .HasMaxLength(64);
                 });
-                modelBuilder.Entity<TpcFirst>().ToTable(MappingTable);
-                modelBuilder.Entity<TpcSecond>().ToTable(MappingExtraTable);
+
+                modelBuilder
+                    .Entity<TpcFirst>()
+                    .ToTable(MappingTable);
+
+                modelBuilder
+                    .Entity<TpcSecond>()
+                    .ToTable(MappingExtraTable);
             }
             else if (typeof(TNode) == typeof(SplitMappedItem))
             {
                 modelBuilder.Entity<SplitMappedItem>(entity =>
                 {
                     entity.ToTable(MappingTable);
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Value).HasMaxLength(64);
-                    entity.Property(node => node.Detail).HasMaxLength(64);
-                    entity.SplitToTable(MappingExtraTable, table =>
-                    {
-                        table.Property(node => node.Id);
-                        table.Property(node => node.Value);
-                    });
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
+
+                    entity
+                        .Property(node => node.Detail)
+                        .HasMaxLength(64);
+
+                    entity.SplitToTable(
+                        MappingExtraTable,
+                        table =>
+                        {
+                            table.Property(node => node.Id);
+                            table.Property(node => node.Value);
+                        });
                 });
             }
             else if (typeof(TNode) == typeof(SharedMappedDetail))
@@ -58,19 +91,38 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 modelBuilder.Entity<SharedMappedOwner>(entity =>
                 {
                     entity.ToTable(MappingTable);
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Payload).HasMaxLength(64);
-                    entity.HasOne(node => node.Details)
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Payload)
+                        .HasMaxLength(64);
+
+                    entity
+                        .HasOne(node => node.Details)
                         .WithOne()
                         .HasForeignKey<SharedMappedDetail>(node => node.Id);
-                    entity.Navigation(node => node.Details).IsRequired();
+
+                    entity
+                        .Navigation(node => node.Details)
+                        .IsRequired();
                 });
+
                 modelBuilder.Entity<SharedMappedDetail>(entity =>
                 {
                     entity.ToTable(MappingTable);
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Value).HasMaxLength(64);
-                    entity.Property(node => node.Detail).HasMaxLength(64);
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
+
+                    entity
+                        .Property(node => node.Detail)
+                        .HasMaxLength(64);
                 });
             }
             else if (typeof(TNode) == typeof(OwnedMappedItem))
@@ -78,13 +130,26 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 modelBuilder.Entity<OwnedMappedItem>(entity =>
                 {
                     entity.ToTable(MappingTable);
-                    entity.Property(node => node.Id).ValueGeneratedNever();
-                    entity.Property(node => node.Value).HasMaxLength(64);
-                    entity.OwnsOne(node => node.Contact, owned =>
-                    {
-                        owned.Property(contact => contact.Detail).HasMaxLength(64);
-                    });
-                    entity.Navigation(node => node.Contact).IsRequired();
+                    entity
+                        .Property(node => node.Id)
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
+
+                    entity.OwnsOne(
+                        node => node.Contact,
+                        owned =>
+                        {
+                            owned
+                                .Property(contact => contact.Detail)
+                                .HasMaxLength(64);
+                        });
+
+                    entity
+                        .Navigation(node => node.Contact)
+                        .IsRequired();
                 });
             }
             else if (typeof(TNode) == typeof(ShadowMappedItem))
@@ -92,11 +157,22 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 modelBuilder.Entity<ShadowMappedItem>(entity =>
                 {
                     entity.ToTable(MappingTable);
-                    entity.Property<int>("Id").ValueGeneratedNever();
-                    entity.Property<string>("Tenant").HasMaxLength(32);
+                    entity
+                        .Property<int>("Id")
+                        .ValueGeneratedNever();
+
+                    entity
+                        .Property<string>("Tenant")
+                        .HasMaxLength(32);
+
                     entity.HasKey("Tenant", "Id");
-                    entity.Property(node => node.Value).HasMaxLength(64);
-                    entity.Property(node => node.Detail).HasMaxLength(64);
+                    entity
+                        .Property(node => node.Value)
+                        .HasMaxLength(64);
+
+                    entity
+                        .Property(node => node.Detail)
+                        .HasMaxLength(64);
                 });
             }
         }

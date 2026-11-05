@@ -105,15 +105,18 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
         var offset = (SqlExpression?)remapper.Visit(outer.Offset);
         var limit = (SqlExpression?)remapper.Visit(outer.Limit);
         var groupBy = outer
-            .GroupBy.Select(expression => (SqlExpression)remapper.Visit(expression))
+            .GroupBy
+            .Select(expression => (SqlExpression)remapper.Visit(expression))
             .ToArray();
 
         var projections = outer
-            .Projection.Select(projection => projection.Update((SqlExpression)remapper.Visit(projection.Expression)))
+            .Projection
+            .Select(projection => projection.Update((SqlExpression)remapper.Visit(projection.Expression)))
             .ToArray();
 
         var orderings = outer
-            .Orderings.Select(ordering => ordering.Update((SqlExpression)remapper.Visit(ordering.Expression)))
+            .Orderings
+            .Select(ordering => ordering.Update((SqlExpression)remapper.Visit(ordering.Expression)))
             .ToArray();
 
         if (remapper.HasUnmappedReference)
@@ -184,7 +187,10 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
 
         return _sqlExpressionFactory.Equal(
             _sqlExpressionFactory.Constant(1),
-            _sqlExpressionFactory.Constant(constant ? 1 : 0));
+            _sqlExpressionFactory.Constant(
+                constant
+                    ? 1
+                    : 0));
     }
 
     private static Dictionary<string, SqlExpression>? CreateProjectionMap(
@@ -228,11 +234,8 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
     )
     {
         var setterExpressions = updateExpression
-            .ColumnValueSetters.SelectMany(static setter => new SqlExpression[]
-            {
-                setter.Column,
-                setter.Value,
-            })
+            .ColumnValueSetters
+            .SelectMany(static setter => new[] { setter.Column, setter.Value })
             .ToArray();
 
         var selectExpression = RewriteMutationTargetSelection(updateExpression.SelectExpression, setterExpressions);
@@ -268,7 +271,9 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
                 var exists = _sqlExpressionFactory.Exists(
                     (SelectExpression)inner!.Clone(alias: null, AliasRemovingCloningExpressionVisitor.Instance));
 
-                predicate = predicate is null ? exists : _sqlExpressionFactory.AndAlso(predicate, exists);
+                predicate = predicate is null
+                    ? exists
+                    : _sqlExpressionFactory.AndAlso(predicate, exists);
             }
         }
 
@@ -450,8 +455,7 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
     /// </summary>
     private sealed class AliasRemovingCloningExpressionVisitor : ExpressionVisitor
     {
-        public static AliasRemovingCloningExpressionVisitor Instance { get; } = new();
-
         private AliasRemovingCloningExpressionVisitor() { }
+        public static AliasRemovingCloningExpressionVisitor Instance { get; } = new();
     }
 }

@@ -14,10 +14,22 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var first = context.Nodes.Select(node => new { node.Id, Token = Guid.NewGuid() })
+        var first = context
+            .Nodes
+            .Select(node => new
+            {
+                node.Id,
+                Token = Guid.NewGuid(),
+            })
             .WithMaterializedSource(shared => shared);
 
-        var second = context.Nodes.Select(node => new { node.Id, Token = Guid.NewGuid() })
+        var second = context
+            .Nodes
+            .Select(node => new
+            {
+                node.Id,
+                Token = Guid.NewGuid(),
+            })
             .WithMaterializedSource(shared => shared);
 
         // Act
@@ -44,17 +56,30 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Nodes.Select(node => new { node.Id, node.Left });
+        var source = context.Nodes.Select(node => new
+        {
+            node.Id,
+            node.Left,
+        });
 
         // Act
-        var query = source.WithMaterializedSource(outer => context.Nodes
+        var query = source.WithMaterializedSource(outer => context
+            .Nodes
             .Where(node => node.Left > 3)
-            .Select(node => new { node.Id, node.Right })
+            .Select(node => new
+            {
+                node.Id,
+                node.Right,
+            })
             .WithMaterializedSource(inner => outer.Join(
                 inner,
                 first => first.Id,
                 second => second.Id,
-                (first, second) => new { first.Left, second.Right })));
+                (first, second) => new
+                {
+                    first.Left,
+                    second.Right,
+                })));
 
         var sql = query.ToQueryString();
 
@@ -78,7 +103,11 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Nodes.Select(node => new { node.Id, node.Left });
+        var source = context.Nodes.Select(node => new
+        {
+            node.Id,
+            node.Left,
+        });
 
         // Act
         var query = source.WithMaterializedSource(outer => outer
@@ -87,7 +116,11 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
                 inner,
                 first => first.Id,
                 second => second.Id,
-                (first, second) => new { First = first.Left, Second = second.Left })));
+                (first, second) => new
+                {
+                    First = first.Left,
+                    Second = second.Left,
+                })));
 
         var sql = query.ToQueryString();
 
@@ -96,6 +129,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         // Assert
         Assert.Equal(1, CountOccurrences(sql, "FROM `BindingNodes`"));
         Assert.Equal(2, CountOccurrences(sql, "WHERE 1 = 0"));
+
         // WHY: The second source reads the first CTE; declaration presence alone does not prove legal dependency order.
         var firstDefinition = sql.IndexOf("`__doka_source_0` (", StringComparison.Ordinal);
         var secondDefinition = sql.IndexOf("`__doka_source_1` (", StringComparison.Ordinal);
@@ -116,7 +150,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Collisions.Select(row => row.Id)
+        var query = context
+            .Collisions
+            .Select(row => row.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -144,7 +180,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         var minimum = 3;
 
         // Act
-        var query = context.Collisions
+        var query = context
+            .Collisions
             .FromSqlInterpolated($"SELECT `Id` FROM `__doka_source_0` WHERE `Id` > {minimum}")
             .Select(row => row.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
@@ -180,7 +217,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         });
 
         // Act
-        var query = source.WithMaterializedSource(shared => shared.Join(
+        var query = source.WithMaterializedSource(shared => shared
+            .Join(
                 context.Nodes,
                 row => row.Id,
                 node => node.Id,
@@ -188,8 +226,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             .Select(node => new
             {
                 Node = node,
-                Children = node.Children.OrderBy(child => child.Id)
-                    .Select(child => new { child.Id, child.Name })
+                Children = node
+                    .Children
+                    .OrderBy(child => child.Id)
+                    .Select(child => new
+                    {
+                        child.Id,
+                        child.Name,
+                    })
                     .ToList(),
             }));
 
@@ -217,16 +261,23 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<OwnedRecord>().Select(row => row.Id)
-            .WithMaterializedSource(shared => shared.Join(
-                context.Set<OwnedRecord>(),
-                id => id,
-                row => row.Id,
-                (_, row) => row)
+        var query = context
+            .Set<OwnedRecord>()
+            .Select(row => row.Id)
+            .WithMaterializedSource(shared => shared
+                .Join(
+                    context.Set<OwnedRecord>(),
+                    id => id,
+                    row => row.Id,
+                    (_, row) => row)
                 .Select(row => new
                 {
                     row.Id,
-                    Values = row.Tags.OrderBy(tag => tag.Id).Select(tag => tag.Value).ToList(),
+                    Values = row
+                        .Tags
+                        .OrderBy(tag => tag.Id)
+                        .Select(tag => tag.Value)
+                        .ToList(),
                 }));
 
         var sql = query.ToQueryString();
@@ -252,7 +303,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb, splitQueryDefault: true);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
                 id => id,
@@ -284,7 +337,10 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateAutoIncludeContext(mariaDb);
 
         // Act
-        var query = context.Nodes.IgnoreAutoIncludes().WithMaterializedSource(shared => shared);
+        var query = context
+            .Nodes
+            .IgnoreAutoIncludes()
+            .WithMaterializedSource(shared => shared);
 
         var sql = query.ToQueryString();
 
@@ -309,7 +365,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Include(node => node.Children)
+        var query = context
+            .Nodes
+            .Include(node => node.Children)
             .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
@@ -336,7 +394,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateAutoIncludeContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -362,7 +422,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Nodes.Select(node => node.Id)
+        var query = context
+            .Nodes
+            .Select(node => node.Id)
             .WithMaterializedSource(shared => shared.Join(
                 context.Nodes,
                 id => id,

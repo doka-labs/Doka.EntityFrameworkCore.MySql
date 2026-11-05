@@ -61,7 +61,10 @@ public sealed class MySqlMaterializedSourceTests
     {
         // Arrange
         using var context = new GuardContext();
-        var source = context.Set<GuardItem>().Where(item => item.Id > 1);
+        var source = context
+            .Set<GuardItem>()
+            .Where(item => item.Id > 1);
+
         var previous = source.WithMaterializedSource(rows => rows.Select(item => item.Id));
 
         // Act
@@ -80,8 +83,13 @@ public sealed class MySqlMaterializedSourceTests
     {
         // Arrange
         using var context = new GuardContext();
-        var leaf = context.Set<GuardItem>().Select(item => item.Id);
-        _ = CreateNested(leaf, 1).ToQueryString();
+        var leaf = context
+            .Set<GuardItem>()
+            .Select(item => item.Id);
+
+        _ = CreateNested(leaf, 1)
+            .ToQueryString();
+
         var query = CreateNested(leaf, 10);
 
         // Act
@@ -103,13 +111,16 @@ public sealed class MySqlMaterializedSourceTests
     )
     {
         var compose = ((Func<IQueryable<int>, Expression<Func<IQueryable<int>, IQueryable<int>>>,
-            IQueryable<int>>)MySqlQueryableExtensions.WithMaterializedSource<int, int>).Method;
+            IQueryable<int>>)MySqlQueryableExtensions.WithMaterializedSource).Method;
 
-        var concat = ((Func<IQueryable<int>, IEnumerable<int>, IQueryable<int>>)Queryable.Concat<int>).Method;
+        var concat = ((Func<IQueryable<int>, IEnumerable<int>, IQueryable<int>>)Queryable.Concat).Method;
 
         return source.Provider.CreateQuery<int>(Nest(source.Expression, depth));
 
-        Expression Nest(Expression input, int remaining)
+        Expression Nest(
+            Expression input,
+            int remaining
+        )
         {
             if (remaining == 0)
             {
@@ -119,8 +130,11 @@ public sealed class MySqlMaterializedSourceTests
             var parameter = Expression.Parameter(typeof(IQueryable<int>), "source");
             var body = Nest(Expression.Call(concat, parameter, parameter), remaining - 1);
 
-            return Expression.Call(compose, input, Expression.Quote(
-                Expression.Lambda<Func<IQueryable<int>, IQueryable<int>>>(body, parameter)));
+            return Expression.Call(
+                compose,
+                input,
+                Expression.Quote(
+                    Expression.Lambda<Func<IQueryable<int>, IQueryable<int>>>(body, parameter)));
         }
     }
 
@@ -134,7 +148,9 @@ public sealed class MySqlMaterializedSourceTests
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        ) => modelBuilder.Entity<GuardItem>().HasKey(item => item.Id);
+        ) => modelBuilder
+            .Entity<GuardItem>()
+            .HasKey(item => item.Id);
     }
 
     private sealed class GuardItem

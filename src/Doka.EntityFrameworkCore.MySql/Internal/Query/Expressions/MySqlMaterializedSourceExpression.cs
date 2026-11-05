@@ -5,8 +5,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
 {
-    private readonly MySqlMaterializedSourceDefinition _definition;
-
     public MySqlMaterializedSourceExpression(
         string alias,
         int bindingId,
@@ -22,25 +20,25 @@ internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
     ) : base(alias, annotations)
     {
         BindingId = bindingId;
-        _definition = definition;
+        Definition = definition;
     }
 
     /// <summary>Gets the lexical identity owned by this statement compilation.</summary>
     public int BindingId { get; }
 
     /// <summary>Gets the shared definition identity used by local DAG reconstruction.</summary>
-    internal MySqlMaterializedSourceDefinition Definition => _definition;
+    internal MySqlMaterializedSourceDefinition Definition { get; }
 
     /// <summary>Gets the completed source with its common column schema.</summary>
-    public SelectExpression Source => _definition.Source;
+    public SelectExpression Source => Definition.Source;
 
     protected override Expression VisitChildren(
         ExpressionVisitor visitor
     )
     {
-        var visited = _definition.Visit(visitor);
+        var visited = Definition.Visit(visitor);
 
-        return ReferenceEquals(visited, _definition)
+        return ReferenceEquals(visited, Definition)
             ? this
             : new MySqlMaterializedSourceExpression(Alias!, BindingId, visited, Annotations);
     }
@@ -48,15 +46,15 @@ internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
     public override TableExpressionBase Clone(
         string? alias,
         ExpressionVisitor cloningExpressionVisitor
-    ) => new MySqlMaterializedSourceExpression(alias ?? Alias!, BindingId, _definition, Annotations);
+    ) => new MySqlMaterializedSourceExpression(alias ?? Alias!, BindingId, Definition, Annotations);
 
     public override TableExpressionBase WithAlias(
         string newAlias
-    ) => new MySqlMaterializedSourceExpression(newAlias, BindingId, _definition, Annotations);
+    ) => new MySqlMaterializedSourceExpression(newAlias, BindingId, Definition, Annotations);
 
     protected override TableExpressionBase WithAnnotations(
         IReadOnlyDictionary<string, IAnnotation> annotations
-    ) => new MySqlMaterializedSourceExpression(Alias!, BindingId, _definition, annotations);
+    ) => new MySqlMaterializedSourceExpression(Alias!, BindingId, Definition, annotations);
 
     /// <inheritdoc />
     [Experimental("EF9100")]
@@ -75,12 +73,12 @@ internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
     ) => obj is MySqlMaterializedSourceExpression other
         && base.Equals(other)
         && BindingId == other.BindingId
-        && ReferenceEquals(_definition, other._definition);
+        && ReferenceEquals(Definition, other.Definition);
 
     // WHY: A shared definition has identity. Structural hashing recursively traverses every path
     // through nested references even though SQL emits that definition only once.
     public override int GetHashCode() => HashCode.Combine(
         base.GetHashCode(),
         BindingId,
-        RuntimeHelpers.GetHashCode(_definition));
+        RuntimeHelpers.GetHashCode(Definition));
 }

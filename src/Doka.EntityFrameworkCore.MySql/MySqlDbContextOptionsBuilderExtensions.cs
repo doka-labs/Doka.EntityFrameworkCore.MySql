@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Adds the Doka MySQL provider bootstrap configuration surface to <see cref="DbContextOptionsBuilder"/>.
+/// Adds the Doka MySQL provider bootstrap configuration surface to <see cref="DbContextOptionsBuilder" />.
 /// </summary>
 public static class MySqlDbContextOptionsBuilderExtensions
 {
@@ -12,11 +12,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="connectionString">The target connection string.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder UseMySql(
         this DbContextOptionsBuilder optionsBuilder,
         string connectionString,
@@ -47,11 +48,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="connection">The target connection.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder UseMySql(
         this DbContextOptionsBuilder optionsBuilder,
         DbConnection connection,
@@ -93,11 +95,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="dataSource">The target data source.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder UseMySql(
         this DbContextOptionsBuilder optionsBuilder,
         MySqlDataSource dataSource,
@@ -140,11 +143,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="connectionString">The target connection string.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder<TContext> UseMySql<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder,
         string connectionString,
@@ -168,11 +172,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="connection">The target connection.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder<TContext> UseMySql<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder,
         DbConnection connection,
@@ -196,11 +201,12 @@ public static class MySqlDbContextOptionsBuilderExtensions
     /// <param name="dataSource">The target data source.</param>
     /// <param name="serverVersion">The resolved server version.</param>
     /// <param name="mySqlOptionsAction">An optional provider-specific options callback.</param>
-    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}"/> instance.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+    /// <returns>The same <see cref="DbContextOptionsBuilder{TContext}" /> instance.</returns>
+    [SuppressMessage(
         "ApiDesign",
         "RS0026:Do not add multiple overloads with optional parameters",
-        Justification = "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+        Justification =
+            "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
     public static DbContextOptionsBuilder<TContext> UseMySql<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder,
         MySqlDataSource dataSource,
@@ -234,7 +240,8 @@ public static class MySqlDbContextOptionsBuilderExtensions
 
         mySqlOptionsAction?.Invoke(providerBuilder);
 
-        var configuredMode = GetOrCreateExtension(optionsBuilder).ParameterizedCollectionMode;
+        var configuredMode = GetOrCreateExtension(optionsBuilder)
+            .ParameterizedCollectionMode;
 
         // EF Core stores undefined enum values without rejecting them here.
         // Reject invalid callback values immediately. The extension also

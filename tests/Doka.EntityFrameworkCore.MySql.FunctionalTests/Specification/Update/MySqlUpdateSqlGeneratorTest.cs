@@ -24,6 +24,9 @@ public sealed class MySqlUpdateSqlGeneratorTest : UpdateSqlGeneratorTestBase, ID
 
     protected override string? Schema => null;
 
+    /// <inheritdoc />
+    public void Dispose() => _context.Dispose();
+
     protected override IUpdateSqlGenerator CreateSqlGenerator()
         => _context.GetService<IUpdateSqlGenerator>();
 
@@ -163,17 +166,13 @@ public sealed class MySqlUpdateSqlGeneratorTest : UpdateSqlGeneratorTestBase, ID
         """,
         stringBuilder);
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _context.Dispose();
-    }
-
     private static void AssertSql(
         string expected,
         StringBuilder actual
     ) => Assert.Equal(
         expected.TrimEnd(),
-        actual.ToString().TrimEnd(),
+        actual
+            .ToString()
+            .TrimEnd(),
         ignoreLineEndingDifferences: true);
 }

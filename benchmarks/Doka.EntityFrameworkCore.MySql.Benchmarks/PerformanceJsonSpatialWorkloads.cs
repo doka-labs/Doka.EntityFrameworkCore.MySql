@@ -45,7 +45,10 @@ internal static class PerformanceJsonSpatialWorkloads
         catalog.Add(
             new PerformanceWorkload(
                 id,
-                _ => ValueTask.FromResult(comparer.Equals(left.RootElement, right.RootElement) ? 1L : 0L)));
+                _ => ValueTask.FromResult(
+                    comparer.Equals(left.RootElement, right.RootElement)
+                        ? 1L
+                        : 0L)));
     }
 
     private static void AddJsonNodeComparison(
@@ -67,7 +70,10 @@ internal static class PerformanceJsonSpatialWorkloads
         catalog.Add(
             new PerformanceWorkload(
                 id,
-                _ => ValueTask.FromResult(comparer.Equals(left, right) ? 1L : 0L)));
+                _ => ValueTask.FromResult(
+                    comparer.Equals(left, right)
+                        ? 1L
+                        : 0L)));
     }
 
     private static (string Left, string Right) BuildPayloadPair(
@@ -127,7 +133,8 @@ internal static class PerformanceJsonSpatialWorkloads
         {
             using var context = BenchmarkEnvironment.CreateContext();
             var payloads = context
-                .BasicEntities.AsNoTracking()
+                .BasicEntities
+                .AsNoTracking()
                 .OrderBy(entity => entity.Id)
                 .Select(entity => entity.Payload)
                 .Take(rowCount)
@@ -139,7 +146,8 @@ internal static class PerformanceJsonSpatialWorkloads
         await using var asyncContext = BenchmarkEnvironment.CreateContext();
 
         var asyncPayloads = await asyncContext
-            .BasicEntities.AsNoTracking()
+            .BasicEntities
+            .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Select(entity => entity.Payload)
             .Take(rowCount)
@@ -182,7 +190,8 @@ internal static class PerformanceJsonSpatialWorkloads
         {
             using var context = BenchmarkEnvironment.CreateContext();
             var rows = context
-                .SpatialEntities.AsNoTracking()
+                .SpatialEntities
+                .AsNoTracking()
                 .Where(entity => EF.Functions.DistanceSphere(entity.Location, s_referencePoint) < 250000d)
                 .OrderBy(entity => entity.Id)
                 .Take(rowCount)
@@ -194,7 +203,8 @@ internal static class PerformanceJsonSpatialWorkloads
         await using var asyncContext = BenchmarkEnvironment.CreateContext();
 
         var asyncRows = await asyncContext
-            .SpatialEntities.AsNoTracking()
+            .SpatialEntities
+            .AsNoTracking()
             .Where(entity => EF.Functions.DistanceSphere(entity.Location, s_referencePoint) < 250000d)
             .OrderBy(entity => entity.Id)
             .Take(rowCount)

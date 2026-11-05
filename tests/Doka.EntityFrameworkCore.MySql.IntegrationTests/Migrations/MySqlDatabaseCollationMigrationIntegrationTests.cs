@@ -72,6 +72,7 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         await adminConnection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await ExecuteNonQueryAsync(
                 adminConnection,
                 $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;",
@@ -90,27 +91,31 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             await connection
                 .OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
+
             await CreateExistingPrincipalAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
             await AssertCharsetOnlyDatabaseChangeCannotSatisfyBrownfieldForeignKeyAsync(
-                connection,
-                target,
-                cancellationToken)
+                    connection,
+                    target,
+                    cancellationToken)
                 .ConfigureAwait(false);
+
             await ResetFailedMigrationStateAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertCompleteDatabaseOptionsMigrateAsync(connection, target, cancellationToken)
                 .ConfigureAwait(false);
+
             await AssertIncompatibleForeignKeyIsRejectedAsync(connection, target, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
         {
             await ExecuteNonQueryAsync(
-                adminConnection,
-                $"DROP DATABASE IF EXISTS `{databaseName}`;",
-                CancellationToken.None)
+                    adminConnection,
+                    $"DROP DATABASE IF EXISTS `{databaseName}`;",
+                    CancellationToken.None)
                 .ConfigureAwait(false);
         }
     }
@@ -137,22 +142,25 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         var migrator = context.GetService<IMigrator>();
 
         // Act
-        var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => migrator.MigrateAsync(cancellationToken: cancellationToken))
+        var exception = await Assert
+            .ThrowsAsync<MySqlException>(() => migrator.MigrateAsync(cancellationToken: cancellationToken))
             .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(GetExpectedForeignKeyDefinitionError(target), exception.Number);
         Assert.Empty(
-            await context.Database
+            await context
+                .Database
                 .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false));
+
         var databaseCollation = await ReadDatabaseCollationAsync(connection, cancellationToken)
             .ConfigureAwait(false);
 
         Assert.NotEqual(
             DatabaseCollationMigrationContract.RequiredCollation,
             databaseCollation);
+
         Assert.NotEqual(DatabaseCollationMigrationContract.InitialCollation, databaseCollation);
     }
 
@@ -176,7 +184,8 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
                 DatabaseCollationMigrationContract.HistoryTable));
 
         var migrator = context.GetService<IMigrator>();
-        var initiallyApplied = await context.Database
+        var initiallyApplied = await context
+            .Database
             .GetAppliedMigrationsAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -186,23 +195,26 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             .MigrateAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        var databaseCollation = await ReadDatabaseCollationAsync(connection, cancellationToken).ConfigureAwait(false);
+        var databaseCollation = await ReadDatabaseCollationAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
+
         var tableCollation = await ReadTableCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var columnCollation = await ReadColumnCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId",
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                "PrincipalId",
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        var appliedAfterFirstMigration = await context.Database
-                .GetAppliedMigrationsAsync(cancellationToken)
-                .ConfigureAwait(false);
+        var appliedAfterFirstMigration = await context
+            .Database
+            .GetAppliedMigrationsAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         await AssertTableDefaultTransitionDoesNotConvertColumnsAsync(context, connection, cancellationToken)
             .ConfigureAwait(false);
@@ -211,9 +223,10 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             .MigrateAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        var appliedAfterRepeatMigration = await context.Database
-                .GetAppliedMigrationsAsync(cancellationToken)
-                .ConfigureAwait(false);
+        var appliedAfterRepeatMigration = await context
+            .Database
+            .GetAppliedMigrationsAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Empty(initiallyApplied);
@@ -257,17 +270,17 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             .ConfigureAwait(false);
 
         var explicitTableCollation = await ReadTableCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var explicitColumnCollation = await ReadColumnCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId",
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                "PrincipalId",
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var resetToDatabaseDefault = new AlterTableOperation
         {
@@ -277,6 +290,7 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
         resetToDatabaseDefault.SetAnnotation(
             RelationalAnnotationNames.Collation,
             DatabaseCollationMigrationContract.RequiredCollation);
+
         resetToDatabaseDefault.OldTable.SetAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
         var resetCommand = Assert.Single(generator.Generate([resetToDatabaseDefault], context.Model));
 
@@ -284,17 +298,17 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
             .ConfigureAwait(false);
 
         var resetTableCollation = await ReadTableCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var resetColumnCollation = await ReadColumnCollationAsync(
-                    connection,
-                    DatabaseCollationMigrationContract.DependentTable,
-                    "PrincipalId",
-                    cancellationToken)
-                .ConfigureAwait(false);
+                connection,
+                DatabaseCollationMigrationContract.DependentTable,
+                "PrincipalId",
+                cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.DoesNotContain("CONVERT TO CHARACTER SET", setCommand.CommandText, StringComparison.Ordinal);
@@ -317,19 +331,19 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     )
     {
         var sql = $"""
-            CREATE TABLE `{DatabaseCollationMigrationContract.IncompatibleTable}` (
-                `Id` int NOT NULL,
-                `PrincipalId` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-                PRIMARY KEY (`Id`),
-                CONSTRAINT `FK_DokaCollationIncompatible_Principal`
-                    FOREIGN KEY (`PrincipalId`)
-                    REFERENCES `{DatabaseCollationMigrationContract.PrincipalTable}` (`Id`)
-            ) ENGINE = InnoDB;
+                   CREATE TABLE `{DatabaseCollationMigrationContract.IncompatibleTable}` (
+                       `Id` int NOT NULL,
+                       `PrincipalId` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                       PRIMARY KEY (`Id`),
+                       CONSTRAINT `FK_DokaCollationIncompatible_Principal`
+                           FOREIGN KEY (`PrincipalId`)
+                           REFERENCES `{DatabaseCollationMigrationContract.PrincipalTable}` (`Id`)
+                   ) ENGINE = InnoDB;
 
-            """;
+                   """;
 
-        var exception = await Assert.ThrowsAsync<MySqlException>(
-                () => ExecuteNonQueryAsync(connection, sql, cancellationToken))
+        var exception = await Assert
+            .ThrowsAsync<MySqlException>(() => ExecuteNonQueryAsync(connection, sql, cancellationToken))
             .ConfigureAwait(false);
 
         Assert.Equal(GetExpectedForeignKeyDefinitionError(target), exception.Number);
@@ -346,12 +360,12 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     )
     {
         var sql = $"""
-            CREATE TABLE `{DatabaseCollationMigrationContract.PrincipalTable}` (
-                `Id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-                PRIMARY KEY (`Id`)
-            ) ENGINE = InnoDB;
+                   CREATE TABLE `{DatabaseCollationMigrationContract.PrincipalTable}` (
+                       `Id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+                       PRIMARY KEY (`Id`)
+                   ) ENGINE = InnoDB;
 
-            """;
+                   """;
 
         await ExecuteNonQueryAsync(connection, sql, cancellationToken)
             .ConfigureAwait(false);
@@ -372,11 +386,13 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
                 $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.DependentTable}`;",
                 cancellationToken)
             .ConfigureAwait(false);
+
         await ExecuteNonQueryAsync(
                 connection,
                 $"DROP TABLE IF EXISTS `{DatabaseCollationMigrationContract.IncompleteHistoryTable}`;",
                 cancellationToken)
             .ConfigureAwait(false);
+
         await ExecuteNonQueryAsync(
                 connection,
                 "ALTER DATABASE CHARACTER SET = utf8mb4 COLLATE = "
@@ -590,6 +606,7 @@ internal sealed class DatabaseCollationMigration : Migration
         migrationBuilder
             .AlterDatabase(collation: DatabaseCollationMigrationContract.RequiredCollation)
             .Annotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
         CreateDependentTable(migrationBuilder);
     }
 
@@ -644,6 +661,7 @@ internal sealed class IncompleteDatabaseCollationMigration : Migration
         migrationBuilder
             .AlterDatabase()
             .Annotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+
         DatabaseCollationMigration.CreateDependentTable(migrationBuilder);
     }
 

@@ -14,44 +14,63 @@ internal static partial class EngineeringSurfaceContract
     )
     {
         const string name = ".github/workflows/quality-gates.yml";
+
         // WHY: Explanatory full-line comments cannot grant authority; executable and inline text stays visible.
-        var source = string.Join("\n", workflow.Split('\n')
-            .Where(static line => !line.TrimStart().StartsWith('#')));
+        var source = string.Join(
+            "\n",
+            workflow
+                .Split('\n')
+                .Where(static line => !line
+                    .TrimStart()
+                    .StartsWith('#')));
 
         string[] producers =
         [
             "quality-gates", "repo-tests", "spec-test-suite", "integration", "foundation",
-            "engine-contracts", "sbom", "coverage-gate"
+            "engine-contracts", "sbom", "coverage-gate",
         ];
 
         var errors = new List<string>();
         var jobsStart = source.IndexOf("\njobs:\n", StringComparison.Ordinal);
-        var jobs = jobsStart < 0 ? string.Empty : source[jobsStart..];
-        var declared = Regex.Matches(jobs, "^  ([a-z][a-z0-9-]*):$", RegexOptions.Multiline)
+        var jobs = jobsStart < 0
+            ? string.Empty
+            : source[jobsStart..];
+
+        var declared = Regex
+            .Matches(jobs, "^  ([a-z][a-z0-9-]*):$", RegexOptions.Multiline)
             .Select(static match => match.Groups[1].Value)
             .ToArray();
 
-        if (!declared.Order(StringComparer.Ordinal).SequenceEqual(
-                producers.Append("required").Order(StringComparer.Ordinal), StringComparer.Ordinal))
+        if (!declared
+            .Order(StringComparer.Ordinal)
+            .SequenceEqual(
+                producers
+                    .Append("required")
+                    .Order(StringComparer.Ordinal),
+                StringComparer.Ordinal))
         {
             errors.Add($"{name}: shared qualification must own exactly the complete required job set.");
         }
 
         var triggers = TriggerBlock(source);
-        var inputNames = Regex.Matches(triggers, "^      ([a-z][a-z0-9_]*):$", RegexOptions.Multiline)
+        var inputNames = Regex
+            .Matches(triggers, "^      ([a-z][a-z0-9_]*):$", RegexOptions.Multiline)
             .Select(static match => match.Groups[1].Value)
             .Order(StringComparer.Ordinal);
 
         if (!inputNames.SequenceEqual(s_qualificationInputs, StringComparer.Ordinal))
         {
-            errors.Add($"{name}: shared qualification must expose exactly its version and authorization artifact inputs.");
+            errors.Add(
+                $"{name}: shared qualification must expose exactly its version and authorization artifact inputs.");
         }
 
         foreach (var input in s_qualificationInputs)
         {
-            var declaration = Regex.Match(triggers,
-                $"^      {input}:\\n(?:(?:        [^\\n]*|)\\n)*",
-                RegexOptions.Multiline | RegexOptions.CultureInvariant).Value;
+            var declaration = Regex.Match(
+                    triggers,
+                    $"^      {input}:\\n(?:(?:        [^\\n]*|)\\n)*",
+                    RegexOptions.Multiline | RegexOptions.CultureInvariant)
+                .Value;
 
             if (!declaration.Contains("        type: string\n", StringComparison.Ordinal)
                 || !declaration.Contains("        required: false\n", StringComparison.Ordinal))
@@ -68,8 +87,10 @@ internal static partial class EngineeringSurfaceContract
             errors.Add($"{name}: qualification must expose only its reusable read-only input boundary.");
         }
 
-        foreach (Match permission in Regex.Matches(source,
-                     "^ +(?<scope>[a-z-]+): (?<level>read|write)$", RegexOptions.Multiline))
+        foreach (Match permission in Regex.Matches(
+            source,
+            "^ +(?<scope>[a-z-]+): (?<level>read|write)$",
+            RegexOptions.Multiline))
         {
             if (permission.Groups["level"].Value != "read"
                 || permission.Groups["scope"].Value is not ("actions" or "contents"))
@@ -86,27 +107,36 @@ internal static partial class EngineeringSurfaceContract
             || source.Contains("eng/benchmark.sh", StringComparison.Ordinal)
             || source.Contains("NuGet/login@", StringComparison.Ordinal)
             || source.Contains("eng.release.publication", StringComparison.Ordinal)
-            || source.Replace("eng.release.nuget validate-version", string.Empty, StringComparison.Ordinal)
+            || source
+                .Replace("eng.release.nuget validate-version", string.Empty, StringComparison.Ordinal)
                 .Contains("eng.release.nuget", StringComparison.Ordinal)
             || source.Contains("uses: ./.github/actions/publish-release", StringComparison.Ordinal)
             || source.Contains("uses: $/.github/actions/publish-release", StringComparison.Ordinal)
             || source.Contains("nuget push", StringComparison.Ordinal)
             || source.Contains("git push", StringComparison.Ordinal))
         {
-            errors.Add($"{name}: shared qualification must remain reversible and free of publication or benchmark authority.");
+            errors.Add(
+                $"{name}: shared qualification must remain reversible and free of publication or benchmark authority.");
         }
 
         var required = JobBlock(source, "required");
         var inlineNeeds = Regex.Match(required, "^    needs: \\[(?<jobs>[^\\]\\n]*)\\]$", RegexOptions.Multiline);
         var dependencies = inlineNeeds.Success
-            ? inlineNeeds.Groups["jobs"].Value.Split(',', StringSplitOptions.TrimEntries)
-            : Regex.Matches(required, "^      - ([a-z][a-z0-9-]*)$", RegexOptions.Multiline)
+            ? inlineNeeds
+                .Groups["jobs"]
+                .Value
+                .Split(',', StringSplitOptions.TrimEntries)
+            : Regex
+                .Matches(required, "^      - ([a-z][a-z0-9-]*)$", RegexOptions.Multiline)
                 .Select(static match => match.Groups[1].Value)
                 .ToArray();
 
         var aggregate = string.Join(" ", required.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        if (!dependencies.Order(StringComparer.Ordinal).SequenceEqual(
-                producers.Order(StringComparer.Ordinal), StringComparer.Ordinal)
+        if (!dependencies
+                .Order(StringComparer.Ordinal)
+                .SequenceEqual(
+                    producers.Order(StringComparer.Ordinal),
+                    StringComparer.Ordinal)
             || !required.Contains("if: always()", StringComparison.Ordinal)
             || !required.Contains("RESULTS: ${{ toJSON(needs) }}", StringComparison.Ordinal)
             || !aggregate.Contains(

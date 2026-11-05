@@ -40,7 +40,9 @@ internal static class SequenceLoader
     )
     {
         var tables = context
-            .TableLookup.Values.Where(IsEmulationTable)
+            .TableLookup
+            .Values
+            .Where(IsEmulationTable)
             .OrderBy(table => table.Name, StringComparer.Ordinal)
             .ToArray();
 
@@ -64,6 +66,7 @@ internal static class SequenceLoader
             parameter.ParameterName = parameterName;
             parameter.Value = tables[index]
                 .Name[MySqlSequenceNaming.EmulationTablePrefix.Length..];
+
             command.Parameters.Add(parameter);
 
             sql
@@ -267,7 +270,9 @@ internal static class SequenceLoader
             {
                 Database = context.DatabaseModel,
                 Name = name,
-                Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
+                Schema = context.QualifyNamesWithSchema
+                    ? context.DatabaseName
+                    : null,
                 StoreType = storeType,
                 StartValue = Convert.ToInt64(startValue, CultureInfo.InvariantCulture),
                 IncrementBy = Convert.ToInt32(incrementBy, CultureInfo.InvariantCulture),
@@ -297,7 +302,8 @@ internal static class SequenceLoader
         }
 
         var columnNames = table
-            .Columns.Select(column => column.Name)
+            .Columns
+            .Select(column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
 
         return s_emulationMetadataColumns.All(columnNames.Contains);

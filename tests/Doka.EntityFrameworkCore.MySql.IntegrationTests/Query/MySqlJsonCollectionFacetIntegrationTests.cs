@@ -10,18 +10,24 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
 {
     private readonly SeededDatabaseFixture _fixture;
 
-    /// <summary>Returns the selected engines in the supported six-engine contract.</summary>
-    // WHY: the legacy MySQL 8.0 opt-in target is outside this supported-engine matrix.
-    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
-        .GetSelectedTargets()
-        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
-        .Select(target => new object[] { target.ToString() });
-
     /// <summary>Creates an independent test case sharing only immutable seeded rows.</summary>
     /// <param name="fixture">The class-owned per-engine database fixture.</param>
     public MySqlJsonCollectionFacetIntegrationTests(
         SeededDatabaseFixture fixture
-    ) => _fixture = fixture;
+    )
+    {
+        _fixture = fixture;
+    }
+
+    /// <summary>Returns the selected engines in the supported six-engine contract.</summary>
+
+    // WHY: the legacy MySQL 8.0 opt-in target is outside this supported-engine matrix.
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Contains(target))
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Full JSON text matches despite short relational facet on each selected supported engine.</summary>
     /// <param name="targetName">The selected database engine name.</param>
@@ -390,7 +396,8 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         await using var context = CreateContext(target);
 
         // Act
-        var payload = await context.Owners
+        var payload = await context
+            .Owners
             .AsNoTracking()
             .Where(owner => owner.Id == 1)
             .SelectMany(owner => owner.Values)
@@ -416,7 +423,8 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         await using var context = CreateContext(target);
 
         // Act
-        var owner = await context.Owners
+        var owner = await context
+            .Owners
             .AsNoTracking()
             .SingleAsync(owner => owner.Id == 2, CancellationToken.None);
 
@@ -424,6 +432,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests :
         Assert.Equal(
             [s_positiveOutOfRangeDuration, s_negativeOutOfRangeDuration],
             owner.Values.Select(value => value.Duration));
+
         Assert.Equal(
             [s_positiveOutOfRangeDuration, s_negativeOutOfRangeDuration],
             owner.Values.Select(value => value.ConvertedDuration.Value));

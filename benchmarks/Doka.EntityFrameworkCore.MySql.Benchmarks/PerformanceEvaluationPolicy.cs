@@ -13,6 +13,11 @@ internal enum PerformanceEvaluationMode
 /// <summary>Separates reproducible allocation checks from host-sensitive diagnostics.</summary>
 internal static class PerformanceEvaluationPolicy
 {
+    /// <summary>Resolves the policy shared by benchmark execution and report evaluation.</summary>
+    internal static PerformanceEvaluationMode Current => Resolve(
+        Environment.GetEnvironmentVariable("DOKA_BENCHMARK_EVALUATION"),
+        Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+
     /// <summary>Resolves the command-line process policy without permitting hosted timing gates.</summary>
     internal static PerformanceEvaluationMode Resolve(
         string? requested,
@@ -23,7 +28,9 @@ internal static class PerformanceEvaluationPolicy
         {
             null or "" or "full" => PerformanceEvaluationMode.Full,
             "allocations-only" => PerformanceEvaluationMode.AllocationsOnly,
-            _ => throw new ArgumentException("Benchmark evaluation must be full or allocations-only.", nameof(requested)),
+            _ => throw new ArgumentException(
+                "Benchmark evaluation must be full or allocations-only.",
+                nameof(requested)),
         };
 
         // WHY: Hosted CPU, memory and scheduling characteristics vary even under
@@ -32,11 +39,6 @@ internal static class PerformanceEvaluationPolicy
             ? PerformanceEvaluationMode.AllocationsOnly
             : mode;
     }
-
-    /// <summary>Resolves the policy shared by benchmark execution and report evaluation.</summary>
-    internal static PerformanceEvaluationMode Current => Resolve(
-        Environment.GetEnvironmentVariable("DOKA_BENCHMARK_EVALUATION"),
-        Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
 
     /// <summary>Determines whether a known metric is diagnostic rather than rejecting.</summary>
     internal static bool IsDiagnostic(
@@ -51,10 +53,19 @@ internal static class PerformanceEvaluationPolicy
 
         return metric switch
         {
-            "allocatedBytes" or "allocationRatio" or "cacheEntries" or "outstandingBuffers"
-                or "connectionDelta" or "heldLocks" => false,
-            "medianNanoseconds" or "p95Nanoseconds" or "p99Nanoseconds" or "meanRatio"
-                or "gen2CollectionsPer1000" or "workingSetGrowthBytes" or "managedHeapGrowthBytes"
+            "allocatedBytes"
+                or "allocationRatio"
+                or "cacheEntries"
+                or "outstandingBuffers"
+                or "connectionDelta"
+                or "heldLocks" => false,
+            "medianNanoseconds"
+                or "p95Nanoseconds"
+                or "p99Nanoseconds"
+                or "meanRatio"
+                or "gen2CollectionsPer1000"
+                or "workingSetGrowthBytes"
+                or "managedHeapGrowthBytes"
                 or "throughputRetentionRatio" => mode == PerformanceEvaluationMode.AllocationsOnly,
             _ => throw new InvalidDataException($"Performance metric '{metric}' has no evaluation policy."),
         };

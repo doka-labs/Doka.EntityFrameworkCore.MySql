@@ -88,6 +88,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                 ) CHARACTER SET utf8mb4;
                 """,
                 cancellationToken: cancellationToken);
+
             await context.Database.ExecuteSqlRawAsync(
                 "INSERT INTO `IntJsonItems` (`Data`) VALUES ({0});",
                 new object[] { "{}" },
@@ -118,15 +119,40 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
             using var array = JsonDocument.Parse(result.Array);
 
-            Assert.Equal(1, array.RootElement[0].GetInt32());
-            Assert.Equal(suffix, array.RootElement[1].GetString());
+            Assert.Equal(
+                1,
+                array
+                    .RootElement[0]
+                    .GetInt32());
+
+            Assert.Equal(
+                suffix,
+                array
+                    .RootElement[1]
+                    .GetString());
+
             Assert.Equal(JsonValueKind.Null, array.RootElement[2].ValueKind);
 
             using var jsonObject = JsonDocument.Parse(result.Object);
 
-            Assert.Equal(1, jsonObject.RootElement.GetProperty("id").GetInt32());
-            Assert.Equal(suffix, jsonObject.RootElement.GetProperty("suffix").GetString());
-            Assert.Equal(JsonValueKind.Null, jsonObject.RootElement.GetProperty("missing").ValueKind);
+            Assert.Equal(
+                1,
+                jsonObject
+                    .RootElement
+                    .GetProperty("id")
+                    .GetInt32());
+
+            Assert.Equal(
+                suffix,
+                jsonObject
+                    .RootElement
+                    .GetProperty("suffix")
+                    .GetString());
+
+            Assert.Equal(
+                JsonValueKind.Null,
+                jsonObject.RootElement.GetProperty("missing")
+                    .ValueKind);
         }
         finally
         {

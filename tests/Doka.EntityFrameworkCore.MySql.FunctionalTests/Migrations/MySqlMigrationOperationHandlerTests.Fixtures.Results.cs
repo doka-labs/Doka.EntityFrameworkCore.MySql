@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
@@ -53,6 +54,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
                 " ",
                 false,
             ]);
+
             var resultConstructor = typeof(MySqlMigrationOperationResult).GetConstructor(
                 BindingFlags.Instance | BindingFlags.NonPublic,
                 binder: null,
@@ -78,16 +80,16 @@ public sealed partial class MySqlMigrationOperationHandlerTests
 
     private sealed class StatefulResultHandler : IMySqlMigrationOperationHandler
     {
+        /// <summary>
+        /// Gets the command sequence observed during validation.
+        /// </summary>
+        public StatefulCommandList? Commands { get; private set; }
+
         /// <inheritdoc />
         public string HandlerId => "tests.stateful_result";
 
         /// <inheritdoc />
         public Type OperationType => typeof(StatefulResultOperation);
-
-        /// <summary>
-        /// Gets the command sequence observed during validation.
-        /// </summary>
-        public StatefulCommandList? Commands { get; private set; }
 
         /// <inheritdoc />
         public MySqlMigrationOperationResult Generate(
@@ -218,9 +220,11 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         {
             EnumerationCount++;
 
-            return (EnumerationCount == 1 ? _firstEnumeration : _laterEnumerations).GetEnumerator();
+            return (EnumerationCount == 1
+                ? _firstEnumeration
+                : _laterEnumerations).GetEnumerator();
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

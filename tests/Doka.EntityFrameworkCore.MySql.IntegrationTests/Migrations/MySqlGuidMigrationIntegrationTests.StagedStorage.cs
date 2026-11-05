@@ -17,8 +17,12 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -35,10 +39,10 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                 .ConfigureAwait(false);
 
             await using (var charContext = new Char36StorageContext(
-                             CreateOptions<Char36StorageContext>(
-                                 connectionString,
-                                 serverVersion,
-                                 MySqlGuidFormat.Char36)))
+                CreateOptions<Char36StorageContext>(
+                    connectionString,
+                    serverVersion,
+                    MySqlGuidFormat.Char36)))
             {
                 charContext.Records.AddRange(
                     new GuidStorageRecord
@@ -51,7 +55,9 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                         RequiredValue = s_secondDocumentId,
                     });
 
-                await charContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await charContext
+                    .SaveChangesAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             await ExecuteRawAsync(
@@ -60,6 +66,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     + "VALUES ('not-a-guid', NULL);",
                     cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteRawAsync(
                     connection,
                     $"ALTER TABLE `{StorageTransitionTable}` "
@@ -92,6 +99,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     + "MODIFY COLUMN `RequiredValueBinary` binary(16) NOT NULL;",
                     cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteRawAsync(
                     connection,
                     $"ALTER TABLE `{StorageTransitionTable}` "
@@ -101,16 +109,18 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            var binaryStorage = await ReadBinaryStorageAsync(connection, cancellationToken).ConfigureAwait(false);
+            var binaryStorage = await ReadBinaryStorageAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
+
             GuidStorageRecord[] binaryRows;
 
             await using (var binaryContext = new Binary16StorageContext(
-                             CreateOptions<Binary16StorageContext>(
-                                 connectionString,
-                                 serverVersion,
-                                 MySqlGuidFormat.Binary16)))
+                CreateOptions<Binary16StorageContext>(
+                    connectionString,
+                    serverVersion)))
             {
-                binaryRows = await ReadStorageRowsAsync(binaryContext, cancellationToken).ConfigureAwait(false);
+                binaryRows = await ReadStorageRowsAsync(binaryContext, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             await ExecuteRawAsync(
@@ -120,6 +130,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     + "ADD COLUMN `OptionalValueText` char(36) NULL;",
                     cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteRawAsync(connection, CreateBinaryToChar36BackfillSql(), cancellationToken)
                 .ConfigureAwait(false);
 
@@ -132,6 +143,7 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     + "MODIFY COLUMN `RequiredValueText` char(36) NOT NULL;",
                     cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteRawAsync(
                     connection,
                     $"ALTER TABLE `{StorageTransitionTable}` "
@@ -141,7 +153,8 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            var charStorage = await ReadChar36StorageAsync(connection, cancellationToken).ConfigureAwait(false);
+            var charStorage = await ReadChar36StorageAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
 
             await using var finalContext = new Char36StorageContext(
                 CreateOptions<Char36StorageContext>(
@@ -149,7 +162,8 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
                     serverVersion,
                     MySqlGuidFormat.Char36));
 
-            var finalRows = await ReadStorageRowsAsync(finalContext, cancellationToken).ConfigureAwait(false);
+            var finalRows = await ReadStorageRowsAsync(finalContext, cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Equal(1L, malformedSources);
@@ -165,7 +179,8 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -258,10 +273,13 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         command.CommandText = $"SELECT HEX(`RequiredValue`) FROM `{StorageTransitionTable}` ORDER BY `Id` LIMIT 1;";
 
         var value = Convert.ToString(
-                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
-        var types = await ReadColumnTypesAsync(connection, cancellationToken).ConfigureAwait(false);
+        var types = await ReadColumnTypesAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         return (value, types);
     }
@@ -280,10 +298,13 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         command.CommandText = $"SELECT `RequiredValue` FROM `{StorageTransitionTable}` ORDER BY `Id` LIMIT 1;";
 
         var value = Convert.ToString(
-                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await command
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
-        var types = await ReadColumnTypesAsync(connection, cancellationToken).ConfigureAwait(false);
+        var types = await ReadColumnTypesAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         return (value, types);
     }
@@ -298,17 +319,22 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         CancellationToken cancellationToken
     )
     {
-
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT `COLUMN_TYPE` FROM information_schema.COLUMNS "
             + "WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = @tableName "
             + "AND `COLUMN_NAME` IN ('RequiredValue', 'OptionalValue') ORDER BY `COLUMN_NAME`;";
+
         command.Parameters.AddWithValue("@tableName", StorageTransitionTable);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var reader = await command
+            .ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var columnTypes = new List<string>();
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             columnTypes.Add(reader.GetString(0));
         }
@@ -327,7 +353,8 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
     )
     {
         return await context
-            .Records.AsNoTracking()
+            .Records
+            .AsNoTracking()
             .OrderBy(record => record.Id)
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);

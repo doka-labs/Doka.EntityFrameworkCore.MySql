@@ -19,10 +19,10 @@ internal static class MySqlSequenceNaming
     public const string EmulationTablePrefix = "__efsequence_";
 
     /// <summary>
-    /// Returns the fully-qualified emulation-table name for <paramref name="sequenceName"/>:
+    /// Returns the fully-qualified emulation-table name for <paramref name="sequenceName" />:
     /// <c>__efsequence_{sequenceName}</c>. The result is the un-delimited identifier;
-    /// callers wrap it through <see cref="MySqlIdentifierEscaping"/> /
-    /// <see cref="ISqlGenerationHelper"/> when emitting SQL.
+    /// callers wrap it through <see cref="MySqlIdentifierEscaping" /> /
+    /// <see cref="ISqlGenerationHelper" /> when emitting SQL.
     /// </summary>
     public static string EmulationTableName(
         string sequenceName

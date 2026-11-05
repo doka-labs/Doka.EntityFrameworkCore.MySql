@@ -15,16 +15,20 @@ internal static class MySqlTemporalLiteralFormatter
         var value = storeType
             .AsSpan()
             .Trim();
+
         var openParenthesis = value.IndexOf('(');
         var closeParenthesis = value.IndexOf(')');
 
         if (openParenthesis < 0)
         {
-            return closeParenthesis >= 0 ? ThrowInvalidPrecision(storeType) : 0;
+            return closeParenthesis >= 0
+                ? ThrowInvalidPrecision(storeType)
+                : 0;
         }
 
         var precisionText = closeParenthesis > openParenthesis
-            ? value[(openParenthesis + 1)..closeParenthesis].Trim()
+            ? value[(openParenthesis + 1)..closeParenthesis]
+                .Trim()
             : default;
 
         if (openParenthesis == 0
@@ -68,8 +72,8 @@ internal static class MySqlTemporalLiteralFormatter
         long value
     )
     {
-        destination[position++] = (char)('0' + (value / 10));
-        destination[position++] = (char)('0' + (value % 10));
+        destination[position++] = (char)('0' + value / 10);
+        destination[position++] = (char)('0' + value % 10);
     }
 
     public static void WriteFraction(
@@ -82,7 +86,7 @@ internal static class MySqlTemporalLiteralFormatter
     {
         for (var index = 0; index < precision; index++)
         {
-            destination[position++] = (char)('0' + (value / divisor));
+            destination[position++] = (char)('0' + value / divisor);
             value %= divisor;
             divisor /= 10;
         }

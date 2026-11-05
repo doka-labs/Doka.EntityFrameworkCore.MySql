@@ -7,12 +7,9 @@ internal static class PerformanceWriteWorkloads
     )
     {
         foreach (var rowCount in new[]
-                 {
-                     10,
-                     100,
-                     1000,
-                     10000,
-                 })
+            {
+                10, 100, 1000, 10000,
+            })
         {
             AddWrite(catalog, rowCount, useAsync: false, maxBatchSize: null);
             AddWrite(catalog, rowCount, useAsync: true, maxBatchSize: null);
@@ -37,7 +34,10 @@ internal static class PerformanceWriteWorkloads
         int? maxBatchSize
     )
     {
-        var execution = useAsync ? "async" : "sync";
+        var execution = useAsync
+            ? "async"
+            : "sync";
+
         var batch = maxBatchSize?.ToString(CultureInfo.InvariantCulture) ?? "default";
         var id = $"write.savechanges.{execution}.rows-{rowCount}.batch-{batch}";
         var options = BenchmarkEnvironment.CreateOptions<BenchmarkContext>(
@@ -101,7 +101,10 @@ internal static class PerformanceWriteWorkloads
         bool useAsync
     )
     {
-        var execution = useAsync ? "async" : "sync";
+        var execution = useAsync
+            ? "async"
+            : "sync";
+
         var id = $"hilo.insert.{execution}.contexts-{contextCount}.rows-{rowCount}";
 
         catalog.Add(
@@ -125,6 +128,7 @@ internal static class PerformanceWriteWorkloads
                         await database
                             .ResetAsync(cancellationToken)
                             .ConfigureAwait(false);
+
                         return;
                     }
 

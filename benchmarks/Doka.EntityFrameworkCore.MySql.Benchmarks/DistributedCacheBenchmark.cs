@@ -14,26 +14,34 @@ public class DistributedCacheBenchmark : IDisposable
     private const int ParallelReaders = 16;
     private const string TableName = "DistributedCacheBenchmarks";
 
-    private readonly byte[] _smallValue = new byte[SmallValueSize];
+    private readonly DistributedCacheEntryOptions _expiration = new()
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1),
+    };
+
     private readonly byte[] _largeValue = new byte[LargeValueSize];
-    private readonly FixedBufferWriter _smallWriter = new(SmallValueSize);
     private readonly FixedBufferWriter _largeWriter = new(LargeValueSize);
+
+    private readonly Task<bool>[] _parallelReads = new Task<bool>[ParallelReaders];
 
     private readonly FixedBufferWriter[] _parallelWriters = Enumerable
         .Range(0, ParallelReaders)
         .Select(static _ => new FixedBufferWriter(SmallValueSize))
         .ToArray();
 
-    private readonly Task<bool>[] _parallelReads = new Task<bool>[ParallelReaders];
-
-    private readonly DistributedCacheEntryOptions _expiration = new()
-    {
-        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1),
-    };
+    private readonly byte[] _smallValue = new byte[SmallValueSize];
+    private readonly FixedBufferWriter _smallWriter = new(SmallValueSize);
 
     private MySqlDistributedCache _cache = null!;
     private ReadOnlySequence<byte> _largeSequence;
     private ReadOnlySequence<byte> _segmentedSequence;
+
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _cache?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [GlobalSetup]
     public void Setup()
@@ -45,6 +53,7 @@ public class DistributedCacheBenchmark : IDisposable
         using var command = new MySqlCommand(
             MySqlCacheSchema.GetCreateScript(BenchmarkEnvironment.DatabaseNameValue, TableName),
             connection);
+
         command.ExecuteNonQuery();
 
         _cache = new MySqlDistributedCache(
@@ -57,8 +66,14 @@ public class DistributedCacheBenchmark : IDisposable
                 }),
             NullLogger<MySqlDistributedCache>.Instance);
 
-        _smallValue.AsSpan().Fill(42);
-        _largeValue.AsSpan().Fill(42);
+        _smallValue
+            .AsSpan()
+            .Fill(42);
+
+        _largeValue
+            .AsSpan()
+            .Fill(42);
+
         _cache.Set("small", _smallValue, _expiration);
         _cache.Set("large", _largeValue, _expiration);
         _cache.Set("sliding", _smallValue, new DistributedCacheEntryOptions());
@@ -84,21 +99,27 @@ public class DistributedCacheBenchmark : IDisposable
     public int BufferSliding()
     {
         _smallWriter.Reset();
-        return _cache.TryGet("sliding", _smallWriter) ? _smallWriter.WrittenCount : -1;
+        return _cache.TryGet("sliding", _smallWriter)
+            ? _smallWriter.WrittenCount
+            : -1;
     }
 
     [Benchmark]
     public int BufferSmall()
     {
         _smallWriter.Reset();
-        return _cache.TryGet("small", _smallWriter) ? _smallWriter.WrittenCount : -1;
+        return _cache.TryGet("small", _smallWriter)
+            ? _smallWriter.WrittenCount
+            : -1;
     }
 
     [Benchmark]
     public int BufferLarge()
     {
         _largeWriter.Reset();
-        return _cache.TryGet("large", _largeWriter) ? _largeWriter.WrittenCount : -1;
+        return _cache.TryGet("large", _largeWriter)
+            ? _largeWriter.WrittenCount
+            : -1;
     }
 
     [Benchmark]
@@ -122,6 +143,7 @@ public class DistributedCacheBenchmark : IDisposable
     /// Measures concurrent buffered reads of an absolute-expiration entry.
     /// </summary>
     [Benchmark]
+
     // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
     public Task<int> ParallelBufferReadsAsync() => ReadBuffersAsync("small", CancellationToken.None);
 
@@ -129,6 +151,7 @@ public class DistributedCacheBenchmark : IDisposable
     /// Measures concurrent buffered reads that refresh sliding expiration.
     /// </summary>
     [Benchmark]
+
     // WHY: BenchmarkDotNet does not supply a caller cancellation token to benchmark methods.
     public Task<int> ParallelSlidingBufferReadsAsync() => ReadBuffersAsync("sliding", CancellationToken.None);
 
@@ -145,7 +168,9 @@ public class DistributedCacheBenchmark : IDisposable
     {
         for (var index = 0; index < ParallelReaders; index++)
         {
-            _parallelWriters[index].Reset();
+            _parallelWriters[index]
+                .Reset();
+
             _parallelReads[index] = _cache
                 .TryGetAsync(key, _parallelWriters[index], cancellationToken)
                 .AsTask();
@@ -170,20 +195,11 @@ public class DistributedCacheBenchmark : IDisposable
         return written;
     }
 
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _cache?.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
     private sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
     {
         private readonly byte[] _buffer = new byte[capacity];
 
         public int WrittenCount { get; private set; }
-
-        public void Reset() => WrittenCount = 0;
 
         public void Advance(
             int count
@@ -206,13 +222,18 @@ public class DistributedCacheBenchmark : IDisposable
             int sizeHint = 0
         ) => GetMemory(sizeHint)
             .Span;
+
+        public void Reset() => WrittenCount = 0;
     }
 
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {
         public Segment(
             ReadOnlyMemory<byte> memory
-        ) => Memory = memory;
+        )
+        {
+            Memory = memory;
+        }
 
         public Segment Append(
             ReadOnlyMemory<byte> memory

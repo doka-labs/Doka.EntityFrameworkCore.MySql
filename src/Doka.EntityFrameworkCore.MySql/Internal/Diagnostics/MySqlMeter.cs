@@ -1,9 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// The provider-owned <see cref="Meter"/>. Holds the OpenTelemetry-aligned
+/// The provider-owned <see cref="Meter" />. Holds the OpenTelemetry-aligned
 /// instruments named in D-010. The instruments are recorded unconditionally
-/// because <see cref="Meter"/> internally short-circuits on no-listener for
+/// because <see cref="Meter" /> internally short-circuits on no-listener for
 /// instrument writes; no per-call <c>HasListeners</c> guard is necessary.
 /// </summary>
 internal static class MySqlMeter
@@ -11,8 +11,10 @@ internal static class MySqlMeter
     private static readonly Meter s_meter = new(
         MySqlDiagnostics.SourceName,
         typeof(MySqlMeter)
-            .Assembly.GetName()
-            .Version?.ToString()
+            .Assembly
+            .GetName()
+            .Version
+            ?.ToString()
         ?? "0.0.0");
 
     /// <summary>

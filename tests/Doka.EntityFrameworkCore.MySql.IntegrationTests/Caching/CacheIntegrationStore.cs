@@ -25,6 +25,7 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
             options.SchemaName = schemaName;
             options.TableName = tableName;
         });
+
         _provider = services.BuildServiceProvider();
         Cache = _provider.GetRequiredService<IBufferDistributedCache>();
         Assert.Same(Cache, _provider.GetRequiredService<IDistributedCache>());
@@ -35,6 +36,27 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     public string TableName { get; }
     public string QualifiedTableName { get; }
     public IBufferDistributedCache Cache { get; }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        // WHY: Disposal must remove the cache table and release owned resources after a cancelled test.
+        await _provider
+            .DisposeAsync()
+            .ConfigureAwait(false);
+
+        try
+        {
+            await ExecuteAsync($"DROP TABLE IF EXISTS {QualifiedTableName};", CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await _connection
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
+    }
 
     /// <summary>Creates an isolated cache store for the selected database target.</summary>
     /// <param name="target">The database target used for this operation.</param>
@@ -50,11 +72,12 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         // WHY: Forward the test-class source path so both cache test classes
         // retain separate databases even though connection creation is shared.
-        var builder = new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target, ownerFilePath))
-        {
-            DateTimeKind = MySqlDateTimeKind.Unspecified,
-            MaximumPoolSize = 16,
-        };
+        var builder =
+            new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target, ownerFilePath))
+            {
+                DateTimeKind = MySqlDateTimeKind.Unspecified,
+                MaximumPoolSize = 16,
+            };
 
         var store = new CacheIntegrationStore(
             builder.ConnectionString,
@@ -86,26 +109,6 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
                 .ConfigureAwait(false);
 
             throw;
-        }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        // WHY: Disposal must remove the cache table and release owned resources after a cancelled test.
-        await _provider
-            .DisposeAsync()
-            .ConfigureAwait(false);
-        try
-        {
-            await ExecuteAsync($"DROP TABLE IF EXISTS {QualifiedTableName};", CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            await _connection
-                .DisposeAsync()
-                .ConfigureAwait(false);
         }
     }
 
@@ -213,8 +216,12 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         return new EntryState(
             reader.GetDateTime(0),
-            reader.IsDBNull(1) ? null : reader.GetDateTime(1),
-            reader.IsDBNull(2) ? null : reader.GetInt64(2),
+            reader.IsDBNull(1)
+                ? null
+                : reader.GetDateTime(1),
+            reader.IsDBNull(2)
+                ? null
+                : reader.GetInt64(2),
             reader.GetInt64(3));
     }
 
@@ -379,14 +386,15 @@ internal class ExactBufferWriter : IBufferWriter<byte>
 
 internal sealed class PausingBufferWriter : ExactBufferWriter, IDisposable
 {
-    private readonly ManualResetEventSlim _release = new();
     private readonly TaskCompletionSource _readStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly ManualResetEventSlim _release = new();
 
     public PausingBufferWriter(
         int capacity
     ) : base(capacity) { }
 
     public Task ReadStarted => _readStarted.Task;
+    public void Dispose() => _release.Dispose();
 
     public override Memory<byte> GetMemory(
         int sizeHint = 0
@@ -397,11 +405,9 @@ internal sealed class PausingBufferWriter : ExactBufferWriter, IDisposable
         return _release.Wait(TimeSpan.FromSeconds(15))
             ? base.GetMemory(sizeHint)
             : throw new TimeoutException("The cache read was not released by its concurrent writer.");
-
     }
 
     public void Release() => _release.Set();
-    public void Dispose() => _release.Dispose();
 }
 
 internal sealed class CacheSequenceSegment : ReadOnlySequenceSegment<byte>

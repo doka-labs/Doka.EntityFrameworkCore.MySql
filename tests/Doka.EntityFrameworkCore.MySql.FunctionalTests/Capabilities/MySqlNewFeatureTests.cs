@@ -43,7 +43,8 @@ public sealed partial class MySqlNewFeatureTests
             context.Model.FindEntityType(typeof(HiLoDefaultEntity))!.FindProperty(nameof(HiLoDefaultEntity.Id))!;
 
         var sequences = context
-            .Model.GetSequences()
+            .Model
+            .GetSequences()
             .ToList();
 
         // Assert

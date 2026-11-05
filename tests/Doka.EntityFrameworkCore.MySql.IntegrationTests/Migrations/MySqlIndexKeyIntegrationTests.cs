@@ -8,6 +8,19 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [Trait("VerificationLane", "FullIntegration")]
 public sealed partial class MySqlIndexKeyIntegrationTests
 {
+    /// <summary>Identifies independent physical-index migration contracts.</summary>
+    public enum IndexKeyScenario
+    {
+        /// <summary>Rejects a key exceeding the server limit without advancing history.</summary>
+        Overlong,
+
+        /// <summary>Preserves the complete indexed value at the byte boundary.</summary>
+        Boundary,
+
+        /// <summary>Rebuilds an existing prefix while preserving rows.</summary>
+        PrefixEvolution,
+    }
+
     /// <summary>
     /// Verifies my sql84 validates index key contracts.
     /// </summary>
@@ -81,19 +94,6 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     public Task MariaDb118_sync_migration_rejects_silent_index_shortening() =>
         AssertSyncWarningContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
-    /// <summary>Identifies independent physical-index migration contracts.</summary>
-    public enum IndexKeyScenario
-    {
-        /// <summary>Rejects a key exceeding the server limit without advancing history.</summary>
-        Overlong,
-
-        /// <summary>Preserves the complete indexed value at the byte boundary.</summary>
-        Boundary,
-
-        /// <summary>Rebuilds an existing prefix while preserving rows.</summary>
-        PrefixEvolution,
-    }
-
     /// <summary>
     /// Verifies index key contract for the integration contract.
     /// </summary>
@@ -115,8 +115,12 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -133,7 +137,8 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -157,8 +162,12 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionStringBuilder.ConnectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -187,7 +196,8 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -237,7 +247,11 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             Assert.Equal((int)MySqlErrorCode.TooLongKey, mySqlException.Number);
         }
 
-        Assert.Empty(await context.Database.GetAppliedMigrationsAsync(cancellationToken).ConfigureAwait(false));
+        Assert.Empty(
+            await context
+                .Database
+                .GetAppliedMigrationsAsync(cancellationToken)
+                .ConfigureAwait(false));
     }
 
     /// <summary>
@@ -260,12 +274,19 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 IndexKeyMigrationContract.BoundaryHistoryTable));
 
         // Act
-        await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+        await context
+            .Database
+            .MigrateAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(
             [IndexKeyMigrationContract.BoundaryMigration],
-            await context.Database.GetAppliedMigrationsAsync(cancellationToken).ConfigureAwait(false));
+            await context
+                .Database
+                .GetAppliedMigrationsAsync(cancellationToken)
+                .ConfigureAwait(false));
+
         Assert.Null(
             await ReadIndexPrefixLengthAsync(
                     connection,
@@ -296,7 +317,10 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 + $"INDEX `{IndexKeyMigrationContract.EvolutionIndex}` (`TenantId`, `Code`(24))); "
                 + $"INSERT INTO `{IndexKeyMigrationContract.EvolutionTable}` (`Id`, `TenantId`, `Code`) "
                 + "VALUES (1, 7, 'preserved');";
-            _ = await setup.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            _ = await setup
+                .ExecuteNonQueryAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
 
         await using var source = new SourceIndexPrefixIntegrationContext(
@@ -311,8 +335,11 @@ public sealed partial class MySqlIndexKeyIntegrationTests
                 serverVersion,
                 IndexKeyMigrationContract.EvolutionHistoryTable));
 
-        var sourceModel = source.GetService<IDesignTimeModel>().Model;
-        var targetModel = target.GetService<IDesignTimeModel>().Model;
+        var sourceModel = source.GetService<IDesignTimeModel>()
+            .Model;
+
+        var targetModel = target.GetService<IDesignTimeModel>()
+            .Model;
 
         var differ = target.GetService<IMigrationsModelDiffer>();
 
@@ -333,19 +360,22 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         }
 
         var physicalPrefixLength = await ReadIndexPrefixLengthAsync(
-                    connection,
-                    IndexKeyMigrationContract.EvolutionTable,
-                    IndexKeyMigrationContract.EvolutionIndex,
-                    cancellationToken,
-                    "Code")
-                .ConfigureAwait(false);
+                connection,
+                IndexKeyMigrationContract.EvolutionTable,
+                IndexKeyMigrationContract.EvolutionIndex,
+                cancellationToken,
+                "Code")
+            .ConfigureAwait(false);
 
         await using var verify = connection.CreateCommand();
         verify.CommandText = $"SELECT COUNT(*) FROM `{IndexKeyMigrationContract.EvolutionTable}` "
             + "WHERE `Id` = 1 AND `TenantId` = 7 AND `Code` = 'preserved';";
+
         var preservedRows = Convert.ToInt64(
-                await verify.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
-                CultureInfo.InvariantCulture);
+            await verify
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
 
         // Assert
         Assert.True(hasDifferences);
@@ -353,7 +383,11 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         var create = Assert.Single(operations.OfType<CreateIndexOperation>());
 
         Assert.Equal(IndexKeyMigrationContract.EvolutionIndex, drop.Name);
-        Assert.Equal([0, 48], create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(
+            [0, 48],
+            create.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.Equal(48, physicalPrefixLength);
         Assert.Equal(1L, preservedRows);
     }
@@ -396,6 +430,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
         command.CommandText = "SELECT `SUB_PART` FROM information_schema.STATISTICS "
             + "WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = @table AND `INDEX_NAME` = @index "
             + "AND (@column IS NULL OR `COLUMN_NAME` = @column) ORDER BY `SEQ_IN_INDEX`;";
+
         command.Parameters.AddWithValue("@table", table);
         command.Parameters.AddWithValue("@index", index);
         command.Parameters.AddWithValue("@column", column);
@@ -404,9 +439,14 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        Assert.True(await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
+        Assert.True(
+            await reader
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false));
 
-        return await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false)
+        return await reader
+            .IsDBNullAsync(0, cancellationToken)
+            .ConfigureAwait(false)
             ? null
             : reader.GetInt64(0);
     }
@@ -428,7 +468,10 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             + $"DROP TABLE IF EXISTS `{IndexKeyMigrationContract.OverlongHistoryTable}`; "
             + $"DROP TABLE IF EXISTS `{IndexKeyMigrationContract.BoundaryHistoryTable}`; "
             + $"DROP TABLE IF EXISTS `{IndexKeyMigrationContract.EvolutionHistoryTable}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 
@@ -536,6 +579,7 @@ internal sealed class SourceIndexPrefixIntegrationContext : DbContext
             entity
                 .Property(record => record.Code)
                 .HasMaxLength(96);
+
             entity
                 .HasIndex(record => new
                 {

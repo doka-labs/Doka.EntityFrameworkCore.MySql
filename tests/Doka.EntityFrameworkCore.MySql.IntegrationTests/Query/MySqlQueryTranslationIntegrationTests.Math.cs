@@ -25,13 +25,14 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
         try
         {
-            context.Items.Add(new QueryItem
-            {
-                Name = "m",
-                Value = -16.7,
-                Category = "X",
-                CreatedAt = new DateTime(2025, 1, 1),
-            });
+            context.Items.Add(
+                new QueryItem
+                {
+                    Name = "m",
+                    Value = -16.7,
+                    Category = "X",
+                    CreatedAt = new DateTime(2025, 1, 1),
+                });
 
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();

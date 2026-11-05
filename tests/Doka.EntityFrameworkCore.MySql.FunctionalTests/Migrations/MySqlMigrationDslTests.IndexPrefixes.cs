@@ -17,8 +17,15 @@ public sealed partial class MySqlMigrationDslTests
         using var sourceContext = CreateIndexPrefixContext(transition, source: true);
         using var targetContext = CreateIndexPrefixContext(transition, source: false);
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var hasDifferences = differ.HasDifferences(sourceModel, targetModel);
@@ -41,7 +48,9 @@ public sealed partial class MySqlMigrationDslTests
             transition is IndexPrefixTransition.Change or IndexPrefixTransition.Add
                 ? IndexPrefixContract.TargetPrefixLengths
                 : null,
-            create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+            create.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
 
         Assert.Contains(
@@ -71,8 +80,15 @@ public sealed partial class MySqlMigrationDslTests
         using var sourceContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
         using var targetContext = new SourceIndexPrefixContext(CreateOptions<SourceIndexPrefixContext>());
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var hasDifferences = differ.HasDifferences(sourceModel, targetModel);
@@ -103,8 +119,15 @@ public sealed partial class MySqlMigrationDslTests
             : new SpatialIndexContext(CreateOptions<SpatialIndexContext>());
 
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var hasDifferences = differ.HasDifferences(sourceModel, targetModel);
@@ -138,13 +161,18 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Empty(operations.OfType<RenameIndexOperation>());
         Assert.Equal(IndexPrefixContract.IndexName, drop.Name);
         Assert.Equal(IndexPrefixContract.RenamedIndexName, create.Name);
-        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(
+            IndexPrefixContract.TargetPrefixLengths,
+            create.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(create));
 
         Assert.Contains(
             $"ALTER TABLE `{IndexPrefixContract.TableName}` DROP INDEX `{IndexPrefixContract.IndexName}`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             $"CREATE INDEX `{IndexPrefixContract.RenamedIndexName}` "
             + $"ON `{IndexPrefixContract.TableName}` (`TenantId`, `Code`(48))",
@@ -177,7 +205,11 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(IndexPrefixContract.TableName, drop.Table);
         Assert.Equal(IndexPrefixContract.RenamedTableName, rename.NewName);
         Assert.Equal(IndexPrefixContract.RenamedTableName, create.Table);
-        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(
+            IndexPrefixContract.TargetPrefixLengths,
+            create.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(rename));
         Assert.True(operations.IndexOf(rename) < operations.IndexOf(create));
 
@@ -185,10 +217,12 @@ public sealed partial class MySqlMigrationDslTests
             $"ALTER TABLE `{IndexPrefixContract.TableName}` DROP INDEX `{IndexPrefixContract.IndexName}`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             $"RENAME TABLE `{IndexPrefixContract.TableName}` TO `{IndexPrefixContract.RenamedTableName}`",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             $"CREATE INDEX `{IndexPrefixContract.IndexName}` "
             + $"ON `{IndexPrefixContract.RenamedTableName}` (`TenantId`, `Code`(48))",
@@ -222,7 +256,11 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(IndexPrefixContract.RenamedTableName, renameTable.NewName);
         Assert.Equal(IndexPrefixContract.RenamedIndexName, create.Name);
         Assert.Equal(IndexPrefixContract.RenamedTableName, create.Table);
-        Assert.Equal(IndexPrefixContract.TargetPrefixLengths, create.GetMySqlMigrationMetadata().IndexPrefixLengths);
+        Assert.Equal(
+            IndexPrefixContract.TargetPrefixLengths,
+            create.GetMySqlMigrationMetadata()
+                .IndexPrefixLengths);
+
         Assert.True(operations.IndexOf(drop) < operations.IndexOf(renameTable));
         Assert.True(operations.IndexOf(renameTable) < operations.IndexOf(create));
     }

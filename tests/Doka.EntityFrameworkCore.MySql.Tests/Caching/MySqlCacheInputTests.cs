@@ -13,7 +13,9 @@ public sealed class MySqlCacheInputTests
     {
         get
         {
-            string[] operations = ["get", "set_array", "refresh", "remove", "get_buffer", "set_sequence", "set_segments"];
+            string[] operations =
+                ["get", "set_array", "refresh", "remove", "get_buffer", "set_sequence", "set_segments"];
+
             string[] scenarios =
             [
                 "null", "empty", "oversized_ascii", "oversized_utf8",
@@ -56,16 +58,22 @@ public sealed class MySqlCacheInputTests
         {
             // ReSharper disable once MethodHasAsyncOverload
             "get" => () => cache.Get(key),
+
             // ReSharper disable once MethodHasAsyncOverload
             "set_array" => () => cache.Set(key, value, options),
+
             // ReSharper disable once MethodHasAsyncOverload
             "refresh" => () => cache.Refresh(key),
+
             // ReSharper disable once MethodHasAsyncOverload
             "remove" => () => cache.Remove(key),
+
             // ReSharper disable once MethodHasAsyncOverload
             "get_buffer" => () => bufferCache.TryGet(key, destination),
+
             // ReSharper disable once MethodHasAsyncOverload
             "set_sequence" => () => bufferCache.Set(key, new ReadOnlySequence<byte>(value), options),
+
             // ReSharper disable once MethodHasAsyncOverload
             "set_segments" => () => bufferCache.Set(key, CreateMultiSegmentValue(), options),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
@@ -105,11 +113,15 @@ public sealed class MySqlCacheInputTests
             "set_array" => () => cache.SetAsync(key, value, options, CancellationToken.None),
             "refresh" => () => cache.RefreshAsync(key, CancellationToken.None),
             "remove" => () => cache.RemoveAsync(key, CancellationToken.None),
-            "get_buffer" => () => bufferCache.TryGetAsync(key, destination, CancellationToken.None).AsTask(),
+            "get_buffer" => () => bufferCache
+                .TryGetAsync(key, destination, CancellationToken.None)
+                .AsTask(),
             "set_sequence" => () => bufferCache
-                .SetAsync(key, new ReadOnlySequence<byte>(value), options, CancellationToken.None).AsTask(),
+                .SetAsync(key, new ReadOnlySequence<byte>(value), options, CancellationToken.None)
+                .AsTask(),
             "set_segments" => () => bufferCache
-                .SetAsync(key, CreateMultiSegmentValue(), options, CancellationToken.None).AsTask(),
+                .SetAsync(key, CreateMultiSegmentValue(), options, CancellationToken.None)
+                .AsTask(),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
@@ -146,10 +158,13 @@ public sealed class MySqlCacheInputTests
         {
             // ReSharper disable once MethodHasAsyncOverload
             "array_value" => () => cache.Set("key", null!, options),
+
             // ReSharper disable once MethodHasAsyncOverload
             "array_options" => () => cache.Set("key", [], null!),
+
             // ReSharper disable once MethodHasAsyncOverload
             "buffer_destination" => () => bufferCache.TryGet("key", null!),
+
             // ReSharper disable once MethodHasAsyncOverload
             "sequence_options" => () => bufferCache.Set("key", ReadOnlySequence<byte>.Empty, null!),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
@@ -159,7 +174,10 @@ public sealed class MySqlCacheInputTests
         var exception = Record.Exception(action);
 
         // Assert
-        Assert.Equal(parameterName, Assert.IsType<ArgumentNullException>(exception).ParamName);
+        Assert.Equal(
+            parameterName,
+            Assert.IsType<ArgumentNullException>(exception)
+                .ParamName);
     }
 
     /// <summary>Verifies one missing asynchronous argument is rejected before connecting.</summary>
@@ -185,9 +203,12 @@ public sealed class MySqlCacheInputTests
         {
             "array_value" => () => cache.SetAsync("key", null!, options, CancellationToken.None),
             "array_options" => () => cache.SetAsync("key", [], null!, CancellationToken.None),
-            "buffer_destination" => () => bufferCache.TryGetAsync("key", null!, CancellationToken.None).AsTask(),
+            "buffer_destination" => () => bufferCache
+                .TryGetAsync("key", null!, CancellationToken.None)
+                .AsTask(),
             "sequence_options" => () => bufferCache
-                .SetAsync("key", ReadOnlySequence<byte>.Empty, null!, CancellationToken.None).AsTask(),
+                .SetAsync("key", ReadOnlySequence<byte>.Empty, null!, CancellationToken.None)
+                .AsTask(),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -195,7 +216,10 @@ public sealed class MySqlCacheInputTests
         var exception = await Record.ExceptionAsync(action);
 
         // Assert
-        Assert.Equal(parameterName, Assert.IsType<ArgumentNullException>(exception).ParamName);
+        Assert.Equal(
+            parameterName,
+            Assert.IsType<ArgumentNullException>(exception)
+                .ParamName);
     }
 
     /// <summary>
@@ -221,8 +245,10 @@ public sealed class MySqlCacheInputTests
         {
             // ReSharper disable once MethodHasAsyncOverload
             "array" => () => cache.Set("key", [], options),
+
             // ReSharper disable once MethodHasAsyncOverload
             "sequence" => () => bufferCache.Set("key", ReadOnlySequence<byte>.Empty, options),
+
             // ReSharper disable once MethodHasAsyncOverload
             "segments" => () => bufferCache.Set("key", CreateMultiSegmentValue(), options),
             _ => throw new ArgumentOutOfRangeException(nameof(path)),
@@ -255,9 +281,11 @@ public sealed class MySqlCacheInputTests
         {
             "array" => () => cache.SetAsync("key", [], options, CancellationToken.None),
             "sequence" => () => bufferCache
-                .SetAsync("key", ReadOnlySequence<byte>.Empty, options, CancellationToken.None).AsTask(),
+                .SetAsync("key", ReadOnlySequence<byte>.Empty, options, CancellationToken.None)
+                .AsTask(),
             "segments" => () => bufferCache
-                .SetAsync("key", CreateMultiSegmentValue(), options, CancellationToken.None).AsTask(),
+                .SetAsync("key", CreateMultiSegmentValue(), options, CancellationToken.None)
+                .AsTask(),
             _ => throw new ArgumentOutOfRangeException(nameof(path)),
         };
 
@@ -304,9 +332,15 @@ public sealed class MySqlCacheInputTests
             "set_array" => () => cache.SetAsync("key", [1, 2], options, token),
             "refresh" => () => cache.RefreshAsync("key", token),
             "remove" => () => cache.RemoveAsync("key", token),
-            "get_buffer" => () => bufferCache.TryGetAsync("key", destination, token).AsTask(),
-            "set_sequence" => () => bufferCache.SetAsync("key", ReadOnlySequence<byte>.Empty, options, token).AsTask(),
-            "set_segments" => () => bufferCache.SetAsync("key", CreateMultiSegmentValue(), options, token).AsTask(),
+            "get_buffer" => () => bufferCache
+                .TryGetAsync("key", destination, token)
+                .AsTask(),
+            "set_sequence" => () => bufferCache
+                .SetAsync("key", ReadOnlySequence<byte>.Empty, options, token)
+                .AsTask(),
+            "set_segments" => () => bufferCache
+                .SetAsync("key", CreateMultiSegmentValue(), options, token)
+                .AsTask(),
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
@@ -314,7 +348,11 @@ public sealed class MySqlCacheInputTests
         var exception = await Record.ExceptionAsync(action);
 
         // Assert
-        Assert.Equal(token, Assert.IsAssignableFrom<OperationCanceledException>(exception).CancellationToken);
+        Assert.Equal(
+            token,
+            Assert.IsAssignableFrom<OperationCanceledException>(exception)
+                .CancellationToken);
+
         Assert.False(listener.Pending());
     }
 
@@ -340,7 +378,7 @@ public sealed class MySqlCacheInputTests
             "supplementary_limit" => string.Concat(Enumerable.Repeat("\ud83d\ude00", 256)),
             "spaces" => " ",
             "embedded_null" => "prefix\0suffix",
-            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
         using var provider = MySqlCacheTestFactory.CreateProvider();
@@ -351,7 +389,10 @@ public sealed class MySqlCacheInputTests
         var exception = await Record.ExceptionAsync(() => cache.GetAsync(key, token));
 
         // Assert
-        Assert.Equal(token, Assert.IsAssignableFrom<OperationCanceledException>(exception).CancellationToken);
+        Assert.Equal(
+            token,
+            Assert.IsAssignableFrom<OperationCanceledException>(exception)
+                .CancellationToken);
     }
 
     private static string CreateInvalidKey(
@@ -364,7 +405,7 @@ public sealed class MySqlCacheInputTests
         "oversized_utf8" => new string('\u00e9', 513),
         "unpaired_high_surrogate" => "prefix\ud800",
         "unpaired_low_surrogate" => "prefix\udfff",
-        _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
     };
 
     private static ReadOnlySequence<byte> CreateMultiSegmentValue()

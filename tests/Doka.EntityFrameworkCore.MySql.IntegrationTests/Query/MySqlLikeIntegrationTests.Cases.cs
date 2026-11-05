@@ -5,7 +5,9 @@ public sealed partial class MySqlLikeIntegrationTests
     private static readonly LikeCase[] s_scalarCases = CreateScalarCases();
 
     private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment.GetSupportedTargets().Where(IntegrationTestEnvironment.IsTargetSelected);
+        IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>
     /// Expands scalar and null/escaping boundaries into separately selectable rows.
@@ -42,11 +44,13 @@ public sealed partial class MySqlLikeIntegrationTests
         result.Add(new LikeCase(nameof(LikeItem.OptionalText), "NonNullWildcard", "%", [1]));
 
         foreach (var property in new[]
-                 {
-                     nameof(LikeItem.OptionalInt32Value), nameof(LikeItem.OptionalCreatedAt),
-                     nameof(LikeItem.OptionalBinaryToken), nameof(LikeItem.OptionalTextToken),
-                     nameof(LikeItem.OptionalText),
-                 })
+            {
+                nameof(LikeItem.OptionalInt32Value),
+                nameof(LikeItem.OptionalCreatedAt),
+                nameof(LikeItem.OptionalBinaryToken),
+                nameof(LikeItem.OptionalTextToken),
+                nameof(LikeItem.OptionalText),
+            })
         {
             result.Add(new LikeCase(property, "NullPattern", null, []));
         }
@@ -58,19 +62,19 @@ public sealed partial class MySqlLikeIntegrationTests
         result.Add(new LikeCase(nameof(LikeItem.OptionalText), "EscapedMatch", "sale!_25!%!!", [1], true, "!"));
 
         foreach (var property in new[]
-                 {
-                     nameof(LikeItem.OptionalInt32Value),
-                     nameof(LikeItem.OptionalBinaryToken),
-                     nameof(LikeItem.OptionalText),
-                 })
+            {
+                nameof(LikeItem.OptionalInt32Value),
+                nameof(LikeItem.OptionalBinaryToken),
+                nameof(LikeItem.OptionalText),
+            })
         {
-            result.Add(new LikeCase(property, "NullEscape", "%", [], true, null));
+            result.Add(new LikeCase(property, "NullEscape", "%", [], true));
         }
 
         foreach (var property in new[]
-                 {
-                     nameof(LikeItem.Int32Value), nameof(LikeItem.BinaryToken), nameof(LikeItem.Text),
-                 })
+            {
+                nameof(LikeItem.Int32Value), nameof(LikeItem.BinaryToken), nameof(LikeItem.Text),
+            })
         {
             // WHY: The pattern must stay parameter data even when it resembles a SQL predicate.
             result.Add(new LikeCase(property, "InjectionLikePattern", "%' OR 1=1 --", []));
@@ -132,7 +136,9 @@ public sealed partial class MySqlLikeIntegrationTests
             : context.Items.Where(item =>
                 EF.Functions.Like(EF.Property<T>(item, propertyName), pattern));
 
-        return query.OrderBy(item => item.Id).Select(item => item.Id);
+        return query
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id);
     }
 
     private sealed record LikeCase(
@@ -141,5 +147,6 @@ public sealed partial class MySqlLikeIntegrationTests
         string? Pattern,
         int[] ExpectedIds,
         bool HasEscape = false,
-        string? EscapeCharacter = null);
+        string? EscapeCharacter = null
+    );
 }

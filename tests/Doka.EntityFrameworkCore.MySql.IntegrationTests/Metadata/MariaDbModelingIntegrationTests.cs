@@ -31,12 +31,28 @@ public sealed class MariaDbModelingIntegrationTests
 
         try
         {
-            context.Animals.Add(new TphDog { Name = "Rex", Breed = "Shepherd" });
-            context.Animals.Add(new TphCat { Name = "Mimi", IsIndoor = true });
+            context.Animals.Add(
+                new TphDog
+                {
+                    Name = "Rex",
+                    Breed = "Shepherd",
+                });
+
+            context.Animals.Add(
+                new TphCat
+                {
+                    Name = "Mimi",
+                    IsIndoor = true,
+                });
+
             await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
-            var dogs = await context.Animals.OfType<TphDog>().ToListAsync();
+            var dogs = await context
+                .Animals
+                .OfType<TphDog>()
+                .ToListAsync();
+
             var allAnimalCount = await context.Animals.CountAsync();
 
             // Assert
@@ -60,16 +76,26 @@ public sealed class MariaDbModelingIntegrationTests
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbTptVehicles` (`Id` int NOT NULL AUTO_INCREMENT, `Make` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbTptCars` (`Id` int NOT NULL, `SeatCount` int NOT NULL, PRIMARY KEY (`Id`), FOREIGN KEY (`Id`) REFERENCES `MdbTptVehicles` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Vehicles.Add(new TptCar { Make = "Audi", SeatCount = 4 });
+            context.Vehicles.Add(
+                new TptCar
+                {
+                    Make = "Audi",
+                    SeatCount = 4,
+                });
+
             await context.SaveChangesAsync(CancellationToken.None);
 
             // Act
-            var car = await context.Vehicles.OfType<TptCar>().FirstAsync();
+            var car = await context
+                .Vehicles
+                .OfType<TptCar>()
+                .FirstAsync();
 
             // Assert
             Assert.Equal("Audi", car.Make);
@@ -104,6 +130,7 @@ public sealed class MariaDbModelingIntegrationTests
                         City = "Munich",
                     },
                 });
+
             await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
@@ -129,8 +156,10 @@ public sealed class MariaDbModelingIntegrationTests
 
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbStudents` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbCourses` (`Id` int NOT NULL AUTO_INCREMENT, `Title` varchar(200) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS `MdbM2MCourseStudent` (`CoursesId` int NOT NULL, `StudentsId` int NOT NULL, PRIMARY KEY (`CoursesId`, `StudentsId`), FOREIGN KEY (`CoursesId`) REFERENCES `MdbCourses` (`Id`) ON DELETE CASCADE, FOREIGN KEY (`StudentsId`) REFERENCES `MdbStudents` (`Id`) ON DELETE CASCADE) CHARACTER SET utf8mb4;");
 
@@ -144,7 +173,8 @@ public sealed class MariaDbModelingIntegrationTests
 
             // Act
             var loaded = await context
-                .Students.Include(x => x.Courses)
+                .Students
+                .Include(x => x.Courses)
                 .FirstAsync();
 
             // Assert
@@ -164,11 +194,18 @@ public sealed class MariaDbModelingIntegrationTests
         await using var context = new ConcurrencyContext(CreateOptions<ConcurrencyContext>(connectionString));
         await CleanupAsync(context, CancellationToken.None, "MdbConcurrency");
 
-        await context.Database.ExecuteSqlRawAsync("CREATE TABLE IF NOT EXISTS `MdbConcurrency` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, `Version` int NOT NULL DEFAULT 0, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS `MdbConcurrency` (`Id` int NOT NULL AUTO_INCREMENT, `Name` varchar(100) NOT NULL, `Version` int NOT NULL DEFAULT 0, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;");
 
         try
         {
-            context.Items.Add(new ConcurrencyItem { Name = "Original", Version = 1 });
+            context.Items.Add(
+                new ConcurrencyItem
+                {
+                    Name = "Original",
+                    Version = 1,
+                });
+
             await context.SaveChangesAsync(CancellationToken.None);
             await context.Database.ExecuteSqlRawAsync("UPDATE `MdbConcurrency` SET `Version` = 99 WHERE `Id` = 1;");
             var entity = await context.Items.FirstAsync();
@@ -203,8 +240,9 @@ public sealed class MariaDbModelingIntegrationTests
                 new ConverterItem
                 {
                     IsActive = true,
-                    Price = 99.95m
+                    Price = 99.95m,
                 });
+
             await context.SaveChangesAsync(CancellationToken.None);
             context.ChangeTracker.Clear();
 
@@ -294,13 +332,16 @@ public sealed class MariaDbModelingIntegrationTests
                     .HasDiscriminator<string>("Type")
                     .HasValue<TphDog>("Dog")
                     .HasValue<TphCat>("Cat");
+
                 e
                     .Property("Type")
                     .HasMaxLength(64);
+
                 e
                     .Property(a => a.Name)
                     .HasMaxLength(100);
             });
+
             m.Entity<TphDog>(e => e
                 .Property(d => d.Breed)
                 .HasMaxLength(100));
@@ -333,6 +374,7 @@ public sealed class MariaDbModelingIntegrationTests
             m
                 .Entity<TptVehicle>()
                 .UseTptMappingStrategy();
+
             m.Entity<TptVehicle>(e =>
             {
                 e.ToTable("MdbTptVehicles");
@@ -340,6 +382,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(v => v.Make)
                     .HasMaxLength(100);
             });
+
             m
                 .Entity<TptCar>()
                 .ToTable("MdbTptCars");
@@ -377,6 +420,7 @@ public sealed class MariaDbModelingIntegrationTests
                 e
                     .Property(c => c.Name)
                     .HasMaxLength(100);
+
                 e.OwnsOne(
                     c => c.Address,
                     a =>
@@ -384,6 +428,7 @@ public sealed class MariaDbModelingIntegrationTests
                         a
                             .Property(x => x.Street)
                             .HasMaxLength(200);
+
                         a
                             .Property(x => x.City)
                             .HasMaxLength(100);
@@ -425,6 +470,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(s => s.Name)
                     .HasMaxLength(100);
             });
+
             m.Entity<M2MCourse>(e =>
             {
                 e.ToTable("MdbCourses");
@@ -432,6 +478,7 @@ public sealed class MariaDbModelingIntegrationTests
                     .Property(c => c.Title)
                     .HasMaxLength(200);
             });
+
             m
                 .Entity<M2MStudent>()
                 .HasMany(s => s.Courses)
@@ -495,8 +542,13 @@ public sealed class MariaDbModelingIntegrationTests
                 e.ToTable("MdbConverter");
                 e
                     .Property(c => c.IsActive)
-                    .HasConversion(v => v ? "Y" : "N", v => v == "Y")
+                    .HasConversion(
+                        v => v
+                            ? "Y"
+                            : "N",
+                        v => v == "Y")
                     .HasMaxLength(1);
+
                 e
                     .Property(c => c.Price)
                     .HasPrecision(18, 2);

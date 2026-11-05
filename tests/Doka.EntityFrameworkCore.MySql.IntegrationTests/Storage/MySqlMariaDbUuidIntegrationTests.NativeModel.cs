@@ -15,22 +15,33 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var ids = s_seedMembership;
-        var query = context.Principals.AsNoTracking().Include(principal => principal.Dependents);
+        var query = context
+            .Principals
+            .AsNoTracking()
+            .Include(principal => principal.Dependents);
 
         // Act
-        var actual = await query.SingleAsync(
-            principal => EF.Parameter(ids).Contains(principal.Id),
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync(
+                principal => EF
+                    .Parameter(ids)
+                    .Contains(principal.Id),
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(s_seededId, actual.Id);
         Assert.Equal(s_optionalId, actual.OptionalNativeId);
         Assert.Equal(s_convertedSeedId, actual.ConvertedId);
         Assert.Single(actual.Dependents);
-        Assert.Equal(s_seededId, actual.Dependents.Single().PrincipalId);
+        Assert.Equal(
+            s_seededId,
+            actual.Dependents.Single()
+                .PrincipalId);
     }
 
     /// <summary>Retains model creation, insert, nullable update, and related readback as one lifecycle.</summary>
@@ -47,9 +58,15 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         await using var context = CreateNativeContext(engine, "Lifecycle");
-        await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         var connection = (MySqlConnection)context.Database.GetDbConnection();
-        await DropModelTablesAsync(connection, CancellationToken.None).ConfigureAwait(false);
+        await DropModelTablesAsync(connection, CancellationToken.None)
+            .ConfigureAwait(false);
+
         var runtime = new NativeUuidPrincipal
         {
             Id = s_runtimeId,
@@ -63,7 +80,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         try
         {
             // Act
-            await CreateNativeModelAsync(context, CancellationToken.None).ConfigureAwait(false);
+            await CreateNativeModelAsync(context, CancellationToken.None)
+                .ConfigureAwait(false);
 
             // WHY: Explicit runtime keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
@@ -71,18 +89,29 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
             // WHY: Explicit dependent keys need no asynchronous value generation.
             // ReSharper disable once MethodHasAsyncOverload
-            context.Set<NativeUuidDependent>().Add(new NativeUuidDependent
-            {
-                Id = 2,
-                PrincipalId = s_runtimeId,
-                Name = "runtime-related",
-            });
+            context
+                .Set<NativeUuidDependent>()
+                .Add(
+                    new NativeUuidDependent
+                    {
+                        Id = 2,
+                        PrincipalId = s_runtimeId,
+                        Name = "runtime-related",
+                    });
 
-            await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            await context
+                .SaveChangesAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             runtime.OptionalNativeId = s_optionalId;
-            await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            await context
+                .SaveChangesAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             context.ChangeTracker.Clear();
-            var actual = await context.Principals.AsNoTracking()
+            var actual = await context
+                .Principals
+                .AsNoTracking()
                 .Include(principal => principal.Dependents)
                 .SingleAsync(principal => principal.Id == s_runtimeId, CancellationToken.None)
                 .ConfigureAwait(false);
@@ -92,11 +121,15 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
             Assert.Equal(s_optionalId, actual.OptionalNativeId);
             Assert.Equal(s_convertedId, actual.ConvertedId);
             Assert.Single(actual.Dependents);
-            Assert.Equal(s_runtimeId, actual.Dependents.Single().PrincipalId);
+            Assert.Equal(
+                s_runtimeId,
+                actual.Dependents.Single()
+                    .PrincipalId);
         }
         finally
         {
-            await DropModelTablesAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await DropModelTablesAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -113,13 +146,16 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
-
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         // Act
-        var actual = await context.Principals.AnyAsync(
-            principal => principal.Id == Guid.Empty,
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await context
+            .Principals
+            .AnyAsync(
+                principal => principal.Id == Guid.Empty,
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.False(actual);
@@ -138,13 +174,16 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
-
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         // Act
-        var actual = await context.Principals.AnyAsync(
-            principal => EF.Functions.Like(principal.Id, "bf1da273-%"),
-            CancellationToken.None).ConfigureAwait(false);
+        var actual = await context
+            .Principals
+            .AnyAsync(
+                principal => EF.Functions.Like(principal.Id, "bf1da273-%"),
+                CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.True(actual);
@@ -163,13 +202,18 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        var query = context.Principals.Where(principal => principal.Id == s_seededId)
+        var query = context
+            .Principals
+            .Where(principal => principal.Id == s_seededId)
             .Select(principal => principal.Id.ToString());
 
         // Act
-        var actual = await query.SingleAsync(CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .SingleAsync(CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal(s_seededId.ToString("D", CultureInfo.InvariantCulture), actual);
@@ -188,12 +232,15 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
         var query = context.Principals.Select(_ => Guid.NewGuid());
 
         // Act
-        var actual = await query.FirstAsync(CancellationToken.None).ConfigureAwait(false);
+        var actual = await query
+            .FirstAsync(CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.NotEqual(Guid.Empty, actual);
@@ -212,21 +259,32 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         var connection = (MySqlConnection)context.Database.GetDbConnection();
         await using var insert = connection.CreateCommand();
         insert.CommandText = $"INSERT INTO `{DependentTable}` "
             + "(`Id`, `PrincipalId`, `Name`) VALUES (3, @id, 'orphan');";
+
         insert.Parameters.AddWithValue("@id", Guid.Empty.ToString("D", CultureInfo.InvariantCulture));
 
         // Act
         var failure = await Record.ExceptionAsync(async () =>
-            await insert.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false));
+            await insert
+                .ExecuteNonQueryAsync(CancellationToken.None)
+                .ConfigureAwait(false));
 
         // Assert
-        Assert.Equal(1452, Assert.IsType<MySqlException>(failure).Number);
+        Assert.Equal(
+            1452,
+            Assert.IsType<MySqlException>(failure)
+                .Number);
     }
 
     /// <summary>Verifies native UUID defaults retain explicit binary, text, and converter overrides.</summary>
@@ -242,13 +300,19 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         // Arrange
         await using var context = await _fixture.CreateNativeContextAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(target), CancellationToken.None);
+            Enum.Parse<IntegrationDatabaseTarget>(target),
+            CancellationToken.None);
 
-        await context.Database.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+        await context
+            .Database
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         var connection = (MySqlConnection)context.Database.GetDbConnection();
 
         // Act
-        var columnTypes = await ReadColumnTypesAsync(connection, CancellationToken.None).ConfigureAwait(false);
+        var columnTypes = await ReadColumnTypesAsync(connection, CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.Equal("uuid", columnTypes["Id"]);

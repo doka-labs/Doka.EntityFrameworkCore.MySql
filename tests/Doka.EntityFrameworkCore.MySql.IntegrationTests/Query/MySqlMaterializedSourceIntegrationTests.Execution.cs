@@ -14,7 +14,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var minimum = 31;
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id >= minimum)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
             .OrderBy(id => id);
 
@@ -42,7 +45,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id == 1)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id == 1)
             .Select(_ => Guid.NewGuid())
             .WithMaterializedSource(source => source);
 
@@ -68,7 +74,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = EF.CompileAsyncQuery<BindingContext, int, int>((context, minimum) => context.Items
+        var query = EF.CompileAsyncQuery<BindingContext, int, int>((context, minimum) => context
+            .Items
             .Where(item => item.Id >= minimum)
             .WithMaterializedSource(source => source.Select(item => item.Id))
             .OrderBy(id => id));
@@ -108,7 +115,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
                 left => left.Id,
@@ -120,8 +130,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // Assert
         Assert.Equal([1, 2], actual.Select(item => item.Id));
-        Assert.Equal(2, fixture.Context.ChangeTracker.Entries<BoundItem>().Count());
-        Assert.All(actual, item => Assert.Equal(EntityState.Unchanged, fixture.Context.Entry(item).State));
+        Assert.Equal(
+            2,
+            fixture
+                .Context
+                .ChangeTracker
+                .Entries<BoundItem>()
+                .Count());
+
+        Assert.All(
+            actual,
+            item => Assert.Equal(
+                EntityState.Unchanged,
+                fixture.Context.Entry(item)
+                    .State));
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -136,11 +159,18 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 3)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 3)
             .WithMaterializedSource(source => source.Select(item => new CollectionResult
             {
                 Id = item.Id,
-                Children = item.Children.OrderBy(child => child.Id).Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .OrderBy(child => child.Id)
+                    .Select(child => child.Name)
+                    .ToArray(),
             }))
             .OrderBy(item => item.Id);
 
@@ -170,8 +200,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Act
         var query = context.Items.WithMaterializedSource(source => source.Where(item => item.Id <= 2));
 
-        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => query.ToArrayAsync(cancellation.Token));
+        var exception =
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ToArrayAsync(cancellation.Token));
 
         // Assert
         Assert.Equal(cancellation.Token, exception.CancellationToken);
@@ -190,7 +220,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 2)
             .WithMaterializedSource(source => source.Join(
                 source,
                 left => left.Id,
@@ -215,7 +248,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Select(item => ClientOnlyProjection(item.Name))
+        var query = fixture
+            .Context
+            .Items
+            .Select(item => ClientOnlyProjection(item.Name))
             .WithMaterializedSource(source => source);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
@@ -239,10 +275,16 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Select(item => new CollectionResult
+        var query = fixture
+            .Context
+            .Items
+            .Select(item => new CollectionResult
             {
                 Id = item.Id,
-                Children = item.Children.Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .Select(child => child.Name)
+                    .ToArray(),
             })
             .WithMaterializedSource(source => source.Select(item => item.Id));
 

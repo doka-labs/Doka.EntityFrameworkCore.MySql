@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Provider support view derived from one immutable <see cref="EngineProfile"/>.
+/// Provider support view derived from one immutable <see cref="EngineProfile" />.
 /// The switch is exhaustive so adding a provider capability requires an explicit
 /// implementation route for every engine profile.
 /// </summary>
@@ -16,9 +16,11 @@ internal sealed record ProviderProfile(EngineProfile Engine)
     {
         ProviderCapability.SchemaOperations => ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.JsonColumns =>
-            Engine.Has(EngineCapability.NativeJsonType) ? ProviderSupportStatus.Native :
-            Engine.Has(EngineCapability.JsonValidationFunction) ? ProviderSupportStatus.Emulated :
-            ProviderSupportStatus.UnsupportedByEngine,
+            Engine.Has(EngineCapability.NativeJsonType)
+                ? ProviderSupportStatus.Native
+                : Engine.Has(EngineCapability.JsonValidationFunction)
+                    ? ProviderSupportStatus.Emulated
+                    : ProviderSupportStatus.UnsupportedByEngine,
         ProviderCapability.NativeUuidColumns => NativeWhen(EngineCapability.NativeUuidType),
         ProviderCapability.CheckConstraints => NativeWhen(EngineCapability.CheckConstraints),
         ProviderCapability.DescendingIndexes => NativeWhen(EngineCapability.DescendingIndexes),
@@ -79,5 +81,7 @@ internal sealed record ProviderProfile(EngineProfile Engine)
 
     private ProviderSupportStatus NativeWhen(
         EngineCapability capability
-    ) => Engine.Has(capability) ? ProviderSupportStatus.Native : ProviderSupportStatus.UnsupportedByEngine;
+    ) => Engine.Has(capability)
+        ? ProviderSupportStatus.Native
+        : ProviderSupportStatus.UnsupportedByEngine;
 }

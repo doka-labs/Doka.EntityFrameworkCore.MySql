@@ -8,9 +8,9 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
     // WHY: Topic partials and the fixture must keep one schema owner so table
     // isolation tests compare separate deployments inside the same database.
     internal const string DatabaseOwner = nameof(MySqlDistributedCacheIntegrationTests);
+    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _expirationStores = new();
 
     private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _stores = new();
-    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _expirationStores = new();
 
     /// <summary>Defers database setup until a selected target is actually exercised.</summary>
     public Task InitializeAsync() => Task.CompletedTask;

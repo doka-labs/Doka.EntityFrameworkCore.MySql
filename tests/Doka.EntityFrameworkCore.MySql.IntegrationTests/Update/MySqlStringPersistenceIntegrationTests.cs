@@ -126,11 +126,12 @@ public sealed class MySqlStringPersistenceIntegrationTests
         try
         {
             await using var context = CreateContext(connection, target);
-            context.Items.Add(new StringValue
-            {
-                Id = 1,
-                Value = value,
-            });
+            context.Items.Add(
+                new StringValue
+                {
+                    Id = 1,
+                    Value = value,
+                });
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -168,6 +169,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `Value`) VALUES "
                     + "(1, 'before'), (2, 'unchanged');";
+
                 _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -179,7 +181,10 @@ public sealed class MySqlStringPersistenceIntegrationTests
             };
 
             context.Attach(item);
-            context.Entry(item).Property(entry => entry.Value).IsModified = true;
+            context
+                .Entry(item)
+                .Property(entry => entry.Value)
+                .IsModified = true;
 
             // Act
             await context.SaveChangesAsync(cancellationToken);
@@ -213,13 +218,15 @@ public sealed class MySqlStringPersistenceIntegrationTests
             {
                 seed.CommandText = $"INSERT INTO `{TableName}` (`Id`, `Value`) "
                     + "VALUES (1, 'before'), (2, 'unchanged');";
+
                 _ = await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
             await using var context = CreateContext(connection, target);
 
             // Act
-            var affected = await context.Items
+            var affected = await context
+                .Items
                 .Where(item => item.Id == 1)
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(item => item.Value, MixedQuoteValue),
@@ -289,6 +296,7 @@ public sealed class MySqlStringPersistenceIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE TEMPORARY TABLE `{TableName}` "
             + "(`Id` int NOT NULL PRIMARY KEY, `Value` varchar(128) NOT NULL) CHARACTER SET utf8mb4;";
+
         _ = await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -341,7 +349,8 @@ public sealed class MySqlStringPersistenceIntegrationTests
         MySqlConnection connection,
         IntegrationDatabaseTarget target
     ) => new(
-        IntegrationTestDbContextOptions.Create<StringContext>()
+        IntegrationTestDbContextOptions
+            .Create<StringContext>()
             .UseMySql(connection, IntegrationTestEnvironment.GetServerVersion(target))
             .Options);
 
@@ -387,7 +396,9 @@ public sealed class MySqlStringPersistenceIntegrationTests
 
     private sealed class StringContext : DbContext
     {
-        public StringContext(DbContextOptions<StringContext> options) : base(options) { }
+        public StringContext(
+            DbContextOptions<StringContext> options
+        ) : base(options) { }
 
         public DbSet<StringValue> Items => Set<StringValue>();
 
@@ -399,8 +410,14 @@ public sealed class MySqlStringPersistenceIntegrationTests
             {
                 entity.ToTable(TableName);
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).ValueGeneratedNever();
-                entity.Property(item => item.Value).HasColumnType("varchar(128)").IsRequired();
+                entity
+                    .Property(item => item.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(item => item.Value)
+                    .HasColumnType("varchar(128)")
+                    .IsRequired();
             });
         }
     }

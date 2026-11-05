@@ -50,7 +50,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
             [
                 typeof(MigrationOperation),
                 typeof(IModel),
-                typeof(MigrationCommandListBuilder)
+                typeof(MigrationCommandListBuilder),
             ],
             modifiers: null);
 
@@ -96,6 +96,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
             commands,
             command => Assert.Equal("SELECT 1;", command.CommandText),
             command => Assert.Equal("SELECT 2;", command.CommandText));
+
         Assert.Equal(1, handler.Commands?.EnumerationCount);
     }
 

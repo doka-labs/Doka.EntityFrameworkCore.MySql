@@ -96,6 +96,7 @@ public sealed class SpatialQueryMySqlFixture : SpatialQueryRelationalFixture
 
         functionBuilder.HasParameter("x")
             .Metadata.TypeMapping = geoPointMapping;
+
         functionBuilder.HasParameter("y")
             .Metadata.TypeMapping = geoPointMapping;
     }

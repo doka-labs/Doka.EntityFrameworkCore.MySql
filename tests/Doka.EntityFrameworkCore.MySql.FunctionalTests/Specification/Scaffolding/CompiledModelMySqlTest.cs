@@ -116,6 +116,7 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
             var entry = context.Add(data);
             entry.Property("Id")
                 .CurrentValue = 1;
+
             entry.Property("Point")
                 .CurrentValue = expected;
 
@@ -164,6 +165,7 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
     /// <summary>
     /// Removes the auxiliary database after the compiled-model scenario completes.
     /// </summary>
+
     // WHY: This finally-only cleanup must restore FK checks even after test cancellation.
     private static async Task DropQualifiedDatabaseAsync()
     {

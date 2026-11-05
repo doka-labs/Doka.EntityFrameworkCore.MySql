@@ -23,12 +23,15 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(
             InheritedIndexContract.BaseTable,
             indexes[InheritedIndexContract.BaseIndex].Table);
+
         Assert.Equal(
             InheritedIndexContract.DerivedTable,
             indexes[InheritedIndexContract.DerivedIndex].Table);
+
         Assert.DoesNotContain(
             operations.OfType<CreateIndexOperation>(),
-            operation => operation is { Name: InheritedIndexContract.BaseIndex, Table: InheritedIndexContract.DerivedTable });
+            operation => operation is
+                { Name: InheritedIndexContract.BaseIndex, Table: InheritedIndexContract.DerivedTable });
     }
 
     /// <summary>
@@ -55,12 +58,18 @@ public sealed partial class MySqlMigrationDslTests
             operation =>
             {
                 Assert.Equal(InheritedTpcIndexContract.FirstTable, operation.Table);
-                Assert.Equal([16], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
+                Assert.Equal(
+                    [16],
+                    operation.GetMySqlMigrationMetadata()
+                        .IndexPrefixLengths);
             },
             operation =>
             {
                 Assert.Equal(InheritedTpcIndexContract.SecondTable, operation.Table);
-                Assert.Equal([16], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
+                Assert.Equal(
+                    [16],
+                    operation.GetMySqlMigrationMetadata()
+                        .IndexPrefixLengths);
             });
     }
 
@@ -97,15 +106,23 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(
             [InheritedTpcIndexContract.FirstTable, InheritedTpcIndexContract.SecondTable],
             drops.Select(operation => operation.Table));
+
         Assert.All(drops, operation => Assert.Equal(InheritedTpcIndexContract.Index, operation.Name));
         Assert.Equal(
             [InheritedTpcIndexContract.RenamedFirstTable, InheritedTpcIndexContract.RenamedSecondTable],
             creates.Select(operation => operation.Table));
-        Assert.All(creates, operation =>
-        {
-            Assert.Equal(InheritedTpcIndexContract.RenamedIndex, operation.Name);
-            Assert.Equal([24], operation.GetMySqlMigrationMetadata().IndexPrefixLengths);
-        });
+
+        Assert.All(
+            creates,
+            operation =>
+            {
+                Assert.Equal(InheritedTpcIndexContract.RenamedIndex, operation.Name);
+                Assert.Equal(
+                    [24],
+                    operation.GetMySqlMigrationMetadata()
+                        .IndexPrefixLengths);
+            });
+
         Assert.Equal(2, tableRenames.Length);
         Assert.Empty(operations.OfType<RenameIndexOperation>());
         Assert.True(operations.IndexOf(drops[0]) < operations.IndexOf(tableRenames[0]));

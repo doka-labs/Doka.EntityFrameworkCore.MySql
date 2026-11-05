@@ -34,10 +34,12 @@ public sealed class MySqlSpatialFixture : SpatialFixtureBase
             .Entity<PointEntity>()
             .Property(entity => entity.PointZ)
             .HasColumnType("POINT");
+
         modelBuilder
             .Entity<PointEntity>()
             .Property(entity => entity.PointM)
             .HasColumnType("POINT");
+
         modelBuilder
             .Entity<PointEntity>()
             .Property(entity => entity.PointZM)

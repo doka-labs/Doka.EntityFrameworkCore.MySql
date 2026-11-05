@@ -3,13 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlScopedMigrationCommand : MigrationCommand
 {
     private const string PreviousSqlModeParameterName = "__doka_previous_sql_mode";
+
     private static readonly IReadOnlyList<IRelationalParameter> s_noParameters =
         Array.Empty<IRelationalParameter>();
 
-    private readonly IRelationalCommand? _captureCommand;
-    private readonly IRelationalCommand? _enableCommand;
     private readonly IRelationalCommand _bodyCommand;
+
+    private readonly IRelationalCommand? _captureCommand;
     private readonly DbContext _context;
+    private readonly IRelationalCommand? _enableCommand;
     private readonly IRelationalCommand[] _handlerCleanupCommands;
     private readonly IRelationalCommand[] _handlerSetupCommands;
     private readonly IRelationalCommand? _restoreCommand;
@@ -88,7 +90,9 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
             primaryException = exception;
         }
 
-        var cleanupException = originalSqlMode is null ? null : RestoreSqlMode(connection, originalSqlMode);
+        var cleanupException = originalSqlMode is null
+            ? null
+            : RestoreSqlMode(connection, originalSqlMode);
 
         if (openedConnection || cleanupException is not null)
         {
@@ -126,8 +130,10 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
         {
             originalSqlMode = await CaptureOriginalSqlModeAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
+
             await ExecuteAsync(_enableCommand!, connection, null, cancellationToken)
                 .ConfigureAwait(false);
+
             result = await ExecuteAsync(_bodyCommand, connection, parameterValues, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -448,8 +454,7 @@ internal sealed class MySqlScopedMigrationCommand : MigrationCommand
                 PreviousSqlModeParameterName,
                 generatedParameterName,
                 stringMapping,
-                nullable: false,
-                ParameterDirection.Input);
+                nullable: false);
 
         return builder.Build();
     }

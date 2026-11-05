@@ -74,6 +74,7 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await DropHistoryTableAsync(connection, cancellationToken)
             .ConfigureAwait(false);
 
@@ -86,7 +87,8 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
                 .Single();
 
             var migrator = context.GetService<IMigrator>();
-            var initiallyApplied = await context.Database
+            var initiallyApplied = await context
+                .Database
                 .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -99,7 +101,8 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
                 .ConfigureAwait(false);
 
             var firstInvocationCount = handler.InvocationCount;
-            var appliedAfterFirstMigration = await context.Database
+            var appliedAfterFirstMigration = await context
+                .Database
                 .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -107,7 +110,8 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
                 .MigrateAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
-            var appliedAfterRepeatMigration = await context.Database
+            var appliedAfterRepeatMigration = await context
+                .Database
                 .GetAppliedMigrationsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -168,14 +172,14 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
     private sealed class ConsumedOnlyMigrationOperationHandler : IMySqlMigrationOperationHandler
     {
         /// <summary>
-        /// Gets the handler id.
-        /// </summary>
-        public string HandlerId => "tests.consumed_only.runtime";
-
-        /// <summary>
         /// Gets the invocation count.
         /// </summary>
         public int InvocationCount { get; private set; }
+
+        /// <summary>
+        /// Gets the handler id.
+        /// </summary>
+        public string HandlerId => "tests.consumed_only.runtime";
 
         /// <summary>
         /// Verifies typeof.
@@ -221,7 +225,8 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
         {
             if (options.FindExtension<MySqlOptionsExtension>() is null)
             {
-                throw new InvalidOperationException("The consumed-only migration test requires the Doka MySQL provider.");
+                throw new InvalidOperationException(
+                    "The consumed-only migration test requires the Doka MySQL provider.");
             }
         }
 

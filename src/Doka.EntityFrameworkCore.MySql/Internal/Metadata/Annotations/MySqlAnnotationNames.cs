@@ -74,7 +74,8 @@ internal static class MySqlAnnotationNames
 
     public const string ApplicationTimePeriodName = Prefix + nameof(ApplicationTimePeriodName);
 
-    public const string ApplicationTimePeriodStartPropertyName = Prefix + nameof(ApplicationTimePeriodStartPropertyName);
+    public const string ApplicationTimePeriodStartPropertyName =
+        Prefix + nameof(ApplicationTimePeriodStartPropertyName);
 
     public const string ApplicationTimePeriodEndPropertyName = Prefix + nameof(ApplicationTimePeriodEndPropertyName);
 
@@ -96,11 +97,13 @@ internal static class MySqlAnnotationNames
 
     public const string ApplicationTimeRangeEnd = Prefix + nameof(ApplicationTimeRangeEnd);
 
-    public const string ApplicationTimeSourceIsApplicationTime = Prefix + nameof(ApplicationTimeSourceIsApplicationTime);
+    public const string ApplicationTimeSourceIsApplicationTime =
+        Prefix + nameof(ApplicationTimeSourceIsApplicationTime);
 
     public const string ApplicationTimeSourcePeriodName = Prefix + nameof(ApplicationTimeSourcePeriodName);
 
-    public const string ApplicationTimeSourcePeriodStartColumn = Prefix + nameof(ApplicationTimeSourcePeriodStartColumn);
+    public const string ApplicationTimeSourcePeriodStartColumn =
+        Prefix + nameof(ApplicationTimeSourcePeriodStartColumn);
 
     public const string ApplicationTimeSourcePeriodEndColumn = Prefix + nameof(ApplicationTimeSourcePeriodEndColumn);
 

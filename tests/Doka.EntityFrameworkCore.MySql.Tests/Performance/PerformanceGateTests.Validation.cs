@@ -1,3 +1,5 @@
+using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -79,12 +81,18 @@ public sealed partial class PerformanceGateTests
     )
     {
         // Arrange
-        var observations = Enumerable.Repeat(
+        var observations = Enumerable
+            .Repeat(
                 PerformanceGateFixture.ControlObservation("Measured", 3),
-                method == "Measured" ? count : 1)
-            .Concat(Enumerable.Repeat(
-                PerformanceGateFixture.ControlObservation("Baseline", 2),
-                method == "Baseline" ? count : 1))
+                method == "Measured"
+                    ? count
+                    : 1)
+            .Concat(
+                Enumerable.Repeat(
+                    PerformanceGateFixture.ControlObservation("Baseline", 2),
+                    method == "Baseline"
+                        ? count
+                        : 1))
             .ToArray();
 
         using var fixture = PerformanceGateFixture.Create(
@@ -100,6 +108,7 @@ public sealed partial class PerformanceGateTests
         Assert.Contains(
             result.InvalidEvidence,
             error => error.Contains($"ControlBenchmark.{method} result, found {count}", StringComparison.Ordinal));
+
         Assert.Empty(result.Regressions);
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
     }
@@ -151,11 +160,12 @@ public sealed partial class PerformanceGateTests
                 PerformanceGateFixture.ControlObservation("Measured", 3),
                 PerformanceGateFixture.ControlObservation("Baseline", 0),
             ]);
+
         Action act = () => fixture.Evaluate();
 
         // Act
         var recordedException = Record.Exception(act);
-        var exitCode = await Benchmarks.Program.Main(
+        var exitCode = await Program.Main(
             ["--evaluate", fixture.ContractPath, fixture.ReportsPath, "mysql84", "smoke"]);
 
         // Assert
@@ -189,9 +199,11 @@ public sealed partial class PerformanceGateTests
         Assert.Contains(
             result.InvalidEvidence,
             error => error.Contains("missing target 'mariadb114'", StringComparison.Ordinal));
+
         Assert.Contains(
             result.Regressions,
             error => error.Contains("medianNanoseconds", StringComparison.Ordinal));
+
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
     }
 }

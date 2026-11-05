@@ -123,7 +123,9 @@ internal static class SpecificationBaseline
 
         var isImplemented = mappings.Length > 0;
         var isOfficiallyExempt = descriptor.Type == "Microsoft.EntityFrameworkCore.NonSharedModelTestBase";
-        int? closurePhase = isImplemented || isOfficiallyExempt ? null : ClosurePhase(descriptor.SuiteDomain);
+        int? closurePhase = isImplemented || isOfficiallyExempt
+            ? null
+            : ClosurePhase(descriptor.SuiteDomain);
 
         return new SpecificationBaselineEntry(
             descriptor.Id,
@@ -134,14 +136,20 @@ internal static class SpecificationBaseline
                     .OrderBy(value => value, StringComparer.Ordinal),
             ],
             descriptor.SuiteDomain,
-            isImplemented ? "implemented" : isOfficiallyExempt ? "compliance-exempt" : "provider-debt",
+            isImplemented
+                ? "implemented"
+                : isOfficiallyExempt
+                    ? "compliance-exempt"
+                    : "provider-debt",
             mappings,
             closurePhase,
             OwnerSurface(descriptor.SuiteDomain),
             SupportedTargets,
-            isImplemented ? "Concrete public provider specification type present at baseline." :
-            isOfficiallyExempt ? "The official ComplianceTestBase excludes NonSharedModelTestBase." :
-            "No concrete public provider type implemented this official base at baseline.",
+            isImplemented
+                ? "Concrete public provider specification type present at baseline."
+                : isOfficiallyExempt
+                    ? "The official ComplianceTestBase excludes NonSharedModelTestBase."
+                    : "No concrete public provider type implemented this official base at baseline.",
             "publication-zero-gap",
             null);
     }

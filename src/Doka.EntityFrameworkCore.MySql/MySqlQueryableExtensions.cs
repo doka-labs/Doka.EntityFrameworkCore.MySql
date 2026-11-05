@@ -48,6 +48,6 @@ public static partial class MySqlQueryableExtensions
     {
         public static readonly MethodInfo Info =
             ((Func<IQueryable<TSource>, Expression<Func<IQueryable<TSource>, IQueryable<TResult>>>,
-                IQueryable<TResult>>)WithMaterializedSource<TSource, TResult>).Method;
+                IQueryable<TResult>>)WithMaterializedSource).Method;
     }
 }

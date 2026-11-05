@@ -13,7 +13,9 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("shared-table");
 
         // Act
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var ownerProperty = model.FindEntityType(typeof(BudgetOwner))!.FindProperty(nameof(BudgetOwner.Code))!;
         var detailProperty = model.FindEntityType(typeof(BudgetDetail))!.FindProperty(nameof(BudgetDetail.Code))!;
 
@@ -23,6 +25,7 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(
             ConfigurationSource.Convention,
             ((IConventionProperty)ownerProperty).GetMaxLengthConfigurationSource());
+
         Assert.Equal(
             ConfigurationSource.Convention,
             ((IConventionProperty)detailProperty).GetMaxLengthConfigurationSource());
@@ -48,7 +51,11 @@ public sealed partial class MySqlIndexByteBudgetTests
 
         // Assert
         Assert.Equal(expectedLength, entity.FindProperty("B")!.GetMaxLength());
-        Assert.Equal([700, 0], Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
+        Assert.Equal(
+            [700, 0],
+            Assert
+                .Single(entity.GetIndexes())
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>

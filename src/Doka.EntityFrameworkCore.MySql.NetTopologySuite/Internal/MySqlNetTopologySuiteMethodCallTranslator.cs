@@ -196,11 +196,12 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         [s_symmetricDifferenceMethod] = "ST_SymDifference",
     };
 
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
-    private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly ILogger _logger;
-    private readonly bool _supportsMariaDbSpatialFunctions;
+
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly bool _supportsBufferStrategies;
+    private readonly bool _supportsMariaDbSpatialFunctions;
+    private readonly IRelationalTypeMappingSource _typeMappingSource;
 
     public MySqlNetTopologySuiteMethodCallTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
@@ -656,7 +657,7 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         IReadOnlyList<SqlExpression> arguments
     )
     {
-        var typeMapping = _typeMappingSource.FindMapping(returnType) as RelationalTypeMapping
+        var typeMapping = _typeMappingSource.FindMapping(returnType)
             ?? arguments
                 .Select(argument => argument.TypeMapping)
                 .OfType<RelationalTypeMapping>()
@@ -684,7 +685,7 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
     /// Best-effort static SRID-mismatch detection. When BOTH operands of
     /// <c>Geometry.Distance</c> are SQL-time constants whose CLR value carries
     /// a non-zero SRID, the translator compares them and emits
-    /// <see cref="MySqlEventId.SpatialSridMismatchDetected"/> on divergence.
+    /// <see cref="MySqlEventId.SpatialSridMismatchDetected" /> on divergence.
     /// Mismatches between two columns, or between a column and a runtime-derived
     /// geometry, escape this check (the translator has no per-column SRID
     /// metadata at hand); D-012 documents the limitation alongside the warning.
@@ -697,7 +698,9 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         var firstSrid = TryReadStaticSrid(first);
         var secondSrid = TryReadStaticSrid(second);
 
-        if (firstSrid is null || secondSrid is null || firstSrid == secondSrid)
+        if (firstSrid is null
+            || secondSrid is null
+            || firstSrid == secondSrid)
         {
             return;
         }
@@ -717,10 +720,12 @@ internal sealed class MySqlNetTopologySuiteMethodCallTranslator : IMethodCallTra
         if (expression is ColumnExpression { Column: { } column })
         {
             var property = column
-                .PropertyMappings.Select(mapping => mapping.Property)
+                .PropertyMappings
+                .Select(mapping => mapping.Property)
                 .FirstOrDefault();
 
-            if (property?.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)?.Value is int columnSrid)
+            if (property?.FindAnnotation(MySqlAnnotationNames.SpatialReferenceSystemId)
+                    ?.Value is int columnSrid)
             {
                 return columnSrid;
             }

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Doka.EntityFrameworkCore.MySql.RepositoryContract;
 
 internal static partial class EngineeringSurfaceContract
@@ -20,8 +23,11 @@ internal static partial class EngineeringSurfaceContract
         var errors = new List<string>();
         if (target.Equals(root, StringComparison.OrdinalIgnoreCase)
             || target.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            || Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any()
-            || Directory.Exists(target) && (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0)
+            || (Directory.Exists(target)
+                && Directory
+                    .EnumerateFileSystemEntries(target)
+                    .Any())
+            || (Directory.Exists(target) && (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0))
         {
             errors.Add("Actionlint snapshot requires an empty, nonsymbolic destination outside the repository.");
 
@@ -151,19 +157,32 @@ internal static partial class EngineeringSurfaceContract
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
-            var indent = line.Length - line.TrimStart(' ').Length;
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            var indent = line.Length
+                - line.TrimStart(' ')
+                    .Length;
+
+            if (string.IsNullOrWhiteSpace(line)
+                || line
+                    .TrimStart()
+                    .StartsWith('#'))
             {
                 continue;
             }
 
-            if (scalarIndent >= 0 && indent > scalarIndent)
+            if (scalarIndent >= 0
+                && indent > scalarIndent)
             {
                 continue;
             }
 
-            scalarIndent = BlockScalarHeader().IsMatch(line) ? indent : -1;
-            var field = SelfReferenceUses().Match(line);
+            scalarIndent = BlockScalarHeader()
+                .IsMatch(line)
+                ? indent
+                : -1;
+
+            var field = SelfReferenceUses()
+                .Match(line);
+
             if (!field.Success)
             {
                 continue;
@@ -180,12 +199,17 @@ internal static partial class EngineeringSurfaceContract
             {
                 errors.Add(
                     $"{relative}:{index + 1}: self-repository reference requires an exact existing regular target.");
+
                 continue;
             }
 
             // WHY: Replacing one prefix character preserves line and column
             // positions, while every callee is resolved from the same mirror.
-            var offset = field.Groups["value"].Index + (raw.StartsWith('"') || raw.StartsWith('\'') ? 1 : 0);
+            var offset = field.Groups["value"].Index
+                + (raw.StartsWith('"') || raw.StartsWith('\'')
+                    ? 1
+                    : 0);
+
             lines[index] = line[..offset] + "." + line[(offset + 1)..];
         }
 
@@ -200,25 +224,33 @@ internal static partial class EngineeringSurfaceContract
         string reference
     )
     {
-        if (!SelfReferencePath().IsMatch(reference)
+        if (!SelfReferencePath()
+                .IsMatch(reference)
             || reference.EndsWith('/')
-            || reference[2..].Split('/').Any(static segment => segment is "" or "." or ".."))
+            || reference[2..]
+                .Split('/')
+                .Any(static segment => segment is "" or "." or ".."))
         {
             return false;
         }
 
         var current = root;
-        foreach (var segment in reference[2..].Split('/'))
+        foreach (var segment in reference[2..]
+            .Split('/'))
         {
             if (!Directory.Exists(current))
             {
                 return false;
             }
 
-            var next = Directory.EnumerateFileSystemEntries(current)
-                .FirstOrDefault(path => Path.GetFileName(path).Equals(segment, StringComparison.Ordinal));
+            var next = Directory
+                .EnumerateFileSystemEntries(current)
+                .FirstOrDefault(path => Path
+                    .GetFileName(path)
+                    .Equals(segment, StringComparison.Ordinal));
 
-            if (next is null || (File.GetAttributes(next) & FileAttributes.ReparsePoint) != 0)
+            if (next is null
+                || (File.GetAttributes(next) & FileAttributes.ReparsePoint) != 0)
             {
                 return false;
             }
@@ -231,9 +263,12 @@ internal static partial class EngineeringSurfaceContract
             return File.Exists(current);
         }
 
-        return Directory.Exists(current) && Directory.EnumerateFiles(current).Any(path =>
-            Path.GetFileName(path) is "action.yml" or "action.yaml"
-            && (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0);
+        return Directory.Exists(current)
+            && Directory
+                .EnumerateFiles(current)
+                .Any(path =>
+                    Path.GetFileName(path) is "action.yml" or "action.yaml"
+                    && (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0);
     }
 
     /// <summary>
@@ -246,7 +281,10 @@ internal static partial class EngineeringSurfaceContract
         List<string> errors
     )
     {
-        var lines = content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = content
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n');
+
         var runs = Array.IndexOf(lines, "runs:");
         if (runs < 0)
         {
@@ -255,12 +293,16 @@ internal static partial class EngineeringSurfaceContract
             return;
         }
 
-        var usingField = lines.Skip(runs + 1)
-            .Select(static line => WorkflowScalarField().Match(line))
+        var usingField = lines
+            .Skip(runs + 1)
+            .Select(static line => WorkflowScalarField()
+                .Match(line))
             .FirstOrDefault(static field => field.Success && UnquoteYamlScalar(field.Groups["key"].Value) == "using");
 
-        var kind = usingField is null ? string.Empty : UnquoteYamlScalar(
-            TrimYamlComment(usingField.Groups["value"].Value));
+        var kind = usingField is null
+            ? string.Empty
+            : UnquoteYamlScalar(
+                TrimYamlComment(usingField.Groups["value"].Value));
 
         if (kind is "node12" or "node16" or "node20" or "node24" or "docker")
         {
@@ -287,20 +329,26 @@ internal static partial class EngineeringSurfaceContract
         for (var index = inputs + 1; inputs >= 0 && index < lines.Length; index++)
         {
             var line = lines[index];
-            if (line.Length != 0 && !char.IsWhiteSpace(line[0]) && !line.StartsWith('#'))
+            if (line.Length != 0
+                && !char.IsWhiteSpace(line[0])
+                && !line.StartsWith('#'))
             {
                 break;
             }
 
-            var input = CompositeInputName().Match(line);
+            var input = CompositeInputName()
+                .Match(line);
+
             if (input.Success)
             {
                 inputNames.Add(input.Groups["name"].Value);
             }
         }
 
-        var wrapper = new System.Text.StringBuilder();
-        wrapper.Append("name: ").Append(JsonSerializer.Serialize($"Lint-only {relative}"))
+        var wrapper = new StringBuilder();
+        wrapper
+            .Append("name: ")
+            .Append(JsonSerializer.Serialize($"Lint-only {relative}"))
             .Append("\non:\n  workflow_call:\n");
 
         if (inputNames.Count != 0)
@@ -308,7 +356,10 @@ internal static partial class EngineeringSurfaceContract
             wrapper.Append("    inputs:\n");
             foreach (var input in inputNames)
             {
-                wrapper.Append("      ").Append(input).Append(":\n        type: string\n");
+                wrapper
+                    .Append("      ")
+                    .Append(input)
+                    .Append(":\n        type: string\n");
             }
         }
 
@@ -318,16 +369,26 @@ internal static partial class EngineeringSurfaceContract
         for (var index = steps + 1; index < lines.Length; index++)
         {
             var line = lines[index];
-            if (!string.IsNullOrWhiteSpace(line) && line.Length - line.TrimStart(' ').Length <= 2)
+            if (!string.IsNullOrWhiteSpace(line)
+                && line.Length
+                - line.TrimStart(' ')
+                    .Length
+                <= 2)
             {
                 break;
             }
 
-            wrapper.Append("  ").Append(line).Append('\n');
+            wrapper
+                .Append("  ")
+                .Append(line)
+                .Append('\n');
         }
 
-        var identity = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(relative))).ToLowerInvariant();
+        var identity = Convert
+            .ToHexString(
+                SHA256.HashData(
+                    Encoding.UTF8.GetBytes(relative)))
+            .ToLowerInvariant();
 
         var path = $".github/workflows/__actionlint_composite_{identity}.yml";
         if (!contents.TryAdd(path, wrapper.ToString()))

@@ -25,7 +25,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var explicitProperty = entity.FindProperty("A")!;
         var implicitProperty = entity.FindProperty("B")!;
 
@@ -34,8 +38,16 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(
             ConfigurationSource.Convention,
             ((IConventionProperty)implicitProperty).GetMaxLengthConfigurationSource());
-        Assert.Equal(explicitStoreType, explicitProperty.GetRelationalTypeMapping().StoreType);
-        Assert.Null(Assert.Single(entity.GetIndexes()).GetMySqlIndexPrefixLengths());
+
+        Assert.Equal(
+            explicitStoreType,
+            explicitProperty.GetRelationalTypeMapping()
+                .StoreType);
+
+        Assert.Null(
+            Assert
+                .Single(entity.GetIndexes())
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>
@@ -48,12 +60,20 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("binary-boundary");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var property = entity.FindProperty("B")!;
 
         // Assert
         Assert.Equal(15, property.GetMaxLength());
-        Assert.Equal("varbinary(15)", property.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            "varbinary(15)",
+            property.GetRelationalTypeMapping()
+                .StoreType);
+
         Assert.Equal(3056, entity.FindProperty("A")!.GetMaxLength());
     }
 
@@ -68,14 +88,21 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("converter");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var property = entity.FindProperty("B")!;
 
         // Assert
         Assert.Equal(68, property.GetMaxLength());
         Assert.Equal(typeof(BudgetCode), property.ClrType);
         Assert.IsType<ValueConverter<BudgetCode, string>>(property.GetValueConverter());
-        Assert.Equal("varchar(68)", property.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            "varchar(68)",
+            property.GetRelationalTypeMapping()
+                .StoreType);
     }
 
     /// <summary>
@@ -98,12 +125,20 @@ public sealed partial class MySqlIndexByteBudgetTests
             MySqlServerVersion.MariaDb(new Version(11, 8, 0)));
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var property = entity.FindProperty("B")!;
 
         // Assert
         Assert.Equal(expectedLength, property.GetMaxLength());
-        Assert.Equal(expectedGuidStoreType, entity.FindProperty("G")!.GetRelationalTypeMapping().StoreType);
+        Assert.Equal(
+            expectedGuidStoreType,
+            entity.FindProperty("G")!.GetRelationalTypeMapping()
+                .StoreType);
+
         Assert.Equal(600, entity.FindProperty("A")!.GetMaxLength());
     }
 
@@ -118,15 +153,25 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("prefix");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var property = entity.FindProperty("B")!;
-        var prefixed = entity.GetIndexes().Single(index => index.GetMySqlIndexPrefixLengths() is not null);
+        var prefixed = entity
+            .GetIndexes()
+            .Single(index => index.GetMySqlIndexPrefixLengths() is not null);
 
         // Assert
         Assert.Equal(200, property.GetMaxLength());
         Assert.Equal([0, 200], prefixed.GetMySqlIndexPrefixLengths());
         Assert.Equal(568, entity.FindProperty("A")!.GetMaxLength());
-        Assert.Null(entity.GetIndexes().Single(index => index != prefixed).GetMySqlIndexPrefixLengths());
+        Assert.Null(
+            entity
+                .GetIndexes()
+                .Single(index => index != prefixed)
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>
@@ -140,7 +185,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext("prefix-only-implicit");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
         var index = Assert.Single(entity.GetIndexes());
         var ddl = context.Database.GenerateCreateScript();
 
@@ -169,8 +218,14 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var context = CreateContext(scenario);
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
-        var prefixed = entity.GetIndexes().Single(index => index.GetMySqlIndexPrefixLengths() is not null);
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
+        var prefixed = entity
+            .GetIndexes()
+            .Single(index => index.GetMySqlIndexPrefixLengths() is not null);
 
         // Assert
         Assert.Equal(68, entity.FindProperty("A")!.GetMaxLength());
@@ -179,7 +234,11 @@ public sealed partial class MySqlIndexByteBudgetTests
         Assert.Equal(239, entity.FindProperty("D")!.GetMaxLength());
         Assert.Equal(700, entity.FindProperty("E")!.GetMaxLength());
         Assert.Equal([50, 0, 0, 0], prefixed.GetMySqlIndexPrefixLengths());
-        Assert.Null(entity.GetIndexes().Single(index => index != prefixed).GetMySqlIndexPrefixLengths());
+        Assert.Null(
+            entity
+                .GetIndexes()
+                .Single(index => index != prefixed)
+                .GetMySqlIndexPrefixLengths());
     }
 
     /// <summary>
@@ -218,8 +277,12 @@ public sealed partial class MySqlIndexByteBudgetTests
         using var second = CreateContext("repeat");
 
         // Act
-        var firstModel = first.GetService<IDesignTimeModel>().Model;
-        var secondModel = second.GetService<IDesignTimeModel>().Model;
+        var firstModel = first.GetService<IDesignTimeModel>()
+            .Model;
+
+        var secondModel = second.GetService<IDesignTimeModel>()
+            .Model;
+
         var firstDdl = first.Database.GenerateCreateScript();
 
         var secondDdl = second.Database.GenerateCreateScript();

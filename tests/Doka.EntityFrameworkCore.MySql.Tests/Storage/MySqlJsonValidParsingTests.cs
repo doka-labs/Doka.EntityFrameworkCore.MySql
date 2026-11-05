@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// Pins the JSON_VALID column-name parser surfaced via
-/// <see cref="ScaffoldingHelpers.ExtractJsonValidColumnName"/>. The helper is used by
+/// <see cref="ScaffoldingHelpers.ExtractJsonValidColumnName" />. The helper is used by
 /// the MariaDB JSON-check-constraint loader to lift LONGTEXT columns guarded by a
 /// json_valid CHECK back to the canonical "json" store type.
 /// </summary>
@@ -22,8 +22,8 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Equal(
-        "Data",
-        actual);
+            "Data",
+            actual);
     }
 
     /// <summary>
@@ -40,8 +40,8 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Equal(
-        "payload",
-        actual);
+            "payload",
+            actual);
     }
 
     /// <summary>
@@ -58,8 +58,8 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Equal(
-        "Col",
-        actual);
+            "Col",
+            actual);
     }
 
     /// <summary>
@@ -76,8 +76,8 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Equal(
-        "Info",
-        actual);
+            "Info",
+            actual);
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Null(
-        actual);
+            actual);
     }
 
     /// <summary>
@@ -152,7 +152,9 @@ public sealed class MySqlJsonValidParsingTests
     [InlineData("json_valid(`metadata`) AND `metadata` IS NOT NULL")]
     [InlineData("NOT json_valid(`metadata`)")]
     [InlineData("json_valid(`metadata`.`value`)")]
-    public void Rejects_noncanonical_expression(string checkClause)
+    public void Rejects_noncanonical_expression(
+        string checkClause
+    )
     {
         // Arrange: The theory supplies checkClause.
 
@@ -161,6 +163,6 @@ public sealed class MySqlJsonValidParsingTests
 
         // Assert
         Assert.Null(
-        actual);
+            actual);
     }
 }

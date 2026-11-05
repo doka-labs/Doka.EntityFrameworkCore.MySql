@@ -56,7 +56,11 @@ internal sealed partial class MySqlScaffoldingModelFactory
                 continue;
             }
 
-            builder.Append(nextUpper ? char.ToUpperInvariant(character) : character);
+            builder.Append(
+                nextUpper
+                    ? char.ToUpperInvariant(character)
+                    : character);
+
             nextUpper = false;
         }
 

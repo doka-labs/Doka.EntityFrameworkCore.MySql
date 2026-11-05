@@ -34,13 +34,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.OrderID > 0)
-            .ThenBy(order => order.Customer != null ? order.Customer.City : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.City
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(5),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -57,13 +57,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.Customer.CustomerID != null)
-            .ThenBy(order => order.Customer != null ? order.Customer.CustomerID : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.CustomerID
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(2),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -120,18 +120,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertInclude(
                 expected.c2,
                 actual.c2,
@@ -158,18 +161,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertEqual(expected.c2, actual.c2);
         });
 
@@ -177,8 +183,8 @@ public class
         bool async
     ) => Assert.Equal(
         RelationalStrings.LastUsedWithoutOrderBy(nameof(Enumerable.Last)),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Include_collection_with_last_no_orderby(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Include_collection_with_last_no_orderby(async)))
+        .Message);
 }
 
 /// <summary>
@@ -211,13 +217,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.OrderID > 0)
-            .ThenBy(order => order.Customer != null ? order.Customer.City : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.City
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(5),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -234,13 +240,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.Customer.CustomerID != null)
-            .ThenBy(order => order.Customer != null ? order.Customer.CustomerID : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.CustomerID
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(2),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -297,18 +303,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertInclude(
                 expected.c2,
                 actual.c2,
@@ -335,18 +344,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertEqual(expected.c2, actual.c2);
         });
 }
@@ -381,13 +393,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.OrderID > 0)
-            .ThenBy(order => order.Customer != null ? order.Customer.City : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.City
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(5),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -404,13 +416,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.Customer.CustomerID != null)
-            .ThenBy(order => order.Customer != null ? order.Customer.CustomerID : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.CustomerID
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(2),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -466,18 +478,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertInclude(
                 expected.c2,
                 actual.c2,
@@ -504,18 +519,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertEqual(expected.c2, actual.c2);
         });
 
@@ -523,8 +541,8 @@ public class
         bool async
     ) => Assert.Equal(
         RelationalStrings.LastUsedWithoutOrderBy(nameof(Enumerable.Last)),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Include_collection_with_last_no_orderby(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Include_collection_with_last_no_orderby(async)))
+        .Message);
 }
 
 /// <summary>
@@ -640,13 +658,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.OrderID > 0)
-            .ThenBy(order => order.Customer != null ? order.Customer.City : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.City
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(5),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -663,13 +681,13 @@ public class
             .Set<Order>()
             .Include(order => order.OrderDetails)
             .OrderBy(order => order.Customer.CustomerID != null)
-            .ThenBy(order => order.Customer != null ? order.Customer.CustomerID : string.Empty)
+            .ThenBy(order => order.Customer != null
+                ? order.Customer.CustomerID
+                : string.Empty)
             .ThenBy(order => order.OrderID)
             .Take(2),
-        elementAsserter: (
-            expected,
-            actual
-        ) => AssertInclude(
+        elementAsserter: (expected,
+            actual) => AssertInclude(
             expected,
             actual,
             new ExpectedInclude<Order>(order => order.OrderDetails)));
@@ -718,18 +736,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertInclude(
                 expected.c2,
                 actual.c2,
@@ -756,18 +777,21 @@ public class
                 .Skip(2)
                 .Take(2)
             orderby c1.CustomerID, c2.CustomerID
-            select new { c1, c2, }
+            select new
+            {
+                c1,
+                c2,
+            }
         ).Take(1),
         elementSorter: element => (element.c1.CustomerID, element.c2.CustomerID),
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             AssertInclude(
                 expected.c1,
                 actual.c1,
                 new ExpectedInclude<Customer>(customer => customer.Orders));
+
             AssertEqual(expected.c2, actual.c2);
         });
 
@@ -775,6 +799,6 @@ public class
         bool async
     ) => Assert.Equal(
         RelationalStrings.LastUsedWithoutOrderBy(nameof(Enumerable.Last)),
-        (await Assert.ThrowsAsync<InvalidOperationException>(
-            () => base.Include_collection_with_last_no_orderby(async))).Message);
+        (await Assert.ThrowsAsync<InvalidOperationException>(() => base.Include_collection_with_last_no_orderby(async)))
+        .Message);
 }

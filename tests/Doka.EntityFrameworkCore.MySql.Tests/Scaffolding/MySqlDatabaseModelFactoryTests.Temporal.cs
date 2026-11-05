@@ -23,13 +23,19 @@ public sealed partial class MySqlDatabaseModelFactoryTests
         // Assert
         var table = Assert.Single(databaseModel.Tables);
         Assert.Equal("audit_entries", table.Name);
-        Assert.True(table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
+        Assert.True(
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+                ?.Value as bool?);
+
         Assert.Equal(
             "ValidFrom",
-            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)?.Value);
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)
+                ?.Value);
+
         Assert.Equal(
             "ValidTo",
-            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)?.Value);
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
+                ?.Value);
     }
 
     /// <summary>
@@ -51,16 +57,24 @@ public sealed partial class MySqlDatabaseModelFactoryTests
         // Assert
         var table = Assert.Single(databaseModel.Tables);
         Assert.Equal("audit_entries", table.Name);
-        Assert.True(table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)?.Value as bool?);
+        Assert.True(
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourceIsTemporal)
+                ?.Value as bool?);
+
         Assert.Equal(
             "audit_entries_history",
-            table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)?.Value);
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourceHistoryTable)
+                ?.Value);
+
         Assert.Equal(
             "ValidFrom",
-            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)?.Value);
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodStartColumn)
+                ?.Value);
+
         Assert.Equal(
             "ValidTo",
-            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)?.Value);
+            table.FindAnnotation(MySqlAnnotationNames.TemporalSourcePeriodEndColumn)
+                ?.Value);
     }
 
     /// <summary>
@@ -81,7 +95,10 @@ public sealed partial class MySqlDatabaseModelFactoryTests
             connection,
             new DatabaseModelFactoryOptions([], Array.Empty<string>()));
 
-        var tables = databaseModel.Tables.OrderBy(table => table.Name).ToArray();
+        var tables = databaseModel
+            .Tables
+            .OrderBy(table => table.Name)
+            .ToArray();
 
         // Assert
         Assert.Collection(

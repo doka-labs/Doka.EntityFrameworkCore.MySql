@@ -17,8 +17,8 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
         var model = new ScaffoldedModel();
 
         // Act
-        var exception = await Record.ExceptionAsync(
-            () => GeneratedContextRuntimeVerifier.VerifyAsync(model, "unused", "unused", cancellation.Token));
+        var exception = await Record.ExceptionAsync(() =>
+            GeneratedContextRuntimeVerifier.VerifyAsync(model, "unused", "unused", cancellation.Token));
 
         // Assert
         var canceled = Assert.IsAssignableFrom<OperationCanceledException>(exception);
@@ -67,7 +67,9 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
             var startedUtcTicks = long.Parse(identity[1], CultureInfo.InvariantCulture);
             child = Process.GetProcessById(processId);
 
-            if (child.StartTime.ToUniversalTime().Ticks != startedUtcTicks)
+            if (child.StartTime.ToUniversalTime()
+                    .Ticks
+                != startedUtcTicks)
             {
                 throw new InvalidOperationException("The generated context process identity no longer matches.");
             }
@@ -75,8 +77,8 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
             await cancellation.CancelAsync();
 
             // WHY: Bound a broken cancellation observer independently of the helper's execution deadline.
-            var exception = await Record.ExceptionAsync(
-                () => verification.WaitAsync(TimeSpan.FromSeconds(30), guard.Token));
+            var exception =
+                await Record.ExceptionAsync(() => verification.WaitAsync(TimeSpan.FromSeconds(30), guard.Token));
 
             if (exception is OperationCanceledException)
             {
@@ -129,45 +131,45 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
         ContextFile = new ScaffoldedFile(
             "RuntimeSchemaContext.cs",
             $$"""
-                using System;
-                using System.Diagnostics;
-                using System.Globalization;
-                using System.IO;
-                using System.Threading;
-                using Microsoft.EntityFrameworkCore;
+              using System;
+              using System.Diagnostics;
+              using System.Globalization;
+              using System.IO;
+              using System.Threading;
+              using Microsoft.EntityFrameworkCore;
 
-                namespace Doka.Scaffolding;
+              namespace Doka.Scaffolding;
 
-                /// <summary>Blocks before model initialization to exercise operating-system termination.</summary>
-                public sealed class RuntimeSchemaContext : DbContext
-                {
-                    /// <summary>Records this owned child before waiting for its parent to terminate it.</summary>
-                    /// <param name="options">The options supplied by the generated program.</param>
-                    public RuntimeSchemaContext(
-                        DbContextOptions<RuntimeSchemaContext> options
-                    ) : base(options)
-                    {
-                        const string marker = {{JsonSerializer.Serialize(markerPath)}};
-                        using var currentProcess = Process.GetCurrentProcess();
-                        var identity = Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
-                            + "|" + currentProcess.StartTime.ToUniversalTime().Ticks
-                                .ToString(CultureInfo.InvariantCulture);
+              /// <summary>Blocks before model initialization to exercise operating-system termination.</summary>
+              public sealed class RuntimeSchemaContext : DbContext
+              {
+                  /// <summary>Records this owned child before waiting for its parent to terminate it.</summary>
+                  /// <param name="options">The options supplied by the generated program.</param>
+                  public RuntimeSchemaContext(
+                      DbContextOptions<RuntimeSchemaContext> options
+                  ) : base(options)
+                  {
+                      const string marker = {{JsonSerializer.Serialize(markerPath)}};
+                      using var currentProcess = Process.GetCurrentProcess();
+                      var identity = Environment.ProcessId.ToString(CultureInfo.InvariantCulture)
+                          + "|" + currentProcess.StartTime.ToUniversalTime().Ticks
+                              .ToString(CultureInfo.InvariantCulture);
 
-                        File.WriteAllText(
-                            marker + ".tmp",
-                            identity);
-                        File.Move(marker + ".tmp", marker);
+                      File.WriteAllText(
+                          marker + ".tmp",
+                          identity);
+                      File.Move(marker + ".tmp", marker);
 
-                        // WHY: Caller cancellation cannot end this wait. The test-only
-                        // stop file is written after assertions to protect cleanup on failure.
-                        while (!File.Exists(marker + ".stop"))
-                        {
-                            Thread.Sleep(25);
-                        }
+                      // WHY: Caller cancellation cannot end this wait. The test-only
+                      // stop file is written after assertions to protect cleanup on failure.
+                      while (!File.Exists(marker + ".stop"))
+                      {
+                          Thread.Sleep(25);
+                      }
 
-                        Environment.Exit(0);
-                    }
-                }
-                """),
+                      Environment.Exit(0);
+                  }
+              }
+              """),
     };
 }

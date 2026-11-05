@@ -9,6 +9,29 @@ public sealed class MySqlParameterSizeCommandInterceptorTests
     private static readonly char[] s_oversizedCharacters = ['a', 'b', 'c'];
     private static readonly char[] s_truncatedCharacters = ['a', 'b'];
 
+    public static TheoryData<object?, int, ParameterDirection> NoOpValues =>
+        new()
+        {
+            { "short", 5, ParameterDirection.Input },
+            { "short", 10, ParameterDirection.InputOutput },
+            { s_shortBytes, 2, ParameterDirection.Input },
+            { s_shortCharacters, 4, ParameterDirection.Input },
+            { 42, 1, ParameterDirection.Input },
+            { null, 10, ParameterDirection.Input },
+            { DBNull.Value, 10, ParameterDirection.Input },
+            { "long", 0, ParameterDirection.Input },
+            { "long", 2, ParameterDirection.Output },
+            { "long", 2, ParameterDirection.ReturnValue },
+        };
+
+    public static TheoryData<object, int, object> OversizedValues =>
+        new()
+        {
+            { "abcdef", 3, "abc" },
+            { s_oversizedBytes, 2, s_truncatedBytes },
+            { s_oversizedCharacters, 2, s_truncatedCharacters },
+        };
+
     /// <summary>
     /// Verifies noop inputs do not call the value setter.
     /// </summary>
@@ -53,29 +76,6 @@ public sealed class MySqlParameterSizeCommandInterceptorTests
         Assert.Equal(expected, parameter.Value);
         Assert.NotSame(value, parameter.Value);
     }
-
-    public static TheoryData<object?, int, ParameterDirection> NoOpValues =>
-        new()
-        {
-            { "short", 5, ParameterDirection.Input },
-            { "short", 10, ParameterDirection.InputOutput },
-            { s_shortBytes, 2, ParameterDirection.Input },
-            { s_shortCharacters, 4, ParameterDirection.Input },
-            { 42, 1, ParameterDirection.Input },
-            { null, 10, ParameterDirection.Input },
-            { DBNull.Value, 10, ParameterDirection.Input },
-            { "long", 0, ParameterDirection.Input },
-            { "long", 2, ParameterDirection.Output },
-            { "long", 2, ParameterDirection.ReturnValue },
-        };
-
-    public static TheoryData<object, int, object> OversizedValues =>
-        new()
-        {
-            { "abcdef", 3, "abc" },
-            { s_oversizedBytes, 2, s_truncatedBytes },
-            { s_oversizedCharacters, 2, s_truncatedCharacters },
-        };
 
     private sealed class TrackingDbParameter : DbParameter
     {

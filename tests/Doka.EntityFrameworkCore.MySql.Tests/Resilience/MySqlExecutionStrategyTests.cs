@@ -112,14 +112,16 @@ public sealed class MySqlExecutionStrategyTests
             .Single();
 
         // Act
-        var exception = Record.Exception(
-            () => new MySqlExecutionStrategy(
-                dependencies,
-                singletonOptions,
-                transientExceptionDetector: null!));
+        var exception = Record.Exception(() => new MySqlExecutionStrategy(
+            dependencies,
+            singletonOptions,
+            transientExceptionDetector: null!));
 
         // Assert
-        Assert.Equal("transientExceptionDetector", Assert.IsType<ArgumentNullException>(exception).ParamName);
+        Assert.Equal(
+            "transientExceptionDetector",
+            Assert.IsType<ArgumentNullException>(exception)
+                .ParamName);
     }
 
     /// <summary>
@@ -185,6 +187,7 @@ public sealed class MySqlExecutionStrategyTests
             sink.Entries,
             entry => entry.EventId.Id == MySqlEventId.HardCancellation.Id
                 && entry.Category == MySqlLoggerCategory.Resilience);
+
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.RetryAttempt.Id);
     }
 
@@ -202,7 +205,7 @@ public sealed class MySqlExecutionStrategyTests
         var exception = new IOException("transport wrapper", new OperationCanceledException("cancelled operation"));
 
         // Act
-        var actual = await Record.ExceptionAsync(() => strategy.ExecuteAsync<int>(() =>
+        var actual = await Record.ExceptionAsync(() => strategy.ExecuteAsync(() =>
         {
             attempts++;
 

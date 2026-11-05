@@ -4,7 +4,7 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 /// <summary>
 /// Records throughput and allocation cost for provider-owned
-/// <see cref="JsonElement"/> materialization. This benchmark remains
+/// <see cref="JsonElement" /> materialization. This benchmark remains
 /// observational until repeated runs provide a calibrated regression budget.
 /// </summary>
 [MemoryDiagnoser]
@@ -12,7 +12,8 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 public class JsonElementMaterializationBenchmark
 {
     private static readonly ValueConverter s_converter =
-        MySqlJsonTypeMapping.CreateJsonElementMapping().Converter!;
+        MySqlJsonTypeMapping.CreateJsonElementMapping()
+            .Converter!;
 
     private string _payload = null!;
 

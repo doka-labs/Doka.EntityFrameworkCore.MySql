@@ -69,7 +69,6 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
             ("ReadB", true, false),
             ("ReadA", true, false));
 
-
         return scenario switch
         {
             "same-shape" => (baseline, sameShape),
@@ -240,6 +239,7 @@ public sealed partial class MySqlUpdateSqlGeneratorTests
                 entity
                     .Property(candidate => candidate.ExplicitId)
                     .ValueGeneratedNever();
+
                 entity
                     .Property(candidate => candidate.Computed)
                     .ValueGeneratedOnAddOrUpdate();

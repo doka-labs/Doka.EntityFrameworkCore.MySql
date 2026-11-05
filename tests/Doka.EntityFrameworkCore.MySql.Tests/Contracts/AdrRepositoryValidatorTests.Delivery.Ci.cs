@@ -22,10 +22,12 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Act
         var workflow = File.ReadAllText(workflowPath);
-        var runners = workflow.Split('\n')
+        var runners = workflow
+            .Split('\n')
             .Select(static line => line.Trim())
             .Where(static line => line.StartsWith("runs-on:", StringComparison.Ordinal))
-            .Select(static line => line["runs-on:".Length..].Trim())
+            .Select(static line => line["runs-on:".Length..]
+                .Trim())
             .ToArray();
 
         // Assert
@@ -43,10 +45,12 @@ public sealed partial class AdrRepositoryValidatorTests
         // Act
         var workflow = File.ReadAllText(workflowPath);
         var benchmark = GetWorkflowJob(workflow, "benchmark");
-        var runner = benchmark.Split('\n')
+        var runner = benchmark
+            .Split('\n')
             .Select(static line => line.Trim())
             .Single(static line => line.StartsWith("runs-on:", StringComparison.Ordinal))
-            ["runs-on:".Length..].Trim();
+            ["runs-on:".Length..]
+            .Trim();
 
         // Assert
         Assert.Contains(
@@ -101,24 +105,29 @@ public sealed partial class AdrRepositoryValidatorTests
             "Checkout the tested source and aggregate contract",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "test \"${DOKA_QUALIFIED_REF}\" = \"${expected_ref}\"",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "test \"${qualified_commit}\" = \"${GITHUB_SHA}\"",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "echo \"tree=${qualified_tree}\" >> \"${GITHUB_OUTPUT}\"",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "name: release-stage-repository-qualification-"
             + "${{ steps.repository-qualification.outputs.tree }}-attempt-"
             + "${{ github.run_attempt }}",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains("retention-days: 30", qualification, StringComparison.Ordinal);
         Assert.Contains("  workflow_dispatch:\n", benchmarkTriggers, StringComparison.Ordinal);
         Assert.Contains("  schedule:\n", benchmarkTriggers, StringComparison.Ordinal);
@@ -166,14 +175,20 @@ public sealed partial class AdrRepositoryValidatorTests
             "schedule:\n    - cron: \"15 1 * * 4\"",
             workflow,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "${{ github.workflow }}-${{ github.event_name }}-"
             + "${{ github.head_ref || github.ref }}",
             workflow,
             StringComparison.Ordinal);
+
         Assert.Contains("cancel-in-progress: true", workflow, StringComparison.Ordinal);
         Assert.Contains("uses: $/.github/workflows/quality-gates.yml", qualification, StringComparison.Ordinal);
-        Assert.Contains("if: github.event_name != 'schedule' && !inputs.maintenance", qualification, StringComparison.Ordinal);
+        Assert.Contains(
+            "if: github.event_name != 'schedule' && !inputs.maintenance",
+            qualification,
+            StringComparison.Ordinal);
+
         Assert.Contains("needs: schedule-identity", qualification, StringComparison.Ordinal);
         Assert.Empty(EngineeringSurfaceContract.ValidateQualificationWorkflow(shared));
         Assert.Contains("--filter \"Category=Spec|Category=Live\"", specificationTarget, StringComparison.Ordinal);
@@ -185,14 +200,17 @@ public sealed partial class AdrRepositoryValidatorTests
             "    if: >-\n      always()",
             outsideAggregator,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "always()",
             aggregator,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "Require every commit-exact gate to have succeeded",
             aggregator,
             StringComparison.Ordinal);
+
         Assert.Contains("Require successful coverage producers", shared, StringComparison.Ordinal);
         Assert.Contains("cron: \"0 2 * * 2\"", containerMatrix, StringComparison.Ordinal);
         Assert.DoesNotContain("schedule:", releaseCandidate, StringComparison.Ordinal);
@@ -200,6 +218,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "Verify imported repository qualification",
             releasePreflight,
             StringComparison.Ordinal);
+
         Assert.Contains("--qualification-only", releasePreflight, StringComparison.Ordinal);
         Assert.Contains("  qualification:\n    needs: preflight", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains(
@@ -207,11 +226,13 @@ public sealed partial class AdrRepositoryValidatorTests
             + "    open-pull-requests-limit: 1",
             dependabot,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "groups:\n      nuget-dependencies:\n        patterns:\n          - \"*\"\n"
             + "    ignore:",
             dependabot,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("runtime-dependencies:", dependabot, StringComparison.Ordinal);
         Assert.DoesNotContain("example-dependencies:", dependabot, StringComparison.Ordinal);
         Assert.DoesNotContain("test-infrastructure:", dependabot, StringComparison.Ordinal);

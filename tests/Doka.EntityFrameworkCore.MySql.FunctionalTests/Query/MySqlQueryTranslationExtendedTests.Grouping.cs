@@ -11,7 +11,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Select(g => new
             {
                 g.Key,
@@ -34,11 +35,12 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Select(g => new
             {
                 g.Key,
-                Total = g.Count()
+                Total = g.Count(),
             })
             .ToQueryString();
 
@@ -58,7 +60,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Where(g => g.Count() > 1)
             .Select(g => new
             {
@@ -83,7 +86,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Select(g => new
             {
                 g.Key,
@@ -106,7 +110,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Select(g => g.Average(e => e.Id))
             .ToQueryString();
 
@@ -126,7 +131,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.GroupBy(e => e.Name)
+            .Items
+            .GroupBy(e => e.Name)
             .Select(g => g.Sum(e => e.SingleValue))
             .ToQueryString();
 

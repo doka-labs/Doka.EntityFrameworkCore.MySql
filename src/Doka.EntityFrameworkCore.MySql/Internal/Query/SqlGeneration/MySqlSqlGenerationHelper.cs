@@ -21,7 +21,10 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        if (identifier.AsSpan().IndexOf('`') < 0)
+        if (identifier
+                .AsSpan()
+                .IndexOf('`')
+            < 0)
         {
             return string.Create(
                 identifier.Length + 2,
@@ -29,7 +32,10 @@ internal sealed class MySqlSqlGenerationHelper : RelationalSqlGenerationHelper
                 static (span, source) =>
                 {
                     span[0] = '`';
-                    source.AsSpan().CopyTo(span[1..^1]);
+                    source
+                        .AsSpan()
+                        .CopyTo(span[1..^1]);
+
                     span[^1] = '`';
                 });
         }

@@ -40,40 +40,6 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
     }
 
     /// <summary>
-    /// Prevents a bound source from silently being evaluated in multiple split-query commands.
-    /// </summary>
-    private sealed class MaterializedSourceExecutionValidator : MySqlShapedQueryTraversingExpressionVisitor
-    {
-        private bool _hasBinding;
-        private bool _hasSplitCollection;
-
-        public static void Validate(
-            Expression expression
-        )
-        {
-            var visitor = new MaterializedSourceExecutionValidator();
-            visitor.Visit(expression);
-
-            if (visitor._hasBinding
-                && visitor._hasSplitCollection)
-            {
-                throw new InvalidOperationException(
-                    "Materialized sources require a single SQL statement; split collection queries cannot be bound.");
-            }
-        }
-
-        protected override Expression VisitExtension(
-            Expression node
-        )
-        {
-            _hasBinding |= node is MySqlMaterializedSourceExpression;
-            _hasSplitCollection |= node is RelationalSplitCollectionShaperExpression;
-
-            return base.VisitExtension(node);
-        }
-    }
-
-    /// <summary>
     /// Normalizes only unambiguous fallback-versus-model string mappings before EF Core
     /// applies its standard relational type-inference and validation pass.
     /// </summary>
@@ -122,6 +88,40 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
         return supportsLateralDerivedTables
             ? new MySqlLateralProjectionDecorrelationExpressionVisitor().Visit(flattened)
             : flattened;
+    }
+
+    /// <summary>
+    /// Prevents a bound source from silently being evaluated in multiple split-query commands.
+    /// </summary>
+    private sealed class MaterializedSourceExecutionValidator : MySqlShapedQueryTraversingExpressionVisitor
+    {
+        private bool _hasBinding;
+        private bool _hasSplitCollection;
+
+        public static void Validate(
+            Expression expression
+        )
+        {
+            var visitor = new MaterializedSourceExecutionValidator();
+            visitor.Visit(expression);
+
+            if (visitor._hasBinding
+                && visitor._hasSplitCollection)
+            {
+                throw new InvalidOperationException(
+                    "Materialized sources require a single SQL statement; split collection queries cannot be bound.");
+            }
+        }
+
+        protected override Expression VisitExtension(
+            Expression node
+        )
+        {
+            _hasBinding |= node is MySqlMaterializedSourceExpression;
+            _hasSplitCollection |= node is RelationalSplitCollectionShaperExpression;
+
+            return base.VisitExtension(node);
+        }
     }
 
     /// <summary>

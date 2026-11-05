@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed partial class MySqlMigrationsModelDiffer
@@ -14,7 +16,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
 
         foreach (var operation in operations)
         {
-            if (operation is AlterColumnOperation { IsNullable: false, OldColumn.IsNullable: true, } alterColumn
+            if (operation is AlterColumnOperation { IsNullable: false, OldColumn.IsNullable: true } alterColumn
                 && string.IsNullOrWhiteSpace(alterColumn.ComputedColumnSql)
                 && !TargetDeclaresDefault(target, alterColumn))
             {
@@ -23,7 +25,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
                 continue;
             }
 
-            if (operation is AddColumnOperation { IsNullable: false, } addColumn
+            if (operation is AddColumnOperation { IsNullable: false } addColumn
                 && string.IsNullOrWhiteSpace(addColumn.ComputedColumnSql)
                 && !TargetDeclaresDefault(target, addColumn))
             {
@@ -86,6 +88,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
                         source,
                         alterColumn,
                         renameOperations);
+
                     NormalizeProviderGuidColumnOperation(alterColumn.OldColumn);
                     NormalizeProviderOwnedConverterColumnOperation(alterColumn.OldColumn, source);
                     break;
@@ -227,7 +230,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
         ColumnOperation operation
     )
     {
-        if (operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)?.Value is not MySqlGuidFormat format)
+        if (operation.FindAnnotation(MySqlAnnotationNames.GuidFormat)
+                ?.Value is not MySqlGuidFormat format)
         {
             return;
         }
@@ -275,7 +279,9 @@ internal sealed partial class MySqlMigrationsModelDiffer
     {
         var uniqueAlterColumns = new List<AlterColumnOperation>();
 
-        foreach (var alterColumn in operations.OfType<AlterColumnOperation>().ToArray())
+        foreach (var alterColumn in operations
+            .OfType<AlterColumnOperation>()
+            .ToArray())
         {
             // Table-sharing JSON mappings can independently report the same physical
             // column transition. Executing identical ALTER TABLE statements adds locking
@@ -308,7 +314,7 @@ internal sealed partial class MySqlMigrationsModelDiffer
         && left.OldColumn.IsNullable == right.OldColumn.IsNullable
         && HasComputedExpression(left.OldColumn) == HasComputedExpression(right.OldColumn)
         && left.OldColumn.IsStored == right.OldColumn.IsStored
-        && (left.OldColumn.Comment is null) == (right.OldColumn.Comment is null)
+        && left.OldColumn.Comment is null == right.OldColumn.Comment is null
         && (!RequiresNullValueUpdate(left)
             || left.DefaultValue is not null
             || left.DefaultValueSql is not null
@@ -346,8 +352,10 @@ internal sealed partial class MySqlMigrationsModelDiffer
         ColumnOperation right,
         string annotationName
     ) => ValuesAreEquivalent(
-        left.FindAnnotation(annotationName)?.Value,
-        right.FindAnnotation(annotationName)?.Value);
+        left.FindAnnotation(annotationName)
+            ?.Value,
+        right.FindAnnotation(annotationName)
+            ?.Value);
 
     private static bool HasComputedExpression(
         ColumnOperation operation
@@ -361,6 +369,6 @@ internal sealed partial class MySqlMigrationsModelDiffer
         object? left,
         object? right
     ) => left is Array || right is Array
-        ? System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(left, right)
+        ? StructuralComparisons.StructuralEqualityComparer.Equals(left, right)
         : Equals(left, right);
 }

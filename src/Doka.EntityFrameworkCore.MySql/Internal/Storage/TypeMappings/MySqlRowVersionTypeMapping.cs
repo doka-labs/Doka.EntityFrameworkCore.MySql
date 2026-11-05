@@ -7,11 +7,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 public sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping, IMySqlProviderOwnedModelTypeMapping
 {
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlRowVersionTypeMapping Default { get; } = new();
-
-    /// <summary>
     /// Creates the conventional MySQL <c>byte[]</c> row-version mapping.
     /// </summary>
     public MySqlRowVersionTypeMapping() : base(
@@ -19,7 +14,7 @@ public sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping, IMySqlProv
             new CoreTypeMappingParameters(
                 typeof(byte[]),
                 new MySqlBytesToDateTimeConverter(),
-                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<byte[]>(
+                new ValueComparer<byte[]>(
                     favorStructuralComparisons: true)),
             "timestamp(6)",
             StoreTypePostfix.Precision,
@@ -28,12 +23,16 @@ public sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping, IMySqlProv
             size: null,
             fixedLength: false,
             precision: 6,
-            scale: null))
-    { }
+            scale: null)) { }
 
     private MySqlRowVersionTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlRowVersionTypeMapping Default { get; } = new();
 
     Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType =>
         Converter?.ProviderClrType

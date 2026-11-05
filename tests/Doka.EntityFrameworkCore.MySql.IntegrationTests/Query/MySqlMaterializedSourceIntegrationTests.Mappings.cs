@@ -38,52 +38,66 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     {
         if (typeof(TNode) == typeof(OwnedMappedItem))
         {
-            var source = context.Set<OwnedMappedItem>().Select(node => new MappingRow
-            {
-                Id = node.Id,
-                Tenant = string.Empty,
-                Value = node.Value,
-                Detail = node.Contact.Detail,
-            });
+            var source = context
+                .Set<OwnedMappedItem>()
+                .Select(node => new MappingRow
+                {
+                    Id = node.Id,
+                    Tenant = string.Empty,
+                    Value = node.Value,
+                    Detail = node.Contact.Detail,
+                });
 
             return BindProjectedMapping(source);
         }
 
         if (typeof(TNode) == typeof(ShadowMappedItem))
         {
-            var source = context.Set<ShadowMappedItem>().Select(node => new MappingRow
-            {
-                Id = EF.Property<int>(node, "Id"),
-                Tenant = EF.Property<string>(node, "Tenant"),
-                Value = node.Value,
-                Detail = node.Detail,
-            });
+            var source = context
+                .Set<ShadowMappedItem>()
+                .Select(node => new MappingRow
+                {
+                    Id = EF.Property<int>(node, "Id"),
+                    Tenant = EF.Property<string>(node, "Tenant"),
+                    Value = node.Value,
+                    Detail = node.Detail,
+                });
 
             return BindProjectedMapping(source);
         }
 
         // WHY: Keeping the inherited/split entity as the bound source exercises EF's
         // structural shaper before the final result is narrowed to ordinary scalars.
-        return context.Set<TNode>().WithMaterializedSource(source => source.Join(
-            source,
-            left => EF.Property<int>(left, "Id"),
-            right => EF.Property<int>(right, "Id"),
-            (left, right) => new MappingRow
-            {
-                Id = EF.Property<int>(left, "Id"),
-                Tenant = string.Empty,
-                Value = EF.Property<string>(left, "Value"),
-                Detail = EF.Property<string>(left, "Detail"),
-                OtherDetail = EF.Property<string>(right, "Detail"),
-            }));
+        return context
+            .Set<TNode>()
+            .WithMaterializedSource(source => source.Join(
+                source,
+                left => EF.Property<int>(left, "Id"),
+                right => EF.Property<int>(right, "Id"),
+                (left, right) => new MappingRow
+                {
+                    Id = EF.Property<int>(left, "Id"),
+                    Tenant = string.Empty,
+                    Value = EF.Property<string>(left, "Value"),
+                    Detail = EF.Property<string>(left, "Detail"),
+                    OtherDetail = EF.Property<string>(right, "Detail"),
+                }));
     }
 
     private static IQueryable<MappingRow> BindProjectedMapping(
         IQueryable<MappingRow> source
     ) => source.WithMaterializedSource(bound => bound.Join(
         bound,
-        left => new { left.Tenant, left.Id },
-        right => new { right.Tenant, right.Id },
+        left => new
+        {
+            left.Tenant,
+            left.Id,
+        },
+        right => new
+        {
+            right.Tenant,
+            right.Id,
+        },
         (left, right) => new MappingRow
         {
             Id = left.Id,
@@ -102,7 +116,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         where TNode : class
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<MappingContext<TNode>>()
+        var options = IntegrationTestDbContextOptions
+            .Create<MappingContext<TNode>>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -142,11 +157,20 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
             if (typeof(TNode) == typeof(TptLeaf))
             {
-                context.Add(new TptLeaf { Id = id, Value = value, Detail = detail });
+                context.Add(
+                    new TptLeaf
+                    {
+                        Id = id,
+                        Value = value,
+                        Detail = detail,
+                    });
             }
             else if (typeof(TNode) == typeof(TpcRoot))
             {
-                TpcRoot item = id == 1 ? new TpcFirst() : new TpcSecond();
+                TpcRoot item = id == 1
+                    ? new TpcFirst()
+                    : new TpcSecond();
+
                 item.Id = id;
                 item.Value = value;
                 item.Detail = detail;
@@ -154,31 +178,54 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             }
             else if (typeof(TNode) == typeof(SplitMappedItem))
             {
-                context.Add(new SplitMappedItem { Id = id, Value = value, Detail = detail });
+                context.Add(
+                    new SplitMappedItem
+                    {
+                        Id = id,
+                        Value = value,
+                        Detail = detail,
+                    });
             }
             else if (typeof(TNode) == typeof(SharedMappedDetail))
             {
-                context.Add(new SharedMappedOwner
-                {
-                    Id = id,
-                    Payload = $"owner-{id}",
-                    Details = new SharedMappedDetail { Id = id, Value = value, Detail = detail },
-                });
+                context.Add(
+                    new SharedMappedOwner
+                    {
+                        Id = id,
+                        Payload = $"owner-{id}",
+                        Details = new SharedMappedDetail
+                        {
+                            Id = id,
+                            Value = value,
+                            Detail = detail,
+                        },
+                    });
             }
             else if (typeof(TNode) == typeof(OwnedMappedItem))
             {
-                context.Add(new OwnedMappedItem
-                {
-                    Id = id,
-                    Value = value,
-                    Contact = new OwnedMappedContact { Detail = detail },
-                });
+                context.Add(
+                    new OwnedMappedItem
+                    {
+                        Id = id,
+                        Value = value,
+                        Contact = new OwnedMappedContact { Detail = detail },
+                    });
             }
             else if (typeof(TNode) == typeof(ShadowMappedItem))
             {
-                var entry = context.Entry(new ShadowMappedItem { Value = value, Detail = detail });
-                entry.Property("Tenant").CurrentValue = $"tenant-{id}";
-                entry.Property("Id").CurrentValue = 1;
+                var entry = context.Entry(
+                    new ShadowMappedItem
+                    {
+                        Value = value,
+                        Detail = detail,
+                    });
+
+                entry.Property("Tenant")
+                        .CurrentValue = $"tenant-{id}";
+
+                entry.Property("Id")
+                    .CurrentValue = 1;
+
                 entry.State = EntityState.Added;
             }
         }

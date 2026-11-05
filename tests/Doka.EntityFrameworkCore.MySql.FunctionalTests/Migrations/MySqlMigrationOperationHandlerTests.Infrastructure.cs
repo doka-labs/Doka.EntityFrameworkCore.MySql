@@ -120,8 +120,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         /// <inheritdoc />
         public void Validate(
             IDbContextOptions options
-        )
-        { }
+        ) { }
 
         private sealed class ExtensionInfo : DbContextOptionsExtensionInfo
         {

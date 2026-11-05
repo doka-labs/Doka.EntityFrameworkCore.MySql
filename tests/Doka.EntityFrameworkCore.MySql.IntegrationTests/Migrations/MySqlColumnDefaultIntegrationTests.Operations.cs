@@ -16,6 +16,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "int",
                 IsNullable = false,
             });
+
         operation.Columns.Add(
             CreateColumn(
                 tableName,
@@ -23,6 +24,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 typeof(DateOnly),
                 "date",
                 new DateOnly(2026, 8, 17)));
+
         operation.Columns.Add(
             CreateColumn(
                 tableName,
@@ -30,8 +32,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 typeof(TimeOnly),
                 "time(6)",
                 new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567))));
+
         operation.Columns.Add(
             CreateColumn(tableName, "CharValue", typeof(char), "char(1)", '\\'));
+
         operation.Columns.Add(
             CreateColumn(
                 tableName,
@@ -39,6 +43,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 typeof(TimeSpan),
                 "time(6)",
                 TimeSpan.FromHours(27) + TimeSpan.FromTicks(1_234_567)));
+
         operation.Columns.Add(
             CreateColumn(
                 tableName,
@@ -46,6 +51,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 typeof(TimeSpan),
                 "time(6)",
                 s_maximumTime));
+
         operation.Columns.Add(
             CreateColumn(
                 tableName,
@@ -53,12 +59,14 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 typeof(TimeSpan),
                 "time(6)",
                 -s_maximumTime));
+
         var jsonColumn = CreateColumn(tableName, "JsonValue", typeof(string), "json", "{}");
         jsonColumn.Comment = "json\\comment";
         jsonColumn.SetAnnotation(MySqlAnnotationNames.Invisible, true);
         operation.Columns.Add(jsonColumn);
         operation.Columns.Add(
             CreateColumn(tableName, "GuidValue", typeof(Guid), "binary(16)", s_guidDefault));
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -68,6 +76,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "date",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -77,6 +86,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "datetime(6)",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -86,6 +96,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "timestamp(6)",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -95,6 +106,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "timestamp(6)",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -104,6 +116,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "json",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -113,6 +126,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "point",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -122,6 +136,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "enum('alpha','beta')",
                 IsNullable = true,
             });
+
         operation.Columns.Add(
             new AddColumnOperation
             {
@@ -131,6 +146,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 ColumnType = "int",
                 IsNullable = true,
             });
+
         operation.CheckConstraints.Add(
             new AddCheckConstraintOperation
             {
@@ -138,6 +154,7 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
                 Table = tableName,
                 Sql = "`RepairChecked` > 0",
             });
+
         var spatialColumn = new AddColumnOperation
         {
             Table = tableName,

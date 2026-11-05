@@ -197,7 +197,9 @@ public sealed class MySqlDatabaseLifecycleTests
         var creator = context.GetService<IRelationalDatabaseCreator>();
 
         // Act
-        var exists = await creator.ExistsAsync(cancellationToken).ConfigureAwait(false);
+        var exists = await creator
+            .ExistsAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Assert
         Assert.True(exists);
@@ -263,6 +265,7 @@ public sealed class MySqlDatabaseLifecycleTests
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `MdbGuidBin` (`Id` binary(16) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
             cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `MdbGuidChar` (`Id` char(36) NOT NULL, `Name` varchar(100) NOT NULL, PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
             cancellationToken);
@@ -276,13 +279,14 @@ public sealed class MySqlDatabaseLifecycleTests
                 new GuidBinEntity
                 {
                     Id = binId,
-                    Name = "BinTest"
+                    Name = "BinTest",
                 });
+
             context.CharItems.Add(
                 new GuidCharEntity
                 {
                     Id = charId,
-                    Name = "CharTest"
+                    Name = "CharTest",
                 });
 
             // Act
@@ -699,10 +703,12 @@ public sealed class MySqlDatabaseLifecycleTests
                 e
                     .Property(x => x.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(100);
             });
+
             modelBuilder.Entity<GuidCharEntity>(e =>
             {
                 e.ToTable("MdbGuidChar");
@@ -710,6 +716,7 @@ public sealed class MySqlDatabaseLifecycleTests
                 e
                     .Property(x => x.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
+
                 e
                     .Property(x => x.Name)
                     .HasMaxLength(100);

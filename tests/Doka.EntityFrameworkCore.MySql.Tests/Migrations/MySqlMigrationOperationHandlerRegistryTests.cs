@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -6,6 +8,15 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationOperationHandlerRegistryTests
 {
+    public static TheoryData<Type> InvalidOperationTypes => new()
+    {
+        null!,
+        typeof(string),
+        typeof(MigrationOperation),
+        typeof(AbstractOperation),
+        typeof(OpenGenericOperation<>),
+    };
+
     /// <summary>
     /// Verifies registry snapshots handler metadata once.
     /// </summary>
@@ -39,12 +50,13 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
 
         // Act
         var actual = AssertRegistration(registry, typeof(FirstOperation))
-                .Handler;
+            .Handler;
 
         // Assert
         Assert.Same(
             first,
             actual);
+
         Assert.Same(
             second,
             AssertRegistration(registry, typeof(SecondOperation))
@@ -269,7 +281,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         // fail qualification until the provider ownership set is reconciled.
         var generateActionsField = typeof(MigrationsSqlGenerator).GetField(
             "GenerateActions",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
 
         // Act
         var actual = generateActionsField?.GetValue(null);
@@ -277,7 +289,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         // Assert
         var generateActions = Assert.IsAssignableFrom<IDictionary>(actual);
         var efCoreOperationTypes = generateActions
-            .Keys.Cast<Type>()
+            .Keys
+            .Cast<Type>()
             .ToHashSet();
 
         Assert.True(
@@ -307,15 +320,6 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         Assert.Same(source, exception.InnerException);
         Assert.DoesNotContain(secret, exception.Message, StringComparison.Ordinal);
     }
-
-    public static TheoryData<Type> InvalidOperationTypes => new()
-    {
-        null!,
-        typeof(string),
-        typeof(MigrationOperation),
-        typeof(AbstractOperation),
-        typeof(OpenGenericOperation<>),
-    };
 
     private static MySqlMigrationOperationHandlerRegistry.Registration AssertRegistration(
         MySqlMigrationOperationHandlerRegistry registry,

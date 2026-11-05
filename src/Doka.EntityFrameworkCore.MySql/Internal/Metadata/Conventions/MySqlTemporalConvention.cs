@@ -87,6 +87,39 @@ internal sealed class MySqlTemporalConvention
         }
     }
 
+    public void ProcessModelFinalizing(
+        IConventionModelBuilder modelBuilder,
+        IConventionContext<IConventionModelBuilder> context
+    )
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var profile = _singletonOptions.Profile
+            ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
+
+        var support = profile.GetSupport(ProviderCapability.TemporalTables);
+
+        PropagateTemporalMappingToSharedOwnedEntityTypes(modelBuilder.Metadata);
+        PropagateTemporalMappingToHierarchies(modelBuilder.Metadata);
+        NormalizeTemporalTptBaseLinks(modelBuilder.Metadata);
+        PropagateTemporalMappingToImplicitJoinEntities(modelBuilder.Metadata);
+        NormalizeApplicationTimePrimaryKeys(modelBuilder.Metadata);
+
+        foreach (var entityType in modelBuilder
+            .Metadata
+            .GetEntityTypes()
+            .ToArray())
+        {
+            if (!entityType.IsMySqlTemporal())
+            {
+                continue;
+            }
+
+            ConfigureTemporalEntityType((IMutableEntityType)entityType, support);
+        }
+    }
+
     public void ProcessSkipNavigationForeignKeyChanged(
         IConventionSkipNavigationBuilder skipNavigationBuilder,
         IConventionForeignKey? foreignKey,
@@ -114,46 +147,14 @@ internal sealed class MySqlTemporalConvention
         ((IMutableEntityType)joinEntityType).SetMySqlTemporal(true);
     }
 
-    public void ProcessModelFinalizing(
-        IConventionModelBuilder modelBuilder,
-        IConventionContext<IConventionModelBuilder> context
-    )
-    {
-        ArgumentNullException.ThrowIfNull(modelBuilder);
-        ArgumentNullException.ThrowIfNull(context);
-
-        var profile = _singletonOptions.Profile
-            ?? throw new InvalidOperationException("The MySQL provider profile has not been initialized.");
-
-        var support = profile.GetSupport(ProviderCapability.TemporalTables);
-
-        PropagateTemporalMappingToSharedOwnedEntityTypes(modelBuilder.Metadata);
-        PropagateTemporalMappingToHierarchies(modelBuilder.Metadata);
-        NormalizeTemporalTptBaseLinks(modelBuilder.Metadata);
-        PropagateTemporalMappingToImplicitJoinEntities(modelBuilder.Metadata);
-        NormalizeApplicationTimePrimaryKeys(modelBuilder.Metadata);
-
-        foreach (var entityType in modelBuilder
-                     .Metadata.GetEntityTypes()
-                     .ToArray())
-        {
-            if (!entityType.IsMySqlTemporal())
-            {
-                continue;
-            }
-
-            ConfigureTemporalEntityType((IMutableEntityType)entityType, support);
-        }
-    }
-
     private static void NormalizeApplicationTimePrimaryKeys(
         IConventionModel model
     )
     {
         foreach (var entityType in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.IsMySqlApplicationTime()
-                         && entityType.GetMySqlApplicationTimeWithoutOverlaps()))
+            .GetEntityTypes()
+            .Where(entityType => entityType.IsMySqlApplicationTime()
+                && entityType.GetMySqlApplicationTimeWithoutOverlaps()))
         {
             entityType
                 .FindPrimaryKey()
@@ -166,10 +167,10 @@ internal sealed class MySqlTemporalConvention
     )
     {
         foreach (var ownedEntityType in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.IsOwned()
-                         && !entityType.IsMySqlTemporal()
-                         && entityType.FindAnnotation(MySqlAnnotationNames.IsTemporal) is null))
+            .GetEntityTypes()
+            .Where(entityType => entityType.IsOwned()
+                && !entityType.IsMySqlTemporal()
+                && entityType.FindAnnotation(MySqlAnnotationNames.IsTemporal) is null))
         {
             var temporalOwner = FindTemporalOwnerSharingTable(ownedEntityType);
 
@@ -186,17 +187,19 @@ internal sealed class MySqlTemporalConvention
         IConventionEntityType ownedEntityType
     )
     {
-        var owner = ownedEntityType.FindOwnership()?.PrincipalEntityType;
+        var owner = ownedEntityType.FindOwnership()
+            ?.PrincipalEntityType;
 
         while (owner is not null
-               && SharesTable(owner, ownedEntityType))
+            && SharesTable(owner, ownedEntityType))
         {
             if (owner.IsMySqlTemporal())
             {
                 return owner;
             }
 
-            owner = owner.FindOwnership()?.PrincipalEntityType;
+            owner = owner.FindOwnership()
+                ?.PrincipalEntityType;
         }
 
         return null;
@@ -229,6 +232,7 @@ internal sealed class MySqlTemporalConvention
             MySqlAnnotationNames.TemporalPeriodStartPropertyName,
             periodStartPropertyName,
             fromDataAnnotation: false);
+
         targetBuilder.HasAnnotation(
             MySqlAnnotationNames.TemporalPeriodEndPropertyName,
             periodEndPropertyName,
@@ -244,7 +248,8 @@ internal sealed class MySqlTemporalConvention
         string annotationName
     )
     {
-        if (source.FindAnnotation(annotationName)?.Value is { } value)
+        if (source.FindAnnotation(annotationName)
+                ?.Value is { } value)
         {
             targetBuilder.HasAnnotation(annotationName, value, fromDataAnnotation: false);
         }
@@ -274,8 +279,8 @@ internal sealed class MySqlTemporalConvention
     )
     {
         foreach (var entityType in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.IsMySqlTemporal()))
+            .GetEntityTypes()
+            .Where(entityType => entityType.IsMySqlTemporal()))
         {
             foreach (var foreignKey in entityType.GetForeignKeys())
             {
@@ -311,8 +316,8 @@ internal sealed class MySqlTemporalConvention
     )
     {
         foreach (var rootEntityType in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.BaseType is null))
+            .GetEntityTypes()
+            .Where(entityType => entityType.BaseType is null))
         {
             var hierarchy = rootEntityType
                 .GetDerivedTypesInclusive()
@@ -387,6 +392,7 @@ internal sealed class MySqlTemporalConvention
         var tableName = target.GetTableName()!;
         target.SetMySqlTemporalPeriodStartPropertyName(
             MySqlTemporalMetadata.CreateHierarchyPeriodPropertyName(tableName, isStart: true));
+
         target.SetMySqlTemporalPeriodEndPropertyName(
             MySqlTemporalMetadata.CreateHierarchyPeriodPropertyName(tableName, isStart: false));
     }
@@ -396,8 +402,8 @@ internal sealed class MySqlTemporalConvention
     )
     {
         foreach (var skipNavigation in model
-                     .GetEntityTypes()
-                     .SelectMany(entityType => entityType.GetSkipNavigations()))
+            .GetEntityTypes()
+            .SelectMany(entityType => entityType.GetSkipNavigations()))
         {
             var inverse = skipNavigation.Inverse;
             var joinEntityType = skipNavigation.JoinEntityType;
@@ -471,8 +477,8 @@ internal sealed class MySqlTemporalConvention
                 || string.Equals(configuredColumnName, propertyName, StringComparison.Ordinal))
             {
                 var columnName = propertyName.StartsWith(
-                        MySqlTemporalMetadata.DefaultPeriodStartPropertyName + "_",
-                        StringComparison.Ordinal)
+                    MySqlTemporalMetadata.DefaultPeriodStartPropertyName + "_",
+                    StringComparison.Ordinal)
                     ? MySqlTemporalMetadata.DefaultPeriodStartPropertyName
                     : propertyName.StartsWith(
                         MySqlTemporalMetadata.DefaultPeriodEndPropertyName + "_",
@@ -487,7 +493,10 @@ internal sealed class MySqlTemporalConvention
         // Native MariaDB period columns require TIMESTAMP, whereas the MySQL
         // history-trigger contract uses DATETIME to avoid session time-zone
         // conversion when copying the generated UTC boundaries.
-        property.SetColumnType(support == ProviderSupportStatus.Native ? "timestamp(6)" : "datetime(6)");
+        property.SetColumnType(
+            support == ProviderSupportStatus.Native
+                ? "timestamp(6)"
+                : "datetime(6)");
 
         property.ValueGenerated = ValueGenerated.OnAddOrUpdate;
     }

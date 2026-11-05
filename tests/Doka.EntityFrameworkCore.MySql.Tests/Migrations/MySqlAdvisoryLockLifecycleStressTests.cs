@@ -2,7 +2,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
 /// Stress coverage for the migration advisory-lock lifecycle slot-management. The
-/// lock class lives inside <see cref="MySqlHistoryRepository"/> as an internal
+/// lock class lives inside <see cref="MySqlHistoryRepository" /> as an internal
 /// nested type; the surface under test is the visible behavior: Dispose is
 /// idempotent across concurrent callers, ReacquireIfNeeded releases the old
 /// connection before the next acquire, and disposal is a terminal lifecycle state.

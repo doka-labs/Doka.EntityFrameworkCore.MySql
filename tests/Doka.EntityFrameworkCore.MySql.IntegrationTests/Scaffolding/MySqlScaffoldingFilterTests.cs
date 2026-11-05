@@ -86,7 +86,8 @@ public sealed class MySqlScaffoldingFilterTests
             // other test suites may run concurrently and leave residual tables behind.
 
             var fixtureTables = fullModel
-                .Tables.Where(table => table.Name.StartsWith(TablePrefix, StringComparison.Ordinal))
+                .Tables
+                .Where(table => table.Name.StartsWith(TablePrefix, StringComparison.Ordinal))
                 .ToArray();
 
             // Assert
@@ -124,6 +125,7 @@ public sealed class MySqlScaffoldingFilterTests
                 + "  `Name` VARCHAR(64) NOT NULL,"
                 + "  PRIMARY KEY (`Id`)"
                 + ") CHARACTER SET utf8mb4;";
+
             await command
                 .ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);

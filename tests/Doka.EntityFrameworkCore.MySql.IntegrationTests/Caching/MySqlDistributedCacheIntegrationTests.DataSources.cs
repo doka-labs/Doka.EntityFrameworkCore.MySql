@@ -1,3 +1,5 @@
+using System.Transactions;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies caller-owned data-source and transaction boundaries.</summary>
@@ -16,11 +18,13 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
-        var key = useAsync ? "ambient-async" : "ambient-sync";
+        var key = useAsync
+            ? "ambient-async"
+            : "ambient-sync";
 
         // Act
-        using (var scope = new System.Transactions.TransactionScope(
-                   System.Transactions.TransactionScopeAsyncFlowOption.Enabled))
+        using (var scope = new TransactionScope(
+            TransactionScopeAsyncFlowOption.Enabled))
         {
             // WHY: Neither cache path may enlist its write in the ambient transaction.
             if (useAsync)
@@ -102,13 +106,14 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         await cache
             .SetAsync("external-pool", [4, 2], new DistributedCacheEntryOptions(), CancellationToken.None)
             .ConfigureAwait(false);
+
         bool completedWhileExhausted;
         Exception? cancellationFailure;
 
         // Act
         await using (var lease = await dataSource
-                         .OpenConnectionAsync(CancellationToken.None)
-                         .ConfigureAwait(false))
+            .OpenConnectionAsync(CancellationToken.None)
+            .ConfigureAwait(false))
         {
             using var cancellation = new CancellationTokenSource();
             var pending = cache.GetAsync("external-pool", cancellation.Token);
@@ -135,6 +140,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.False(
             completedWhileExhausted,
             "The cache must share the caller's exhausted single-connection pool.");
+
         Assert.IsAssignableFrom<OperationCanceledException>(cancellationFailure);
         Assert.Equal(
             new byte[] { 4, 2 },
@@ -177,7 +183,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         await using var command = new MySqlCommand("SELECT 1;", survivingConnection);
         var result = Convert.ToInt64(
-            await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+            await command
+                .ExecuteScalarAsync(CancellationToken.None)
+                .ConfigureAwait(false),
             CultureInfo.InvariantCulture);
 
         // Assert

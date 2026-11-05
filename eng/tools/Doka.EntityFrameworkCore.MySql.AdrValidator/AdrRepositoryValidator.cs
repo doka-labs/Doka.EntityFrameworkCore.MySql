@@ -68,6 +68,7 @@ internal sealed class AdrRepositoryValidator
                 AdrIndexRenderer.ReadmeRelativePath,
                 AdrIndexRenderer.RenderReadme(documents),
                 errors);
+
             ValidateGeneratedArtifact(
                 repositoryRoot,
                 AdrIndexRenderer.JsonRelativePath,
@@ -130,6 +131,7 @@ internal sealed class AdrRepositoryValidator
                 static target => target.SupersededBy,
                 byId,
                 errors);
+
             ValidateRelationshipSet(
                 document,
                 document.SupersededBy,
@@ -137,6 +139,7 @@ internal sealed class AdrRepositoryValidator
                 static target => target.Supersedes,
                 byId,
                 errors);
+
             ValidateRelationshipSet(
                 document,
                 document.Amends,
@@ -144,6 +147,7 @@ internal sealed class AdrRepositoryValidator
                 static target => target.AmendedBy,
                 byId,
                 errors);
+
             ValidateRelationshipSet(
                 document,
                 document.AmendedBy,
@@ -191,6 +195,7 @@ internal sealed class AdrRepositoryValidator
                         source.RelativePath,
                         null,
                         $"Relationship '{relationshipName}' cannot reference the same ADR."));
+
                 continue;
             }
 
@@ -201,11 +206,12 @@ internal sealed class AdrRepositoryValidator
                         source.RelativePath,
                         null,
                         $"Relationship '{relationshipName}' references missing ADR '{targetId}'."));
+
                 continue;
             }
 
             if (!inverseSelector(target)
-                    .Contains(source.Id, StringComparer.Ordinal))
+                .Contains(source.Id, StringComparer.Ordinal))
             {
                 errors.Add(
                     new AdrValidationError(

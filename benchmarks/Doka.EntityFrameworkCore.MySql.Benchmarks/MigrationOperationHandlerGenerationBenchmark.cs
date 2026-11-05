@@ -17,11 +17,11 @@ public class MigrationOperationHandlerGenerationBenchmark
         "Server=localhost;Database=benchmark_handlers;User ID=root;Password=benchmark;";
 
     private static readonly int[] s_operationCounts = [1, 100, 1000];
+    private DbContextOptions<HandlerGenerationContext> _mariaDbOptions = null!;
 
     private ServiceProvider _mariaDbServices = null!;
-    private ServiceProvider _mySqlServices = null!;
-    private DbContextOptions<HandlerGenerationContext> _mariaDbOptions = null!;
     private DbContextOptions<HandlerGenerationContext> _mySqlOptions = null!;
+    private ServiceProvider _mySqlServices = null!;
     private IReadOnlyList<MigrationOperation>[] _operationPopulations = null!;
     private IReadOnlyList<MigrationOperation> _sqlModeScopeOperations = null!;
 
@@ -35,6 +35,7 @@ public class MigrationOperationHandlerGenerationBenchmark
         _operationPopulations = s_operationCounts
             .Select(CreateOperations)
             .ToArray();
+
         _sqlModeScopeOperations = CreateSqlModeScopeOperations(operationCount: 256);
 
         _mySqlServices = CreateServiceProvider();

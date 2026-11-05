@@ -353,6 +353,7 @@ internal static class TakeThenOrderByRankQuery
         .Where(gear => !gear.HasSoulPatch)
         .Take(999)
         .OrderBy(gear => gear.FullName)
+
         // The second OrderBy intentionally replaces the preceding ordering. ThenBy
         // would retain FullName as the primary key and change this conformance contract.
         .OrderBy(gear => gear.Rank)

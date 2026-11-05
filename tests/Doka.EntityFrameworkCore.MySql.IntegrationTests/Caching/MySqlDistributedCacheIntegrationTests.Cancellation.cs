@@ -40,10 +40,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Revision` FROM {store.QualifiedTableName} "
-                         + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         lockConnection,
-                         transaction))
+            $"SELECT `Revision` FROM {store.QualifiedTableName} "
+            + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            lockConnection,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
@@ -59,10 +59,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             // ReSharper disable once MethodHasAsyncOverload
             "refresh-sync" => Task.Run(() => store.Cache.Refresh(key), CancellationToken.None),
             "refresh-async" => store.Cache.RefreshAsync(key, CancellationToken.None),
+
             // WHY: This lock-wait variant exercises synchronous Get on a worker thread.
             // ReSharper disable once MethodHasAsyncOverload
             "get-sync" => Task.Run(() => store.Cache.Get(key), CancellationToken.None),
             "get-async" => store.Cache.GetAsync(key, CancellationToken.None),
+
             // WHY: This lock-wait variant exercises synchronous TryGet on a worker thread.
             // ReSharper disable once MethodHasAsyncOverload
             "try-get-sync" => Task.Run(() => store.Cache.TryGet(key, new ExactBufferWriter(1)), CancellationToken.None),
@@ -186,10 +188,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Revision` FROM {store.QualifiedTableName} "
-                         + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         lockConnection,
-                         transaction))
+            $"SELECT `Revision` FROM {store.QualifiedTableName} "
+            + "WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            lockConnection,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
@@ -214,6 +216,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .TryGetAsync(key, destination, cancellation.Token)
                 .AsTask()
             : cache.GetAsync(key, cancellation.Token);
+
         var released = false;
 
         try
@@ -255,7 +258,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 }
             }
 
-            after = await store.ReadEntryAsync(key, CancellationToken.None).ConfigureAwait(false);
+            after = await store
+                .ReadEntryAsync(key, CancellationToken.None)
+                .ConfigureAwait(false);
+
             recoveryMiss = await cache
                 .GetAsync("single-pool-recovered-miss", CancellationToken.None)
                 .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)

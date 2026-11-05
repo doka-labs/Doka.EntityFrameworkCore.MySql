@@ -266,7 +266,9 @@ internal sealed partial class MySqlScaffoldingModelFactory
                     IsFixedLength: normalizedStoreType == "char(36)",
                     Precision: null,
                     Scale: null,
-                    GuidFormat: normalizedStoreType == "char(36)" ? MySqlGuidFormat.Char36 : null);
+                    GuidFormat: normalizedStoreType == "char(36)"
+                        ? MySqlGuidFormat.Char36
+                        : null);
             }
 
             return new ColumnMapping(

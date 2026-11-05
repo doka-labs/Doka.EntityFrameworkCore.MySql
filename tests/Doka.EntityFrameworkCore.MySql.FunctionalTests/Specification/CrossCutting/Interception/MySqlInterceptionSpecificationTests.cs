@@ -18,6 +18,7 @@ public abstract class QueryExpressionInterceptionMySqlTestBase : QueryExpression
         public override DbContextOptionsBuilder AddOptions(
             DbContextOptionsBuilder builder
         ) => base.AddOptions(
+
             // The isolation contract requires one provider per interceptor graph.
             // The shared option policy keeps that provider transient and makes
             // the expected isolation diagnostic independent of suite order.

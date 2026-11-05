@@ -185,7 +185,7 @@ file static class ComplexNavigationContractAssertions
     /// the set of valid first-child results without assuming collection order.
     /// </summary>
     /// <remarks>
-    /// The upstream query orders <see cref="Level1"/> rows by their unique ID, but it
+    /// The upstream query orders <see cref="Level1" /> rows by their unique ID, but it
     /// does not order the children produced by <c>SelectMany</c>. SQL may therefore
     /// return any child of the first parent. Sources retrieved 2026-07-30:
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/limit-optimization.html">
@@ -217,7 +217,9 @@ file static class ComplexNavigationContractAssertions
 
         Assert.Contains("ORDER BY `l`.`Id`", sql, StringComparison.Ordinal);
 
-        var results = async ? await query.ToListAsync(cancellationToken: cancellationToken) : query.ToList();
+        var results = async
+            ? await query.ToListAsync(cancellationToken: cancellationToken)
+            : query.ToList();
 
         var result = Assert.Single(results);
         var firstParent = expectedData

@@ -19,6 +19,7 @@ internal sealed class MySqlQueryTranslationPostprocessorFactory : IQueryTranslat
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         _relationalDependencies = relationalDependencies
             ?? throw new ArgumentNullException(nameof(relationalDependencies));
+
         _singletonOptions = (singletonOptions ?? throw new ArgumentNullException(nameof(singletonOptions)))
             .OfType<MySqlSingletonOptions>()
             .Single();

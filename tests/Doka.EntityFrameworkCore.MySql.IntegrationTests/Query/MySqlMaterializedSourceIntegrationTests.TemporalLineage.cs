@@ -13,7 +13,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
+        var query = fixture
+            .Context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
             .WithMaterializedSource(source => source.Select(parent => new
             {
                 parent.Id,
@@ -41,7 +44,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Parents.TemporalAsOf(fixture.Instant)
+        var query = fixture
+            .Context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
             .Select(parent => parent.Child)
             .WithMaterializedSource(source => source.Select(child => new
             {
@@ -69,8 +75,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
-        var second = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
+        var first = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
 
         // Act
         var query = first.Concat(second);
@@ -95,14 +108,18 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var historical = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
+        var historical = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
         var current = context.Parents.WithMaterializedSource(source => source);
 
         // Act
         var query = historical.Concat(current);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => query.ToArrayAsync(cancellationToken));
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Contains("matching temporal operators", exception.ToString(), StringComparison.Ordinal);
@@ -119,15 +136,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Arrange
         await using var fixture = await CreateTemporalLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var first = context.Parents.TemporalAsOf(fixture.Instant).WithMaterializedSource(source => source);
-        var second = context.Parents.TemporalAsOf(fixture.Instant.AddDays(1))
+        var first = context
+            .Parents
+            .TemporalAsOf(fixture.Instant)
+            .WithMaterializedSource(source => source);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(fixture.Instant.AddDays(1))
             .WithMaterializedSource(source => source);
 
         // Act
         var query = first.Concat(second);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => query.ToArrayAsync(cancellationToken));
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync(cancellationToken));
 
         // Assert
         Assert.Contains("identical UTC boundaries", exception.ToString(), StringComparison.Ordinal);

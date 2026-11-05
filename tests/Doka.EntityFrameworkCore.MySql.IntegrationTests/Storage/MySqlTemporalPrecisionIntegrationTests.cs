@@ -36,6 +36,7 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
         builder.UseMySql(
             IntegrationTestEnvironment.GetConnectionString(target),
             IntegrationTestEnvironment.GetServerVersion(target));
+
         await using var context = new TemporalPrecisionContext(builder.Options);
         await DropTableAsync(context, cancellationToken);
 
@@ -47,8 +48,22 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
             var entity = new TemporalPrecisionEntity
             {
                 Id = 1,
-                DateTime = new DateTime(2026, 9, 19, 12, 34, 56, DateTimeKind.Unspecified).Add(fraction),
-                Timestamp = new DateTime(2026, 9, 19, 12, 34, 56, DateTimeKind.Utc).Add(fraction),
+                DateTime = new DateTime(
+                    2026,
+                    9,
+                    19,
+                    12,
+                    34,
+                    56,
+                    DateTimeKind.Unspecified).Add(fraction),
+                Timestamp = new DateTime(
+                    2026,
+                    9,
+                    19,
+                    12,
+                    34,
+                    56,
+                    DateTimeKind.Utc).Add(fraction),
                 TimeOnly = new TimeOnly(12, 34, 56).Add(fraction),
                 TimeSpan = TimeSpan.FromHours(27) + fraction,
             };
@@ -56,6 +71,7 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken);
+
             context.Add(entity);
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
@@ -102,12 +118,15 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
                 entity
                     .Property(item => item.DateTime)
                     .HasPrecision(6);
+
                 entity
                     .Property(item => item.Timestamp)
                     .HasColumnType("timestamp(6)");
+
                 entity
                     .Property(item => item.TimeOnly)
                     .HasPrecision(6);
+
                 entity
                     .Property(item => item.TimeSpan)
                     .HasPrecision(6);

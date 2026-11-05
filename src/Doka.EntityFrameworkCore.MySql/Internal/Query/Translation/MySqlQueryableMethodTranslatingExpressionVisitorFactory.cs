@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// EF Core service factory for <see cref="MySqlQueryableMethodTranslatingExpressionVisitor"/>.
-/// Registered as <see cref="IQueryableMethodTranslatingExpressionVisitorFactory"/> via
+/// EF Core service factory for <see cref="MySqlQueryableMethodTranslatingExpressionVisitor" />.
+/// Registered as <see cref="IQueryableMethodTranslatingExpressionVisitorFactory" /> via
 /// <c>MySqlServiceCollectionExtensions</c> so the provider's JSON_TABLE-aware translator is
 /// chosen in place of the relational default.
 /// </summary>
@@ -18,7 +18,8 @@ internal sealed class MySqlQueryableMethodTranslatingExpressionVisitorFactory
     )
     {
         _dependencies = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
-        _relationalDependencies = relationalDependencies ?? throw new ArgumentNullException(nameof(relationalDependencies));
+        _relationalDependencies =
+            relationalDependencies ?? throw new ArgumentNullException(nameof(relationalDependencies));
     }
 
     public QueryableMethodTranslatingExpressionVisitor Create(

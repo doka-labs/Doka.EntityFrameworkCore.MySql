@@ -48,7 +48,9 @@ public sealed class MySqlSpecTestAnchorTests
             // Act: Each wrapper selects one inherited specification, including its own assertions.
             var failure = activeProvider
                 ? Record.Exception(anchor.Can_get_active_provider)
-                : await Record.ExceptionAsync(anchor.Can_generate_no_migration_script).ConfigureAwait(false);
+                : await Record
+                    .ExceptionAsync(anchor.Can_generate_no_migration_script)
+                    .ConfigureAwait(false);
 
             // Assert
             Assert.Null(failure);
@@ -58,6 +60,7 @@ public sealed class MySqlSpecTestAnchorTests
             await fixture
                 .DisposeAsync()
                 .ConfigureAwait(false);
+
             await IntegrationDatabaseUtilities
                 .EnsureDatabaseExistsAsync(
                     IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84),
@@ -133,6 +136,7 @@ public sealed class MySqlSpecTestAnchorTests
             DbContextOptionsBuilder builder
         ) => builder.UseMySql(BuildConnectionString(), MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        private static string BuildConnectionString() => IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        private static string BuildConnectionString() =>
+            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
     }
 }

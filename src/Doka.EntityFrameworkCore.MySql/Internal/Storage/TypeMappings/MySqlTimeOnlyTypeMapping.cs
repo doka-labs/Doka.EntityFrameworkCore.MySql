@@ -1,21 +1,16 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Maps CLR <see cref="TimeOnly"/> values to MySQL-family <c>TIME</c> columns.
+/// Maps CLR <see cref="TimeOnly" /> values to MySQL-family <c>TIME</c> columns.
 /// </summary>
 public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
 {
+    private readonly int _fractionDivisor;
     private readonly int _precision;
     private readonly int _tickResolution;
-    private readonly int _fractionDivisor;
 
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlTimeOnlyTypeMapping Default { get; } = new("time(6)", 6);
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MySqlTimeOnlyTypeMapping"/> class.
+    /// Initializes a new instance of the <see cref="MySqlTimeOnlyTypeMapping" /> class.
     /// </summary>
     /// <param name="storeType">The database type name.</param>
     /// <param name="precision">The supported fractional-second precision from zero through six.</param>
@@ -26,7 +21,9 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
     {
         _precision = precision;
         _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - precision);
-        _fractionDivisor = precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
+        _fractionDivisor = precision == 0
+            ? 0
+            : MySqlTemporalLiteralFormatter.Pow10(precision - 1);
     }
 
     private MySqlTimeOnlyTypeMapping(
@@ -36,9 +33,17 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
         _precision = MySqlTemporalLiteralFormatter.ValidatePrecision(
             parameters.Precision
             ?? throw new InvalidOperationException("A MySQL-family TimeOnly mapping clone requires a precision."));
+
         _tickResolution = MySqlTemporalLiteralFormatter.Pow10(7 - _precision);
-        _fractionDivisor = _precision == 0 ? 0 : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
+        _fractionDivisor = _precision == 0
+            ? 0
+            : MySqlTemporalLiteralFormatter.Pow10(_precision - 1);
     }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlTimeOnlyTypeMapping Default { get; } = new("time(6)", 6);
 
     /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(
@@ -46,19 +51,21 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
     )
     {
         var time = Truncate((TimeOnly)value, _tickResolution);
-        var literalLength = 15 + (_precision == 0 ? 0 : _precision + 1);
+        var literalLength = 15
+            + (_precision == 0
+                ? 0
+                : _precision + 1);
 
         return string.Create(
             literalLength,
             (time, _precision, _tickResolution, _fractionDivisor),
-            static (
-                destination,
-                state
-            ) =>
+            static (destination,
+                state) =>
             {
                 "TIME '"
                     .AsSpan()
                     .CopyTo(destination);
+
                 var position = 6;
                 MySqlTemporalLiteralFormatter.WriteTwoDigits(destination, ref position, state.time.Hour);
                 destination[position++] = ':';
@@ -69,7 +76,7 @@ public sealed class MySqlTimeOnlyTypeMapping : TimeOnlyTypeMapping
                 if (state._precision > 0)
                 {
                     destination[position++] = '.';
-                    var fraction = (state.time.Ticks % TimeSpan.TicksPerSecond) / state._tickResolution;
+                    var fraction = state.time.Ticks % TimeSpan.TicksPerSecond / state._tickResolution;
                     MySqlTemporalLiteralFormatter.WriteFraction(
                         destination,
                         ref position,

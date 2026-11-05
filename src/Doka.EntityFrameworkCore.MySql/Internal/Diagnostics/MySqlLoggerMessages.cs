@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal static class MySqlLoggerMessages
@@ -222,23 +224,6 @@ internal static class MySqlLoggerMessages
             + "OperationType={OperationType} GenerationMode={GenerationMode} "
             + "OperationOrdinal={OperationOrdinal}");
 
-    public static void InvalidConfiguration(
-        ILogger logger,
-        MySqlConfigurationFailureReason reason,
-        string connectionPath
-    )
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionPath);
-
-        if (!Enum.IsDefined(reason))
-        {
-            throw new ArgumentOutOfRangeException(nameof(reason));
-        }
-
-        s_invalidConfiguration(logger, reason, connectionPath, null);
-    }
-
     // Order-preserving provider-support snapshot for the resolved-version log
     // payload. Each entry reports Native, Emulated, or UnsupportedByEngine rather
     // than conflating an engine fact with provider availability.
@@ -274,6 +259,23 @@ internal static class MySqlLoggerMessages
         ("FunctionalIndexScaffolding", ProviderCapability.FunctionalIndexScaffolding),
     ];
 
+    public static void InvalidConfiguration(
+        ILogger logger,
+        MySqlConfigurationFailureReason reason,
+        string connectionPath
+    )
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionPath);
+
+        if (!Enum.IsDefined(reason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        }
+
+        s_invalidConfiguration(logger, reason, connectionPath, null);
+    }
+
     public static void ServerVersionResolved(
         ILogger logger,
         MySqlServerVersion serverVersion
@@ -305,7 +307,9 @@ internal static class MySqlLoggerMessages
 
         s_unsupportedServerVersion(
             logger,
-            serverVersion.IsMariaDb ? "MariaDB" : "MySQL",
+            serverVersion.IsMariaDb
+                ? "MariaDB"
+                : "MySQL",
             serverVersion.Version.ToString(),
             serverVersion.SupportStatus.ToString(),
             ServerVersionSupportPolicy.SupportedMatrix,
@@ -447,7 +451,8 @@ internal static class MySqlLoggerMessages
             executeMethod,
             commandTimeout,
             connectionState,
-            exception.GetType().Name,
+            exception.GetType()
+                .Name,
             null);
     }
 
@@ -465,7 +470,8 @@ internal static class MySqlLoggerMessages
             logger,
             transactionId,
             connectionState,
-            exception.GetType().Name,
+            exception.GetType()
+                .Name,
             "Use Database.CreateExecutionStrategy().ExecuteInTransaction(...) or "
             + "ExecuteInTransactionAsync(..., verifySucceeded: ...) to verify whether "
             + "the commit succeeded.",
@@ -595,7 +601,12 @@ internal static class MySqlLoggerMessages
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(exception);
 
-        s_lockReleaseFailed(logger, lockScopeId, exception.GetType().Name, null);
+        s_lockReleaseFailed(
+            logger,
+            lockScopeId,
+            exception.GetType()
+                .Name,
+            null);
     }
 
     public static void MigrationLockAcquired(
@@ -623,7 +634,8 @@ internal static class MySqlLoggerMessages
             logger,
             lockScopeId,
             duration.TotalMilliseconds,
-            exception.GetType().Name,
+            exception.GetType()
+                .Name,
             null);
     }
 
@@ -641,7 +653,8 @@ internal static class MySqlLoggerMessages
             logger,
             lockScopeId,
             duration.TotalMilliseconds,
-            exception.GetType().Name,
+            exception.GetType()
+                .Name,
             null);
     }
 
@@ -700,7 +713,10 @@ internal static class MySqlLoggerMessages
             generationMode,
             operationOrdinal,
             failureCode,
-            exception.GetType().FullName ?? exception.GetType().Name,
+            exception.GetType()
+                .FullName
+            ?? exception.GetType()
+                .Name,
             null);
     }
 
@@ -743,14 +759,12 @@ internal static class MySqlLoggerMessages
     /// <c>LoggerMessage.Define</c> caps at six generic parameters which would
     /// force the support snapshot back into a joined string; the
     /// per-capability fields stay queryable here because the struct implements
-    /// <see cref="IReadOnlyList{T}"/> over <see cref="KeyValuePair{TKey,TValue}"/>.
+    /// <see cref="IReadOnlyList{T}" /> over <see cref="KeyValuePair{TKey,TValue}" />.
     /// </summary>
     private readonly struct ServerVersionResolvedLogValues : IReadOnlyList<KeyValuePair<string, object?>>
     {
-        public static readonly Func<ServerVersionResolvedLogValues, Exception?, string> Render = (
-            state,
-            _
-        ) => state.ToString();
+        public static readonly Func<ServerVersionResolvedLogValues, Exception?, string> Render = (state,
+            _) => state.ToString();
 
         private readonly MySqlServerVersion _serverVersion;
 
@@ -770,7 +784,9 @@ internal static class MySqlLoggerMessages
             {
                 0 => new KeyValuePair<string, object?>(
                     "DatabaseEngine",
-                    _serverVersion.IsMariaDb ? "MariaDB" : "MySQL"),
+                    _serverVersion.IsMariaDb
+                        ? "MariaDB"
+                        : "MySQL"),
                 1 => new KeyValuePair<string, object?>("ServerVersion", _serverVersion.Version.ToString()),
                 2 => new KeyValuePair<string, object?>("SupportStatus", _serverVersion.SupportStatus.ToString()),
                 3 => new KeyValuePair<string, object?>(
@@ -778,7 +794,10 @@ internal static class MySqlLoggerMessages
                     _serverVersion.CompatibilityMode.ToString()),
                 _ when index < Count => new KeyValuePair<string, object?>(
                     s_capabilitySnapshot[index - 4].Label,
-                    _serverVersion.Profile.GetSupport(s_capabilitySnapshot[index - 4].Capability).ToString()),
+                    _serverVersion
+                        .Profile
+                        .GetSupport(s_capabilitySnapshot[index - 4].Capability)
+                        .ToString()),
                 _ => throw new ArgumentOutOfRangeException(nameof(index)),
             };
 
@@ -790,12 +809,15 @@ internal static class MySqlLoggerMessages
             }
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public override string ToString()
         {
             var profile = _serverVersion.Profile;
-            var engine = _serverVersion.IsMariaDb ? "MariaDB" : "MySQL";
+            var engine = _serverVersion.IsMariaDb
+                ? "MariaDB"
+                : "MySQL";
+
             var capabilities = string.Join(
                 ';',
                 s_capabilitySnapshot.Select(entry => $"{entry.Label}={profile.GetSupport(entry.Capability)}"));

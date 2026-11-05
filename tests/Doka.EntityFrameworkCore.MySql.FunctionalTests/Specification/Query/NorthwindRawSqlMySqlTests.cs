@@ -159,8 +159,8 @@ public sealed class FromSqlQueryMySqlTest : FromSqlQueryTestBase<NorthwindQueryM
         }
 
         var exception = async
-            ? await Assert.ThrowsAsync<InvalidOperationException>(
-                () => query.ToListAsync(cancellationToken: cancellationToken))
+            ? await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                query.ToListAsync(cancellationToken: cancellationToken))
             : Assert.Throws<InvalidOperationException>(() => query.ToList());
 
         Assert.Equal(expectedMessage, exception.Message);
@@ -228,6 +228,12 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
+    protected override string TenMostExpensiveProductsSproc => "CALL `Ten Most Expensive Products`();";
+
+    protected override string CustomerOrderHistorySproc => "CALL `CustOrderHist`(@CustomerID);";
+
+    protected override string CustomerOrderHistoryWithGeneratedParameterSproc => "CALL `CustOrderHist`({0});";
+
     protected override DbParameter CreateDbParameter(
         string name,
         object value
@@ -236,12 +242,6 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
         ParameterName = name,
         Value = value,
     };
-
-    protected override string TenMostExpensiveProductsSproc => "CALL `Ten Most Expensive Products`();";
-
-    protected override string CustomerOrderHistorySproc => "CALL `CustOrderHist`(@CustomerID);";
-
-    protected override string CustomerOrderHistoryWithGeneratedParameterSproc => "CALL `CustOrderHist`({0});";
 
     public override async Task Executes_stored_procedure(
         bool async
@@ -439,7 +439,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
@@ -457,7 +459,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }
@@ -479,7 +483,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
                                      WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
                                      """;
 
-        var actual = async ? await context.Database.ExecuteSqlAsync(command) : context.Database.ExecuteSql(command);
+        var actual = async
+            ? await context.Database.ExecuteSqlAsync(command)
+            : context.Database.ExecuteSql(command);
 
         Assert.Equal(-1, actual);
     }

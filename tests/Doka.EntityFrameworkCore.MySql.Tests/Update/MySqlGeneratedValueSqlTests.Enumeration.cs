@@ -67,7 +67,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
         var expectedEligible = generated && !mariaDb;
         var expectedBytes = expectedEligible
-            ? 256L + (4L * (96 + (2 * tableName.Length) + 6 + (2 * "Generated".Length) + 16 + (2 * "Id".Length) + 3))
+            ? 256L + 4L * (96 + 2 * tableName.Length + 6 + 2 * "Generated".Length + 16 + 2 * "Id".Length + 3)
             : 0;
 
         // Act
@@ -87,7 +87,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // Arrange
         using var context = CreateContext();
         var commands = CreateCommands(context, "Rows", 2);
-        var modifications = commands[1].ColumnModifications.ToList();
+        var modifications = commands[1]
+            .ColumnModifications
+            .ToList();
+
         modifications.Add(CreateModification(commands[1].Table!.PrimaryKey!.Columns[0], 2, "duplicate", false, true));
         commands[1] = new TestCommand(commands[1].Table, modifications);
         var generator = (MySqlUpdateSqlGenerator)context.GetService<IUpdateSqlGenerator>();
@@ -142,13 +145,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
     private static EnumerationContext CreateEnumerationContext(
         bool mariaDb
-    ) => new(new DbContextOptionsBuilder<EnumerationContext>()
-        .UseMySql(
-            "Server=localhost;Database=enumeration_unit;User ID=test;Password=unused;",
-            mariaDb
-                ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-                : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-        .Options);
+    ) => new(
+        new DbContextOptionsBuilder<EnumerationContext>()
+            .UseMySql(
+                "Server=localhost;Database=enumeration_unit;User ID=test;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .Options);
 
     /// <summary>
     /// Retains EF's real command and column-list construction rather than a synthetic array implementation.
@@ -162,7 +166,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
     )
     {
         var rows = context.Set<Dictionary<string, object>>(tableName);
-        var payloadCount = columnCount - (generated ? 2 : 1);
+        var payloadCount = columnCount
+            - (generated
+                ? 2
+                : 1);
 
         // WHY: Row ordinals define deterministic keys and expected parameter values for every tracked command.
         // ReSharper disable once ForCanBeConvertedToForeach
@@ -182,8 +189,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
             rows.Add(values);
         }
 
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
-        var entries = context.GetService<IUpdateAdapterFactory>().Create().Entries
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
+        var entries = context
+            .GetService<IUpdateAdapterFactory>()
+            .Create()
+            .Entries
             .OrderBy(entry => (int)entry.GetCurrentValue(entry.EntityType.FindProperty("Id")!)!)
             .ToArray();
 
@@ -196,13 +211,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
         // ReSharper disable once LoopCanBeConvertedToQuery
         for (var row = 0; row < rowCount; row++)
         {
-            var command = factory.CreateModificationCommand(new ModificationCommandParameters(
-                table,
-                sensitiveLoggingEnabled: false,
-                detailedErrorsEnabled: false,
-                comparer: null,
-                generateParameterName: () => "p" + parameter++,
-                logger: null));
+            var command = factory.CreateModificationCommand(
+                new ModificationCommandParameters(
+                    table,
+                    sensitiveLoggingEnabled: false,
+                    detailedErrorsEnabled: false,
+                    comparer: null,
+                    generateParameterName: () => "p" + parameter++,
+                    logger: null));
 
             command.AddEntry(entries[row], mainEntry: true);
 
@@ -233,14 +249,21 @@ public sealed partial class MySqlGeneratedValueSqlTests
         bool mariaDb
     )
     {
-        var payloadCount = columnCount - (generated ? 2 : 1);
+        var payloadCount = columnCount
+            - (generated
+                ? 2
+                : 1);
+
         var writeCount = payloadCount + 1;
-        var columns = Enumerable.Range(0, payloadCount)
+        var columns = Enumerable
+            .Range(0, payloadCount)
             .Select(index => $"Payload{index:D2}")
             .Prepend("Id");
 
         var sql = new StringBuilder()
-            .Append("INSERT INTO `").Append(tableName).Append("` (")
+            .Append("INSERT INTO `")
+            .Append(tableName)
+            .Append("` (")
             .AppendJoin(", ", columns.Select(column => "`" + column + "`"))
             .AppendLine(")")
             .Append("VALUES ");
@@ -255,14 +278,22 @@ public sealed partial class MySqlGeneratedValueSqlTests
                 sql.AppendLine(",");
             }
 
-            sql.Append('(')
-                .AppendJoin(", ", Enumerable.Range(row * writeCount, writeCount).Select(index => "@p" + index))
+            sql
+                .Append('(')
+                .AppendJoin(
+                    ", ",
+                    Enumerable
+                        .Range(row * writeCount, writeCount)
+                        .Select(index => "@p" + index))
                 .Append(')');
         }
 
         if (generated && mariaDb)
         {
-            return sql.AppendLine().AppendLine("RETURNING `Generated`;").ToString();
+            return sql
+                .AppendLine()
+                .AppendLine("RETURNING `Generated`;")
+                .ToString();
         }
 
         sql.AppendLine(";");
@@ -276,20 +307,29 @@ public sealed partial class MySqlGeneratedValueSqlTests
             {
                 if (row != 0)
                 {
-                    sql.AppendLine().AppendLine("UNION ALL");
+                    sql
+                        .AppendLine()
+                        .AppendLine("UNION ALL");
                 }
 
                 sql.Append("SELECT `Generated`");
 
                 if (rowCount > 1)
                 {
-                    sql.Append(", ").Append(row);
+                    sql
+                        .Append(", ")
+                        .Append(row);
                 }
 
-                sql.AppendLine()
-                    .Append("FROM `").Append(tableName).AppendLine("`")
-                    .Append("WHERE ROW_COUNT() = ").Append(rowCount)
-                    .Append(" AND `Id` = @p").Append(row * writeCount);
+                sql
+                    .AppendLine()
+                    .Append("FROM `")
+                    .Append(tableName)
+                    .AppendLine("`")
+                    .Append("WHERE ROW_COUNT() = ")
+                    .Append(rowCount)
+                    .Append(" AND `Id` = @p")
+                    .Append(row * writeCount);
             }
 
             sql.AppendLine(";");
@@ -308,7 +348,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
     private static string EnumerationTableName(
         int columnCount,
         bool generated
-    ) => (generated ? "EnumerationRead" : "EnumerationWrite") + columnCount;
+    ) => (generated
+            ? "EnumerationRead"
+            : "EnumerationWrite")
+        + columnCount;
 
     private static ResultSetMapping ExpectedEnumerationMapping(
         int rowCount,
@@ -351,9 +394,15 @@ public sealed partial class MySqlGeneratedValueSqlTests
                     var tableName = EnumerationTableName(columnCount, generated);
                     var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>(tableName);
                     entity.ToTable(tableName);
-                    entity.Property<int>("Id").ValueGeneratedNever();
+                    entity
+                        .Property<int>("Id")
+                        .ValueGeneratedNever();
+
                     entity.HasKey("Id");
-                    var payloadCount = columnCount - (generated ? 2 : 1);
+                    var payloadCount = columnCount
+                        - (generated
+                            ? 2
+                            : 1);
 
                     // WHY: Construct the requested model width with the same ordinal naming contract as the fixture.
                     // ReSharper disable once ForCanBeConvertedToForeach
@@ -365,7 +414,9 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
                     if (generated)
                     {
-                        entity.Property<int>("Generated").HasComputedColumnSql("`Payload00` + 1", stored: true);
+                        entity
+                            .Property<int>("Generated")
+                            .HasComputedColumnSql("`Payload00` + 1", stored: true);
                     }
                 }
             }

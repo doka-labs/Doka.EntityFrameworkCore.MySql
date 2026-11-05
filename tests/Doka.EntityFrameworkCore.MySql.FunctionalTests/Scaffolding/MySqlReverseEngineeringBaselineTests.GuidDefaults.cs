@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.EntityFrameworkCore.ValueGeneration;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
@@ -52,14 +53,22 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         var scaffolded = ScaffoldModel(
             databaseModel,
             serverVersion,
-            textGuidOptIn ? options => options.ScaffoldTextGuidsAsGuids() : null);
+            textGuidOptIn
+                ? options => options.ScaffoldTextGuidsAsGuids()
+                : null);
 
         using var replay = CompileGuidSqlDefaultScaffold(scaffolded);
-        var model = replay.GetService<IDesignTimeModel>().Model;
-        var property = model.GetEntityTypes().Single().FindProperty("ExternalId")
+        var model = replay.GetService<IDesignTimeModel>()
+            .Model;
+
+        var property = model
+                .GetEntityTypes()
+                .Single()
+                .FindProperty("ExternalId")
             ?? throw new InvalidOperationException("The scaffolded model lost its default-bearing column.");
 
-        var selected = replay.GetService<Microsoft.EntityFrameworkCore.ValueGeneration.IValueGeneratorSelector>()
+        var selected = replay
+            .GetService<IValueGeneratorSelector>()
             .TrySelect(property, property.DeclaringType, out var generator);
 
         // Assert
@@ -76,8 +85,11 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         Assert.Contains("HasDefaultValueSql(\"UUID()\")", scaffolded.ContextFile.Code, StringComparison.Ordinal);
         Assert.DoesNotContain("ClientGuid", scaffolded.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains(
-            expectedType == typeof(Guid) ? "public Guid ExternalId" : "public string ExternalId",
-            scaffolded.AdditionalFiles.Single().Code,
+            expectedType == typeof(Guid)
+                ? "public Guid ExternalId"
+                : "public string ExternalId",
+            scaffolded.AdditionalFiles.Single()
+                .Code,
             StringComparison.Ordinal);
     }
 
@@ -86,7 +98,8 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         ScaffoldedModel scaffolded
     )
     {
-        var sources = scaffolded.AdditionalFiles
+        var sources = scaffolded
+            .AdditionalFiles
             .Select(file => file.Code)
             .Prepend(scaffolded.ContextFile.Code)
             .Select(source => CSharpSyntaxTree.ParseText(source));
@@ -98,7 +111,9 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
 
         var references = trustedAssemblies
             .Concat(
-                AppDomain.CurrentDomain.GetAssemblies()
+                AppDomain
+                    .CurrentDomain
+                    .GetAssemblies()
                     .Where(assembly => !assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
                     .Select(assembly => assembly.Location))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -112,7 +127,8 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
 
         using var stream = new MemoryStream();
         var result = compilation.Emit(stream);
-        var errors = result.Diagnostics
+        var errors = result
+            .Diagnostics
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .Select(diagnostic => diagnostic.ToString());
 

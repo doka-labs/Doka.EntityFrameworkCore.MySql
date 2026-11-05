@@ -27,36 +27,44 @@ public sealed partial class AdrRepositoryValidatorTests
             "dotnet tool run sbom-tool --allow-roll-forward -- Generate",
             normalizedSbomScript,
             StringComparison.Ordinal);
+
         Assert.Contains("-bc \"${sbom_components_dir}\"", normalizedSbomScript, StringComparison.Ordinal);
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql/project.assets.json\" "
             + "\"${sbom_components_dir}/runtime/project.assets.json\"",
             normalizedPackageScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.EntityFrameworkCore.MySql.NetTopologySuite/project.assets.json\" "
             + "\"${sbom_components_dir}/spatial/project.assets.json\"",
             normalizedPackageScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "cp \"${repo_root}/artifacts/obj/Doka.Caching.MySql/project.assets.json\" "
             + "\"${sbom_components_dir}/cache/project.assets.json\"",
             normalizedPackageScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "--assets \"${cache_assets}\" --project \"${cache_project}\" "
             + "--output-directory \"${repo_root}/artifacts/obj/Doka.Caching.MySql\"",
             normalizedSbomScript,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "python3 -m eng.release.sbom",
             normalizedSbomScript,
             StringComparison.Ordinal);
+
         Assert.Equal(
             3,
             normalizedSbomScript.Split(
-                "python3 -m eng.release.sbom",
-                StringSplitOptions.None).Length - 1);
+                    "python3 -m eng.release.sbom")
+                .Length
+            - 1);
+
         Assert.DoesNotContain("-bc \"${repo_root}\"", normalizedSbomScript, StringComparison.Ordinal);
         Assert.Contains("eng/testing/qualify-packages.sh", releaseCandidateScript, StringComparison.Ordinal);
         Assert.Contains("eng/testing/generate-package-sbom.sh", releaseCandidateScript, StringComparison.Ordinal);
@@ -160,6 +168,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "<EnableTrimAnalyzer>true</EnableTrimAnalyzer>",
             runtimeSmokeProject,
             StringComparison.Ordinal);
+
         Assert.Contains("write_runtime_evidence", runtimePosture, StringComparison.Ordinal);
         Assert.Contains("runtime-posture-evidence.json", runtimePosture, StringComparison.Ordinal);
         Assert.Contains("run_runtime_posture_gate", releaseCandidate, StringComparison.Ordinal);
@@ -168,10 +177,12 @@ public sealed partial class AdrRepositoryValidatorTests
             "DOKA_QUALITY_AUDIT_DIR=\"${audit_dir}\"",
             releaseCandidate,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "DOKA_RUNTIME_POSTURE_EVIDENCE_DIR=\"${runtime_dir}\"",
             engineQualifier,
             StringComparison.Ordinal);
+
         Assert.Contains("validate_runtime_posture", releaseEvidence, StringComparison.Ordinal);
         Assert.Contains("validate_reconciliation", releaseEvidence, StringComparison.Ordinal);
         Assert.Contains("qualify-engine.sh", workflow, StringComparison.Ordinal);
@@ -195,12 +206,17 @@ public sealed partial class AdrRepositoryValidatorTests
             Path.Combine(repositoryRoot, "eng", "testing", "qualify-packages.sh"));
 
         // Assert
-        Assert.Contains("DOKA_RELEASE_VERSION must be an explicit candidate version", releaseCandidate, StringComparison.Ordinal);
+        Assert.Contains(
+            "DOKA_RELEASE_VERSION must be an explicit candidate version",
+            releaseCandidate,
+            StringComparison.Ordinal);
+
         Assert.Contains("run_with_release_version()", packageQualifier, StringComparison.Ordinal);
         Assert.Contains(
             "command_arguments+=(\"-p:PackageVersion=${release_version_override}\")",
             packageQualifier,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("${version_arguments[@]}", releaseCandidate + packageQualifier, StringComparison.Ordinal);
     }
 
@@ -265,11 +281,13 @@ public sealed partial class AdrRepositoryValidatorTests
             "uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841",
             workflow,
             StringComparison.Ordinal);
+
         Assert.Contains("Freeze independently authorized release line", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "Publication requires the qualified commit to remain on its current authorized line history",
             workflow,
             StringComparison.Ordinal);
+
         Assert.Contains("git merge-base --is-ancestor", workflow, StringComparison.Ordinal);
         Assert.Contains("python3 -m eng.release.nuget bind", workflow, StringComparison.Ordinal);
         Assert.Contains("python3 -m eng.release.github stage", workflow, StringComparison.Ordinal);
@@ -278,6 +296,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "--signer-workflow \"${GITHUB_REPOSITORY}/.github/workflows/release-candidate.yml\"",
             normalizedWorkflow,
             StringComparison.Ordinal);
+
         Assert.Contains("--signer-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--source-ref \"${GITHUB_REF}\"", workflow, StringComparison.Ordinal);
         Assert.Contains("--source-digest \"${GITHUB_SHA}\"", workflow, StringComparison.Ordinal);
@@ -293,6 +312,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}",
             workflow,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("--api-key", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--symbol-api-key", workflow, StringComparison.Ordinal);
         Assert.True(
@@ -303,22 +323,32 @@ public sealed partial class AdrRepositoryValidatorTests
             && cachePackageStep > spatialSymbolsStep
             && cacheSymbolsStep > cachePackageStep
             && publishReleaseStep > cacheSymbolsStep);
+
         Assert.Contains(
             "--skip-duplicate",
             workflow[providerPackageStep..providerSymbolsStep],
             StringComparison.Ordinal);
+
         Assert.Contains(
             "--skip-duplicate",
             workflow[spatialPackageStep..spatialSymbolsStep],
             StringComparison.Ordinal);
+
         Assert.Equal(
             6,
-            workflow.Split("--skip-duplicate", StringSplitOptions.None).Length - 1);
+            workflow.Split("--skip-duplicate")
+                .Length
+            - 1);
+
         Assert.Contains("steps.preflight.outputs.cache_published != 'true'", cachePackage, StringComparison.Ordinal);
         Assert.Contains("steps.preflight.outputs.cache_package", cachePackage, StringComparison.Ordinal);
         Assert.Contains("--no-symbols", cachePackage, StringComparison.Ordinal);
         Assert.Contains("--skip-duplicate", cachePackage, StringComparison.Ordinal);
-        Assert.Contains("steps.preflight.outputs.cache_symbols_published != 'true'", cacheSymbols, StringComparison.Ordinal);
+        Assert.Contains(
+            "steps.preflight.outputs.cache_symbols_published != 'true'",
+            cacheSymbols,
+            StringComparison.Ordinal);
+
         Assert.Contains("steps.preflight.outputs.cache_symbols", cacheSymbols, StringComparison.Ordinal);
         Assert.Contains("--skip-duplicate", cacheSymbols, StringComparison.Ordinal);
         Assert.DoesNotContain("--no-symbols", cacheSymbols, StringComparison.Ordinal);
@@ -326,6 +356,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "The qualified candidate is no longer on current remote",
             publication,
             StringComparison.Ordinal);
+
         Assert.Contains("conflicting bytes", publication, StringComparison.Ordinal);
         Assert.Contains("conflicting symbols", publication, StringComparison.Ordinal);
         Assert.Contains("exact provider release version", publication, StringComparison.Ordinal);
@@ -333,14 +364,17 @@ public sealed partial class AdrRepositoryValidatorTests
             "https://symbols.nuget.org/download/symbols",
             symbolReadback,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ReadPdbChecksumDebugDirectoryData",
             symbolReadback,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "restore_sources=(--source \"${package_source}\")",
             readback,
             StringComparison.Ordinal);
+
         Assert.Contains("--no-cache", readback, StringComparison.Ordinal);
         Assert.Contains("CompiledModelAccessor.cs", readback, StringComparison.Ordinal);
         Assert.Contains("CompiledModels", readback, StringComparison.Ordinal);
@@ -371,6 +405,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "permissions:\n  contents: read\n\nconcurrency:",
             workflow,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "    permissions:\n"
             + "      actions: read\n"
@@ -379,16 +414,19 @@ public sealed partial class AdrRepositoryValidatorTests
             + "      pull-requests: read\n",
             preflight,
             StringComparison.Ordinal);
+
         Assert.Contains("    needs: preflight\n", qualification, StringComparison.Ordinal);
         Assert.Contains("uses: $/.github/workflows/quality-gates.yml", qualification, StringComparison.Ordinal);
         Assert.Contains(
             "    permissions:\n      actions: read\n      contents: read\n",
             qualification,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "    needs:\n      - preflight\n      - qualification\n",
             assemble,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "    permissions:\n"
             + "      actions: read\n"
@@ -397,6 +435,7 @@ public sealed partial class AdrRepositoryValidatorTests
             + "      pull-requests: read\n",
             assemble,
             StringComparison.Ordinal);
+
         Assert.Contains("    needs:\n      - preflight\n      - assemble\n", attest, StringComparison.Ordinal);
         Assert.Contains(
             "    permissions:\n"
@@ -407,10 +446,12 @@ public sealed partial class AdrRepositoryValidatorTests
             + "      id-token: write\n",
             attest,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "    needs:\n      - preflight\n      - assemble\n      - attest\n",
             publish,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "    permissions:\n"
             + "      actions: read\n"
@@ -490,6 +531,7 @@ public sealed partial class AdrRepositoryValidatorTests
             "DOKA_INTEGRATION_TARGETS=\"mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123\"",
             engineQualifier,
             StringComparison.Ordinal);
+
         Assert.Contains("DOKA_REQUIRE_FULL_CONFIGURATION_MATRIX=1", engineQualifier, StringComparison.Ordinal);
         Assert.Contains("eng/testing/test-spec-target.sh", releaseCandidate, StringComparison.Ordinal);
         Assert.Contains("--filter \"Category=Spec|Category=Live\"", specificationTarget, StringComparison.Ordinal);
@@ -497,25 +539,30 @@ public sealed partial class AdrRepositoryValidatorTests
             "run_integration_configuration_and_failure_gate",
             releaseCandidate,
             StringComparison.Ordinal);
+
         Assert.Contains("[Trait(\"Category\", \"ConfigurationContract\")]", sqlModeTests, StringComparison.Ordinal);
         Assert.Contains("[Trait(\"VerificationLane\", \"FullIntegration\")]", sqlModeTests, StringComparison.Ordinal);
         Assert.Contains(
             "[Trait(\"Category\", \"SecurityConfigurationContract\")]",
             securityTests,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "[Trait(\"VerificationLane\", \"FullIntegration\")]",
             securityTests,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "StartAsync(requests, CancellationToken.None, evidenceScope: \"tls\")",
             tlsFixture,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("TargetId = $\"{request.TargetId}-tls\"", tlsFixture, StringComparison.Ordinal);
         Assert.Contains(
             "[Trait(\"Category\", \"FailureConfigurationContract\")]",
             failureTests,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "[Trait(\"VerificationLane\", \"FullIntegration\")]",
             failureTests,

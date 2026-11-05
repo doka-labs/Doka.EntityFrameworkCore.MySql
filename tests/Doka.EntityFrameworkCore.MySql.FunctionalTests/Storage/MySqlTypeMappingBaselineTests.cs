@@ -227,7 +227,11 @@ public sealed partial class MySqlTypeMappingBaselineTests
         var exception = Record.Exception(() => ReadCharProviderValue(MySqlCharTypeMapping.Default, unsupported));
 
         // Assert
-        Assert.Contains("System.Int32", Assert.IsType<InvalidOperationException>(exception).Message, StringComparison.Ordinal);
+        Assert.Contains(
+            "System.Int32",
+            Assert.IsType<InvalidOperationException>(exception)
+                .Message,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

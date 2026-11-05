@@ -135,7 +135,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
             "key\0",
             "\uE000",
             "\U00010000",
-            new string('k', MySqlCacheDatabaseOperations.MaximumKeyByteLength),
+            new('k', MySqlCacheDatabaseOperations.MaximumKeyByteLength),
         ];
 
         for (var index = 0; index < keys.Length; index++)
@@ -176,7 +176,9 @@ public sealed class MySqlCacheCleanupIntegrationTests
         for (var index = 0; index < keys.Length; index++)
         {
             Assert.Equal(
-                index % 2 == 0 ? 0L : 1L,
+                index % 2 == 0
+                    ? 0L
+                    : 1L,
                 await store
                     .CountKeyAsync(keys[index], cancellationToken)
                     .ConfigureAwait(false));
@@ -353,7 +355,10 @@ public sealed class MySqlCacheCleanupIntegrationTests
         }.ConnectionString;
 
         await using var cache = store.CreateCache(time, logger, connectionString);
-        await using var otherCache = overlappingCleanup ? store.CreateCache(time, otherLogger, connectionString) : null;
+        await using var otherCache = overlappingCleanup
+            ? store.CreateCache(time, otherLogger, connectionString)
+            : null;
+
         await using var writer = new MySqlConnection(connectionString);
         await using var observer = new MySqlConnection(connectionString);
 
@@ -370,9 +375,9 @@ public sealed class MySqlCacheCleanupIntegrationTests
             .ConfigureAwait(false);
 
         await using (var locked = new MySqlCommand(
-                         $"SELECT `Id` FROM {store.QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
-                         writer,
-                         transaction))
+            $"SELECT `Id` FROM {store.QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY) FOR UPDATE;",
+            writer,
+            transaction))
         {
             locked.Parameters.AddWithValue("@key", key);
 
@@ -399,7 +404,9 @@ public sealed class MySqlCacheCleanupIntegrationTests
                     target,
                     store.TableName,
                     pending,
-                    otherCache is null ? 1 : 2,
+                    otherCache is null
+                        ? 1
+                        : 2,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -413,11 +420,20 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 transaction);
 
             upsert.Parameters.AddWithValue("@key", key);
-            upsert.Parameters.Add("@value", MySqlDbType.LongBlob).Value = new byte[] { 2 };
-            upsert.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime).Value = DBNull.Value;
-            upsert.Parameters.Add("@absoluteExpirationRelativeMicroseconds", MySqlDbType.Int64).Value = 60_000_000L;
-            upsert.Parameters.Add("@slidingExpirationMicroseconds", MySqlDbType.Int64).Value = DBNull.Value;
-            upsert.Parameters.Add("@revision", MySqlDbType.Int64).Value = 42L;
+            upsert.Parameters.Add("@value", MySqlDbType.LongBlob)
+                .Value = new byte[] { 2 };
+
+            upsert.Parameters.Add("@absoluteExpirationUtc", MySqlDbType.DateTime)
+                .Value = DBNull.Value;
+
+            upsert.Parameters.Add("@absoluteExpirationRelativeMicroseconds", MySqlDbType.Int64)
+                .Value = 60_000_000L;
+
+            upsert.Parameters.Add("@slidingExpirationMicroseconds", MySqlDbType.Int64)
+                .Value = DBNull.Value;
+
+            upsert.Parameters.Add("@revision", MySqlDbType.Int64)
+                .Value = 42L;
 
             await upsert
                 .ExecuteNonQueryAsync(cancellationToken)
@@ -489,6 +505,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
     {
         return useAsync
             ? cache.GetAsync("cleanup-miss", cancellationToken)
+
             // WHY: The synchronous cleanup needs its own thread while the test coordinates a database lock.
             // ReSharper disable once MethodHasAsyncOverload
             : Task.Run(() => cache.Get("cleanup-miss"), CancellationToken.None);
@@ -581,7 +598,8 @@ public sealed class MySqlCacheCleanupIntegrationTests
             .ConfigureAwait(false);
 
         // Assert
-        Assert.Fail($"Cleanup did not enter a row-lock wait within the test deadline. Active statements: {diagnostics}");
+        Assert.Fail(
+            $"Cleanup did not enter a row-lock wait within the test deadline. Active statements: {diagnostics}");
     }
 
     /// <summary>Verifies cleanup deletes use the primary-key range plan.</summary>
@@ -602,15 +620,16 @@ public sealed class MySqlCacheCleanupIntegrationTests
         // cleanup batches. Build the exact command through production SQL instead.
         await using (var select = new MySqlCommand(sql.SelectExpired, observer))
         {
-            select.Parameters.Add("@batchSize", MySqlDbType.Int32).Value = MySqlCacheDatabaseOperations.CleanupBatchSize;
+            select.Parameters.Add("@batchSize", MySqlDbType.Int32)
+                .Value = MySqlCacheDatabaseOperations.CleanupBatchSize;
 
             await using var candidateReader = await select
                 .ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken)
                 .ConfigureAwait(false);
 
             while (await candidateReader
-                       .ReadAsync(cancellationToken)
-                       .ConfigureAwait(false))
+                .ReadAsync(cancellationToken)
+                .ConfigureAwait(false))
             {
                 candidates.Add(candidateReader.GetFieldValue<byte[]>(0));
             }
@@ -639,5 +658,4 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 .ReadAsync(cancellationToken)
                 .ConfigureAwait(false));
     }
-
 }

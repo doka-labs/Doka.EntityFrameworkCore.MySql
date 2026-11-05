@@ -12,10 +12,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Arrange
         await using var connection = new MySqlConnection(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
+
         await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
         command.CommandText = GetLockingStatementProbeSql(
             "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO) AS process");
+
         var statement = Encoding
             .ASCII
             .GetBytes("UPDATE `DokaProbe` SET `Value` = ")
@@ -27,9 +29,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     0xAA,
                     0xBB,
                     0xCC,
-                    0xDD
+                    0xDD,
                 })
             .ToArray();
+
         command.Parameters.AddWithValue("@statement", statement);
         command.Parameters.AddWithValue("@tableName", "DokaProbe");
         command.Parameters.AddWithValue("@cleanupOnly", false);
@@ -52,11 +55,13 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Arrange
         await using var connection = new MySqlConnection(
             IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql97));
+
         await connection.OpenAsync(CancellationToken.None);
         await using var command = connection.CreateCommand();
         command.CommandText = GetWaitingForTableLockProbeSql(
             "(SELECT CONNECTION_ID() + 1 AS ID, @statement AS INFO, "
             + "'Waiting for table metadata lock' AS STATE) AS process");
+
         var statement = Encoding
             .ASCII
             .GetBytes("ALTER TABLE `DokaProbe` ADD `Value` int ")
@@ -68,9 +73,10 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     0xAA,
                     0xBB,
                     0xCC,
-                    0xDD
+                    0xDD,
                 })
             .ToArray();
+
         command.Parameters.AddWithValue("@statement", statement);
         command.Parameters.AddWithValue("@tableName", "DokaProbe");
 
@@ -138,18 +144,18 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     private static string GetLockingStatementProbeSql(
         string processSource
     ) => $"""
-           SELECT COUNT(*) FROM (
-               SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
-               FROM {processSource}
-           ) AS observed
-           WHERE ID <> CONNECTION_ID()
-               AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-               AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
-                   OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
-                   OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
-               AND (@cleanupOnly = FALSE
-                   OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
-           """;
+          SELECT COUNT(*) FROM (
+              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
+              FROM {processSource}
+          ) AS observed
+          WHERE ID <> CONNECTION_ID()
+              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+              AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
+                  OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
+                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
+              AND (@cleanupOnly = FALSE
+                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
+          """;
 
     /// <summary>Waits for the selected cache command to block on a table lock.</summary>
     /// <param name="observer">The observer used by this operation.</param>
@@ -198,12 +204,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     private static string GetWaitingForTableLockProbeSql(
         string processSource
     ) => $"""
-           SELECT COUNT(*) FROM (
-               SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
-               FROM {processSource}
-           ) AS observed
-           WHERE ID <> CONNECTION_ID()
-               AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-               AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
-           """;
+          SELECT COUNT(*) FROM (
+              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
+              FROM {processSource}
+          ) AS observed
+          WHERE ID <> CONNECTION_ID()
+              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+              AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
+          """;
 }

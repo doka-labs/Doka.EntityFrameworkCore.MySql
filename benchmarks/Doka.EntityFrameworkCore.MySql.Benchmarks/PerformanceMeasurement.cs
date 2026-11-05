@@ -159,6 +159,7 @@ internal static class PerformanceReportWriter
         var temporaryPath = Path.Combine(
             directory,
             $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
+
         try
         {
             await using (var stream = File.Create(temporaryPath))
@@ -166,6 +167,7 @@ internal static class PerformanceReportWriter
                 await JsonSerializer
                     .SerializeAsync(stream, value, s_serializerOptions, cancellationToken)
                     .ConfigureAwait(false);
+
                 await stream
                     .WriteAsync("\n"u8.ToArray(), cancellationToken)
                     .ConfigureAwait(false);

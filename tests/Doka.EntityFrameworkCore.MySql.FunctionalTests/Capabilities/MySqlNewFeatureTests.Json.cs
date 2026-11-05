@@ -101,10 +101,14 @@ public sealed partial class MySqlNewFeatureTests
 
         // Act
         var sql = jsonObject
-            ? context.Set<JsonFunctionEntity>()
-                .Select(entity => EF.Functions.JsonObject("data", entity.Data, "missing", null)).ToQueryString()
-            : context.Set<JsonFunctionEntity>()
-                .Select(entity => EF.Functions.JsonArray(entity.Data, null)).ToQueryString();
+            ? context
+                .Set<JsonFunctionEntity>()
+                .Select(entity => EF.Functions.JsonObject("data", entity.Data, "missing", null))
+                .ToQueryString()
+            : context
+                .Set<JsonFunctionEntity>()
+                .Select(entity => EF.Functions.JsonArray(entity.Data, null))
+                .ToQueryString();
 
         // Assert
         Assert.Contains(expected, sql, StringComparison.Ordinal);
@@ -126,8 +130,14 @@ public sealed partial class MySqlNewFeatureTests
 
         // Act
         var sql = jsonObject
-            ? context.Set<JsonFunctionEntity>().Select(_ => EF.Functions.JsonObject()).ToQueryString()
-            : context.Set<JsonFunctionEntity>().Select(_ => EF.Functions.JsonArray()).ToQueryString();
+            ? context
+                .Set<JsonFunctionEntity>()
+                .Select(_ => EF.Functions.JsonObject())
+                .ToQueryString()
+            : context
+                .Set<JsonFunctionEntity>()
+                .Select(_ => EF.Functions.JsonArray())
+                .ToQueryString();
 
         // Assert
         Assert.Contains(expected, sql, StringComparison.Ordinal);

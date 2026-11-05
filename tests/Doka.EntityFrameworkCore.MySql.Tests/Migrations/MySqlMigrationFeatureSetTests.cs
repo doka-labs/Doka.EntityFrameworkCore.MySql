@@ -6,6 +6,28 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationFeatureSetTests
 {
+    public static TheoryData<
+        MySqlServerVersion, IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>> ActiveProfiles
+    {
+        get
+        {
+            var data =
+                new
+                    TheoryData<MySqlServerVersion,
+                        IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>>
+                    {
+                        { MySqlServerVersion.MySql(new Version(8, 4, 11)), MySqlExpected() },
+                        { MySqlServerVersion.MySql(new Version(9, 7, 2)), MySqlExpected() },
+                        { MySqlServerVersion.MariaDb(new Version(10, 11, 18)), MariaDbExpected() },
+                        { MySqlServerVersion.MariaDb(new Version(11, 4, 12)), MariaDbExpected() },
+                        { MySqlServerVersion.MariaDb(new Version(11, 8, 8)), MariaDbExpected() },
+                        { MySqlServerVersion.MariaDb(new Version(12, 3, 2)), MariaDbExpected() },
+                    };
+
+            return data;
+        }
+    }
+
     /// <summary>
     /// Verifies active lts profile exposes every feature exactly once.
     /// </summary>
@@ -29,6 +51,7 @@ public sealed class MySqlMigrationFeatureSetTests
             Enum.GetValues<MySqlMigrationFeature>()
                 .Length,
             expected.Count);
+
         Assert.Equal(expected, actual);
     }
 
@@ -50,28 +73,6 @@ public sealed class MySqlMigrationFeatureSetTests
 
         // Assert
         Assert.IsType<ArgumentOutOfRangeException>(recordedException);
-    }
-
-    public static TheoryData<
-        MySqlServerVersion, IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>> ActiveProfiles
-    {
-        get
-        {
-            var data =
-                new
-                    TheoryData<MySqlServerVersion,
-                        IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>>
-                    {
-                        { MySqlServerVersion.MySql(new Version(8, 4, 11)), MySqlExpected() },
-                        { MySqlServerVersion.MySql(new Version(9, 7, 2)), MySqlExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(10, 11, 18)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(11, 4, 12)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(11, 8, 8)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(12, 3, 2)), MariaDbExpected() },
-                    };
-
-            return data;
-        }
     }
 
     private static Dictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport> MySqlExpected() => Expected(

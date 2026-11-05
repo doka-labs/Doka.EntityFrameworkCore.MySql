@@ -60,6 +60,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "BTREE",
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 "mixed_index_table",
                 "IX_Mixed",
@@ -70,6 +71,7 @@ public sealed partial class MySqlDatabaseModelFactoryTests
                 "BTREE",
                 DBNull.Value,
                 DBNull.Value);
+
             table.Rows.Add(
                 "spatial_feature_table",
                 "IX_Spatial_Location",

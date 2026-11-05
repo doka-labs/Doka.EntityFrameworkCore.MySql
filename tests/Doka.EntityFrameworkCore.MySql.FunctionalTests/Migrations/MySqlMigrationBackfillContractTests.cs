@@ -32,14 +32,16 @@ public sealed class MySqlMigrationBackfillContractTests
         Assert.Null(alters["ImplicitCount"].DefaultValue);
         Assert.Null(alters["ImplicitOwnerId"].DefaultValue);
         Assert.Equal(typeof(Guid), alters["ImplicitOwnerId"].ClrType);
-        Assert.Equal(typeof(System.Text.Json.JsonDocument), alters["ImplicitDocument"].ClrType);
+        Assert.Equal(typeof(JsonDocument), alters["ImplicitDocument"].ClrType);
         Assert.Equal(typeof(byte[]), alters["ImplicitVersion"].ClrType);
         Assert.Equal(7, alters["ExplicitCount"].DefaultValue);
         AssertRequiresExplicitBackfill(alters["ImplicitCount"]);
         AssertRequiresExplicitBackfill(alters["ImplicitOwnerId"]);
         AssertRequiresExplicitBackfill(alters["ImplicitDocument"]);
         AssertRequiresExplicitBackfill(alters["ImplicitVersion"]);
-        Assert.Null(alters["ExplicitCount"].FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
+        Assert.Null(
+            alters["ExplicitCount"]
+                .FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
 
         AssertSqlGenerationRejected(countFailure);
         AssertSqlGenerationRejected(ownerFailure);
@@ -84,8 +86,13 @@ public sealed class MySqlMigrationBackfillContractTests
         AssertRequiresExplicitBackfill(additions["ImplicitCount"]);
         AssertRequiresExplicitBackfill(additions["ImplicitDocument"]);
         AssertRequiresExplicitBackfill(additions["GeneratedVersion"]);
-        Assert.Null(additions["ExplicitCount"].FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
-        Assert.Null(additions["OptionalCount"].FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
+        Assert.Null(
+            additions["ExplicitCount"]
+                .FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
+
+        Assert.Null(
+            additions["OptionalCount"]
+                .FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill));
 
         AssertSqlGenerationRejected(countFailure);
         AssertSqlGenerationRejected(documentFailure);
@@ -93,10 +100,12 @@ public sealed class MySqlMigrationBackfillContractTests
             "DEFAULT 7",
             explicitSql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "DEFAULT",
             optionalSql,
             StringComparison.OrdinalIgnoreCase);
+
         Assert.Contains(
             "`GeneratedVersion` timestamp(6)",
             generatedSql,
@@ -106,7 +115,8 @@ public sealed class MySqlMigrationBackfillContractTests
     private static void AssertRequiresExplicitBackfill(
         MigrationOperation operation
     ) => Assert.True(
-        operation.FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill)?.Value as bool?);
+        operation.FindAnnotation(MySqlAnnotationNames.RequiresExplicitBackfill)
+            ?.Value as bool?);
 
     private static void AssertSqlGenerationRejected(
         Exception? failure
@@ -126,7 +136,8 @@ public sealed class MySqlMigrationBackfillContractTests
         .GetService<IMigrationsSqlGenerator>()
         .Generate(
             [operation],
-            target.GetService<IDesignTimeModel>().Model);
+            target.GetService<IDesignTimeModel>()
+                .Model);
 
     private static string JoinSql(
         IReadOnlyList<MigrationCommand> commands
@@ -138,11 +149,19 @@ public sealed class MySqlMigrationBackfillContractTests
     ) => target
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
-            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel());
+            source
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel(),
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel());
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
-        where TContext : DbContext => MySqlFunctionalTestOptions.CreateTransientBuilder<TContext>().UseMySql(
+        where TContext : DbContext => MySqlFunctionalTestOptions
+        .CreateTransientBuilder<TContext>()
+        .UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options => options.DefaultGuidFormat(MySqlGuidFormat.Char36))
@@ -156,33 +175,39 @@ public sealed class MySqlMigrationBackfillContractTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("BackfillRow", entity =>
-            {
-                entity.ToTable("BackfillRows");
-                entity.IndexerProperty<int>("Id");
-                entity.HasKey("Id");
-
-                if (IsRequired)
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "BackfillRow",
+                entity =>
                 {
-                    entity.IndexerProperty<int>("ImplicitCount");
-                    entity.IndexerProperty<int>("ExplicitCount").HasDefaultValue(7);
-                    entity.IndexerProperty<Guid>("ImplicitOwnerId");
-                }
-                else
-                {
-                    entity.IndexerProperty<int?>("ImplicitCount");
-                    entity.IndexerProperty<int?>("ExplicitCount");
-                    entity.IndexerProperty<Guid?>("ImplicitOwnerId");
-                }
+                    entity.ToTable("BackfillRows");
+                    entity.IndexerProperty<int>("Id");
+                    entity.HasKey("Id");
 
-                entity
-                    .IndexerProperty<JsonDocument>("ImplicitDocument")
-                    .IsRequired(IsRequired);
-                entity
-                    .IndexerProperty<byte[]>("ImplicitVersion")
-                    .IsRowVersion()
-                    .IsRequired(IsRequired);
-            });
+                    if (IsRequired)
+                    {
+                        entity.IndexerProperty<int>("ImplicitCount");
+                        entity
+                            .IndexerProperty<int>("ExplicitCount")
+                            .HasDefaultValue(7);
+
+                        entity.IndexerProperty<Guid>("ImplicitOwnerId");
+                    }
+                    else
+                    {
+                        entity.IndexerProperty<int?>("ImplicitCount");
+                        entity.IndexerProperty<int?>("ExplicitCount");
+                        entity.IndexerProperty<Guid?>("ImplicitOwnerId");
+                    }
+
+                    entity
+                        .IndexerProperty<JsonDocument>("ImplicitDocument")
+                        .IsRequired(IsRequired);
+
+                    entity
+                        .IndexerProperty<byte[]>("ImplicitVersion")
+                        .IsRowVersion()
+                        .IsRequired(IsRequired);
+                });
         }
     }
 
@@ -208,28 +233,34 @@ public sealed class MySqlMigrationBackfillContractTests
             ModelBuilder modelBuilder
         )
         {
-            modelBuilder.SharedTypeEntity<Dictionary<string, object>>("BackfillRow", entity =>
-            {
-                entity.ToTable("BackfillRows");
-                entity.IndexerProperty<int>("Id");
-                entity.HasKey("Id");
-
-                if (!IncludeAdditions)
+            modelBuilder.SharedTypeEntity<Dictionary<string, object>>(
+                "BackfillRow",
+                entity =>
                 {
-                    return;
-                }
+                    entity.ToTable("BackfillRows");
+                    entity.IndexerProperty<int>("Id");
+                    entity.HasKey("Id");
 
-                entity.IndexerProperty<int>("ImplicitCount");
-                entity.IndexerProperty<int>("ExplicitCount").HasDefaultValue(7);
-                entity.IndexerProperty<int?>("OptionalCount");
-                entity
-                    .IndexerProperty<JsonDocument>("ImplicitDocument")
-                    .IsRequired();
-                entity
-                    .IndexerProperty<byte[]>("GeneratedVersion")
-                    .IsRowVersion()
-                    .IsRequired();
-            });
+                    if (!IncludeAdditions)
+                    {
+                        return;
+                    }
+
+                    entity.IndexerProperty<int>("ImplicitCount");
+                    entity
+                        .IndexerProperty<int>("ExplicitCount")
+                        .HasDefaultValue(7);
+
+                    entity.IndexerProperty<int?>("OptionalCount");
+                    entity
+                        .IndexerProperty<JsonDocument>("ImplicitDocument")
+                        .IsRequired();
+
+                    entity
+                        .IndexerProperty<byte[]>("GeneratedVersion")
+                        .IsRowVersion()
+                        .IsRequired();
+                });
         }
     }
 

@@ -17,7 +17,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // WHY: Calling the target connection helper from this new file would select
         // another isolated schema instead of the fixture's populated database.
-        var options = IntegrationTestDbContextOptions.Create<BindingContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<BindingContext>()
             .UseMySql(
                 connectionString,
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -29,14 +30,20 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var maximum = 2;
 
         // Act
-        var query = context.Items.Where(item => item.Id <= maximum)
+        var query = context
+            .Items
+            .Where(item => item.Id <= maximum)
             .WithMaterializedSource(source => source.Select(item => new RuntimeModelRow
             {
                 Id = item.Id,
                 Token = item.Token,
                 OptionalScore = item.OptionalScore,
                 Code = item.Code,
-                Children = item.Children.OrderBy(child => child.Id).Select(child => child.Name).ToArray(),
+                Children = item
+                    .Children
+                    .OrderBy(child => child.Id)
+                    .Select(child => child.Name)
+                    .ToArray(),
             }))
             .OrderBy(row => row.Id);
 

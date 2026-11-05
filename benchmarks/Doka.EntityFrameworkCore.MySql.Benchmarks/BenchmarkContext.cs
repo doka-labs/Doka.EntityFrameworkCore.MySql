@@ -29,6 +29,7 @@ public sealed class BenchmarkContext : DbContext
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);
+
             entity
                 .Property(property => property.Payload)
                 .HasColumnType("json");
@@ -39,6 +40,7 @@ public sealed class BenchmarkContext : DbContext
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);
+
             entity
                 .Property(property => property.BinaryPayload)
                 .HasMaxLength(256);
@@ -57,11 +59,18 @@ public sealed class BenchmarkContext : DbContext
             entity
                 .Property(property => property.BinaryId)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
+
             entity
                 .Property(property => property.CharId)
                 .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-            entity.HasIndex(property => property.BinaryId).IsUnique();
-            entity.HasIndex(property => property.CharId).IsUnique();
+
+            entity
+                .HasIndex(property => property.BinaryId)
+                .IsUnique();
+
+            entity
+                .HasIndex(property => property.CharId)
+                .IsUnique();
         });
     }
 }
@@ -90,6 +99,7 @@ public sealed class RichMigrationContext : DbContext
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);
+
             entity
                 .Property(property => property.Payload)
                 .HasColumnType("json");
@@ -116,6 +126,7 @@ public sealed class SpatialMigrationContext : DbContext
             entity
                 .Property(property => property.Name)
                 .HasMaxLength(128);
+
             entity
                 .Property(property => property.Payload)
                 .HasColumnType("json");
@@ -224,9 +235,11 @@ internal sealed class LargeBenchmarkContext : DbContext
                     entity
                         .IndexerProperty<string>("Name")
                         .HasMaxLength(128);
+
                     entity
                         .IndexerProperty<string>("Payload")
                         .HasColumnType("json");
+
                     entity.HasKey("Id");
                 });
         }

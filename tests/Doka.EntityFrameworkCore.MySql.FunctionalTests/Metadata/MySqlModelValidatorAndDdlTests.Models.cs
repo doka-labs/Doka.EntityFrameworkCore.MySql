@@ -55,6 +55,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                 entity
                     .Property(item => item.Body)
                     .HasColumnType("text");
+
                 entity
                     .HasIndex(item => item.Body)
                     .IsFullText();
@@ -77,6 +78,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                 entity
                     .Property(item => item.Body)
                     .HasColumnType("text");
+
                 entity.HasIndex(item => item.Body);
             });
         }
@@ -118,6 +120,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                             scenarioType == typeof(BinaryBoundaryScenario)
                                 ? "varbinary(3072)"
                                 : "varbinary(3073)");
+
                     entity.HasIndex(item => item.BinaryValue);
 
                     return;
@@ -159,7 +162,11 @@ public sealed partial class MySqlModelValidatorAndDdlTests
 
                 var index = scenarioType == typeof(CompositeBoundaryScenario)
                     || scenarioType == typeof(CompositeOverlongScenario)
-                        ? entity.HasIndex(item => new { item.Value, item.Id })
+                        ? entity.HasIndex(item => new
+                        {
+                            item.Value,
+                            item.Id,
+                        })
                         : entity.HasIndex(item => item.Value);
 
                 if (scenarioType == typeof(UniqueOverlongScenario))
@@ -232,6 +239,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                 entity
                     .Property(item => item.NaturalKey)
                     .HasColumnType("varchar(768)");
+
                 entity.HasAlternateKey(item => item.NaturalKey);
             });
 
@@ -241,6 +249,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                 entity
                     .Property(item => item.PrincipalNaturalKey)
                     .HasColumnType("varchar(768)");
+
                 entity
                     .HasOne<ForeignKeyIndexWidthPrincipal>()
                     .WithMany()

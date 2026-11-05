@@ -14,8 +14,14 @@ public sealed partial class MySqlMigrationDslTests
     ) => target
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
-            source.GetService<IDesignTimeModel>().Model.GetRelationalModel(),
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
+            source
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel(),
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel())
         .ToList();
 
     /// <summary>
@@ -27,7 +33,10 @@ public sealed partial class MySqlMigrationDslTests
         .GetService<IMigrationsModelDiffer>()
         .GetDifferences(
             null,
-            target.GetService<IDesignTimeModel>().Model.GetRelationalModel())
+            target
+                .GetService<IDesignTimeModel>()
+                .Model
+                .GetRelationalModel())
         .ToList();
 
     /// <summary>
@@ -92,15 +101,18 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(sourceCollation, operation.OldDatabase.Collation);
         Assert.Equal(
             targetCharSet,
-            operation.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value);
+            operation.FindAnnotation(MySqlAnnotationNames.CharSet)
+                ?.Value);
+
         Assert.Equal(
             sourceCharSet,
-            operation.OldDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value);
+            operation.OldDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)
+                ?.Value);
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
-    => CreateOptions<TContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        => CreateOptions<TContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion

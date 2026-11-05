@@ -17,6 +17,9 @@ public sealed class MySqlHiLoConcurrencyTests
     private const int ContextCount = 10;
     private const int InsertsPerContext = 25;
 
+    private const string SequenceAuditTable = "hilo_sequence_audit";
+    private const string SequenceAuditTrigger = "trg_hilo_sequence_audit";
+
     /// <summary>
     /// Parallel contexts consume shared Hi/Lo blocks without issuing duplicate keys.
     /// </summary>
@@ -29,6 +32,7 @@ public sealed class MySqlHiLoConcurrencyTests
 
         await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         MySqlHiLoStateCache.ResetForTesting();
 
         try
@@ -50,6 +54,7 @@ public sealed class MySqlHiLoConcurrencyTests
                             await context
                                 .SaveChangesAsync(cancellationToken)
                                 .ConfigureAwait(false);
+
                             seenIds.Add(entity.Id);
                         }
                     })
@@ -57,12 +62,17 @@ public sealed class MySqlHiLoConcurrencyTests
 
             // Assert
             Assert.Equal(expectedCount, seenIds.Count);
-            Assert.Equal(expectedCount, seenIds.Distinct().Count());
+            Assert.Equal(
+                expectedCount,
+                seenIds
+                    .Distinct()
+                    .Count());
         }
         finally
         {
             await TearDownSchemaAsync(connectionString)
                 .ConfigureAwait(false);
+
             MySqlHiLoStateCache.ResetForTesting();
         }
     }
@@ -88,8 +98,10 @@ public sealed class MySqlHiLoConcurrencyTests
 
         await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         await PrepareSequenceAuditAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         MySqlHiLoStateCache.ResetForTesting();
 
         try
@@ -108,6 +120,7 @@ public sealed class MySqlHiLoConcurrencyTests
                         await context
                             .SaveChangesAsync(cancellationToken)
                             .ConfigureAwait(false);
+
                         seenIds.Add(entity.Id);
                     })
                 .ConfigureAwait(false);
@@ -117,15 +130,22 @@ public sealed class MySqlHiLoConcurrencyTests
 
             // Assert
             Assert.Equal(totalInserts, seenIds.Count);
-            Assert.Equal(totalInserts, seenIds.Distinct().Count());
+            Assert.Equal(
+                totalInserts,
+                seenIds
+                    .Distinct()
+                    .Count());
+
             Assert.Equal(expectedRoundtrips, roundtripCount);
         }
         finally
         {
             await TearDownSequenceAuditAsync(connectionString)
                 .ConfigureAwait(false);
+
             await TearDownSchemaAsync(connectionString)
                 .ConfigureAwait(false);
+
             MySqlHiLoStateCache.ResetForTesting();
         }
     }
@@ -142,6 +162,7 @@ public sealed class MySqlHiLoConcurrencyTests
 
         await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         MySqlHiLoStateCache.ResetForTesting();
 
         try
@@ -171,6 +192,7 @@ public sealed class MySqlHiLoConcurrencyTests
         {
             await TearDownSchemaAsync(connectionString)
                 .ConfigureAwait(false);
+
             MySqlHiLoStateCache.ResetForTesting();
         }
     }
@@ -187,6 +209,7 @@ public sealed class MySqlHiLoConcurrencyTests
 
         await PrepareSchemaAsync(connectionString, CancellationToken.None)
             .ConfigureAwait(false);
+
         MySqlHiLoStateCache.ResetForTesting();
 
         try
@@ -213,7 +236,9 @@ public sealed class MySqlHiLoConcurrencyTests
             command.CommandText = $"SELECT COUNT(*) FROM `{TableName}`;";
 
             var persistedCount = Convert.ToInt64(
-                await command.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                await command
+                    .ExecuteScalarAsync(CancellationToken.None)
+                    .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
             // Assert
@@ -227,6 +252,7 @@ public sealed class MySqlHiLoConcurrencyTests
         {
             await TearDownSchemaAsync(connectionString)
                 .ConfigureAwait(false);
+
             MySqlHiLoStateCache.ResetForTesting();
         }
     }
@@ -268,9 +294,6 @@ public sealed class MySqlHiLoConcurrencyTests
         GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
     }.ConnectionString;
 
-    private const string SequenceAuditTable = "hilo_sequence_audit";
-    private const string SequenceAuditTrigger = "trg_hilo_sequence_audit";
-
     private static async Task PrepareSequenceAuditAsync(
         string connectionString,
         CancellationToken cancellationToken
@@ -280,6 +303,7 @@ public sealed class MySqlHiLoConcurrencyTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
             + $"DROP TABLE IF EXISTS `{SequenceAuditTable}`;"
@@ -290,6 +314,7 @@ public sealed class MySqlHiLoConcurrencyTests
             + ") ENGINE=InnoDB CHARACTER SET utf8mb4;"
             + $"CREATE TRIGGER `{SequenceAuditTrigger}` AFTER UPDATE ON `__efsequence_{SequenceName}`"
             + $"  FOR EACH ROW INSERT INTO `{SequenceAuditTable}` (`at`) VALUES (CURRENT_TIMESTAMP(6));";
+
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -304,6 +329,7 @@ public sealed class MySqlHiLoConcurrencyTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM `{SequenceAuditTable}`;";
         var result = await command
@@ -322,9 +348,11 @@ public sealed class MySqlHiLoConcurrencyTests
         await connection
             .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TRIGGER IF EXISTS `{SequenceAuditTrigger}`;"
             + $"DROP TABLE IF EXISTS `{SequenceAuditTable}`;";
+
         await command
             .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
@@ -339,6 +367,7 @@ public sealed class MySqlHiLoConcurrencyTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;"
@@ -355,6 +384,7 @@ public sealed class MySqlHiLoConcurrencyTests
             + "  `Name` VARCHAR(64) NOT NULL,"
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
+
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -369,9 +399,11 @@ public sealed class MySqlHiLoConcurrencyTests
         await connection
             .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"DROP TABLE IF EXISTS `__efsequence_{SequenceName}`;";
+
         await command
             .ExecuteNonQueryAsync(CancellationToken.None)
             .ConfigureAwait(false);
@@ -416,6 +448,7 @@ public sealed class MySqlHiLoConcurrencyTests
                 builder
                     .Property(e => e.Id)
                     .UseHiLo(SequenceName);
+
                 builder
                     .Property(e => e.Name)
                     .HasMaxLength(64);

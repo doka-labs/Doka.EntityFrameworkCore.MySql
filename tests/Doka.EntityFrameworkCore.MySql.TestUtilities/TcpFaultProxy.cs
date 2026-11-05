@@ -7,19 +7,19 @@ namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
 /// </summary>
 public sealed class TcpFaultProxy : IAsyncDisposable
 {
-    private readonly string _upstreamHost;
-    private readonly int _upstreamPort;
+    private readonly Task _acceptLoop;
     private readonly TcpListener _listener;
-    private readonly CancellationTokenSource _shutdown = new();
-    private readonly ConcurrentDictionary<long, ProxySession> _sessions = new();
     private readonly ConcurrentQueue<string> _observedQueries = new();
     private readonly Lock _queryFaultGate = new();
-    private readonly Task _acceptLoop;
-    private TaskCompletionSource<CommitFaultMode> _faultObserved = CreateFaultSignal();
-    private TaskCompletionSource<bool> _queryFaultObserved = CreateQueryFaultSignal();
-    private QueryFaultPlan? _armedQueryFault;
-    private long _nextSessionId;
+    private readonly ConcurrentDictionary<long, ProxySession> _sessions = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly string _upstreamHost;
+    private readonly int _upstreamPort;
     private int _armedCommitFault;
+    private QueryFaultPlan? _armedQueryFault;
+    private TaskCompletionSource<CommitFaultMode> _faultObserved = CreateFaultSignal();
+    private long _nextSessionId;
+    private TaskCompletionSource<bool> _queryFaultObserved = CreateQueryFaultSignal();
 
     /// <summary>
     /// Starts a loopback listener that forwards packets to the given MySQL endpoint.
@@ -27,7 +27,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     /// <param name="upstreamHost">The upstream database host.</param>
     /// <param name="upstreamPort">The upstream database port.</param>
     /// <param name="listenerAddress">
-    /// The loopback address to expose, or <see langword="null"/> for the
+    /// The loopback address to expose, or <see langword="null" /> for the
     /// platform's default IPv4 loopback address.
     /// </param>
     public TcpFaultProxy(
@@ -66,6 +66,27 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
     /// <summary>
+    /// Stops the listener and aborts all active proxied sessions.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        await _shutdown
+            .CancelAsync()
+            .ConfigureAwait(false);
+
+        _listener.Stop();
+        DropActiveConnections();
+
+        try
+        {
+            await _acceptLoop.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { }
+
+        _shutdown.Dispose();
+    }
+
+    /// <summary>
     /// Arms one fault for the next COMMIT packet. TLS must be disabled on the
     /// proxied test connection so the command boundary remains observable.
     /// </summary>
@@ -99,12 +120,13 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken
     ) => await _faultObserved
-        .Task.WaitAsync(timeout, cancellationToken)
+        .Task
+        .WaitAsync(timeout, cancellationToken)
         .ConfigureAwait(false);
 
     /// <summary>
     /// Arms a one-shot disconnect after the proxy forwards the requested number
-    /// of response packets for the next query containing <paramref name="marker"/>.
+    /// of response packets for the next query containing <paramref name="marker" />.
     /// </summary>
     public void ArmQueryResponseFault(
         string marker,
@@ -135,7 +157,8 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken
     ) => await _queryFaultObserved
-        .Task.WaitAsync(timeout, cancellationToken)
+        .Task
+        .WaitAsync(timeout, cancellationToken)
         .ConfigureAwait(false);
 
     /// <summary>
@@ -183,26 +206,6 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         };
 
         return builder.ConnectionString;
-    }
-
-    /// <summary>
-    /// Stops the listener and aborts all active proxied sessions.
-    /// </summary>
-    public async ValueTask DisposeAsync()
-    {
-        await _shutdown
-            .CancelAsync()
-            .ConfigureAwait(false);
-        _listener.Stop();
-        DropActiveConnections();
-
-        try
-        {
-            await _acceptLoop.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) { }
-
-        _shutdown.Dispose();
     }
 
     private async Task AcceptConnectionsAsync(
@@ -330,8 +333,8 @@ public sealed class TcpFaultProxy : IAsyncDisposable
 
     private sealed class ProxySession : IDisposable
     {
-        private readonly TcpFaultProxy _owner;
         private readonly TcpClient _client;
+        private readonly TcpFaultProxy _owner;
         private readonly TcpClient _upstream = new();
         private int _aborted;
         private int _commitResponseFault;
@@ -351,6 +354,8 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         }
 
         public long Id { get; }
+
+        public void Dispose() => Abort();
 
         public async Task RunAsync(
             CancellationToken cancellationToken
@@ -374,12 +379,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         /// Closes both sockets with zero linger so a simulated transport loss is
         /// observed as TCP RST rather than a graceful end-of-stream.
         /// </summary>
-        public void AbortWithReset()
-        {
-            Close(reset: true);
-        }
-
-        public void Dispose() => Abort();
+        public void AbortWithReset() => Close(reset: true);
 
         private void Close(
             bool reset
@@ -408,7 +408,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
             var destination = _upstream.GetStream();
 
             while (await ReadPacketAsync(source, cancellationToken)
-                       .ConfigureAwait(false) is { } packet)
+                    .ConfigureAwait(false) is { } packet)
             {
                 var query = ReadQuery(packet.Payload);
                 if (query is not null)
@@ -422,7 +422,9 @@ public sealed class TcpFaultProxy : IAsyncDisposable
                     Volatile.Write(ref _queryResponsePacketsRemaining, queryFault.ResponsePacketsToForward);
                 }
 
-                var fault = IsCommit(query) ? _owner.ConsumeCommitFault() : CommitFaultMode.None;
+                var fault = IsCommit(query)
+                    ? _owner.ConsumeCommitFault()
+                    : CommitFaultMode.None;
 
                 if (fault == CommitFaultMode.BeforeRequest)
                 {
@@ -448,7 +450,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
             var destination = _client.GetStream();
 
             while (await ReadPacketAsync(source, cancellationToken)
-                       .ConfigureAwait(false) is { } packet)
+                    .ConfigureAwait(false) is { } packet)
             {
                 var fault = (CommitFaultMode)Volatile.Read(ref _commitResponseFault);
 
@@ -507,12 +509,12 @@ public sealed class TcpFaultProxy : IAsyncDisposable
             var header = new byte[4];
 
             if (!await ReadExactlyOrEofAsync(stream, header, cancellationToken)
-                    .ConfigureAwait(false))
+                .ConfigureAwait(false))
             {
                 return null;
             }
 
-            var payloadLength = header[0] | header[1] << 8 | header[2] << 16;
+            var payloadLength = header[0] | (header[1] << 8) | (header[2] << 16);
             var payload = new byte[payloadLength];
 
             await stream
@@ -561,6 +563,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
             await stream
                 .WriteAsync(packet.Header, cancellationToken)
                 .ConfigureAwait(false);
+
             await stream
                 .WriteAsync(packet.Payload, cancellationToken)
                 .ConfigureAwait(false);

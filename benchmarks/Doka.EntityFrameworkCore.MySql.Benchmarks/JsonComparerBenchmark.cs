@@ -14,12 +14,12 @@ public class JsonComparerBenchmark
 {
     private const int PayloadCount = 1000;
     private const int FreshPayloadCount = 10;
-
-    private readonly string _payload;
     private readonly JsonDocument _documentA;
     private readonly JsonDocument _documentB;
     private readonly JsonNode _nodeA;
     private readonly JsonNode _nodeB;
+
+    private readonly string _payload;
 
     public JsonComparerBenchmark()
     {
@@ -31,10 +31,10 @@ public class JsonComparerBenchmark
     }
 
     /// <summary>
-    /// Naive reference for JSON deep-equality: per-call <see cref="JsonElement.GetRawText"/>
+    /// Naive reference for JSON deep-equality: per-call <see cref="JsonElement.GetRawText" />
     /// allocation plus string-compare. The fast-path under test
-    /// (<see cref="JsonElementEqualsLoop"/>) walks the existing DOM through
-    /// <see cref="JsonElement.DeepEquals"/>; BDN reports Ratio = Mean[fast]/Mean[naive]
+    /// (<see cref="JsonElementEqualsLoop" />) walks the existing DOM through
+    /// <see cref="JsonElement.DeepEquals" />; BDN reports Ratio = Mean[fast]/Mean[naive]
     /// and Allocated-ratio. The DoD gate is alloc-reduction >= 80%
     /// (Allocated ratio &lt;= 0.2).
     /// </summary>
@@ -146,7 +146,9 @@ public class JsonComparerBenchmark
 
         for (var i = 0; i < PayloadCount; i++)
         {
-            hash ^= _nodeA.ToJsonString().GetHashCode(StringComparison.Ordinal);
+            hash ^= _nodeA
+                .ToJsonString()
+                .GetHashCode(StringComparison.Ordinal);
         }
 
         return hash;

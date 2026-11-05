@@ -6,11 +6,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlLifecycleConnection : IDisposable, IAsyncDisposable
 {
-    private readonly bool _ownsConnection;
     private readonly string? _originalConnectionString;
+    private readonly bool _ownsConnection;
     private readonly bool _restoreConnectionString;
-    private bool _openedConnection;
     private bool _disposed;
+    private bool _openedConnection;
 
     private MySqlLifecycleConnection(
         DbConnection connection,
@@ -29,6 +29,62 @@ internal sealed class MySqlLifecycleConnection : IDisposable, IAsyncDisposable
     /// Gets the callback-preserving connection used by the lifecycle command.
     /// </summary>
     public DbConnection Connection { get; }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_ownsConnection)
+            {
+                await Connection
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+            }
+            else if (_openedConnection)
+            {
+                await Connection
+                    .CloseAsync()
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            RestoreBorrowedConnectionString();
+            _disposed = true;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_ownsConnection)
+            {
+                Connection.Dispose();
+            }
+            else if (_openedConnection)
+            {
+                Connection.Close();
+            }
+        }
+        finally
+        {
+            RestoreBorrowedConnectionString();
+            _disposed = true;
+        }
+    }
 
     /// <summary>
     /// Creates a lease that owns and disposes a provider-created connection.
@@ -109,62 +165,6 @@ internal sealed class MySqlLifecycleConnection : IDisposable, IAsyncDisposable
         await Connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        try
-        {
-            if (_ownsConnection)
-            {
-                Connection.Dispose();
-            }
-            else if (_openedConnection)
-            {
-                Connection.Close();
-            }
-        }
-        finally
-        {
-            RestoreBorrowedConnectionString();
-            _disposed = true;
-        }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        try
-        {
-            if (_ownsConnection)
-            {
-                await Connection
-                    .DisposeAsync()
-                    .ConfigureAwait(false);
-            }
-            else if (_openedConnection)
-            {
-                await Connection
-                    .CloseAsync()
-                    .ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            RestoreBorrowedConnectionString();
-            _disposed = true;
-        }
     }
 
     private void RestoreBorrowedConnectionString()

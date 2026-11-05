@@ -19,7 +19,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedText)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedText)),
             CancellationToken.None);
 
         // Assert
@@ -42,7 +44,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPrice)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPrice)),
             CancellationToken.None);
 
         // Assert
@@ -65,7 +69,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPrice)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPrice)),
             CancellationToken.None);
 
         // Assert
@@ -88,7 +94,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedGuid)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedGuid)),
             CancellationToken.None);
 
         // Assert
@@ -111,7 +119,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedGuid)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedGuid)),
             CancellationToken.None);
 
         // Assert
@@ -134,7 +144,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedDuration)),
             CancellationToken.None);
 
         // Assert
@@ -153,11 +165,19 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
-        ElapsedValue[] values = [new(TimeSpan.FromHours(27).Add(TimeSpan.FromMilliseconds(500)))];
+        ElapsedValue[] values =
+        [
+            new(
+                TimeSpan
+                    .FromHours(27)
+                    .Add(TimeSpan.FromMilliseconds(500))),
+        ];
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedDuration)),
             CancellationToken.None);
 
         // Assert
@@ -180,11 +200,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var error = await Record.ExceptionAsync(() => SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedDuration)),
             CancellationToken.None));
 
         // Assert
-        Assert.Contains("exceeds the MySQL TIME range", Assert.IsType<InvalidOperationException>(error).Message,
+        Assert.Contains(
+            "exceeds the MySQL TIME range",
+            Assert.IsType<InvalidOperationException>(error)
+                .Message,
             StringComparison.Ordinal);
     }
 
@@ -204,11 +229,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var error = await Record.ExceptionAsync(() => SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedDuration)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedDuration)),
             CancellationToken.None));
 
         // Assert
-        Assert.Contains("exceeds the MySQL TIME range", Assert.IsType<InvalidOperationException>(error).Message,
+        Assert.Contains(
+            "exceeds the MySQL TIME range",
+            Assert.IsType<InvalidOperationException>(error)
+                .Message,
             StringComparison.Ordinal);
     }
 
@@ -224,11 +254,23 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
-        DateTimeOffset[] values = [new(2026, 9, 19, 10, 0, 0, TimeSpan.Zero)];
+        DateTimeOffset[] values =
+        [
+            new(
+                2026,
+                9,
+                19,
+                10,
+                0,
+                0,
+                TimeSpan.Zero),
+        ];
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedTimestamp)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedTimestamp)),
             CancellationToken.None);
 
         // Assert
@@ -247,11 +289,23 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
-        DateTimeOffset[] values = [new DateTimeOffset(2026, 9, 19, 10, 0, 0, TimeSpan.Zero).AddMilliseconds(500)];
+        DateTimeOffset[] values =
+        [
+            new DateTimeOffset(
+                2026,
+                9,
+                19,
+                10,
+                0,
+                0,
+                TimeSpan.Zero).AddMilliseconds(500),
+        ];
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedTimestamp)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedTimestamp)),
             CancellationToken.None);
 
         // Assert
@@ -274,7 +328,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPayload)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPayload)),
             CancellationToken.None);
 
         // Assert
@@ -297,7 +353,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.ConvertedPayload)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPayload)),
             CancellationToken.None);
 
         // Assert

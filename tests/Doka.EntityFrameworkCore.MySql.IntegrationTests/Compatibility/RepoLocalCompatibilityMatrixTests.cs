@@ -136,6 +136,7 @@ public sealed class RepoLocalCompatibilityMatrixTests
             usesJsonAlias,
             detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns)
             == ProviderSupportStatus.Emulated);
+
         Assert.Equal(
             supportsNativeJsonType,
             detectedServerVersion.Profile.GetSupport(ProviderCapability.JsonColumns)

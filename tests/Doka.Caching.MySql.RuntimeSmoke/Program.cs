@@ -35,6 +35,7 @@ internal static class Program
 
         Console.WriteLine(
             "Cache runtime smoke OK (sync, async, buffer, cancellation, concurrency, external pool, time provider).");
+
         return 0;
     }
 
@@ -52,7 +53,10 @@ internal static class Program
 
         services.AddDistributedMySqlCache(options =>
         {
-            options.ConnectionString = dataSource is null ? connectionString : string.Empty;
+            options.ConnectionString = dataSource is null
+                ? connectionString
+                : string.Empty;
+
             options.DataSource = dataSource;
             options.SchemaName = DatabaseName;
             options.TableName = TableName;
@@ -61,6 +65,7 @@ internal static class Program
                 options.ExpiredItemsDeletionInterval = TimeSpan.FromMinutes(5);
             }
         });
+
         return services.BuildServiceProvider(
             new ServiceProviderOptions
             {
@@ -87,8 +92,8 @@ internal static class Program
             .Validate();
 
         if (!ReferenceEquals(
-                services.GetRequiredService<IDistributedCache>(),
-                services.GetRequiredService<IBufferDistributedCache>()))
+            services.GetRequiredService<IDistributedCache>(),
+            services.GetRequiredService<IBufferDistributedCache>()))
         {
             throw new InvalidOperationException("The cache interfaces did not resolve to the same singleton.");
         }
@@ -160,6 +165,7 @@ internal static class Program
                 [2],
                 new DistributedCacheEntryOptions(),
                 cancellationToken);
+
             await cache.SetAsync(
                 "runtime-clock-live",
                 [3],
@@ -168,10 +174,12 @@ internal static class Program
 
             command.CommandText =
                 $"SELECT COUNT(*) FROM `{DatabaseName}`.`{TableName}` WHERE `ExpiresAtUtc` <= UTC_TIMESTAMP(6);";
+
             Require(
                 Convert.ToInt64(
                     await command.ExecuteScalarAsync(cancellationToken),
-                    CultureInfo.InvariantCulture) == 1,
+                    CultureInfo.InvariantCulture)
+                == 1,
                 "The cleanup clock fixture did not contain exactly one expired row.");
 
             time.Advance(TimeSpan.FromMinutes(5));
@@ -182,13 +190,16 @@ internal static class Program
             Require(
                 Convert.ToInt64(
                     await command.ExecuteScalarAsync(cancellationToken),
-                    CultureInfo.InvariantCulture) == 0,
+                    CultureInfo.InvariantCulture)
+                == 0,
                 "The DI-provided time source did not trigger expired-row cleanup.");
+
             Require(
                 (await cache.GetAsync("runtime-clock-renewed", cancellationToken))
                 .AsSpan()
                 .SequenceEqual(new byte[] { 2 }),
                 "Cleanup deleted the renewed entry.");
+
             Require(
                 (await cache.GetAsync("runtime-clock-live", cancellationToken))
                 .AsSpan()
@@ -241,6 +252,7 @@ internal static class Program
             SlidingExpiration = TimeSpan.FromMinutes(5),
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1),
         };
+
         cache.Remove(key);
         Require(cache.Get(key) is null, "A missing cache entry returned data.");
         var buffer = new ArrayBufferWriter<byte>();
@@ -264,6 +276,7 @@ internal static class Program
         cache.Refresh(key);
         Require(cache.Get(key) is null, "Refresh resurrected a removed entry.");
     }
+
     // ReSharper restore MethodHasAsyncOverload
 
     /// <summary>
@@ -346,6 +359,7 @@ internal static class Program
             Require(
                 await cache.GetAsync(key, cancellationToken) is null,
                 "A pre-canceled write modified the cache.");
+
             return;
         }
 
@@ -370,7 +384,7 @@ internal static class Program
                 .Select(async index =>
                 {
                     var key = $"runtime-parallel-{index}";
-                    var value = new byte[] { (byte)index, };
+                    var value = new[] { (byte)index };
                     await cache.SetAsync(key, value, new DistributedCacheEntryOptions(), cancellationToken);
                     await cache.RefreshAsync(key, cancellationToken);
                     Require(
@@ -378,6 +392,7 @@ internal static class Program
                         .AsSpan()
                         .SequenceEqual(value),
                         "Concurrent cache data changed.");
+
                     await cache.RemoveAsync(key, cancellationToken);
                 }));
     }
@@ -385,12 +400,12 @@ internal static class Program
     private static MySqlDataSource CreateDataSource(
         string connectionString
     ) => new MySqlDataSourceBuilder(
-        new MySqlConnectionStringBuilder(connectionString)
-        {
-            AutoEnlist = false,
-            MaximumPoolSize = 1,
-        }
-        .ConnectionString)
+            new MySqlConnectionStringBuilder(connectionString)
+                {
+                    AutoEnlist = false,
+                    MaximumPoolSize = 1,
+                }
+                .ConnectionString)
         .Build();
 
     /// <summary>
@@ -423,7 +438,8 @@ internal static class Program
         Require(
             Convert.ToInt32(
                 await command.ExecuteScalarAsync(cancellationToken),
-                CultureInfo.InvariantCulture) == 1,
+                CultureInfo.InvariantCulture)
+            == 1,
             "Disposing the cache disposed its caller-owned data source.");
     }
 
@@ -455,6 +471,7 @@ internal static class Program
             {
                 RunningIndex = RunningIndex + Memory.Length,
             };
+
             Next = next;
             return next;
         }

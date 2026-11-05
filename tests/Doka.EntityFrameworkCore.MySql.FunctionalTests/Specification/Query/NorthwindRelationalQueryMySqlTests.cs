@@ -78,10 +78,8 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
         selector: customer =>
             (decimal)customer.Orders.Average(double (order) =>
                 5 + order.OrderDetails.Average(int (detail) => detail.ProductID)),
-        asserter: (
-            expected,
-            actual
-        ) => Assert.InRange(expected - actual, -DecimalAggregateTolerance, DecimalAggregateTolerance));
+        asserter: (expected,
+            actual) => Assert.InRange(expected - actual, -DecimalAggregateTolerance, DecimalAggregateTolerance));
 
     /// <summary>
     /// Compares the maximally precise engine result with the CLR aggregate using a
@@ -98,10 +96,8 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
         selector: customer =>
             (decimal)customer.Orders.Average(int (order) =>
                 5 + order.OrderDetails.Max(int (detail) => detail.ProductID)),
-        asserter: (
-            expected,
-            actual
-        ) => Assert.InRange(expected - actual, -DecimalAggregateTolerance, DecimalAggregateTolerance));
+        asserter: (expected,
+            actual) => Assert.InRange(expected - actual, -DecimalAggregateTolerance, DecimalAggregateTolerance));
 
     /// <summary>
     /// Uses the engine vendor's recommended tolerance instead of exact equality for
@@ -134,10 +130,8 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
                 Sum = order.OrderDetails.Average(detail => detail.Discount),
             }),
         elementSorter: element => element.OrderID,
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             Assert.Equal(expected.OrderID, actual.OrderID);
             AssertFloatAggregate(expected.Sum, actual.Sum);
@@ -160,10 +154,8 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
                 Sum = order.OrderDetails.Average(detail => (float?)detail.Discount),
             }),
         elementSorter: element => element.OrderID,
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             Assert.Equal(expected.OrderID, actual.OrderID);
             Assert.Equal(expected.Sum.HasValue, actual.Sum.HasValue);
@@ -185,10 +177,8 @@ public class NorthwindAggregateOperatorsQueryMySqlTest : NorthwindAggregateOpera
         async,
         ss => ss.Set<OrderDetail>(),
         selector: detail => (decimal)detail.Discount,
-        asserter: (
-            expected,
-            actual
-        ) => Assert.InRange(
+        asserter: (expected,
+            actual) => Assert.InRange(
             expected - actual,
             -DecimalFromFloatAggregateTolerance,
             DecimalFromFloatAggregateTolerance));
@@ -422,15 +412,15 @@ public class
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
-                  join id in ids on employee.EmployeeID equals id
-                  select employee.EmployeeID);
+                join id in ids on employee.EmployeeID equals id
+                select employee.EmployeeID);
 
         ids = [3];
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
-                  join id in ids on employee.EmployeeID equals id
-                  select employee.EmployeeID);
+                join id in ids on employee.EmployeeID equals id
+                select employee.EmployeeID);
     }
 
     /// <summary>
@@ -454,8 +444,8 @@ public class
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
-                  join id in ids on employee.EmployeeID equals id
-                  select employee.EmployeeID,
+                join id in ids on employee.EmployeeID equals id
+                select employee.EmployeeID,
             assertEmpty: true);
 
         // Control characters prove the positive numeric conversion without
@@ -464,15 +454,15 @@ public class
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
-                  join id in ids on employee.EmployeeID equals id
-                  select employee.EmployeeID);
+                join id in ids on employee.EmployeeID equals id
+                select employee.EmployeeID);
 
         ids = "3";
         await AssertQueryScalar(
             async,
             ss => from employee in ss.Set<Employee>()
-                  join id in ids on employee.EmployeeID equals id
-                  select employee.EmployeeID,
+                join id in ids on employee.EmployeeID equals id
+                select employee.EmployeeID,
             assertEmpty: true);
     }
 
@@ -627,24 +617,22 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             {
                 element.Item.OrderID,
                 ProductIds = element
-                    .Item.OrderDetails.Select(detail => detail.ProductID)
+                    .Item
+                    .OrderDetails
+                    .Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             Assert.Equal(expected.OrderID, actual.OrderID);
             AssertCollection(
                 expected.ProductIds,
                 actual.ProductIds,
                 elementSorter: productId => productId,
-                elementAsserter: (
-                    expectedProductId,
-                    actualProductId
-                ) => Assert.Equal(expectedProductId, actualProductId));
+                elementAsserter: (expectedProductId,
+                    actualProductId) => Assert.Equal(expectedProductId, actualProductId));
         });
 
     /// <summary>
@@ -675,24 +663,22 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             {
                 element.Item.OrderID,
                 ProductIds = element
-                    .Item.OrderDetails.Select(detail => detail.ProductID)
+                    .Item
+                    .OrderDetails
+                    .Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             Assert.Equal(expected.OrderID, actual.OrderID);
             AssertCollection(
                 expected.ProductIds,
                 actual.ProductIds,
                 elementSorter: productId => productId,
-                elementAsserter: (
-                    expectedProductId,
-                    actualProductId
-                ) => Assert.Equal(expectedProductId, actualProductId));
+                elementAsserter: (expectedProductId,
+                    actualProductId) => Assert.Equal(expectedProductId, actualProductId));
         });
 
     /// <summary>
@@ -716,24 +702,22 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
             {
                 element.Item.OrderID,
                 ProductIds = element
-                    .Item.OrderDetails.Select(detail => detail.ProductID)
+                    .Item
+                    .OrderDetails
+                    .Select(detail => detail.ProductID)
                     .ToList(),
             }),
         assertOrder: true,
-        elementAsserter: (
-            expected,
-            actual
-        ) =>
+        elementAsserter: (expected,
+            actual) =>
         {
             Assert.Equal(expected.OrderID, actual.OrderID);
             AssertCollection(
                 expected.ProductIds,
                 actual.ProductIds,
                 elementSorter: productId => productId,
-                elementAsserter: (
-                    expectedProductId,
-                    actualProductId
-                ) => Assert.Equal(expectedProductId, actualProductId));
+                elementAsserter: (expectedProductId,
+                    actualProductId) => Assert.Equal(expectedProductId, actualProductId));
         });
 
     /// <summary>
@@ -747,13 +731,15 @@ public class NorthwindMiscellaneousQueryMySqlTest : NorthwindMiscellaneousQueryR
         ss => ss
             .Set<Customer>()
             .OrderBy(customer => customer
-                .Orders.OrderBy(order => order.OrderID)
+                .Orders
+                .OrderBy(order => order.OrderID)
                 .FirstOrDefault())
             .ThenBy(customer => customer.CustomerID),
         ss => ss
             .Set<Customer>()
             .OrderBy(customer => customer
-                .Orders.OrderBy(order => order.OrderID)
+                .Orders
+                .OrderBy(order => order.OrderID)
                 .Select(order => (int?)order.OrderID)
                 .FirstOrDefault())
             .ThenBy(customer => customer.CustomerID),

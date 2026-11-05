@@ -75,6 +75,7 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
                 table,
                 MySqlAnnotationNames.TemporalPeriodStartColumn,
                 temporalMetadata.PeriodStartColumn);
+
             yield return CreateAnnotation(
                 table,
                 MySqlAnnotationNames.TemporalPeriodEndColumn,
@@ -88,14 +89,17 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
                 table,
                 MySqlAnnotationNames.ApplicationTimePeriodName,
                 applicationTimeMetadata.PeriodName);
+
             yield return CreateAnnotation(
                 table,
                 MySqlAnnotationNames.ApplicationTimePeriodStartColumn,
                 applicationTimeMetadata.PeriodStartColumn);
+
             yield return CreateAnnotation(
                 table,
                 MySqlAnnotationNames.ApplicationTimePeriodEndColumn,
                 applicationTimeMetadata.PeriodEndColumn);
+
             yield return CreateAnnotation(
                 table,
                 MySqlAnnotationNames.ApplicationTimeWithoutOverlaps,
@@ -146,18 +150,18 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             if (entityType.IsMySqlTemporal())
             {
                 if (string.Equals(
-                        propertyMapping.Property.Name,
-                        entityType.GetMySqlTemporalPeriodStartPropertyName(),
-                        StringComparison.Ordinal))
+                    propertyMapping.Property.Name,
+                    entityType.GetMySqlTemporalPeriodStartPropertyName(),
+                    StringComparison.Ordinal))
                 {
                     yield return CreateAnnotation(column, MySqlAnnotationNames.TemporalPeriodStartColumn, value: true);
                     yield break;
                 }
 
                 if (string.Equals(
-                        propertyMapping.Property.Name,
-                        entityType.GetMySqlTemporalPeriodEndPropertyName(),
-                        StringComparison.Ordinal))
+                    propertyMapping.Property.Name,
+                    entityType.GetMySqlTemporalPeriodEndPropertyName(),
+                    StringComparison.Ordinal))
                 {
                     yield return CreateAnnotation(column, MySqlAnnotationNames.TemporalPeriodEndColumn, value: true);
                     yield break;
@@ -170,21 +174,22 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
             }
 
             if (string.Equals(
-                    propertyMapping.Property.Name,
-                    entityType.GetMySqlApplicationTimePeriodStartPropertyName(),
-                    StringComparison.Ordinal))
+                propertyMapping.Property.Name,
+                entityType.GetMySqlApplicationTimePeriodStartPropertyName(),
+                StringComparison.Ordinal))
             {
                 yield return CreateAnnotation(
                     column,
                     MySqlAnnotationNames.ApplicationTimePeriodStartColumn,
                     value: true);
+
                 yield break;
             }
 
             if (string.Equals(
-                    propertyMapping.Property.Name,
-                    entityType.GetMySqlApplicationTimePeriodEndPropertyName(),
-                    StringComparison.Ordinal))
+                propertyMapping.Property.Name,
+                entityType.GetMySqlApplicationTimePeriodEndPropertyName(),
+                StringComparison.Ordinal))
             {
                 yield return CreateAnnotation(
                     column,
@@ -271,7 +276,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
     private static string? FindApplicationTimePeriodName(
         IEnumerable<IReadOnlyKey> keys
     ) => keys
-        .Where(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)?.Value is true)
+        .Where(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
+            ?.Value is true)
         .Select(key => key.DeclaringEntityType.GetMySqlApplicationTimePeriodName())
         .FirstOrDefault(periodName => !string.IsNullOrWhiteSpace(periodName));
 
@@ -285,7 +291,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
 
         return table.FindAnnotation(annotationName)
             ?? table
-                .EntityTypeMappings.Select(mapping => mapping.TypeBase.FindAnnotation(annotationName))
+                .EntityTypeMappings
+                .Select(mapping => mapping.TypeBase.FindAnnotation(annotationName))
                 .FirstOrDefault(annotation => annotation is not null);
     }
 
@@ -299,7 +306,8 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
 
         return column.FindAnnotation(annotationName)
             ?? column
-                .PropertyMappings.Select(mapping => mapping.Property.FindAnnotation(annotationName))
+                .PropertyMappings
+                .Select(mapping => mapping.Property.FindAnnotation(annotationName))
                 .FirstOrDefault(annotation => annotation is not null);
     }
 
@@ -309,5 +317,4 @@ internal sealed class MySqlRelationalAnnotationProvider : RelationalAnnotationPr
         object value
     ) => annotatable.FindAnnotation(name)
         ?? new Annotation(name, value);
-
 }

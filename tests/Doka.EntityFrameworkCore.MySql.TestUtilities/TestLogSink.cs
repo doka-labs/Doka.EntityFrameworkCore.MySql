@@ -25,7 +25,7 @@ public sealed record TestLogEntry(
 );
 
 /// <summary>
-/// Logger provider that routes all log output to a <see cref="TestLogSink"/>.
+/// Logger provider that routes all log output to a <see cref="TestLogSink" />.
 /// </summary>
 public sealed class TestLoggerProvider : ILoggerProvider
 {
@@ -46,7 +46,7 @@ public sealed class TestLoggerProvider : ILoggerProvider
 }
 
 /// <summary>
-/// Logger implementation that enqueues all log entries into a <see cref="TestLogSink"/>.
+/// Logger implementation that enqueues all log entries into a <see cref="TestLogSink" />.
 /// </summary>
 public sealed class TestLogger : ILogger
 {
@@ -66,12 +66,6 @@ public sealed class TestLogger : ILogger
         TState state
     )
         where TState : notnull => NullScope.Instance;
-
-    private sealed class NullScope : IDisposable
-    {
-        public static readonly NullScope Instance = new();
-        public void Dispose() { }
-    }
 
     public bool IsEnabled(
         LogLevel logLevel
@@ -107,5 +101,11 @@ public sealed class TestLogger : ILogger
                 activity?.TraceId.ToString(),
                 activity?.SpanId.ToString(),
                 exception?.GetType()));
+    }
+
+    private sealed class NullScope : IDisposable
+    {
+        public static readonly NullScope Instance = new();
+        public void Dispose() { }
     }
 }

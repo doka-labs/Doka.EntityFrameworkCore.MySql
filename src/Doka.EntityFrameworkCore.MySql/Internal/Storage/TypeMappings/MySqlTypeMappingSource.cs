@@ -34,6 +34,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         DbType.UInt16);
 
     private static readonly RelationalTypeMapping s_uintMapping = new UIntTypeMapping("int unsigned", DbType.UInt32);
+
     private static readonly RelationalTypeMapping s_ulongMapping = new ULongTypeMapping(
         "bigint unsigned",
         DbType.UInt64);
@@ -101,6 +102,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
     private static readonly RelationalTypeMapping s_jsonObjectMapping = MySqlJsonTypeMapping.CreateJsonObjectMapping();
     private static readonly RelationalTypeMapping s_jsonArrayMapping = MySqlJsonTypeMapping.CreateJsonArrayMapping();
     private static readonly RelationalTypeMapping s_serverVersionMapping = new MySqlServerVersionTypeMapping();
+
     private static readonly RelationalTypeMapping s_stringMapping = new MySqlStringTypeMapping(
         "longtext",
         DbType.String,
@@ -260,6 +262,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
                 ?? converter?.ProviderClrType
                 ?? elementType.ClrType)
             .UnwrapNullableType();
+
         var precision = elementType.GetPrecision();
 
         if (string.IsNullOrWhiteSpace(storeType)
@@ -271,9 +274,10 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             // IElementType while using the provider's valid default mapping for
             // serialization. Explicit temporal store types remain fail-closed.
             var mappingInfo = new RelationalTypeMappingInfo(elementType) with { Precision = null };
-            var mapping = FindMapping(mappingInfo)?.WithComposedConverter(
-                converter,
-                jsonValueReaderWriter: mappingInfo.JsonValueReaderWriter);
+            var mapping = FindMapping(mappingInfo)
+                ?.WithComposedConverter(
+                    converter,
+                    jsonValueReaderWriter: mappingInfo.JsonValueReaderWriter);
 
             ValidateMapping(mapping, property: null);
 
@@ -290,7 +294,10 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var clrType = mappingInfo.ClrType?.UnwrapNullableType();
 
         if (mappingInfo.StoreTypeName is { } storeTypeName
-            && storeTypeName.AsSpan().Trim().Equals("uuid", StringComparison.OrdinalIgnoreCase)
+            && storeTypeName
+                .AsSpan()
+                .Trim()
+                .Equals("uuid", StringComparison.OrdinalIgnoreCase)
             && clrType is not null
             && clrType != typeof(Guid)
             && clrType != typeof(string))
@@ -394,12 +401,15 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             {
                 var mapping = GetUuidMapping();
 
-                if (clrType is null || clrType == typeof(Guid))
+                if (clrType is null
+                    || clrType == typeof(Guid))
                 {
                     return s_uuidGuidMapping;
                 }
 
-                return clrType == typeof(string) ? mapping : null;
+                return clrType == typeof(string)
+                    ? mapping
+                    : null;
             }
 
             if (normalizedStoreType is "enum" or "set")
@@ -413,13 +423,13 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             if (normalizedStoreType == "double"
                 && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
             {
-                return new MySqlDoubleTypeMapping(mappingInfo.StoreTypeName, DbType.Double);
+                return new MySqlDoubleTypeMapping(mappingInfo.StoreTypeName);
             }
 
             if (normalizedStoreType == "float"
                 && mappingInfo.StoreTypeName.Contains("unsigned", StringComparison.OrdinalIgnoreCase))
             {
-                return new MySqlFloatTypeMapping(mappingInfo.StoreTypeName, DbType.Single);
+                return new MySqlFloatTypeMapping(mappingInfo.StoreTypeName);
             }
 
             if (clrType == typeof(byte[])
@@ -472,8 +482,12 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var storeType = mappingInfo.StoreTypeName;
 
         if (string.IsNullOrWhiteSpace(storeType)
-            || storeType.Trim().Equals("bit", StringComparison.OrdinalIgnoreCase)
-            || storeType.Trim().Equals("bit(1)", StringComparison.OrdinalIgnoreCase))
+            || storeType
+                .Trim()
+                .Equals("bit", StringComparison.OrdinalIgnoreCase)
+            || storeType
+                .Trim()
+                .Equals("bit(1)", StringComparison.OrdinalIgnoreCase))
         {
             return s_bitMapping;
         }
@@ -607,7 +621,8 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
     private RelationalTypeMapping GetUuidMapping()
     {
-        MySqlMariaDbUuidSupport.EnsureSupported(_mySqlSingletonOptions.Profile
+        MySqlMariaDbUuidSupport.EnsureSupported(
+            _mySqlSingletonOptions.Profile
             ?? throw new InvalidOperationException("The server profile is not initialized."));
 
         return s_uuidMapping;
@@ -633,7 +648,9 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         }
 
         var size = mappingInfo.Size
-            ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+            ?? (mappingInfo.IsKeyOrIndex
+                ? DefaultKeyOrIndexLength
+                : null);
 
         var isFixedLength =
             (mappingInfo.IsFixedLength == true || normalizedStoreType == "char")
@@ -644,7 +661,9 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         {
             return new MySqlGuidStringTypeMapping(
                 $"{normalizedStoreType}(36)",
-                normalizedStoreType == "char" ? DbType.StringFixedLength : DbType.String,
+                normalizedStoreType == "char"
+                    ? DbType.StringFixedLength
+                    : DbType.String,
                 size.Value,
                 useKeyComparison: mappingInfo.IsKeyOrIndex);
         }
@@ -698,7 +717,10 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             return (ByteArrayTypeMapping)explicitBlobMapping;
         }
 
-        var size = mappingInfo.Size ?? (mappingInfo.IsKeyOrIndex ? DefaultKeyOrIndexLength : null);
+        var size = mappingInfo.Size
+            ?? (mappingInfo.IsKeyOrIndex
+                ? DefaultKeyOrIndexLength
+                : null);
 
         if (normalizedStoreType == "binary"
             && !string.IsNullOrWhiteSpace(mappingInfo.StoreTypeName))
@@ -719,9 +741,16 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         // binary column as Guid. VARBINARY(17) still stores a 16-byte payload
         // without padding or extra data, while keeping ordinary byte[] and
         // Guid-to-byte converters on the driver's binary-reader path.
-        var storeType = storeSize is > 0 ? $"varbinary({storeSize.Value})" : "longblob";
+        var storeType = storeSize is > 0
+            ? $"varbinary({storeSize.Value})"
+            : "longblob";
 
-        return new ByteArrayTypeMapping(storeType, DbType.Binary, storeSize is > 0 ? storeSize : null);
+        return new ByteArrayTypeMapping(
+            storeType,
+            DbType.Binary,
+            storeSize is > 0
+                ? storeSize
+                : null);
     }
 
     private static DecimalTypeMapping CreateDecimalMapping(
@@ -779,7 +808,9 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
         var precision = MySqlTemporalLiteralFormatter.ValidatePrecision(
             mappingInfo.Precision ?? DefaultDateTimePrecision);
 
-        var storeTypeBase = normalizedStoreType == "timestamp" ? "timestamp" : "datetime";
+        var storeTypeBase = normalizedStoreType == "timestamp"
+            ? "timestamp"
+            : "datetime";
 
         return new MySqlDateTimeTypeMapping($"{storeTypeBase}({precision})");
     }
@@ -825,5 +856,4 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
 
         return new MySqlTimeSpanTypeMapping($"time({precision})", precision);
     }
-
 }

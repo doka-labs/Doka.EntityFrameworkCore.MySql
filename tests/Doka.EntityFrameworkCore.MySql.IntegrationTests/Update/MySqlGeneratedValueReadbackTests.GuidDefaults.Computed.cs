@@ -15,8 +15,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsComputedMode>(target, format, capture);
         await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
-        var rows = Enumerable.Range(1, 24)
-            .Select(id => new GuidComputedValueRow { Id = id, Input = (id * 7) + 3 })
+        var rows = Enumerable
+            .Range(1, 24)
+            .Select(id => new GuidComputedValueRow
+            {
+                Id = id,
+                Input = id * 7 + 3,
+            })
             .Reverse()
             .ToArray();
 
@@ -27,25 +32,32 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var written = await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidComputedValueRow>().AsNoTracking()
+        var persisted = await context
+            .Set<GuidComputedValueRow>()
+            .AsNoTracking()
             .ToDictionaryAsync(row => row.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(24, written);
         Assert.Equal(24, persisted.Count);
         AssertGuidComputedMetadata(context);
-        Assert.All(rows, row =>
-        {
-            AssertGuidComputedValues(row);
-            Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
-            Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
-        });
+        Assert.All(
+            rows,
+            row =>
+            {
+                AssertGuidComputedValues(row);
+                Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
+                Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
+            });
+
         Assert.NotEmpty(GuidDefaultInsertHeaders(capture.Commands, GuidComputedValueTable));
-        Assert.All(GuidDefaultInsertHeaders(capture.Commands, GuidComputedValueTable), header =>
-        {
-            Assert.DoesNotContain("`RequiredValue`", header, StringComparison.Ordinal);
-            Assert.DoesNotContain("`NullableValue`", header, StringComparison.Ordinal);
-        });
+        Assert.All(
+            GuidDefaultInsertHeaders(capture.Commands, GuidComputedValueTable),
+            header =>
+            {
+                Assert.DoesNotContain("`RequiredValue`", header, StringComparison.Ordinal);
+                Assert.DoesNotContain("`NullableValue`", header, StringComparison.Ordinal);
+            });
     }
 
     /// <summary>Refreshes computed GUIDs and nullability when a known input changes.</summary>
@@ -61,8 +73,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var capture = new ReadbackCapture();
         await using var context = CreateGuidDefaultsContext<GuidDefaultsComputedMode>(target, format, capture);
         await RecreateGuidDefaultsTablesAsync(context, CancellationToken.None);
-        var rows = Enumerable.Range(1, 8)
-            .Select(id => new GuidComputedValueRow { Id = id, Input = id })
+        var rows = Enumerable
+            .Range(1, 8)
+            .Select(id => new GuidComputedValueRow
+            {
+                Id = id,
+                Input = id,
+            })
             .Reverse()
             .ToArray();
 
@@ -83,20 +100,25 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var written = await context.SaveChangesAsync(CancellationToken.None);
 
         capture.Enabled = false;
-        var persisted = await context.Set<GuidComputedValueRow>().AsNoTracking()
+        var persisted = await context
+            .Set<GuidComputedValueRow>()
+            .AsNoTracking()
             .ToDictionaryAsync(row => row.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(8, written);
         Assert.Equal(8, persisted.Count);
         AssertGuidComputedMetadata(context);
-        Assert.All(rows, row =>
-        {
-            AssertGuidComputedValues(row);
-            Assert.NotEqual(previous[row.Id], row.RequiredValue);
-            Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
-            Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
-        });
+        Assert.All(
+            rows,
+            row =>
+            {
+                AssertGuidComputedValues(row);
+                Assert.NotEqual(previous[row.Id], row.RequiredValue);
+                Assert.Equal(row.RequiredValue, persisted[row.Id].RequiredValue);
+                Assert.Equal(row.NullableValue, persisted[row.Id].NullableValue);
+            });
+
         Assert.Equal(8, capture.Commands.Sum(sql => CountOccurrences(sql, "UPDATE ")));
     }
 
@@ -119,6 +141,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         Assert.Equal(ExpectedComputedGuid(row.Input), row.RequiredValue);
-        Assert.Equal(row.Input % 2 == 0 ? (Guid?)null : ExpectedComputedGuid(row.Input), row.NullableValue);
+        Assert.Equal(
+            row.Input % 2 == 0
+                ? null
+                : ExpectedComputedGuid(row.Input),
+            row.NullableValue);
     }
 }

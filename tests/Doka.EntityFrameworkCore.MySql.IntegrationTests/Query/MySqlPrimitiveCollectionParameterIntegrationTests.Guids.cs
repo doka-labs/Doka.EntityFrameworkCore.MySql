@@ -19,7 +19,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.BinaryId)),
             CancellationToken.None);
 
         // Assert
@@ -42,7 +44,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.BinaryId)),
             CancellationToken.None);
 
         // Assert
@@ -61,11 +65,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         await _fixture.EnsureSeededAsync(target, CancellationToken.None);
         await using var context = CreateContext(target);
-        var values = Enumerable.Range(0, RowCount).Select(CreateGuid).ToArray();
+        var values = Enumerable
+            .Range(0, RowCount)
+            .Select(CreateGuid)
+            .ToArray();
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.BinaryId)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.BinaryId)),
             CancellationToken.None);
 
         // Assert
@@ -157,7 +166,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalBinaryId)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalBinaryId)),
             CancellationToken.None);
 
         // Assert
@@ -180,7 +191,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         var ids = await SelectIdsAsync(
-            context.Items.Where(item => EF.Parameter(values).Contains(item.OptionalCharId)),
+            context.Items.Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalCharId)),
             CancellationToken.None);
 
         // Assert
@@ -247,7 +260,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         // Act
         // Project the decoded rowset directly, without correlated-IN optimizer semantics.
-        var values = await context.Items
+        var values = await context
+            .Items
             .Where(item => item.Id == 11)
             .SelectMany(item => item.GuidValues)
             .ToArrayAsync(CancellationToken.None);
@@ -270,7 +284,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         await using var context = CreateCharContext(target);
 
         // Act
-        var values = await context.Items
+        var values = await context
+            .Items
             .SelectMany(item => item.GuidValues)
             .ToArrayAsync(CancellationToken.None);
 

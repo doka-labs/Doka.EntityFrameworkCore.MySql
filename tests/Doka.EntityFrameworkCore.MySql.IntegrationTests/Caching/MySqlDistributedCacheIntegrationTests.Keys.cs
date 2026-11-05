@@ -27,8 +27,8 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             "e\u0301",
             "\ud83d\ude80",
             "'; DROP TABLE cache; --",
-            new string('a', 1024),
-            new string('\u00e9', 512),
+            new('a', 1024),
+            new('\u00e9', 512),
         ];
 
         // Act
@@ -46,10 +46,16 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         for (var index = 0; index < keys.Length; index++)
         {
-            results[index] = await store.Cache.GetAsync(keys[index], CancellationToken.None).ConfigureAwait(false);
+            results[index] = await store
+                .Cache
+                .GetAsync(keys[index], CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
-        var firstResult = await store.Cache.GetAsync("case", CancellationToken.None).ConfigureAwait(false);
+        var firstResult = await store
+            .Cache
+            .GetAsync("case", CancellationToken.None)
+            .ConfigureAwait(false);
 
         // Assert
         for (var index = 0; index < keys.Length; index++)

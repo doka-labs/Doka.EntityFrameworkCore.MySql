@@ -28,7 +28,11 @@ public sealed partial class MySqlNewFeatureTests
         var sql = string.Join("\n", commands.Select(c => c.CommandText));
 
         // Assert
-        Assert.Equal(true, invisibleColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(
+            true,
+            invisibleColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value);
+
         Assert.Contains("INVISIBLE", sql, StringComparison.Ordinal);
     }
 
@@ -44,11 +48,16 @@ public sealed partial class MySqlNewFeatureTests
         using var target = CreateContext<InvisibleContext>(isMariaDb: true);
 
         // Act
-        var operation = Assert.Single(GetDifferences(source, target).OfType<AddColumnOperation>());
+        var operation = Assert.Single(
+            GetDifferences(source, target)
+                .OfType<AddColumnOperation>());
 
         // Assert
         Assert.Equal(nameof(InvisibleEntity.InternalData), operation.Name);
-        Assert.Equal(true, operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(
+            true,
+            operation.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value);
     }
 
     /// <summary>
@@ -65,11 +74,19 @@ public sealed partial class MySqlNewFeatureTests
         // Arrange
         using var invisible = CreateContext<InvisibleContext>(isMariaDb: true);
         using var visible = CreateContext<VisibleColumnContext>(isMariaDb: true);
-        DbContext source = targetIsInvisible ? visible : invisible;
-        DbContext target = targetIsInvisible ? invisible : visible;
+        DbContext source = targetIsInvisible
+            ? visible
+            : invisible;
+
+        DbContext target = targetIsInvisible
+            ? invisible
+            : visible;
 
         // Act
-        var operation = GetDifferences(source, target).OfType<AlterColumnOperation>().Single();
+        var operation = GetDifferences(source, target)
+            .OfType<AlterColumnOperation>()
+            .Single();
+
         var sql = string.Join(
             "\n",
             target
@@ -78,8 +95,16 @@ public sealed partial class MySqlNewFeatureTests
                 .Select(command => command.CommandText));
 
         // Assert
-        Assert.Equal(targetIsInvisible, operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
-        Assert.Equal(!targetIsInvisible, operation.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value);
+        Assert.Equal(
+            targetIsInvisible,
+            operation.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value);
+
+        Assert.Equal(
+            !targetIsInvisible,
+            operation.OldColumn.FindAnnotation(MySqlAnnotationNames.Invisible)
+                ?.Value);
+
         Assert.Equal(targetIsInvisible, sql.Contains("INVISIBLE", StringComparison.Ordinal));
     }
 

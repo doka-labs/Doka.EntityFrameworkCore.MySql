@@ -6,8 +6,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 public sealed class MySqlMigrationOperationContext
 {
-    private readonly Func<MigrationOperation, IReadOnlyList<MySqlMigrationCommandSpec>> _standardRenderer;
     private readonly object _renderStateLock = new();
+    private readonly Func<MigrationOperation, IReadOnlyList<MySqlMigrationCommandSpec>> _standardRenderer;
     private bool _active = true;
     private bool _rendering;
 

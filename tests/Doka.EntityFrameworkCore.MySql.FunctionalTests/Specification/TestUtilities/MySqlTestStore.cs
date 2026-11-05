@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// Per-database test store for Doka.EntityFrameworkCore.MySql specification suites. Wires the
 /// provider's <c>UseMySql</c> registration onto the EF Core spec-test infrastructure, handles
 /// database create / clean / drop lifecycle, and exposes the server-version snapshot the spec
-/// tests query through <see cref="ServerVersion"/>.
+/// tests query through <see cref="ServerVersion" />.
 /// </summary>
 public class MySqlTestStore : RelationalTestStore
 {
@@ -22,20 +22,48 @@ public class MySqlTestStore : RelationalTestStore
     public MySqlTestStore(
         string name,
         bool shared = true
-    ) : base(name, shared, new MySqlConnection(BuildConnectionString(name)))
-    {
-    }
+    ) : base(name, shared, new MySqlConnection(BuildConnectionString(name))) { }
 
     /// <summary>
     /// Cached server version pulled from the active spec-test connection. The value comes from
-    /// <see cref="MySqlTestEnvironment.ServerVersion"/>; specification tests use it to dispatch
+    /// <see cref="MySqlTestEnvironment.ServerVersion" />; specification tests use it to dispatch
     /// per-engine assertions when behavior diverges between MySQL and MariaDB.
     /// </summary>
     public static MySqlServerVersion ServerVersion => MySqlTestEnvironment.ServerVersion;
 
-    public static MySqlTestStore GetOrCreate(string name) => new(name);
+    /// <summary>
+    /// Default <see langword="true" />: the test-store's owned <see cref="DbConnection" /> is
+    /// reused across every context the fixture hands out. Tests that bracket each scenario in
+    /// a single shared transaction (Updates, NorthwindWhereQuery, BIDT, JsonQuery) rely on
+    /// the shared-connection identity so the transaction enrolls correctly.
+    /// Override to <see langword="false" /> for fixtures whose tests spawn concurrent contexts
+    /// against the same store (Migrations <c>Can_apply_*_in_parallel*</c> patterns); without
+    /// per-context connections the parallel <see cref="DbConnection.OpenAsync" /> calls race
+    /// on the single shared connection and surface as
+    /// <c>InvalidOperationException: Cannot Open when State is Connecting</c>.
+    /// </summary>
+    public virtual bool UseSharedConnectionInProviderOptions => true;
 
-    public static MySqlTestStore Create(string name) => new(name, shared: false);
+    /// <summary>
+    /// MySQL and MariaDB delimit identifiers with backticks by default; the SQL-standard
+    /// double-quote form is only accepted when SQL mode ANSI_QUOTES is on, which would also
+    /// flip the meaning of <c>"text"</c> from string literal to identifier and break the rest
+    /// of the spec test corpus. EF Core spec tests author raw SQL with the portable
+    /// <c>[name]</c> placeholder and rely on the test store to expand it to the engine's native
+    /// delimiter form; override these so <see cref="RelationalTestStore.NormalizeDelimitersInRawString" />
+    /// produces backtick-quoted identifiers.
+    /// </summary>
+    protected override string OpenDelimiter => "`";
+
+    protected override string CloseDelimiter => "`";
+
+    public static MySqlTestStore GetOrCreate(
+        string name
+    ) => new(name);
+
+    public static MySqlTestStore Create(
+        string name
+    ) => new(name, shared: false);
 
     public override DbContextOptionsBuilder AddProviderOptions(
         DbContextOptionsBuilder builder
@@ -48,39 +76,12 @@ public class MySqlTestStore : RelationalTestStore
                 Connection.ConnectionString,
                 ServerVersion,
                 ConfigureSpecificationProvider))
-        .ConfigureWarnings(
-            warnings => warnings.Log(
-                RelationalEventId.MultipleCollectionIncludeWarning));
+        .ConfigureWarnings(warnings => warnings.Log(
+            RelationalEventId.MultipleCollectionIncludeWarning));
 
     private static void ConfigureSpecificationProvider(
         MySqlDbContextOptionsBuilder provider
     ) => provider.UseNetTopologySuite();
-
-    /// <summary>
-    /// Default <see langword="true"/>: the test-store's owned <see cref="DbConnection"/> is
-    /// reused across every context the fixture hands out. Tests that bracket each scenario in
-    /// a single shared transaction (Updates, NorthwindWhereQuery, BIDT, JsonQuery) rely on
-    /// the shared-connection identity so the transaction enrolls correctly.
-    /// Override to <see langword="false"/> for fixtures whose tests spawn concurrent contexts
-    /// against the same store (Migrations <c>Can_apply_*_in_parallel*</c> patterns); without
-    /// per-context connections the parallel <see cref="DbConnection.OpenAsync"/> calls race
-    /// on the single shared connection and surface as
-    /// <c>InvalidOperationException: Cannot Open when State is Connecting</c>.
-    /// </summary>
-    public virtual bool UseSharedConnectionInProviderOptions => true;
-
-    /// <summary>
-    /// MySQL and MariaDB delimit identifiers with backticks by default; the SQL-standard
-    /// double-quote form is only accepted when SQL mode ANSI_QUOTES is on, which would also
-    /// flip the meaning of <c>"text"</c> from string literal to identifier and break the rest
-    /// of the spec test corpus. EF Core spec tests author raw SQL with the portable
-    /// <c>[name]</c> placeholder and rely on the test store to expand it to the engine's native
-    /// delimiter form; override these so <see cref="RelationalTestStore.NormalizeDelimitersInRawString"/>
-    /// produces backtick-quoted identifiers.
-    /// </summary>
-    protected override string OpenDelimiter => "`";
-
-    protected override string CloseDelimiter => "`";
 
     protected override async Task InitializeAsync(
         Func<DbContext> createContext,
@@ -202,7 +203,7 @@ public class MySqlTestStore : RelationalTestStore
     /// Drops the specification database during reset or explicit disposal cleanup.
     /// </summary>
     /// <remarks>
-    /// Reset observes its caller token; disposal passes <see cref="CancellationToken.None"/>
+    /// Reset observes its caller token; disposal passes <see cref="CancellationToken.None" />
     /// so cleanup can finish after cancellation.
     /// </remarks>
     /// <param name="cancellationToken">The token to observe while performing this operation.</param>
@@ -234,6 +235,7 @@ public class MySqlTestStore : RelationalTestStore
         await using var command = admin.CreateCommand();
         command.CommandText =
             "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = @name;";
+
         command.CommandTimeout = DefaultCommandTimeout;
         command.Parameters.AddWithValue("@name", name);
 
@@ -267,14 +269,16 @@ public class MySqlTestStore : RelationalTestStore
     ) => new MySqlConnectionStringBuilder(MySqlTestEnvironment.ConnectionString)
     {
         Database = databaseName,
-        DefaultCommandTimeout = (uint)DefaultCommandTimeout,
+        DefaultCommandTimeout = DefaultCommandTimeout,
         AllowUserVariables = true,
         UseAffectedRows = false,
+
         // Non-shared EF specification fixtures repeatedly create contexts from the
         // same DbConnection. MySqlConnector redacts the password after the first
         // open unless this flag is set, leaving later database-lifecycle operations
         // unable to create their server-level connection.
         PersistSecurityInfo = true,
+
         // Match what the provider's MySqlRelationalConnection.CreateDbConnection() sets
         // on connections built from UseMySql(connectionString); the test infrastructure
         // bypasses that path by constructing the MySqlConnection directly and passing it
@@ -289,7 +293,7 @@ public class MySqlTestStore : RelationalTestStore
     {
         var builder = new MySqlConnectionStringBuilder(MySqlTestEnvironment.ConnectionString)
         {
-            DefaultCommandTimeout = (uint)DefaultCommandTimeout,
+            DefaultCommandTimeout = DefaultCommandTimeout,
         };
 
         builder.Remove("Database");

@@ -18,7 +18,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         var command = new TestCommand([], hasReadResults);
-        var batch = context.GetService<IModificationCommandBatchFactory>().Create();
+        var batch = context
+            .GetService<IModificationCommandBatchFactory>()
+            .Create();
 
         // Act
         var added = batch.TryAddCommand(command);
@@ -38,7 +40,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         // Arrange
         using var context = new PacketContext(CreatePacketOptions());
         var commands = CreatePacketCommands(context, count: 1000);
-        var batch = context.GetService<IModificationCommandBatchFactory>().Create();
+        var batch = context
+            .GetService<IModificationCommandBatchFactory>()
+            .Create();
 
         // Act
         var accepted = AddUntilFull(batch, commands);
@@ -63,7 +67,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         using var context = new PacketContext(CreatePacketOptions());
         var commands = CreatePacketCommands(context, count: 1000);
         var smaller = CreatePacketCommand(context, [255]);
-        var batch = context.GetService<IModificationCommandBatchFactory>().Create();
+        var batch = context
+            .GetService<IModificationCommandBatchFactory>()
+            .Create();
+
         var accepted = AddUntilFull(batch, commands);
 
         // Act
@@ -86,7 +93,9 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         using var context = new PacketContext(CreatePacketOptions());
         context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
         var commands = CreatePacketCommands(context, count: 1000);
-        var batch = context.GetService<IModificationCommandBatchFactory>().Create();
+        var batch = context
+            .GetService<IModificationCommandBatchFactory>()
+            .Create();
 
         // Act
         var accepted = AddUntilFull(batch, commands);
@@ -102,7 +111,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     )
     {
         var accepted = 0;
-        while (accepted < commands.Length && batch.TryAddCommand(commands[accepted]))
+        while (accepted < commands.Length
+            && batch.TryAddCommand(commands[accepted]))
         {
             accepted++;
         }
@@ -134,17 +144,27 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         var entity = new PacketRow { Id = key };
         context.Add(entity);
         var primaryKey = context.Model.FindEntityType(typeof(PacketRow))!.FindPrimaryKey()!;
-        var entry = context.GetService<IUpdateAdapterFactory>().Create().TryGetEntry(primaryKey, [key])!;
+        var entry = context
+            .GetService<IUpdateAdapterFactory>()
+            .Create()
+            .TryGetEntry(primaryKey, [key])!;
 
-        var table = context.Model.GetRelationalModel().Tables.Single();
-        var command = context.GetService<IModificationCommandFactory>().CreateModificationCommand(
-            new ModificationCommandParameters(
-                table,
-                sensitiveLoggingEnabled: false,
-                detailedErrorsEnabled: false,
-                comparer: null,
-                generateParameterName: context.NextParameterName,
-                logger: null));
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single();
+
+        var command = context
+            .GetService<IModificationCommandFactory>()
+            .CreateModificationCommand(
+                new ModificationCommandParameters(
+                    table,
+                    sensitiveLoggingEnabled: false,
+                    detailedErrorsEnabled: false,
+                    comparer: null,
+                    generateParameterName: context.NextParameterName,
+                    logger: null));
 
         command.AddEntry(entry, mainEntry: true);
 
@@ -178,8 +198,14 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             modelBuilder.Entity<PacketRow>(row =>
             {
                 row.HasKey(candidate => candidate.Id);
-                row.Property(candidate => candidate.Id).HasMaxLength(3071).ValueGeneratedNever();
-                row.Property(candidate => candidate.Generated).HasComputedColumnSql("1", stored: true);
+                row
+                    .Property(candidate => candidate.Id)
+                    .HasMaxLength(3071)
+                    .ValueGeneratedNever();
+
+                row
+                    .Property(candidate => candidate.Generated)
+                    .HasComputedColumnSql("1", stored: true);
             });
         }
     }

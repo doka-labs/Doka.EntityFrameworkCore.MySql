@@ -3,8 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// The public identity surface for the provider's OpenTelemetry-style diagnostic
 /// triple (logs, distributed traces, metrics). Consumers subscribe to the
-/// provider-owned <see cref="System.Diagnostics.ActivitySource"/> and
-/// <see cref="System.Diagnostics.Metrics.Meter"/> via these constants -- the
+/// provider-owned <see cref="System.Diagnostics.ActivitySource" /> and
+/// <see cref="System.Diagnostics.Metrics.Meter" /> via these constants -- the
 /// names are part of the operational contract per D-010 and renaming them is a
 /// breaking change for downstream dashboards and alert rules.
 /// Every provider-owned metric carries the bounded <c>engine</c> tag with a
@@ -13,8 +13,8 @@ namespace Doka.EntityFrameworkCore.MySql;
 public static class MySqlDiagnostics
 {
     /// <summary>
-    /// The name of the provider-owned <see cref="System.Diagnostics.ActivitySource"/>
-    /// and <see cref="System.Diagnostics.Metrics.Meter"/>. OpenTelemetry consumers
+    /// The name of the provider-owned <see cref="System.Diagnostics.ActivitySource" />
+    /// and <see cref="System.Diagnostics.Metrics.Meter" />. OpenTelemetry consumers
     /// use this string to subscribe to provider spans and metrics:
     /// <code>builder.WithTracing(t => t.AddSource(MySqlDiagnostics.SourceName));</code>
     /// </summary>
@@ -62,7 +62,7 @@ public static class MySqlDiagnostics
 
     /// <summary>
     /// The name of the server-version resolve span. Emitted around the
-    /// one-shot resolution of the configured <see cref="MySqlServerVersion"/>
+    /// one-shot resolution of the configured <see cref="MySqlServerVersion" />
     /// into the provider's immutable runtime capability profile.
     /// </summary>
     public const string ServerVersionResolveSpanName = "db.serverversion.resolve";

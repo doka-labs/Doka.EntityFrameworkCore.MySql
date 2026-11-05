@@ -36,7 +36,10 @@ public sealed class TcpFaultProxyCancellationTests
 
         await client.ConnectAsync(proxy.Host, proxy.Port, guard.Token);
         using var upstreamClient = await listener.AcceptTcpClientAsync(guard.Token);
-        await client.GetStream().WriteAsync(commitPacket, guard.Token);
+        await client
+            .GetStream()
+            .WriteAsync(commitPacket, guard.Token);
+
         var observedFault = await proxy.WaitForCommitFaultAsync(s_guardTimeout, guard.Token);
 
         // Assert
@@ -78,11 +81,19 @@ public sealed class TcpFaultProxyCancellationTests
 
         await client.ConnectAsync(proxy.Host, proxy.Port, guard.Token);
         using var upstreamClient = await listener.AcceptTcpClientAsync(guard.Token);
-        await client.GetStream().WriteAsync(queryPacket, guard.Token);
+        await client
+            .GetStream()
+            .WriteAsync(queryPacket, guard.Token);
 
         // WHY: Receiving the complete query proves the proxy armed response counting before the response is sent.
-        await upstreamClient.GetStream().ReadExactlyAsync(forwardedPacket, guard.Token);
-        await upstreamClient.GetStream().WriteAsync(responsePacket, guard.Token);
+        await upstreamClient
+            .GetStream()
+            .ReadExactlyAsync(forwardedPacket, guard.Token);
+
+        await upstreamClient
+            .GetStream()
+            .WriteAsync(responsePacket, guard.Token);
+
         await proxy.WaitForQueryResponseFaultAsync(s_guardTimeout, guard.Token);
 
         // Assert

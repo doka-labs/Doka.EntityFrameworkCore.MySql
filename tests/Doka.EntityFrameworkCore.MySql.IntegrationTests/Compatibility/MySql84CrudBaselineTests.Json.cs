@@ -18,6 +18,7 @@ public sealed partial class MySql84CrudBaselineTests
         {
             await using var context = new MySql84CrudContext(CreateOptions(connectionString));
             var migrationsSqlGenerator = context.GetService<IMigrationsSqlGenerator>();
+
             // Act
             var commands = migrationsSqlGenerator.Generate(
                 [

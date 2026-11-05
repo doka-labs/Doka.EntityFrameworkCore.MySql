@@ -69,9 +69,11 @@ public sealed class MonsterFixupMySqlTest : MonsterFixupTestBase<MonsterFixupMyS
             builder
                 .Entity<TMessage>()
                 .HasKey(e => e.MessageId);
+
             builder
                 .Entity<TProductPhoto>()
                 .HasKey(e => e.PhotoId);
+
             builder
                 .Entity<TProductReview>()
                 .HasKey(e => e.ReviewId);

@@ -68,7 +68,18 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
     private static Guid CreateGuid(
         int value
-    ) => new(value, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    ) => new(
+        value,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0);
 
     /// <summary>Drops the table using the caller's cancellation policy.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

@@ -228,7 +228,10 @@ internal static partial class DocumentationContract
         string root
     )
     {
-        var documents = Directory.GetFiles(root, "*.md", SearchOption.TopDirectoryOnly).ToList();
+        var documents = Directory
+            .GetFiles(root, "*.md", SearchOption.TopDirectoryOnly)
+            .ToList();
+
         foreach (var directory in new[] { ".github", "docs", "examples", "tests" })
         {
             var path = Path.Combine(root, directory);
@@ -238,7 +241,10 @@ internal static partial class DocumentationContract
             }
         }
 
-        return documents.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        return documents
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static IEnumerable<ContractError> ValidatePackageReadme(
@@ -254,7 +260,8 @@ internal static partial class DocumentationContract
             }
 
             var (path, fragment) = SplitTarget(target);
-            if (path.Length > 0 || fragment.Length == 0)
+            if (path.Length > 0
+                || fragment.Length == 0)
             {
                 yield return Error(
                     root,
@@ -280,10 +287,12 @@ internal static partial class DocumentationContract
             }
 
             var headings = AuthoredLines(path)
-                .Select(static entry => HeadingPattern().Match(entry.Text))
+                .Select(static entry => HeadingPattern()
+                    .Match(entry.Text))
                 .Where(static match => match.Success)
                 .Select(static match => match.Groups["title"].Value)
                 .ToHashSet(StringComparer.Ordinal);
+
             foreach (var section in requiredSections.Where(section => !headings.Contains(section)))
             {
                 yield return new ContractError(
@@ -301,15 +310,18 @@ internal static partial class DocumentationContract
         var queryMethods = new HashSet<string>(StringComparer.Ordinal);
         var configurationMethods = new HashSet<string>(StringComparer.Ordinal);
         foreach (var relativePath in new[]
-                 {
-                     "src/Doka.EntityFrameworkCore.MySql/PublicAPI.Unshipped.txt",
-                     "src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Unshipped.txt",
-                 })
+            {
+                "src/Doka.EntityFrameworkCore.MySql/PublicAPI.Unshipped.txt",
+                "src/Doka.EntityFrameworkCore.MySql.NetTopologySuite/PublicAPI.Unshipped.txt",
+            })
         {
             foreach (var line in File.ReadLines(Path.Combine(root, relativePath)))
             {
-                var match = PublicMethodPattern().Match(line);
-                if (!match.Success || match.Groups["type"].Value == match.Groups["method"].Value)
+                var match = PublicMethodPattern()
+                    .Match(line);
+
+                if (!match.Success
+                    || match.Groups["type"].Value == match.Groups["method"].Value)
                 {
                     continue;
                 }
@@ -343,9 +355,9 @@ internal static partial class DocumentationContract
         var content = File.Exists(Path.Combine(root, relativePath))
             ? File.ReadAllText(Path.Combine(root, relativePath))
             : string.Empty;
+
         var documented = DocumentedMethodPattern()
             .Matches(content)
-            .Cast<Match>()
             .Select(static match => match.Groups["method"].Value)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -368,7 +380,8 @@ internal static partial class DocumentationContract
         while (pending.TryPop(out var document))
         {
             document = Path.GetFullPath(document);
-            if (!File.Exists(document) || !reachable.Add(document))
+            if (!File.Exists(document)
+                || !reachable.Add(document))
             {
                 continue;
             }
@@ -388,6 +401,7 @@ internal static partial class DocumentationContract
 
                 var destination = Path.GetFullPath(
                     Path.Combine(Path.GetDirectoryName(document)!, Uri.UnescapeDataString(relativePath)));
+
                 if (!IsWithin(documentationRoot, destination))
                 {
                     continue;
@@ -398,7 +412,9 @@ internal static partial class DocumentationContract
                     destination = Path.Combine(destination, "README.md");
                 }
 
-                if (Path.GetExtension(destination).Equals(".md", StringComparison.OrdinalIgnoreCase))
+                if (Path
+                    .GetExtension(destination)
+                    .Equals(".md", StringComparison.OrdinalIgnoreCase))
                 {
                     pending.Push(destination);
                 }
@@ -432,9 +448,11 @@ internal static partial class DocumentationContract
             ? source
             : relativePath[0] == '/'
                 ? Path.GetFullPath(Path.Combine(root, Uri.UnescapeDataString(relativePath.TrimStart('/'))))
-                : Path.GetFullPath(Path.Combine(
-                    Path.GetDirectoryName(source)!,
-                    Uri.UnescapeDataString(relativePath)));
+                : Path.GetFullPath(
+                    Path.Combine(
+                        Path.GetDirectoryName(source)!,
+                        Uri.UnescapeDataString(relativePath)));
+
         if (!IsWithin(root, destination))
         {
             return Error(root, source, line, "Target escapes the repository root", target);
@@ -455,7 +473,9 @@ internal static partial class DocumentationContract
             return null;
         }
 
-        if (!Path.GetExtension(destination).Equals(".md", StringComparison.OrdinalIgnoreCase))
+        if (!Path
+            .GetExtension(destination)
+            .Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
             return Error(
                 root,
@@ -482,7 +502,8 @@ internal static partial class DocumentationContract
     {
         foreach (var (line, text) in AuthoredLines(document))
         {
-            foreach (Match match in InlineLinkPattern().Matches(text))
+            foreach (Match match in InlineLinkPattern()
+                .Matches(text))
             {
                 var linkTarget = Destination(match.Groups["target"].Value);
                 if (linkTarget is not null)
@@ -491,7 +512,9 @@ internal static partial class DocumentationContract
                 }
             }
 
-            var definition = ReferenceDefinitionPattern().Match(text);
+            var definition = ReferenceDefinitionPattern()
+                .Match(text);
+
             if (definition.Success
                 && Destination(definition.Groups["target"].Value) is { } referenceTarget)
             {
@@ -510,7 +533,9 @@ internal static partial class DocumentationContract
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
-            var fence = FencePattern().Match(line);
+            var fence = FencePattern()
+                .Match(line);
+
             if (fence.Success)
             {
                 var marker = fence.Groups["marker"].Value;
@@ -519,7 +544,8 @@ internal static partial class DocumentationContract
                     fenceCharacter = marker[0];
                     fenceLength = marker.Length;
                 }
-                else if (marker[0] == fenceCharacter && marker.Length >= fenceLength)
+                else if (marker[0] == fenceCharacter
+                    && marker.Length >= fenceLength)
                 {
                     fenceCharacter = null;
                     fenceLength = 0;
@@ -543,12 +569,15 @@ internal static partial class DocumentationContract
         var headingCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var (_, line) in AuthoredLines(document))
         {
-            foreach (Match anchor in ExplicitAnchorPattern().Matches(line))
+            foreach (Match anchor in ExplicitAnchorPattern()
+                .Matches(line))
             {
                 anchors.Add(anchor.Groups["anchor"].Value);
             }
 
-            var heading = HeadingPattern().Match(line);
+            var heading = HeadingPattern()
+                .Match(line);
+
             if (!heading.Success)
             {
                 continue;
@@ -557,7 +586,10 @@ internal static partial class DocumentationContract
             var baseAnchor = GitHubHeadingAnchor(heading.Groups["title"].Value);
             var duplicateIndex = headingCounts.GetValueOrDefault(baseAnchor);
             headingCounts[baseAnchor] = duplicateIndex + 1;
-            anchors.Add(duplicateIndex == 0 ? baseAnchor : $"{baseAnchor}-{duplicateIndex}");
+            anchors.Add(
+                duplicateIndex == 0
+                    ? baseAnchor
+                    : $"{baseAnchor}-{duplicateIndex}");
         }
 
         return anchors;
@@ -567,11 +599,20 @@ internal static partial class DocumentationContract
         string title
     )
     {
-        var decoded = WebUtility.HtmlDecode(HtmlTagPattern().Replace(title, string.Empty));
-        var normalized = InlineMarkupPattern().Replace(decoded, string.Empty).Trim().ToLowerInvariant();
+        var decoded = WebUtility.HtmlDecode(
+            HtmlTagPattern()
+                .Replace(title, string.Empty));
+
+        var normalized = InlineMarkupPattern()
+            .Replace(decoded, string.Empty)
+            .Trim()
+            .ToLowerInvariant();
+
         var characters = normalized.Where(static character =>
             char.IsLetterOrDigit(character) || character is ' ' or '-' or '_');
-        return WhitespacePattern().Replace(string.Concat(characters), "-");
+
+        return WhitespacePattern()
+            .Replace(string.Concat(characters), "-");
     }
 
     private static string? Destination(
@@ -587,27 +628,40 @@ internal static partial class DocumentationContract
         if (target.StartsWith('<'))
         {
             var end = target.IndexOf('>');
-            return end < 0 ? target : target[1..end];
+            return end < 0
+                ? target
+                : target[1..end];
         }
 
         var whitespace = target.IndexOfAny([' ', '\t']);
-        return whitespace < 0 ? target : target[..whitespace];
+        return whitespace < 0
+            ? target
+            : target[..whitespace];
     }
 
     private static bool IsExternal(
         string target
-    ) => target.StartsWith("//", StringComparison.Ordinal) || SchemePattern().IsMatch(target);
+    ) => target.StartsWith("//", StringComparison.Ordinal)
+        || SchemePattern()
+            .IsMatch(target);
 
     private static (string Path, string Fragment) SplitTarget(
         string target
     )
     {
         var hash = target.IndexOf('#');
-        var withoutFragment = hash < 0 ? target : target[..hash];
+        var withoutFragment = hash < 0
+            ? target
+            : target[..hash];
+
         var query = withoutFragment.IndexOf('?');
         return (
-            query < 0 ? withoutFragment : withoutFragment[..query],
-            hash < 0 ? string.Empty : target[(hash + 1)..]);
+            query < 0
+                ? withoutFragment
+                : withoutFragment[..query],
+            hash < 0
+                ? string.Empty
+                : target[(hash + 1)..]);
     }
 
     private static bool IsWithin(
@@ -631,7 +685,9 @@ internal static partial class DocumentationContract
     private static string Relative(
         string root,
         string path
-    ) => Path.GetRelativePath(root, path).Replace('\\', '/');
+    ) => Path
+        .GetRelativePath(root, path)
+        .Replace('\\', '/');
 
     [GeneratedRegex("^\\s*(?<marker>`{3,}|~{3,})", RegexOptions.CultureInvariant)]
     private static partial Regex FencePattern();

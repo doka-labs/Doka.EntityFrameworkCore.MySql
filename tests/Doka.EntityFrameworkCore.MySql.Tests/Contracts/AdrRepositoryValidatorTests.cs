@@ -64,10 +64,12 @@ public sealed partial class AdrRepositoryValidatorTests
             + "$(MSBuildProjectDirectory)/LocalMariaDb123.runsettings</RunSettingsFilePath>",
             project,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "<DOKA_SPEC_TEST_TARGET>mariadb123</DOKA_SPEC_TEST_TARGET>",
             runSettings,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("CONNECTION_STRING", runSettings, StringComparison.Ordinal);
         Assert.DoesNotContain("PASSWORD", runSettings, StringComparison.OrdinalIgnoreCase);
     }

@@ -61,14 +61,24 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
     private static IQueryable<FilterTriple> CreateFilteredTripleQuery(
         FilterContext context
-    ) => context.SourceA.WithMaterializedSource(sourceA => context.SourceB.WithMaterializedSource(sourceB => sourceA
-            .SelectMany(_ => sourceB, (left, right) => new { AId = left.Id, BId = right.Id })
-            .SelectMany(_ => context.SourceC, (pair, third) => new FilterTriple
-            {
-                AId = pair.AId,
-                BId = pair.BId,
-                CId = third.Id,
-            })))
+    ) => context
+        .SourceA
+        .WithMaterializedSource(sourceA => context.SourceB.WithMaterializedSource(sourceB => sourceA
+            .SelectMany(
+                _ => sourceB,
+                (left, right) => new
+                {
+                    AId = left.Id,
+                    BId = right.Id,
+                })
+            .SelectMany(
+                _ => context.SourceC,
+                (pair, third) => new FilterTriple
+                {
+                    AId = pair.AId,
+                    BId = pair.BId,
+                    CId = third.Id,
+                })))
         .OrderBy(row => row.AId)
         .ThenBy(row => row.BId)
         .ThenBy(row => row.CId);
@@ -80,8 +90,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         int minimumC
     )
     {
-        var expected = Enumerable.Range(minimumA, 7 - minimumA)
-            .SelectMany(_ => Enumerable.Range(minimumB, 7 - minimumB), (first, second) => new { first, second })
+        var expected = Enumerable
+            .Range(minimumA, 7 - minimumA)
+            .SelectMany(
+                _ => Enumerable.Range(minimumB, 7 - minimumB),
+                (first, second) => new
+                {
+                    first,
+                    second,
+                })
             .SelectMany(
                 _ => Enumerable.Range(minimumC, 7 - minimumC),
                 (pair, third) => (pair.first, pair.second, third))
@@ -101,7 +118,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFilterFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.SourceA.OrderBy(row => row.Id)
+        var query = fixture
+            .Context
+            .SourceA
+            .OrderBy(row => row.Id)
             .Skip(1)
             .Take(2)
             .WithMaterializedSource(source => source.Join(
@@ -115,9 +135,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // Assert
         Assert.Equal([3, 4], actual.Select(row => row.Id));
+
         // WHY: Reapplying this deterministic filter would keep the same rows; the
         // executed SQL must also prove it appears only once before source paging.
-        Assert.Equal(1, fixture.Probe.CommandText.Split(">=", StringSplitOptions.None).Length - 1);
+        Assert.Equal(
+            1,
+            fixture.Probe.CommandText.Split(">=")
+                .Length
+            - 1);
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -141,25 +167,31 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var context = fixture.Context;
 
         // Act
-        var query = source.OrderBy(row => row.Id)
+        var query = source
+            .OrderBy(row => row.Id)
             .Skip(1)
             .Take(2)
-            .WithMaterializedSource(bound => bound.SelectMany(_ => context.SourceC, (left, right) => new FilterTriple
-            {
-                AId = left.Id,
-                CId = right.Id,
-            }));
+            .WithMaterializedSource(bound => bound.SelectMany(
+                _ => context.SourceC,
+                (left, right) => new FilterTriple
+                {
+                    AId = left.Id,
+                    CId = right.Id,
+                }));
 
         if (!ignoreOnSource)
         {
             query = query.IgnoreQueryFilters();
         }
 
-        var ordered = query.OrderBy(row => row.AId).ThenBy(row => row.CId);
+        var ordered = query
+            .OrderBy(row => row.AId)
+            .ThenBy(row => row.CId);
 
         var actual = await ordered.ToArrayAsync(cancellationToken);
 
-        var expected = Enumerable.Range(2, 2)
+        var expected = Enumerable
+            .Range(2, 2)
             .SelectMany(_ => Enumerable.Range(1, 6), (first, third) => (first, third));
 
         // Assert

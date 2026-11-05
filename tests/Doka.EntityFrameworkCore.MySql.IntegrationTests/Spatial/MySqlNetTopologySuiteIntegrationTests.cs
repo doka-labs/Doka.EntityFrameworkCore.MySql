@@ -41,7 +41,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
@@ -70,13 +71,15 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
             var berlin = CreatePoint(13.4050, 52.5200);
             var matchingIds = await context
-                .PointEntities.Where(entity => EF.Functions.DistanceSphere(entity.Location, berlin) < 500)
+                .PointEntities
+                .Where(entity => EF.Functions.DistanceSphere(entity.Location, berlin) < 500)
                 .Select(entity => entity.Id)
                 .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedBerlin = await context
-                .PointEntities.SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
+                .PointEntities
+                .SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -137,7 +140,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             await using var context = new SpatialDbContext(CreateSpatialOptions(connectionString, target));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PolygonTableName}` (
                          `Id` int NOT NULL,
@@ -167,13 +171,15 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             var searchPolygon = CreatePolygon(13.4045, 52.5195, 13.4055, 52.5205);
 
             var matchingIds = await context
-                .PolygonEntities.Where(entity => EF.Functions.MbrIntersects(entity.Region, searchPolygon))
+                .PolygonEntities
+                .Where(entity => EF.Functions.MbrIntersects(entity.Region, searchPolygon))
                 .Select(entity => entity.Id)
                 .ToListAsync(cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             var loadedRegion = await context
-                .PolygonEntities.SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
+                .PolygonEntities
+                .SingleAsync(entity => entity.Id == 1, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             Assert.Equal([1], matchingIds);
@@ -208,7 +214,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
@@ -225,6 +232,7 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                     Id = 1,
                     Location = berlin,
                 });
+
             await context
                 .SaveChangesAsync()
                 .ConfigureAwait(false);
@@ -233,7 +241,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
             // Act
             var roundtripped = await context
-                .PointEntities.SingleAsync(entity => entity.Id == 1)
+                .PointEntities
+                .SingleAsync(entity => entity.Id == 1)
                 .ConfigureAwait(false);
 
             // Assert
@@ -269,7 +278,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 CreateSpatialOptions(connectionString, IntegrationDatabaseTarget.MariaDb118));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     $"""
                      CREATE TABLE `{PointTableName}` (
                          `Id` int NOT NULL,
@@ -292,15 +302,24 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
             // Act
             var commands = generator.Generate([indexOperation], context.Model);
             await context
-                .Database.ExecuteSqlRawAsync(commands[0].CommandText)
+                .Database
+                .ExecuteSqlRawAsync(commands[0].CommandText)
                 .ConfigureAwait(false);
 
             await using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync().ConfigureAwait(false);
+            await connection
+                .OpenAsync()
+                .ConfigureAwait(false);
+
             await using var verify = connection.CreateCommand();
             verify.CommandText =
                 $"SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '{PointTableName}' AND index_name = 'IX_Spatial_Location';";
-            var indexCount = Convert.ToInt32(await verify.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
+
+            var indexCount = Convert.ToInt32(
+                await verify
+                    .ExecuteScalarAsync()
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
 
             // Assert
             Assert.Single(commands);
@@ -328,7 +347,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     {
         // Arrange
         var sink = new SridWarningSink();
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
+        using var loggerFactory =
+            LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
         var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
@@ -342,7 +362,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
-            .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 0 }))
+            .Points
+            .Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 0 }))
             .ToQueryString();
 
         // Assert
@@ -354,7 +375,8 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     {
         // Arrange
         var sink = new SridWarningSink();
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
+        using var loggerFactory =
+            LoggerFactory.Create(builder => builder.AddProvider(new SridWarningLoggerProvider(sink)));
 
         var builder = IntegrationTestDbContextOptions.Create<SridWarningContext>();
         builder
@@ -368,104 +390,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         await using var context = new SridWarningContext(builder.Options);
 
         _ = context
-            .Points.Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 4326 }))
+            .Points
+            .Select(entity => entity.Location.Distance(new Point(0, 0) { SRID = 4326 }))
             .ToQueryString();
 
         // Assert
         Assert.DoesNotContain(sink.Entries, entry => entry.EventId.Id == MySqlEventId.SpatialSridMismatchDetected.Id);
-    }
-
-    private sealed class SridWarningContext : DbContext
-    {
-        public SridWarningContext(
-            DbContextOptions<SridWarningContext> options
-        ) : base(options) { }
-
-        public DbSet<SpatialPointEntity> Points => Set<SpatialPointEntity>();
-
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<SpatialPointEntity>(entity =>
-            {
-                entity.ToTable("SridWarningPoints");
-                entity.HasKey(item => item.Id);
-                entity
-                    .Property(item => item.Location)
-                    .HasColumnType("point")
-                    .HasSrid(4326);
-            });
-        }
-    }
-
-    private sealed record SridWarningEntry(EventId EventId, string Category, string Message);
-
-    private sealed class SridWarningSink
-    {
-        public List<SridWarningEntry> Entries { get; } = new();
-    }
-
-    private sealed class SridWarningLoggerProvider : ILoggerProvider
-    {
-        private readonly SridWarningSink _sink;
-
-        public SridWarningLoggerProvider(
-            SridWarningSink sink
-        )
-        {
-            _sink = sink;
-        }
-
-        public ILogger CreateLogger(
-            string categoryName
-        ) => new SridWarningLogger(_sink, categoryName);
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class SridWarningLogger : ILogger
-    {
-        private readonly SridWarningSink _sink;
-        private readonly string _category;
-
-        public SridWarningLogger(
-            SridWarningSink sink,
-            string category
-        )
-        {
-            _sink = sink;
-            _category = category;
-        }
-
-        public IDisposable BeginScope<TState>(
-            TState state
-        ) where TState : notnull => new NullScope();
-
-        public bool IsEnabled(
-            LogLevel logLevel
-        ) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter
-        )
-        {
-            ArgumentNullException.ThrowIfNull(formatter);
-            _sink.Entries.Add(new SridWarningEntry(eventId, _category, formatter(state, exception)));
-        }
-
-        private sealed class NullScope : IDisposable
-        {
-            public void Dispose()
-            {
-            }
-        }
     }
 
     private static DbContextOptions<SpatialDbContext> CreateSpatialOptions(
@@ -539,6 +469,100 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
         };
 
         return polygon;
+    }
+
+    private sealed class SridWarningContext : DbContext
+    {
+        public SridWarningContext(
+            DbContextOptions<SridWarningContext> options
+        ) : base(options) { }
+
+        public DbSet<SpatialPointEntity> Points => Set<SpatialPointEntity>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<SpatialPointEntity>(entity =>
+            {
+                entity.ToTable("SridWarningPoints");
+                entity.HasKey(item => item.Id);
+                entity
+                    .Property(item => item.Location)
+                    .HasColumnType("point")
+                    .HasSrid(4326);
+            });
+        }
+    }
+
+    private sealed record SridWarningEntry(
+        EventId EventId,
+        string Category,
+        string Message
+    );
+
+    private sealed class SridWarningSink
+    {
+        public List<SridWarningEntry> Entries { get; } = new();
+    }
+
+    private sealed class SridWarningLoggerProvider : ILoggerProvider
+    {
+        private readonly SridWarningSink _sink;
+
+        public SridWarningLoggerProvider(
+            SridWarningSink sink
+        )
+        {
+            _sink = sink;
+        }
+
+        public ILogger CreateLogger(
+            string categoryName
+        ) => new SridWarningLogger(_sink, categoryName);
+
+        public void Dispose() { }
+    }
+
+    private sealed class SridWarningLogger : ILogger
+    {
+        private readonly string _category;
+        private readonly SridWarningSink _sink;
+
+        public SridWarningLogger(
+            SridWarningSink sink,
+            string category
+        )
+        {
+            _sink = sink;
+            _category = category;
+        }
+
+        public IDisposable BeginScope<TState>(
+            TState state
+        )
+            where TState : notnull => new NullScope();
+
+        public bool IsEnabled(
+            LogLevel logLevel
+        ) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+            _sink.Entries.Add(new SridWarningEntry(eventId, _category, formatter(state, exception)));
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public void Dispose() { }
+        }
     }
 
     private sealed class SpatialDbContext : DbContext

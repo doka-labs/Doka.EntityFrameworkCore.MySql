@@ -308,7 +308,7 @@ internal static class MySqlJsonTableValueEncoding
                 sqlExpressionFactory.Constant(string.Empty, valueColumn.TypeMapping),
             ],
             nullable: true,
-            argumentsPropagateNullability: [true, false, false,],
+            argumentsPropagateNullability: [true, false, false],
             typeof(string),
             valueColumn.TypeMapping);
 
@@ -384,6 +384,7 @@ internal static class MySqlJsonTableValueEncoding
             ?? throw new InvalidOperationException(
                 $"A provider mapping for '{providerType}' and store type "
                 + $"'{elementTypeMapping.StoreType}' could not be found.");
+
         var transportProviderMapping = (RelationalTypeMapping)providerMapping.Clone(
             jsonValueReaderWriter: providerReaderWriter);
 

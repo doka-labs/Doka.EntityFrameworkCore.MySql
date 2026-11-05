@@ -10,14 +10,16 @@ public sealed class TestDatabaseSession : IAsyncDisposable
 {
     private const string EvidenceFileEnvironmentVariable = "DOKA_TEST_DATABASE_EVIDENCE_FILE";
     private static readonly TimeSpan s_startupTimeout = TimeSpan.FromMinutes(3);
+
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
     };
 
-    private readonly IReadOnlyDictionary<string, TestDatabaseEndpoint> _endpoints;
     private readonly IReadOnlyList<TestDatabaseContainer> _containers;
+
+    private readonly IReadOnlyDictionary<string, TestDatabaseEndpoint> _endpoints;
     private readonly string? _evidenceFile;
     private bool _disposed;
 
@@ -30,6 +32,34 @@ public sealed class TestDatabaseSession : IAsyncDisposable
         _endpoints = endpoints;
         _containers = containers;
         _evidenceFile = evidenceFile;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        try
+        {
+            await DisposeContainersAsync(_containers)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            await WriteEvidenceAsync("cleanup-failed", CancellationToken.None)
+                .ConfigureAwait(false);
+
+            throw;
+        }
+
+        // WHY: Cleanup evidence must survive the cancellation that triggered disposal.
+        await WriteEvidenceAsync("cleanup-completed", CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -99,8 +129,8 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                                 externalConnectionString,
                                 "environment",
                                 null,
-                                null,
                                 null));
+
                         continue;
                     }
 
@@ -163,7 +193,8 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             await DisposeContainersAsync(containers)
                 .ConfigureAwait(false);
 
-            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+            if (exception is OperationCanceledException
+                && cancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException(exception.Message, exception, cancellationToken);
             }
@@ -185,33 +216,6 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             ? endpoint
             : throw new InvalidOperationException(
                 $"Test database target '{targetId}' was not selected for this test run.");
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-
-        try
-        {
-            await DisposeContainersAsync(_containers)
-                .ConfigureAwait(false);
-        }
-        catch
-        {
-            await WriteEvidenceAsync("cleanup-failed", CancellationToken.None)
-                .ConfigureAwait(false);
-            throw;
-        }
-
-        // WHY: Cleanup evidence must survive the cancellation that triggered disposal.
-        await WriteEvidenceAsync("cleanup-completed", CancellationToken.None)
-            .ConfigureAwait(false);
     }
 
     private static void ValidateRequests(
@@ -306,7 +310,8 @@ public sealed class TestDatabaseSession : IAsyncDisposable
             Directory.CreateDirectory(directory);
         }
 
-        var targets = _endpoints.Values
+        var targets = _endpoints
+            .Values
             .OrderBy(endpoint => endpoint.TargetId, StringComparer.OrdinalIgnoreCase)
             .Select(CreateEvidenceTarget)
             .ToArray();
@@ -330,6 +335,7 @@ public sealed class TestDatabaseSession : IAsyncDisposable
                         s_jsonOptions,
                         cancellationToken)
                     .ConfigureAwait(false);
+
                 await stream
                     .FlushAsync(cancellationToken)
                     .ConfigureAwait(false);

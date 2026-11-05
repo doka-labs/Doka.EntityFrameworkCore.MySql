@@ -6,10 +6,10 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlModificationCommandBatchFactory : IModificationCommandBatchFactory
 {
     private const int DefaultMaxBatchSize = 1000;
+    private readonly IRelationalConnection _connection;
 
     private readonly ModificationCommandBatchFactoryDependencies _dependencies;
     private readonly int _maxBatchSize;
-    private readonly IRelationalConnection _connection;
 
     /// <summary>
     /// Captures scoped services used to evaluate transaction permission when a pending insert group is flushed.

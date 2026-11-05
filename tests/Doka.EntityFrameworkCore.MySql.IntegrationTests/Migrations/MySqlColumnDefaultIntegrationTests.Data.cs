@@ -5,11 +5,12 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     /// <summary>Gets independently selectable history-failure paths for every selected supported engine.</summary>
     public static IEnumerable<object[]> RuntimeFailureCases => IntegrationTestEnvironment
         .GetSelectedTargets()
-        .Where(target => IntegrationTestEnvironment.GetSupportedTargets().Contains(target))
+        .Where(target => IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Contains(target))
         .SelectMany(target => new[]
         {
-            new object[] { target.ToString(), true },
-            new object[] { target.ToString(), false },
+            new object[] { target.ToString(), true }, new object[] { target.ToString(), false },
         });
 
     /// <summary>Gets native MySQL temporal-default syntax rejection cases.</summary>

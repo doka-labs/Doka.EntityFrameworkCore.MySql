@@ -2,25 +2,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Selects the appropriate value generator for MySQL properties, including Hi/Lo sequence generators.
-/// Hi/Lo state caching lives in <see cref="MySqlHiLoStateCache"/> so block windows survive
+/// Hi/Lo state caching lives in <see cref="MySqlHiLoStateCache" /> so block windows survive
 /// across DbContexts.
 /// </summary>
 internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSelector
 {
-    // EF 10 still consumes this obsolete hint before relational selection and exposes
-    // no replacement accessor. Compare the exact built-in factory, not its output type,
-    // so an application/plugin factory producing the same generator remains authoritative.
-#pragma warning disable CS0612
-    private static readonly Delegate? s_implicitGuidTextFactory =
-        new GuidToStringConverter().MappingHints?.ValueGeneratorFactory;
-
-    private static readonly Delegate? s_implicitGuidBytesFactory =
-        new GuidToBytesConverter().MappingHints?.ValueGeneratorFactory;
-#pragma warning restore CS0612
+    private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
+    private readonly IRelationalConnection _connection;
 
     private readonly IRawSqlCommandBuilder _rawSqlCommandBuilder;
-    private readonly IRelationalConnection _connection;
-    private readonly IRelationalCommandDiagnosticsLogger _commandLogger;
     private readonly MySqlSingletonOptions _singletonOptions;
 
     public MySqlValueGeneratorSelector(
@@ -222,4 +212,15 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 
         return null;
     }
+
+    // EF 10 still consumes this obsolete hint before relational selection and exposes
+    // no replacement accessor. Compare the exact built-in factory, not its output type,
+    // so an application/plugin factory producing the same generator remains authoritative.
+#pragma warning disable CS0612
+    private static readonly Delegate? s_implicitGuidTextFactory =
+        new GuidToStringConverter().MappingHints?.ValueGeneratorFactory;
+
+    private static readonly Delegate? s_implicitGuidBytesFactory =
+        new GuidToBytesConverter().MappingHints?.ValueGeneratorFactory;
+#pragma warning restore CS0612
 }

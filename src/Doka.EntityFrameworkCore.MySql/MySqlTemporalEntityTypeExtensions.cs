@@ -9,14 +9,16 @@ public static class MySqlTemporalEntityTypeExtensions
     /// Returns whether the entity type is mapped to a temporal table.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <returns><see langword="true"/> when temporal mapping is enabled.</returns>
+    /// <returns><see langword="true" /> when temporal mapping is enabled.</returns>
     public static bool IsMySqlTemporal(
         this IReadOnlyEntityType entityType
     )
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return (entityType.FindAnnotation(MySqlAnnotationNames.IsTemporal)?.Value as bool?) == true;
+        return entityType.FindAnnotation(MySqlAnnotationNames.IsTemporal)
+                ?.Value as bool?
+            == true;
     }
 
     /// <summary>
@@ -38,21 +40,22 @@ public static class MySqlTemporalEntityTypeExtensions
     /// Returns the history-table name configured for MySQL temporal emulation.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <returns>The history-table name, or <see langword="null"/> when no name is configured.</returns>
+    /// <returns>The history-table name, or <see langword="null" /> when no name is configured.</returns>
     public static string? GetMySqlTemporalHistoryTableName(
         this IReadOnlyEntityType entityType
     )
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTableName)?.Value as string;
+        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTableName)
+            ?.Value as string;
     }
 
     /// <summary>
     /// Configures the history-table name used by MySQL temporal emulation.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <param name="historyTableName">The history-table name, or <see langword="null"/> to remove it.</param>
+    /// <param name="historyTableName">The history-table name, or <see langword="null" /> to remove it.</param>
     public static void SetMySqlTemporalHistoryTableName(
         this IMutableEntityType entityType,
         string? historyTableName
@@ -67,21 +70,22 @@ public static class MySqlTemporalEntityTypeExtensions
     /// Returns the database/schema configured for the emulated MySQL history table.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <returns>The history-table schema, or <see langword="null"/> to use the mapped table schema.</returns>
+    /// <returns>The history-table schema, or <see langword="null" /> to use the mapped table schema.</returns>
     public static string? GetMySqlTemporalHistoryTableSchema(
         this IReadOnlyEntityType entityType
     )
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTableSchema)?.Value as string;
+        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalHistoryTableSchema)
+            ?.Value as string;
     }
 
     /// <summary>
     /// Configures the database/schema used by the emulated MySQL history table.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <param name="historyTableSchema">The history-table schema, or <see langword="null"/> to use the mapped table schema.</param>
+    /// <param name="historyTableSchema">The history-table schema, or <see langword="null" /> to use the mapped table schema.</param>
     public static void SetMySqlTemporalHistoryTableSchema(
         this IMutableEntityType entityType,
         string? historyTableSchema
@@ -96,21 +100,22 @@ public static class MySqlTemporalEntityTypeExtensions
     /// Returns the property name used for the temporal period start boundary.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <returns>The period-start property name, or <see langword="null"/> when no name is configured.</returns>
+    /// <returns>The period-start property name, or <see langword="null" /> when no name is configured.</returns>
     public static string? GetMySqlTemporalPeriodStartPropertyName(
         this IReadOnlyEntityType entityType
     )
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartPropertyName)?.Value as string;
+        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalPeriodStartPropertyName)
+            ?.Value as string;
     }
 
     /// <summary>
     /// Configures the property name used for the temporal period start boundary.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <param name="propertyName">The property name, or <see langword="null"/> to remove it.</param>
+    /// <param name="propertyName">The property name, or <see langword="null" /> to remove it.</param>
     public static void SetMySqlTemporalPeriodStartPropertyName(
         this IMutableEntityType entityType,
         string? propertyName
@@ -125,21 +130,22 @@ public static class MySqlTemporalEntityTypeExtensions
     /// Returns the property name used for the temporal period end boundary.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <returns>The period-end property name, or <see langword="null"/> when no name is configured.</returns>
+    /// <returns>The period-end property name, or <see langword="null" /> when no name is configured.</returns>
     public static string? GetMySqlTemporalPeriodEndPropertyName(
         this IReadOnlyEntityType entityType
     )
     {
         ArgumentNullException.ThrowIfNull(entityType);
 
-        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndPropertyName)?.Value as string;
+        return entityType.FindAnnotation(MySqlAnnotationNames.TemporalPeriodEndPropertyName)
+            ?.Value as string;
     }
 
     /// <summary>
     /// Configures the property name used for the temporal period end boundary.
     /// </summary>
     /// <param name="entityType">The entity type.</param>
-    /// <param name="propertyName">The property name, or <see langword="null"/> to remove it.</param>
+    /// <param name="propertyName">The property name, or <see langword="null" /> to remove it.</param>
     public static void SetMySqlTemporalPeriodEndPropertyName(
         this IMutableEntityType entityType,
         string? propertyName

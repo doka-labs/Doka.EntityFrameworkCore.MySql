@@ -107,6 +107,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             var mapping = typeMappingSource.FindMapping((IProperty)property)
                 ?? throw new InvalidOperationException(
                     $"No relational type mapping exists for '{entityType.DisplayName()}.{property.Name}'.");
+
             mappings[index] = mapping;
 
             if (!IsImplicitVariableLengthProperty(property, mapping))
@@ -293,7 +294,8 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             .GetEntityTypes()
             .SelectMany(entityType => entityType.GetDeclaredForeignKeys())
             .SelectMany(foreignKey => foreignKey.Properties
-                .Select((dependent, index) => (Dependent: dependent, Principal: foreignKey.PrincipalKey.Properties[index])))
+                .Select((dependent, index) =>
+                    (Dependent: dependent, Principal: foreignKey.PrincipalKey.Properties[index])))
             .ToArray();
 
         foreach (var (dependent, principal) in relationships)
@@ -368,7 +370,9 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             }
 
             var conceptualLength = sharedPrincipalMapping is not null
-                ? principalVariable!.HasConceptualLength ? principalVariable.InitialLength : null
+                ? principalVariable!.HasConceptualLength
+                    ? principalVariable.InitialLength
+                    : null
                 : principal.GetMaxLength() ?? principalMapping.Converter?.MappingHints?.Size;
 
             var length = sharedPrincipalMapping is not null
@@ -493,7 +497,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
 
         while (lower < upper)
         {
-            var middle = lower + ((upper - lower + 1) / 2);
+            var middle = lower + (upper - lower + 1) / 2;
 
             if (GetRequiredBytes(constraint, candidates, middle) <= MySqlIndexByteBudget.MaximumBytes)
             {
@@ -562,7 +566,7 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
                         size: length,
                         rowVersion: property is
                         {
-                            IsConcurrencyToken: true, ValueGenerated: ValueGenerated.OnAddOrUpdate
+                            IsConcurrencyToken: true, ValueGenerated: ValueGenerated.OnAddOrUpdate,
                         },
                         fixedLength: property.IsFixedLength(),
                         precision: property.GetPrecision(),

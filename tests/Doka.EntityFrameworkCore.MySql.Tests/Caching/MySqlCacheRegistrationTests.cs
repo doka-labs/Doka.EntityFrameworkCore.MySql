@@ -36,11 +36,13 @@ public sealed partial class MySqlCacheRegistrationTests
 
         // Act
         var exception = Record.Exception(() =>
-            MySqlCacheServiceCollectionExtensions.AddDistributedMySqlCache(
-                services, MySqlCacheTestFactory.ConfigureValidOptions));
+            services.AddDistributedMySqlCache(MySqlCacheTestFactory.ConfigureValidOptions));
 
         // Assert
-        Assert.Equal("services", Assert.IsType<ArgumentNullException>(exception).ParamName);
+        Assert.Equal(
+            "services",
+            Assert.IsType<ArgumentNullException>(exception)
+                .ParamName);
     }
 
     /// <summary>
@@ -56,7 +58,10 @@ public sealed partial class MySqlCacheRegistrationTests
         var exception = Record.Exception(() => services.AddDistributedMySqlCache(null!));
 
         // Assert
-        Assert.Equal("configure", Assert.IsType<ArgumentNullException>(exception).ParamName);
+        Assert.Equal(
+            "configure",
+            Assert.IsType<ArgumentNullException>(exception)
+                .ParamName);
     }
 
     /// <summary>
@@ -72,22 +77,27 @@ public sealed partial class MySqlCacheRegistrationTests
 
         // Act
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
-        Parallel.For(0, resolutions.Length, index =>
-        {
-            using var scope = provider.CreateScope();
-            resolutions[index] = (
-                scope.ServiceProvider.GetRequiredService<IDistributedCache>(),
-                scope.ServiceProvider.GetRequiredService<IBufferDistributedCache>());
-        });
+        Parallel.For(
+            0,
+            resolutions.Length,
+            index =>
+            {
+                using var scope = provider.CreateScope();
+                resolutions[index] = (
+                    scope.ServiceProvider.GetRequiredService<IDistributedCache>(),
+                    scope.ServiceProvider.GetRequiredService<IBufferDistributedCache>());
+            });
 
         // Assert
         Assert.IsType<IBufferDistributedCache>(cache, exactMatch: false);
         Assert.Same(cache, bufferCache);
-        Assert.All(resolutions, resolution =>
-        {
-            Assert.Same(cache, resolution.Cache);
-            Assert.Same(cache, resolution.BufferCache);
-        });
+        Assert.All(
+            resolutions,
+            resolution =>
+            {
+                Assert.Same(cache, resolution.Cache);
+                Assert.Same(cache, resolution.BufferCache);
+            });
     }
 
     /// <summary>
@@ -103,9 +113,16 @@ public sealed partial class MySqlCacheRegistrationTests
         using var provider = services.BuildServiceProvider();
 
         // Act
-        var caches = provider.GetServices<IDistributedCache>().ToArray();
-        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
-        var tableName = provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.TableName;
+        var caches = provider
+            .GetServices<IDistributedCache>()
+            .ToArray();
+
+        var bufferCaches = provider
+            .GetServices<IBufferDistributedCache>()
+            .ToArray();
+
+        var tableName = provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+            .Value.TableName;
 
         // Assert
         var cache = Assert.Single(caches);
@@ -130,8 +147,13 @@ public sealed partial class MySqlCacheRegistrationTests
         // Act
         var cache = provider.GetRequiredService<IDistributedCache>();
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
-        var caches = provider.GetServices<IDistributedCache>().ToArray();
-        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
+        var caches = provider
+            .GetServices<IDistributedCache>()
+            .ToArray();
+
+        var bufferCaches = provider
+            .GetServices<IBufferDistributedCache>()
+            .ToArray();
 
         // Assert
         Assert.NotSame(previous, cache);
@@ -159,17 +181,21 @@ public sealed partial class MySqlCacheRegistrationTests
         var later = new UnusedCache();
         services.AddSingleton<IDistributedCache>(later);
         services.AddSingleton<IBufferDistributedCache>(later);
-        services.AddDistributedMySqlCache(static _ =>
-        {
-        });
+        services.AddDistributedMySqlCache(static _ => { });
 
         using var provider = services.BuildServiceProvider();
 
         // Act
         var cache = provider.GetRequiredService<IDistributedCache>();
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
-        var caches = provider.GetServices<IDistributedCache>().ToArray();
-        var bufferCaches = provider.GetServices<IBufferDistributedCache>().ToArray();
+        var caches = provider
+            .GetServices<IDistributedCache>()
+            .ToArray();
+
+        var bufferCaches = provider
+            .GetServices<IBufferDistributedCache>()
+            .ToArray();
+
         var keyedCache = provider.GetRequiredKeyedService<IDistributedCache>("other");
         var keyedBufferCache = provider.GetRequiredKeyedService<IBufferDistributedCache>("other");
 
@@ -189,14 +215,14 @@ public sealed partial class MySqlCacheRegistrationTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddDistributedMySqlCache(static _ =>
-        {
-        });
+        services.AddDistributedMySqlCache(static _ => { });
         using var provider = services.BuildServiceProvider();
 
         // Act
         var exception = Record.Exception(() =>
-            provider.GetRequiredService<IStartupValidator>().Validate());
+            provider
+                .GetRequiredService<IStartupValidator>()
+                .Validate());
 
         // Assert
         var validationException = Assert.IsType<OptionsValidationException>(exception);
@@ -277,7 +303,10 @@ public sealed partial class MySqlCacheRegistrationTests
             options.ConnectionString = $"Server=127.0.0.1;Port={port};User ID=cache;Pooling=false");
 
         // Act
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        provider
+            .GetRequiredService<IStartupValidator>()
+            .Validate();
+
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
 
@@ -320,7 +349,8 @@ public sealed partial class MySqlCacheRegistrationTests
 
         var cache = provider.GetRequiredService<IDistributedCache>();
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();
-        var configuredDataSource = provider.GetRequiredService<IOptions<MySqlCacheOptions>>().Value.DataSource;
+        var configuredDataSource = provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+            .Value.DataSource;
 
         // Assert
         Assert.Same(cache, bufferCache);

@@ -16,10 +16,13 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
         await using var context = CreateContext(mariaDb, connections);
 
         // Act
-        var query = context.Set<MutationNode>().WithMaterializedSource(source => source.Where(node => node.Id > 0));
+        var query = context
+            .Set<MutationNode>()
+            .WithMaterializedSource(source => source.Where(node => node.Id > 0));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ExecuteUpdateAsync(
-            setters => setters.SetProperty(node => node.Value, 7), CancellationToken.None));
+            setters => setters.SetProperty(node => node.Value, 7),
+            CancellationToken.None));
 
         // Assert
         Assert.Contains("materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -39,7 +42,9 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
         await using var context = CreateContext(mariaDb, connections);
 
         // Act
-        var query = context.Set<MutationNode>().WithMaterializedSource(source => source.Where(node => node.Id > 0));
+        var query = context
+            .Set<MutationNode>()
+            .WithMaterializedSource(source => source.Where(node => node.Id > 0));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             query.ExecuteDeleteAsync(CancellationToken.None));
@@ -59,7 +64,8 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
             ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
             : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<MutationContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<MutationContext>()
             .UseMySql("Server=localhost;Database=source_rejection;User ID=unused;", version)
             .AddInterceptors(connections)
             .Options;
@@ -95,7 +101,9 @@ public sealed class MySqlMaterializedSourceMutationRejectionTests
         /// <inheritdoc />
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
-        ) => modelBuilder.Entity<MutationNode>().ToTable("MaterializedMutationNodes");
+        ) => modelBuilder
+            .Entity<MutationNode>()
+            .ToTable("MaterializedMutationNodes");
     }
 
     /// <summary>Supplies a regular mapped target whose mutations would otherwise be supported by EF.</summary>

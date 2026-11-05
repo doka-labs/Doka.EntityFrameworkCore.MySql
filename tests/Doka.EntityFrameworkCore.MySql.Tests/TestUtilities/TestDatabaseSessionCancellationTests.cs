@@ -17,8 +17,8 @@ public sealed class TestDatabaseSessionCancellationTests
         await cancellation.CancelAsync();
 
         // Act
-        var recordedException = await Record.ExceptionAsync(
-            () => TestDatabaseSession.StartAsync(requests, cancellation.Token));
+        var recordedException =
+            await Record.ExceptionAsync(() => TestDatabaseSession.StartAsync(requests, cancellation.Token));
 
         // Assert
         var canceledException = Assert.IsAssignableFrom<OperationCanceledException>(recordedException);

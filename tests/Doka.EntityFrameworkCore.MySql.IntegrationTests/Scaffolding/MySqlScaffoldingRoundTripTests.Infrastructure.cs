@@ -33,10 +33,14 @@ public sealed partial class MySqlScaffoldingRoundTripTests
 
         var uniqueConstraint = Assert.Single(parent.UniqueConstraints);
         Assert.Equal(UniqueConstraint, uniqueConstraint.Name);
-        Assert.Equal("Code", Assert.Single(uniqueConstraint.Columns).Name);
+        Assert.Equal(
+            "Code",
+            Assert.Single(uniqueConstraint.Columns)
+                .Name);
 
         var checkConstraints = Assert.IsAssignableFrom<IReadOnlyList<MySqlScaffoldedCheckConstraint>>(
-            parent.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)?.Value);
+            parent.FindAnnotation(MySqlAnnotationNames.ScaffoldingCheckConstraints)
+                ?.Value);
 
         var checkConstraint = Assert.Single(checkConstraints);
         Assert.Equal(CheckConstraint, checkConstraint.Name);
@@ -47,7 +51,9 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         Assert.Equal(ParentTable, foreignKey.PrincipalTable.Name);
         Assert.Equal(ReferentialAction.Cascade, foreignKey.OnDelete);
 
-        Assert.True(view.Columns.Single(column => column.Name == "OptionalCount").IsNullable);
+        Assert.True(
+            view.Columns.Single(column => column.Name == "OptionalCount")
+                .IsNullable);
     }
 
     private static void AssertGeneratedModel(
@@ -56,17 +62,15 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     {
         var contextCode = scaffoldedModel.ContextFile.Code;
         var parentCode = scaffoldedModel
-            .AdditionalFiles.Single(
-                file => file.Code.Contains(
-                    "class DokaScaffoldCoreParent",
-                    StringComparison.Ordinal))
+            .AdditionalFiles.Single(file => file.Code.Contains(
+                "class DokaScaffoldCoreParent",
+                StringComparison.Ordinal))
             .Code;
 
         var viewCode = scaffoldedModel
-            .AdditionalFiles.Single(
-                file => file.Code.Contains(
-                    "class DokaScaffoldCoreSummary",
-                    StringComparison.Ordinal))
+            .AdditionalFiles.Single(file => file.Code.Contains(
+                "class DokaScaffoldCoreSummary",
+                StringComparison.Ordinal))
             .Code;
 
         Assert.Contains($"ToView(\"{SummaryView}\"", contextCode, StringComparison.Ordinal);
@@ -93,7 +97,8 @@ public sealed partial class MySqlScaffoldingRoundTripTests
     {
         Assert.Equal(
             expectedStoreType,
-            table.Columns.Single(column => column.Name == columnName).StoreType,
+            table.Columns.Single(column => column.Name == columnName)
+                .StoreType,
             ignoreCase: true);
     }
 
@@ -115,30 +120,30 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await ExecuteNonQueryAsync(
                 connection,
                 $"""
-                DROP VIEW IF EXISTS `{SummaryView}`;
-                DROP TABLE IF EXISTS `{ChildTable}`;
-                DROP TABLE IF EXISTS `{ParentTable}`;
-                CREATE TABLE `{ParentTable}` (
-                    `Id` int NOT NULL AUTO_INCREMENT,
-                    `Code` varchar(32) NOT NULL,
-                    `OptionalCount` int NULL DEFAULT 7 COMMENT 'optional count',
-                    `ComputedCount` int GENERATED ALWAYS AS (IFNULL(`OptionalCount`, 0) + 1) STORED,
-                    PRIMARY KEY (`Id`),
-                    CONSTRAINT `{UniqueConstraint}` UNIQUE (`Code`),
-                    CONSTRAINT `{CheckConstraint}`
-                        CHECK (`OptionalCount` IS NULL OR `OptionalCount` >= 0)
-                ) ENGINE=InnoDB COMMENT='core table';
-                CREATE TABLE `{ChildTable}` (
-                    `Id` int NOT NULL AUTO_INCREMENT,
-                    `ParentId` int NOT NULL,
-                    PRIMARY KEY (`Id`),
-                    CONSTRAINT `{ForeignKey}`
-                        FOREIGN KEY (`ParentId`) REFERENCES `{ParentTable}` (`Id`) ON DELETE CASCADE
-                ) ENGINE=InnoDB;
-                CREATE VIEW `{SummaryView}` AS
-                    SELECT `Id`, `OptionalCount`
-                    FROM `{ParentTable}`;
-                """,
+                 DROP VIEW IF EXISTS `{SummaryView}`;
+                 DROP TABLE IF EXISTS `{ChildTable}`;
+                 DROP TABLE IF EXISTS `{ParentTable}`;
+                 CREATE TABLE `{ParentTable}` (
+                     `Id` int NOT NULL AUTO_INCREMENT,
+                     `Code` varchar(32) NOT NULL,
+                     `OptionalCount` int NULL DEFAULT 7 COMMENT 'optional count',
+                     `ComputedCount` int GENERATED ALWAYS AS (IFNULL(`OptionalCount`, 0) + 1) STORED,
+                     PRIMARY KEY (`Id`),
+                     CONSTRAINT `{UniqueConstraint}` UNIQUE (`Code`),
+                     CONSTRAINT `{CheckConstraint}`
+                         CHECK (`OptionalCount` IS NULL OR `OptionalCount` >= 0)
+                 ) ENGINE=InnoDB COMMENT='core table';
+                 CREATE TABLE `{ChildTable}` (
+                     `Id` int NOT NULL AUTO_INCREMENT,
+                     `ParentId` int NOT NULL,
+                     PRIMARY KEY (`Id`),
+                     CONSTRAINT `{ForeignKey}`
+                         FOREIGN KEY (`ParentId`) REFERENCES `{ParentTable}` (`Id`) ON DELETE CASCADE
+                 ) ENGINE=InnoDB;
+                 CREATE VIEW `{SummaryView}` AS
+                     SELECT `Id`, `OptionalCount`
+                     FROM `{ParentTable}`;
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -161,10 +166,10 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await ExecuteNonQueryAsync(
                 connection,
                 $"""
-                DROP VIEW IF EXISTS `{SummaryView}`;
-                DROP TABLE IF EXISTS `{ChildTable}`;
-                DROP TABLE IF EXISTS `{ParentTable}`;
-                """,
+                 DROP VIEW IF EXISTS `{SummaryView}`;
+                 DROP TABLE IF EXISTS `{ChildTable}`;
+                 DROP TABLE IF EXISTS `{ParentTable}`;
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -183,6 +188,7 @@ public sealed partial class MySqlScaffoldingRoundTripTests
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT VERSION();";
 

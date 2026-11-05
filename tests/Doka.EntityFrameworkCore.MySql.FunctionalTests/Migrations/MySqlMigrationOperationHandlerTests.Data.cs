@@ -29,7 +29,9 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         {
             var cases = new TheoryData<string, Type>();
             var serverVersions = ActiveLtsServerVersions;
-            var operationTypes = CreateStandardOperationFixtures().Select(operation => operation.GetType()).ToArray();
+            var operationTypes = CreateStandardOperationFixtures()
+                .Select(operation => operation.GetType())
+                .ToArray();
 
             // Recreate mutable operations inside each test instead of sharing them across cases.
             foreach (var serverVersion in serverVersions)

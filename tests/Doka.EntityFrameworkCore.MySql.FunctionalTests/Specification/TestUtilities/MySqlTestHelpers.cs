@@ -12,14 +12,16 @@ public sealed class MySqlTestHelpers : RelationalTestHelpers
     private static readonly MySqlServerVersion s_serverVersion =
         MySqlServerVersion.MySql(new Version(8, 4, 0));
 
-    private MySqlTestHelpers()
-    {
-    }
+    private MySqlTestHelpers() { }
 
     /// <summary>
     /// Gets the shared stateless helper instance.
     /// </summary>
     public static MySqlTestHelpers Instance { get; } = new();
+
+    /// <inheritdoc />
+    public override LoggingDefinitions LoggingDefinitions { get; } =
+        new MySqlLoggingDefinitions();
 
     /// <inheritdoc />
     public override IServiceCollection AddProviderServices(
@@ -35,8 +37,4 @@ public sealed class MySqlTestHelpers : RelationalTestHelpers
         DummyConnectionString,
         s_serverVersion,
         provider => provider.UseNetTopologySuite());
-
-    /// <inheritdoc />
-    public override LoggingDefinitions LoggingDefinitions { get; } =
-        new MySqlLoggingDefinitions();
 }

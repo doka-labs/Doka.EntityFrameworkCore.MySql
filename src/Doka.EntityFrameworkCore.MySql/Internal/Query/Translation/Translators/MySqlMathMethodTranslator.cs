@@ -1,8 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Translates the numeric functions exposed by <see cref="Math"/>,
-/// <see cref="MathF"/>, <see cref="double"/>, and <see cref="float"/>.
+/// Translates the numeric functions exposed by <see cref="Math" />,
+/// <see cref="MathF" />, <see cref="double" />, and <see cref="float" />.
 /// </summary>
 /// <remarks>
 /// MySQL and MariaDB expose the shared elementary function set used here.
@@ -88,14 +88,13 @@ internal sealed class MySqlMathMethodTranslator : IMethodCallTranslator
         Type resultType
     )
     {
-        var nullPropagation = arguments.Count == 1 ? s_singleArgumentNullPropagation : s_twoArgumentNullPropagation;
+        var nullPropagation = arguments.Count == 1
+            ? s_singleArgumentNullPropagation
+            : s_twoArgumentNullPropagation;
+
         var functionArguments = arguments.Count == 1
             ? [arguments[0]]
-            : new[]
-            {
-                arguments[0],
-                arguments[1],
-            };
+            : new[] { arguments[0], arguments[1] };
 
         return _sqlExpressionFactory.Function(
             functionName,

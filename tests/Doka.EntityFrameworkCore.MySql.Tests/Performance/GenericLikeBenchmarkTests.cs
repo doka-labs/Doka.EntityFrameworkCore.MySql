@@ -1,3 +1,6 @@
+using BenchmarkDotNet.Attributes;
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -18,7 +21,7 @@ public sealed partial class GenericLikeBenchmarkTests
     {
         // Arrange
         var events = new List<EventData>();
-        using var benchmark = new Benchmarks.GenericLikeBenchmark();
+        using var benchmark = new GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
         var observations = new (string Sql, EventData[] Events, ContextSnapshot[] Contexts)[4];
@@ -35,16 +38,21 @@ public sealed partial class GenericLikeBenchmarkTests
 
         // Assert
         DbContext? compilationContext = null;
-        Assert.All(observations, observation =>
-        {
-            Assert.False(string.IsNullOrWhiteSpace(observation.Sql));
-            var compilation = Assert.IsType<QueryExpressionEventData>(Assert.Single(observation.Events));
-            Assert.Equal(CoreEventId.QueryCompilationStarting, compilation.EventId);
-            var context = Assert.Single(contexts, snapshot => ReferenceEquals(snapshot.Context, compilation.Context));
-            compilationContext ??= context.Context;
-            Assert.Same(compilationContext, compilation.Context);
-            AssertContextsUnchanged(contexts, observation.Contexts);
-        });
+        Assert.All(
+            observations,
+            observation =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(observation.Sql));
+                var compilation = Assert.IsType<QueryExpressionEventData>(Assert.Single(observation.Events));
+                Assert.Equal(CoreEventId.QueryCompilationStarting, compilation.EventId);
+                var context = Assert.Single(
+                    contexts,
+                    snapshot => ReferenceEquals(snapshot.Context, compilation.Context));
+
+                compilationContext ??= context.Context;
+                Assert.Same(compilationContext, compilation.Context);
+                AssertContextsUnchanged(contexts, observation.Contexts);
+            });
     }
 
     /// <summary>
@@ -60,7 +68,7 @@ public sealed partial class GenericLikeBenchmarkTests
     {
         // Arrange
         var events = new List<EventData>();
-        using var benchmark = new Benchmarks.GenericLikeBenchmark();
+        using var benchmark = new GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
         var observations = new (string Sql, EventData[] Events, ContextSnapshot[] Contexts)[4];
@@ -78,12 +86,14 @@ public sealed partial class GenericLikeBenchmarkTests
         // Assert
         Assert.False(string.IsNullOrWhiteSpace(expectedSql));
         Assert.Empty(initialEvents);
-        Assert.All(observations, observation =>
-        {
-            Assert.Equal(expectedSql, observation.Sql);
-            Assert.Empty(observation.Events);
-            AssertContextsUnchanged(contexts, observation.Contexts);
-        });
+        Assert.All(
+            observations,
+            observation =>
+            {
+                Assert.Equal(expectedSql, observation.Sql);
+                Assert.Empty(observation.Events);
+                AssertContextsUnchanged(contexts, observation.Contexts);
+            });
     }
 
     /// <summary>
@@ -99,7 +109,7 @@ public sealed partial class GenericLikeBenchmarkTests
     {
         // Arrange
         var events = new List<EventData>();
-        using var benchmark = new Benchmarks.GenericLikeBenchmark();
+        using var benchmark = new GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var observations = new (
             string CompiledSql,
@@ -112,6 +122,7 @@ public sealed partial class GenericLikeBenchmarkTests
         // Act
         var expectedSql = benchmark.CachedScalarQueryToQueryString();
         var initialEvents = events.ToArray();
+
         // WHY: Alternation catches a fresh compilation accidentally invalidating the independently warmed cache.
         for (var iteration = 0; iteration < observations.Length; iteration++)
         {
@@ -133,13 +144,19 @@ public sealed partial class GenericLikeBenchmarkTests
         Assert.Contains("HEX(", expectedSql, StringComparison.Ordinal);
         Assert.Contains("`Token`", expectedSql, StringComparison.Ordinal);
         Assert.Contains("LIKE @guidPattern", expectedSql, StringComparison.Ordinal);
-        Assert.All(observations, observation =>
-        {
-            Assert.Equal(expectedSql, observation.CompiledSql);
-            Assert.Equal(CoreEventId.QueryCompilationStarting, Assert.Single(observation.CompileEvents).EventId);
-            Assert.Equal(expectedSql, observation.CachedSql);
-            Assert.Empty(observation.CacheEvents);
-        });
+        Assert.All(
+            observations,
+            observation =>
+            {
+                Assert.Equal(expectedSql, observation.CompiledSql);
+                Assert.Equal(
+                    CoreEventId.QueryCompilationStarting,
+                    Assert.Single(observation.CompileEvents)
+                        .EventId);
+
+                Assert.Equal(expectedSql, observation.CachedSql);
+                Assert.Empty(observation.CacheEvents);
+            });
     }
 
     /// <summary>
@@ -155,7 +172,7 @@ public sealed partial class GenericLikeBenchmarkTests
     {
         // Arrange
         var events = new List<EventData>();
-        using var benchmark = new Benchmarks.GenericLikeBenchmark();
+        using var benchmark = new GenericLikeBenchmark();
         benchmark.Initialize(CreateOptions(isMariaDb, events));
         var contexts = CaptureInitializedContexts(events);
         events.Clear();
@@ -171,8 +188,10 @@ public sealed partial class GenericLikeBenchmarkTests
         for (var index = 0; index < contexts.Length; index++)
         {
             var snapshot = contexts[index];
-            var disposed = Assert.Single(events.OfType<DbContextEventData>(), eventData =>
-                ReferenceEquals(eventData.Context, snapshot.Context));
+            var disposed = Assert.Single(
+                events.OfType<DbContextEventData>(),
+                eventData =>
+                    ReferenceEquals(eventData.Context, snapshot.Context));
 
             Assert.Equal(CoreEventId.ContextDisposed, disposed.EventId);
             Assert.IsType<ObjectDisposedException>(exceptions[index]);
@@ -186,44 +205,55 @@ public sealed partial class GenericLikeBenchmarkTests
     public void Exactly_two_string_benchmarks_are_bound_to_their_allocation_controls()
     {
         // Arrange
-        var benchmarkMethods = typeof(Benchmarks.GenericLikeBenchmark)
+        var benchmarkMethods = typeof(GenericLikeBenchmark)
             .GetMethods()
-            .Where(method => method.IsDefined(typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute), inherit: true))
+            .Where(method => method.IsDefined(typeof(BenchmarkAttribute), inherit: true))
             .ToArray();
 
         var expectedMethods = new[]
         {
-            nameof(Benchmarks.GenericLikeBenchmark.CachedScalarQueryToQueryString),
-            nameof(Benchmarks.GenericLikeBenchmark.CompileScalarQueryToQueryString),
+            nameof(GenericLikeBenchmark.CachedScalarQueryToQueryString),
+            nameof(GenericLikeBenchmark.CompileScalarQueryToQueryString),
         };
 
         using var document = JsonDocument.Parse(
-            File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
 
         // Act
-        var actual = benchmarkMethods.Select(method => method.Name).Order(StringComparer.Ordinal).ToArray();
-        var controls = document.RootElement
+        var actual = benchmarkMethods
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        var controls = document
+            .RootElement
             .GetProperty("benchmarkDotNetControls")
             .EnumerateArray()
-            .Where(control => control.GetProperty("type").GetString() == nameof(Benchmarks.GenericLikeBenchmark))
+            .Where(control => control
+                    .GetProperty("type")
+                    .GetString()
+                == nameof(GenericLikeBenchmark))
             .ToArray();
 
         // Assert
         Assert.Equal(expectedMethods.Order(StringComparer.Ordinal), actual);
-        Assert.All(benchmarkMethods, method =>
-        {
-            Assert.Equal(typeof(string), method.ReturnType);
-            Assert.Empty(method.GetParameters());
-        });
+        Assert.All(
+            benchmarkMethods,
+            method =>
+            {
+                Assert.Equal(typeof(string), method.ReturnType);
+                Assert.Empty(method.GetParameters());
+            });
 
         Assert.Equal(expectedMethods.Length, controls.Length);
         AssertControlBinding(
             controls,
             "generic-like-cached-query-allocation",
-            nameof(Benchmarks.GenericLikeBenchmark.CachedScalarQueryToQueryString));
+            nameof(GenericLikeBenchmark.CachedScalarQueryToQueryString));
+
         AssertControlBinding(
             controls,
             "generic-like-compilation-allocation",
-            nameof(Benchmarks.GenericLikeBenchmark.CompileScalarQueryToQueryString));
+            nameof(GenericLikeBenchmark.CompileScalarQueryToQueryString));
     }
 }

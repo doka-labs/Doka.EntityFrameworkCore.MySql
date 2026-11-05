@@ -7,6 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 internal static class IntegrationTestEnvironment
 {
     private const string TargetSelectionVariable = "DOKA_INTEGRATION_TARGETS";
+
     private static readonly IntegrationDatabaseTarget[] s_supportedTargets =
     [
         IntegrationDatabaseTarget.MySql84,
@@ -18,8 +19,10 @@ internal static class IntegrationTestEnvironment
     ];
 
     private static TestDatabaseSession? s_session;
+
     private static readonly ConcurrentDictionary<(IntegrationDatabaseTarget Target, string Owner), Lazy<string>>
         s_scopedConnections = new();
+
     private static string? s_runId;
 
     /// <summary>Returns the connection string for one engine and fixture owner.</summary>
@@ -88,7 +91,8 @@ internal static class IntegrationTestEnvironment
     /// <summary>Reports whether a data case belongs to the current engine selection.</summary>
     public static bool IsTargetSelected(
         IntegrationDatabaseTarget target
-    ) => GetSelectedTargets().Contains(target);
+    ) => GetSelectedTargets()
+        .Contains(target);
 
     /// <summary>
     /// Returns every active repo-local database target independently of an
@@ -101,7 +105,9 @@ internal static class IntegrationTestEnvironment
     )
     {
         var digestSeparator = image.IndexOf('@');
-        var tagSeparator = digestSeparator > 0 ? image.LastIndexOf(':', digestSeparator - 1) : -1;
+        var tagSeparator = digestSeparator > 0
+            ? image.LastIndexOf(':', digestSeparator - 1)
+            : -1;
 
         if (tagSeparator < 0
             || digestSeparator <= tagSeparator + 1
@@ -152,7 +158,8 @@ internal static class IntegrationTestEnvironment
                 $"{TargetSelectionVariable} must contain at least one target id when it is configured.");
         }
 
-        var supportedTargetIds = Enum.GetValues<IntegrationDatabaseTarget>()
+        var supportedTargetIds = Enum
+            .GetValues<IntegrationDatabaseTarget>()
             .Select(GetTargetId)
             .ToArray();
 
@@ -240,7 +247,9 @@ internal static class IntegrationTestEnvironment
             throw new InvalidOperationException("The integration database session is already initialized.");
         }
 
-        s_runId = Guid.NewGuid().ToString("N");
+        s_runId = Guid
+            .NewGuid()
+            .ToString("N");
     }
 
     public static async Task ResetAsync(
@@ -252,7 +261,8 @@ internal static class IntegrationTestEnvironment
 
         if (!ReferenceEquals(Interlocked.CompareExchange(ref s_session, null, session), session))
         {
-            throw new InvalidOperationException("The integration database session does not own the active environment.");
+            throw new InvalidOperationException(
+                "The integration database session does not own the active environment.");
         }
 
         List<Exception>? cleanupFailures = null;
@@ -309,6 +319,7 @@ internal static class IntegrationTestEnvironment
     {
         var runId = Volatile.Read(ref s_runId)
             ?? throw new InvalidOperationException("The integration database run has not started.");
+
         var databaseName = CreateScopedDatabaseName(runId, ownerFilePath);
         var scopedConnectionString = IntegrationDatabaseUtilities.BuildConnectionString(
             baseConnectionString,

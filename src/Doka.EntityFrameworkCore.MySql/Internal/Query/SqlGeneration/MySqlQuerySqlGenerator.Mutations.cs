@@ -143,7 +143,10 @@ internal sealed partial class MySqlQuerySqlGenerator
         {
             var tables = selectExpression.Tables;
             var targetOccursInSource = tables.Any(table =>
-                updateExpression.Table.Equals(table is JoinExpressionBase join ? join.Table : table));
+                updateExpression.Table.Equals(
+                    table is JoinExpressionBase join
+                        ? join.Table
+                        : table));
 
             if (!targetOccursInSource)
             {
@@ -278,7 +281,9 @@ internal sealed partial class MySqlQuerySqlGenerator
                 return node;
             }
 
-            return Found ? node : base.VisitExtension(node);
+            return Found
+                ? node
+                : base.VisitExtension(node);
         }
     }
 
@@ -291,7 +296,8 @@ internal sealed partial class MySqlQuerySqlGenerator
         )
         {
             if (node is TableExpression table
-                && table.FindAnnotation(MySqlAnnotationNames.ApplicationTimeOperation)?.Value is true)
+                && table.FindAnnotation(MySqlAnnotationNames.ApplicationTimeOperation)
+                    ?.Value is true)
             {
                 Tables.Add(table);
             }

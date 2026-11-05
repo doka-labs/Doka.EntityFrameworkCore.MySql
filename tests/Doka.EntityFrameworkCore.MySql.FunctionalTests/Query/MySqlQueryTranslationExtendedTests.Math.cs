@@ -13,7 +13,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => Math.Pow(e.Value, 2))
+            .Items
+            .Select(e => Math.Pow(e.Value, 2))
             .ToQueryString();
 
         // Assert
@@ -31,7 +32,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => Math.Sqrt(e.Value))
+            .Items
+            .Select(e => Math.Sqrt(e.Value))
             .ToQueryString();
 
         // Assert
@@ -49,7 +51,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => Math.Log(e.Value))
+            .Items
+            .Select(e => Math.Log(e.Value))
             .ToQueryString();
 
         // Assert
@@ -67,7 +70,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => Math.Sign(e.Value))
+            .Items
+            .Select(e => Math.Sign(e.Value))
             .ToQueryString();
 
         // Assert
@@ -85,7 +89,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(entity => EF.Functions.Least(entity.Id, 100) == entity.Id)
+            .Items
+            .Where(entity => EF.Functions.Least(entity.Id, 100) == entity.Id)
             .ToQueryString();
 
         // Assert
@@ -104,10 +109,11 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Where(
-                entity => EF.Functions.Greatest(
+            .Items
+            .Where(entity => EF.Functions.Greatest(
                     (int?)entity.Id,
-                    100) == entity.Id)
+                    100)
+                == entity.Id)
             .ToQueryString();
 
         // Assert
@@ -126,7 +132,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => e.NullableUnsignedValue ?? 2.25)
+            .Items
+            .Select(e => e.NullableUnsignedValue ?? 2.25)
             .ToQueryString();
 
         // Assert
@@ -148,7 +155,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
 
         // Act
         var sql = context
-            .Items.Select(e => (decimal)e.Value)
+            .Items
+            .Select(e => (decimal)e.Value)
             .ToQueryString();
 
         // Assert

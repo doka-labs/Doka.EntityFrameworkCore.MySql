@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Generates MySQL-family <see cref="float"/> literals in scientific notation so
+/// Generates MySQL-family <see cref="float" /> literals in scientific notation so
 /// the server treats them as approximate rather than exact DECIMAL values.
 /// </summary>
 /// <remarks>
@@ -13,13 +13,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 public sealed class MySqlFloatTypeMapping : FloatTypeMapping
 {
     /// <summary>
-    /// Gets the canonical mapping used when a compiled model reconstructs the
-    /// provider's default <see cref="float"/> mapping.
-    /// </summary>
-    public static new MySqlFloatTypeMapping Default { get; } = new("float");
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MySqlFloatTypeMapping"/> class.
+    /// Initializes a new instance of the <see cref="MySqlFloatTypeMapping" /> class.
     /// </summary>
     /// <param name="storeType">The database type name.</param>
     /// <param name="dbType">The ADO.NET parameter type.</param>
@@ -31,6 +25,12 @@ public sealed class MySqlFloatTypeMapping : FloatTypeMapping
     private MySqlFloatTypeMapping(
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
+
+    /// <summary>
+    /// Gets the canonical mapping used when a compiled model reconstructs the
+    /// provider's default <see cref="float" /> mapping.
+    /// </summary>
+    public static new MySqlFloatTypeMapping Default { get; } = new("float");
 
     /// <inheritdoc />
     protected override RelationalTypeMapping Clone(
@@ -46,7 +46,9 @@ public sealed class MySqlFloatTypeMapping : FloatTypeMapping
         var number = Convert.ToSingle(value, CultureInfo.InvariantCulture);
 
         return float.IsFinite(number) && !literal.Contains('E') && !literal.Contains('e')
-            ? literal.Contains('.') ? literal + "E0" : literal + ".0E0"
+            ? literal.Contains('.')
+                ? literal + "E0"
+                : literal + ".0E0"
             : literal;
     }
 }

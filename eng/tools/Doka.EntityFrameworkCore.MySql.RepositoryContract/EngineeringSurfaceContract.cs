@@ -12,7 +12,7 @@ internal static partial class EngineeringSurfaceContract
         ".github/workflows/main-admission.yml",
         "eng/performance/paired-benchmark.sh",
         "eng/tests/test_release_workflow_policy.py",
-        "eng/tests/test_workflow_orchestration.py"
+        "eng/tests/test_workflow_orchestration.py",
     ];
 
     private static readonly string[] s_retiredPythonPolicyTests =
@@ -45,7 +45,7 @@ internal static partial class EngineeringSurfaceContract
         "test_performance_reports.py",
         "test_performance_sensitivity.py",
         "test_test_runner.py",
-        "test_vulnerability_audit_gate.py"
+        "test_vulnerability_audit_gate.py",
     ];
 
     public static IReadOnlyList<string> Validate(
@@ -111,27 +111,56 @@ internal static partial class EngineeringSurfaceContract
     )
     {
         var errors = new List<string>();
-        var lines = workflow.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = workflow
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n');
+
         var scalarIndent = -1;
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
-            var indent = line.Length - line.TrimStart(' ').Length;
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            var indent = line.Length
+                - line.TrimStart(' ')
+                    .Length;
+
+            if (string.IsNullOrWhiteSpace(line)
+                || line
+                    .TrimStart()
+                    .StartsWith('#'))
             {
                 continue;
             }
 
-            if (scalarIndent >= 0 && indent > scalarIndent)
+            if (scalarIndent >= 0
+                && indent > scalarIndent)
             {
                 continue;
             }
 
-            scalarIndent = BlockScalarHeader().IsMatch(line) ? indent : -1;
-            var mapping = WorkflowScalarField().Match(line);
-            if (line.TrimStart().StartsWith('?') || line.TrimStart().StartsWith('!')
-                || mapping.Success && mapping.Groups["key"].Value.Contains('\\')
-                || indent is 0 or 4 && line.TrimStart().StartsWith('"') && !mapping.Success)
+            scalarIndent = BlockScalarHeader()
+                .IsMatch(line)
+                ? indent
+                : -1;
+
+            var mapping = WorkflowScalarField()
+                .Match(line);
+
+            if (line
+                    .TrimStart()
+                    .StartsWith('?')
+                || line
+                    .TrimStart()
+                    .StartsWith('!')
+                || (mapping.Success
+                    && mapping
+                        .Groups["key"]
+                        .Value
+                        .Contains('\\'))
+                || (indent is 0 or 4
+                    && line
+                        .TrimStart()
+                        .StartsWith('"')
+                    && !mapping.Success))
             {
                 // WHY: Tagged/explicit keys can change the YAML name seen by
                 // actionlint without appearing as a literal concurrency key.
@@ -139,7 +168,9 @@ internal static partial class EngineeringSurfaceContract
                 continue;
             }
 
-            var header = ConcurrencyHeader().Match(line);
+            var header = ConcurrencyHeader()
+                .Match(line);
+
             if (!header.Success)
             {
                 continue;
@@ -152,7 +183,9 @@ internal static partial class EngineeringSurfaceContract
             }
 
             var value = TrimYamlComment(header.Groups["value"].Value);
-            if (value.StartsWith('{') || value.StartsWith('&') || value.StartsWith('*'))
+            if (value.StartsWith('{')
+                || value.StartsWith('&')
+                || value.StartsWith('*'))
             {
                 // WHY: A flow map or YAML alias could hide a queue from this
                 // narrow check while actionlint reports only its unknown key.
@@ -187,12 +220,18 @@ internal static partial class EngineeringSurfaceContract
         for (var index = start; index < lines.Length; index++)
         {
             var line = lines[index];
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            if (string.IsNullOrWhiteSpace(line)
+                || line
+                    .TrimStart()
+                    .StartsWith('#'))
             {
                 continue;
             }
 
-            var indent = line.Length - line.TrimStart(' ').Length;
+            var indent = line.Length
+                - line.TrimStart(' ')
+                    .Length;
+
             if (indent <= parentIndent)
             {
                 break;
@@ -203,7 +242,9 @@ internal static partial class EngineeringSurfaceContract
                 childIndent = indent;
             }
 
-            var field = WorkflowScalarField().Match(line);
+            var field = WorkflowScalarField()
+                .Match(line);
+
             if (indent != childIndent)
             {
                 continue;
@@ -250,14 +291,16 @@ internal static partial class EngineeringSurfaceContract
         var isExpression = expression.StartsWith("${{", StringComparison.Ordinal)
             && expression.EndsWith("}}", StringComparison.Ordinal);
 
-        if (cancellation is not ("true" or "false") && !isExpression)
+        if (cancellation is not ("true" or "false")
+            && !isExpression)
         {
             errors.Add($"{name}: concurrency cancel-in-progress must be a boolean or an expression, not a string.");
         }
 
         // WHY: GitHub rejects max with cancellation; a dynamic expression cannot
         // prove that the shared publication queue will remain non-cancelling.
-        if (normalized == "max" && cancellation != "false")
+        if (normalized == "max"
+            && cancellation != "false")
         {
             errors.Add($"{name}: concurrency queue 'max' requires absent or literal false cancel-in-progress.");
         }
@@ -267,19 +310,23 @@ internal static partial class EngineeringSurfaceContract
         string value
     )
     {
-        if (value.TrimStart().StartsWith('#'))
+        if (value
+            .TrimStart()
+            .StartsWith('#'))
         {
             return string.Empty;
         }
 
         var comment = value.IndexOf(" #", StringComparison.Ordinal);
 
-        return (comment < 0 ? value : value[..comment]).Trim();
+        return (comment < 0
+            ? value
+            : value[..comment]).Trim();
     }
 
     private static string UnquoteYamlScalar(
         string value
-    ) => value.Length >= 2 && (value[0] == '\'' && value[^1] == '\'' || value[0] == '"' && value[^1] == '"')
+    ) => value.Length >= 2 && ((value[0] == '\'' && value[^1] == '\'') || (value[0] == '"' && value[^1] == '"'))
         ? value[1..^1]
         : value;
 
@@ -310,7 +357,10 @@ internal static partial class EngineeringSurfaceContract
         }
 
         var releaseTestPath = Path.Combine(root, "eng", "release", "test-tools.sh");
-        var releaseTests = File.Exists(releaseTestPath) ? File.ReadAllText(releaseTestPath) : string.Empty;
+        var releaseTests = File.Exists(releaseTestPath)
+            ? File.ReadAllText(releaseTestPath)
+            : string.Empty;
+
         foreach (var python in Directory.EnumerateFiles(Path.Combine(root, "eng"), "*.py", SearchOption.AllDirectories))
         {
             var relative = Relative(root, python);
@@ -409,14 +459,19 @@ internal static partial class EngineeringSurfaceContract
         var sharedCall = JobBlock(ci, "qualification");
         if (!sharedCall.Contains("uses: $/.github/workflows/quality-gates.yml", StringComparison.Ordinal)
             || !sharedCall.Contains("needs: schedule-identity", StringComparison.Ordinal)
-            || !sharedCall.Contains("if: github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
+            || !sharedCall.Contains(
+                "if: github.event_name != 'schedule' && !inputs.maintenance",
+                StringComparison.Ordinal))
         {
-            errors.Add(".github/workflows/ci.yml: ordinary qualification must call the shared workflow after the identity guard.");
+            errors.Add(
+                ".github/workflows/ci.yml: ordinary qualification must call the shared workflow after the identity guard.");
         }
 
         var qualification = JobBlock(ci, "repository-qualification");
         if (!qualification.Contains("if: always()", StringComparison.Ordinal)
-            || !qualification.Contains("github.event_name != 'schedule' && !inputs.maintenance", StringComparison.Ordinal))
+            || !qualification.Contains(
+                "github.event_name != 'schedule' && !inputs.maintenance",
+                StringComparison.Ordinal))
         {
             errors.Add(
                 ".github/workflows/ci.yml: repository-qualification must aggregate PR/manual "
@@ -428,14 +483,17 @@ internal static partial class EngineeringSurfaceContract
                 "bash eng/quality/require-qualification.sh schedule-identity qualification",
                 StringComparison.Ordinal))
         {
-            errors.Add(".github/workflows/ci.yml: repository-qualification must fail closed on the identity and shared qualification results.");
+            errors.Add(
+                ".github/workflows/ci.yml: repository-qualification must fail closed on the identity and shared qualification results.");
         }
 
         foreach (var (name, workflow) in new[]
-                 {
-                     ("ci.yml", ci), ("benchmark.yml", benchmark),
-                     ("container-matrix.yml", containerMatrix), ("security-audit.yml", securityAudit)
-                 })
+            {
+                ("ci.yml", ci),
+                ("benchmark.yml", benchmark),
+                ("container-matrix.yml", containerMatrix),
+                ("security-audit.yml", securityAudit),
+            })
         {
             ValidateScheduledWorkflow(name, workflow, errors);
         }
@@ -460,7 +518,10 @@ internal static partial class EngineeringSurfaceContract
             || !benchmark.Contains("bash ./eng/benchmark.sh --up-run-down", StringComparison.Ordinal)
             || benchmark.Contains("continue-on-error:", StringComparison.Ordinal))
         {
-            return ["benchmark.yml: hosted execution must enforce allocations/resource correctness without suppressing failures."];
+            return
+            [
+                "benchmark.yml: hosted execution must enforce allocations/resource correctness without suppressing failures.",
+            ];
         }
 
         return [];
@@ -481,7 +542,8 @@ internal static partial class EngineeringSurfaceContract
             ? workflow.Replace(coordinator, string.Empty, StringComparison.Ordinal)
             : workflow;
 
-        var contracts = workflow.Split('\n')
+        var contracts = workflow
+            .Split('\n')
             .Where(line => line.StartsWith("# release-line-schedule: ", StringComparison.Ordinal))
             .ToArray();
 
@@ -495,7 +557,8 @@ internal static partial class EngineeringSurfaceContract
             || ordinaryJobs.Contains("actions: write", StringComparison.Ordinal)
             || workflow.Contains("ref: ${{ inputs.", StringComparison.Ordinal))
         {
-            errors.Add($".github/workflows/{name}: scheduled lines require exact branch-native producers and isolated dispatch permissions.");
+            errors.Add(
+                $".github/workflows/{name}: scheduled lines require exact branch-native producers and isolated dispatch permissions.");
         }
 
         if (contracts.Length != 1)
@@ -506,22 +569,33 @@ internal static partial class EngineeringSurfaceContract
         try
         {
             using var document = JsonDocument.Parse(contracts[0]["# release-line-schedule: ".Length..]);
-            var producers = document.RootElement.GetProperty("producers").EnumerateArray().ToArray();
-            if (document.RootElement.GetProperty("schemaVersion").GetInt32() != 1
+            var producers = document
+                .RootElement
+                .GetProperty("producers")
+                .EnumerateArray()
+                .ToArray();
+
+            if (document
+                    .RootElement
+                    .GetProperty("schemaVersion")
+                    .GetInt32()
+                != 1
                 || producers.Length == 0
                 || producers.Any(producer =>
                     !JobBlock(workflow, producer.GetString() ?? string.Empty)
                         .Contains("needs: schedule-identity", StringComparison.Ordinal)
                     && !(producer.GetString() == "benchmark"
-                         && JobBlock(workflow, "benchmark")
-                             .Contains("needs: resolve-targets", StringComparison.Ordinal)
-                         && JobBlock(workflow, "resolve-targets")
-                             .Contains("needs: schedule-identity", StringComparison.Ordinal))))
+                        && JobBlock(workflow, "benchmark")
+                            .Contains("needs: resolve-targets", StringComparison.Ordinal)
+                        && JobBlock(workflow, "resolve-targets")
+                            .Contains("needs: schedule-identity", StringComparison.Ordinal))))
             {
                 errors.Add($".github/workflows/{name}: every scheduled producer must depend on the identity guard.");
             }
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
+        catch (Exception exception) when (exception is JsonException
+            or InvalidOperationException
+            or KeyNotFoundException)
         {
             errors.Add($".github/workflows/{name}: invalid scheduled producer contract.");
         }
@@ -549,10 +623,12 @@ internal static partial class EngineeringSurfaceContract
                 static domain => domain.Name,
                 static domain => RequiredString(domain.Value, "owner"),
                 StringComparer.Ordinal);
+
         var entrypoints = manifest
             .GetProperty("rootEntrypoints")
             .EnumerateArray()
             .ToArray();
+
         var declaredPaths = new HashSet<string>(StringComparer.Ordinal);
         var declaredTargets = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entrypoint in entrypoints)
@@ -605,6 +681,7 @@ internal static partial class EngineeringSurfaceContract
             .EnumerateFiles(Path.Combine(root, "eng"), "*.sh")
             .Select(path => $"eng/{Path.GetFileName(path)}")
             .ToHashSet(StringComparer.Ordinal);
+
         if (!observed.SetEquals(declaredPaths))
         {
             errors.Add("eng/architecture.json: root Shell entrypoints do not match the manifest.");
@@ -624,6 +701,7 @@ internal static partial class EngineeringSurfaceContract
                     .TrimStart()
                     .StartsWith('#'))
                 .ToArray();
+
             if (executable.Any(line => line.Contains("mapfile", StringComparison.Ordinal)
                     || line.Contains("readarray", StringComparison.Ordinal)
                     || line.Contains("declare -A", StringComparison.Ordinal))
@@ -647,6 +725,7 @@ internal static partial class EngineeringSurfaceContract
                 && line.EndsWith(":3306\"", StringComparison.Ordinal))
             .Select(static line => line[3..^1])
             .ToHashSet(StringComparer.Ordinal);
+
         var expected = new HashSet<string>(StringComparer.Ordinal)
         {
             "127.0.0.1:${DOKA_MYSQL84_PORT:-33068}:3306",
@@ -654,8 +733,9 @@ internal static partial class EngineeringSurfaceContract
             "127.0.0.1:${DOKA_MARIADB1011_PORT:-33066}:3306",
             "127.0.0.1:${DOKA_MARIADB114_PORT:-33067}:3306",
             "127.0.0.1:${DOKA_MARIADB118_PORT:-33069}:3306",
-            "127.0.0.1:${DOKA_MARIADB123_PORT:-33071}:3306"
+            "127.0.0.1:${DOKA_MARIADB123_PORT:-33071}:3306",
         };
+
         if (!published.SetEquals(expected))
         {
             errors.Add("docker/compose.yml: database ports must bind only to IPv4 loopback.");
@@ -671,15 +751,16 @@ internal static partial class EngineeringSurfaceContract
         const string runner = "xunit.runner.visualstudio";
         var consumers = new List<string>();
         foreach (var project in Directory
-                     .EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
-                     .Where(path => !path
-                         .Split(Path.DirectorySeparatorChar)
-                         .Contains("artifacts", StringComparer.Ordinal)))
+            .EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !path
+                .Split(Path.DirectorySeparatorChar)
+                .Contains("artifacts", StringComparer.Ordinal)))
         {
             var document = XDocument.Load(project);
             var references = document
                 .Descendants("PackageReference")
                 .ToArray();
+
             if (!references.Any(reference => (string?)reference.Attribute("Include") == specification)
                 || string.Equals(
                     document
@@ -697,6 +778,7 @@ internal static partial class EngineeringSurfaceContract
             var runnerReferences = references
                 .Where(reference => (string?)reference.Attribute("Include") == runner)
                 .ToArray();
+
             if (runnerReferences.Length != 1
                 || runnerReferences[0]
                     .Attribute("Version") is not null
@@ -718,11 +800,12 @@ internal static partial class EngineeringSurfaceContract
         var expected = new[]
         {
             "eng/tools/Doka.EntityFrameworkCore.MySql.SpecificationContract/Doka.EntityFrameworkCore.MySql.SpecificationContract.csproj",
-            "tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters/SpecificationAdapters.csproj"
+            "tests/Doka.EntityFrameworkCore.MySql.SpecificationAdapters/SpecificationAdapters.csproj",
         };
+
         if (!consumers
-                .Order(StringComparer.Ordinal)
-                .SequenceEqual(expected, StringComparer.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .SequenceEqual(expected, StringComparer.Ordinal))
         {
             errors.Add("Specification package consumers do not match the reviewed dependency boundary.");
         }
@@ -735,13 +818,16 @@ internal static partial class EngineeringSurfaceContract
     {
         var runner = File.ReadAllText(Path.Combine(root, "eng", "testing", "test.sh"));
         foreach (var project in new[]
-                 {
-                     "Doka.EntityFrameworkCore.MySql.Tests", "Doka.EntityFrameworkCore.MySql.FunctionalTests",
-                     "Doka.EntityFrameworkCore.MySql", "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
-                     "Doka.EntityFrameworkCore.MySql.AdrValidator",
-                     "Doka.EntityFrameworkCore.MySql.SpecificationContract",
-                     "Doka.EntityFrameworkCore.MySql.TestUtilities", "SpecificationAdapters"
-                 })
+            {
+                "Doka.EntityFrameworkCore.MySql.Tests",
+                "Doka.EntityFrameworkCore.MySql.FunctionalTests",
+                "Doka.EntityFrameworkCore.MySql",
+                "Doka.EntityFrameworkCore.MySql.NetTopologySuite",
+                "Doka.EntityFrameworkCore.MySql.AdrValidator",
+                "Doka.EntityFrameworkCore.MySql.SpecificationContract",
+                "Doka.EntityFrameworkCore.MySql.TestUtilities",
+                "SpecificationAdapters",
+            })
         {
             if (!runner.Contains($"\"{project}\"", StringComparison.Ordinal))
             {
@@ -750,10 +836,11 @@ internal static partial class EngineeringSurfaceContract
         }
 
         foreach (var restoreArtifact in new[]
-                 {
-                     "${project_obj}/project.assets.json", "${project_obj}/${project_name}.csproj.nuget.g.props",
-                     "${project_obj}/${project_name}.csproj.nuget.g.targets"
-                 })
+            {
+                "${project_obj}/project.assets.json",
+                "${project_obj}/${project_name}.csproj.nuget.g.props",
+                "${project_obj}/${project_name}.csproj.nuget.g.targets",
+            })
         {
             if (!runner.Contains(restoreArtifact, StringComparison.Ordinal))
             {
@@ -770,10 +857,11 @@ internal static partial class EngineeringSurfaceContract
         var surfaces = Directory
             .EnumerateFiles(Path.Combine(root, "eng"), "*.sh", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateFiles(Path.Combine(root, ".github", "workflows"), "*.yml"));
+
         foreach (var surface in surfaces)
         {
             foreach (Match match in ReferencedShellScript()
-                         .Matches(File.ReadAllText(surface)))
+                .Matches(File.ReadAllText(surface)))
             {
                 var relative = match.Groups[1].Value;
                 if (!File.Exists(Path.Combine(root, relative)))
@@ -791,10 +879,13 @@ internal static partial class EngineeringSurfaceContract
     {
         var lint = File.ReadAllText(Path.Combine(root, "eng", "quality", "lint-workflows.sh"));
         foreach (var required in new[]
-                 {
-                     "elif [[ \"${CI:-false}\" == \"true\" ]]", "DOKA_LINT_AUTO_INSTALL must be 0 or 1",
-                     "if ! command -v shellcheck", "--require-hashes", "actionlint_version=\"1.7.12\""
-                 })
+            {
+                "elif [[ \"${CI:-false}\" == \"true\" ]]",
+                "DOKA_LINT_AUTO_INSTALL must be 0 or 1",
+                "if ! command -v shellcheck",
+                "--require-hashes",
+                "actionlint_version=\"1.7.12\"",
+            })
         {
             if (!lint.Contains(required, StringComparison.Ordinal))
             {
@@ -804,10 +895,13 @@ internal static partial class EngineeringSurfaceContract
 
         var vulnerability = File.ReadAllText(Path.Combine(root, "eng", "quality", "check-vulnerability-audit.sh"));
         foreach (var required in new[]
-                 {
-                     ".version == 1", "--vulnerable", "--include-transitive", "vulnerability_count",
-                     "does not cover"
-                 })
+            {
+                ".version == 1",
+                "--vulnerable",
+                "--include-transitive",
+                "vulnerability_count",
+                "does not cover",
+            })
         {
             if (!vulnerability.Contains(required, StringComparison.Ordinal))
             {
@@ -822,7 +916,9 @@ internal static partial class EngineeringSurfaceContract
     {
         var start = workflow.IndexOf("\non:\n", StringComparison.Ordinal);
         var end = workflow.IndexOf("\npermissions:\n", StringComparison.Ordinal);
-        return start >= 0 && end > start ? workflow[(start + 1)..end] : string.Empty;
+        return start >= 0 && end > start
+            ? workflow[(start + 1)..end]
+            : string.Empty;
     }
 
     private static string JobBlock(
@@ -839,13 +935,15 @@ internal static partial class EngineeringSurfaceContract
         start++;
         var end = workflow.IndexOf("\n  ", start + job.Length + 4, StringComparison.Ordinal);
         while (end >= 0
-               && end + 3 < workflow.Length
-               && workflow[end + 3] == ' ')
+            && end + 3 < workflow.Length
+            && workflow[end + 3] == ' ')
         {
             end = workflow.IndexOf("\n  ", end + 3, StringComparison.Ordinal);
         }
 
-        return end < 0 ? workflow[start..] : workflow[start..end];
+        return end < 0
+            ? workflow[start..]
+            : workflow[start..end];
     }
 
     private static string RequiredString(

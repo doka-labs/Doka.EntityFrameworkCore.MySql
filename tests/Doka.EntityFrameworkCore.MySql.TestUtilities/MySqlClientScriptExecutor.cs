@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
 /// </summary>
 /// <remarks>
 /// <c>DELIMITER</c> is client syntax and cannot be sent through
-/// <see cref="MySqlCommand"/>. This executor removes only those directives and
+/// <see cref="MySqlCommand" />. This executor removes only those directives and
 /// splits statements at the active delimiter while preserving delimiters in
 /// quoted values, quoted identifiers, and comments.
 /// </remarks>
@@ -93,16 +93,16 @@ public static class MySqlClientScriptExecutor
                         };
                     }
                     else if (current == '#'
-                             || (current == '-'
-                             && index + 1 < script.Length
-                             && script[index + 1] == '-'
-                             && (index + 2 == script.Length || char.IsWhiteSpace(script[index + 2]))))
+                        || (current == '-'
+                            && index + 1 < script.Length
+                            && script[index + 1] == '-'
+                            && (index + 2 == script.Length || char.IsWhiteSpace(script[index + 2]))))
                     {
                         state = ParserState.LineComment;
                     }
                     else if (current == '/'
-                             && index + 1 < script.Length
-                             && script[index + 1] == '*')
+                        && index + 1 < script.Length
+                        && script[index + 1] == '*')
                     {
                         statement.Append(current);
                         statement.Append(script[index + 1]);
@@ -216,7 +216,7 @@ public static class MySqlClientScriptExecutor
         var lineEnd = lineStart;
 
         while (lineEnd < script.Length
-               && script[lineEnd] is not '\r' and not '\n')
+            && script[lineEnd] is not '\r' and not '\n')
         {
             lineEnd++;
         }

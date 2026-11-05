@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Associations;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
@@ -106,8 +107,8 @@ public class SpecDispositionContractTests
     [Fact]
     public void Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration()
     {
-        var method = typeof(Query.Associations.OwnedNavigationsProjectionMySqlTest).GetMethod(
-            nameof(Query.Associations.OwnedNavigationsProjectionMySqlTest
+        var method = typeof(OwnedNavigationsProjectionMySqlTest).GetMethod(
+            nameof(OwnedNavigationsProjectionMySqlTest
                 .Select_subquery_optional_related_FirstOrDefault))!;
 
         var attribute = method.GetCustomAttribute<InheritedTheoryDataAttribute>()!;
@@ -124,13 +125,15 @@ public class SpecDispositionContractTests
     {
         using var ledger = LoadLedger();
         var dispositionedInheritedMethods = ledger
-            .RootElement.GetProperty("activeDispositions")
+            .RootElement
+            .GetProperty("activeDispositions")
             .EnumerateArray()
             .SelectMany(InheritedUpstreamMethods)
             .ToHashSet(StringComparer.Ordinal);
 
         var inheritedSkips = typeof(SpecDispositionContractTests)
-            .Assembly.GetTypes()
+            .Assembly
+            .GetTypes()
             .Where(type =>
                 type.IsClass
                 && !type.IsAbstract
@@ -173,21 +176,48 @@ public class SpecDispositionContractTests
         using var document = LoadLedger();
         var root = document.RootElement;
 
-        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
-        Assert.Equal(0, root.GetProperty("policy").GetProperty("providerGapBudget").GetInt32());
-        Assert.False(root.GetProperty("policy").GetProperty("silentPassesPermitted").GetBoolean());
+        Assert.Equal(
+            2,
+            root
+                .GetProperty("schemaVersion")
+                .GetInt32());
+
+        Assert.Equal(
+            0,
+            root
+                .GetProperty("policy")
+                .GetProperty("providerGapBudget")
+                .GetInt32());
+
+        Assert.False(
+            root
+                .GetProperty("policy")
+                .GetProperty("silentPassesPermitted")
+                .GetBoolean());
 
         var supportedTargets = StringValues(root.GetProperty("supportedTargets"));
 
         Assert.NotEmpty(supportedTargets);
-        Assert.Equal(supportedTargets.Length, supportedTargets.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            supportedTargets.Length,
+            supportedTargets
+                .Distinct(StringComparer.Ordinal)
+                .Count());
 
-        var activeDispositions = root.GetProperty("activeDispositions").EnumerateArray().ToArray();
+        var activeDispositions = root
+            .GetProperty("activeDispositions")
+            .EnumerateArray()
+            .ToArray();
+
         var activeIds = activeDispositions
             .Select(disposition => RequiredString(disposition, "id"))
             .ToArray();
 
-        Assert.Equal(activeIds.Length, activeIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            activeIds.Length,
+            activeIds
+                .Distinct(StringComparer.Ordinal)
+                .Count());
 
         var activeProviderGaps = activeDispositions
             .Where(disposition => RequiredString(disposition, "classification") == "provider-gap")
@@ -201,14 +231,19 @@ public class SpecDispositionContractTests
 
         Assert.Equal(
             documentedMethods.Length,
-            documentedMethods.Distinct(StringComparer.Ordinal).Count());
+            documentedMethods
+                .Distinct(StringComparer.Ordinal)
+                .Count());
+
         var documentedTestIds = activeDispositions
             .SelectMany(disposition => StringValues(disposition.GetProperty("discoveredTestIds")))
             .ToArray();
 
         Assert.Equal(
             documentedTestIds.Length,
-            documentedTestIds.Distinct(StringComparer.Ordinal).Count());
+            documentedTestIds
+                .Distinct(StringComparer.Ordinal)
+                .Count());
 
         foreach (var disposition in activeDispositions)
         {
@@ -218,6 +253,7 @@ public class SpecDispositionContractTests
             Assert.Contains(
                 RequiredString(disposition, "suite"),
                 s_supportedSuites);
+
             var fixture = RequiredString(disposition, "fixture");
 
             var targets = StringValues(disposition.GetProperty("targets"));
@@ -231,21 +267,27 @@ public class SpecDispositionContractTests
             Assert.NotEmpty(discoveredTestIds);
             Assert.Equal(
                 discoveredTestIds.Length,
-                discoveredTestIds.Distinct(StringComparer.Ordinal).Count());
+                discoveredTestIds
+                    .Distinct(StringComparer.Ordinal)
+                    .Count());
+
             Assert.All(
                 discoveredTestIds,
                 testId => Assert.StartsWith(
                     $"{fixture}.",
                     testId,
                     StringComparison.Ordinal));
+
             Assert.False(string.IsNullOrWhiteSpace(RequiredString(disposition, "reevaluateWhen")));
 
             if (disposition.TryGetProperty("execution", out var execution))
             {
                 Assert.Equal("inherited-upstream-skip", execution.GetString());
                 Assert.Equal(
-                    StringValues(disposition.GetProperty("testMethods")).OrderBy(value => value),
-                    InheritedUpstreamMethods(disposition).OrderBy(value => value));
+                    StringValues(disposition.GetProperty("testMethods"))
+                        .OrderBy(value => value),
+                    InheritedUpstreamMethods(disposition)
+                        .OrderBy(value => value));
             }
 
             if (classification == "not-applicable")
@@ -258,12 +300,15 @@ public class SpecDispositionContractTests
             {
                 ValidatePrimarySources(disposition, s_officialDatabaseVendorHosts);
 
-                Assert.False(string.IsNullOrWhiteSpace(
-                    RequiredString(disposition, "providerWorkaroundAssessment")));
+                Assert.False(
+                    string.IsNullOrWhiteSpace(
+                        RequiredString(disposition, "providerWorkaroundAssessment")));
+
                 ValidateProbe(
                     disposition,
                     targets,
                     "DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true");
+
                 continue;
             }
 
@@ -271,18 +316,23 @@ public class SpecDispositionContractTests
             ValidatePrimarySources(disposition, s_officialEfCoreHosts);
             ValidateFrameworkEvidence(disposition);
 
-            Assert.False(string.IsNullOrWhiteSpace(
-                RequiredString(disposition, "frameworkBoundaryAssessment")));
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    RequiredString(disposition, "frameworkBoundaryAssessment")));
+
             Assert.Equal(
                 supportedTargets.OrderBy(value => value),
                 targets.OrderBy(value => value));
+
             ValidateProbe(
                 disposition,
                 targets,
                 "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS=true");
         }
 
-        foreach (var workaround in root.GetProperty("providerWorkarounds").EnumerateArray())
+        foreach (var workaround in root
+            .GetProperty("providerWorkarounds")
+            .EnumerateArray())
         {
             Assert.Equal("implemented", RequiredString(workaround, "status"));
             Assert.NotEmpty(StringValues(workaround.GetProperty("targets")));
@@ -320,20 +370,20 @@ public class SpecDispositionContractTests
         var documentation = string.Join(Environment.NewLine, documentationPaths.Select(File.ReadAllText));
 
         var dispositions = ledger
-            .RootElement.GetProperty("activeDispositions")
+            .RootElement
+            .GetProperty("activeDispositions")
             .EnumerateArray()
             .ToArray();
 
-        foreach (var disposition in dispositions.Where(
-                     item => RequiredString(item, "classification") is
-                         "engine-limitation" or "framework-limitation"))
+        foreach (var disposition in dispositions.Where(item => RequiredString(item, "classification") is
+            "engine-limitation" or "framework-limitation"))
         {
             var id = RequiredString(disposition, "id");
             AssertDocumentedLimitation(documentation, $"### `{id}`");
         }
 
-        foreach (var disposition in dispositions.Where(
-                     item => RequiredString(item, "classification") == "not-applicable"))
+        foreach (var disposition in dispositions.Where(item =>
+            RequiredString(item, "classification") == "not-applicable"))
         {
             var id = RequiredString(disposition, "id");
 
@@ -354,7 +404,8 @@ public class SpecDispositionContractTests
     public void Disposition_ids_match_every_version_bound_discovery_contract()
     {
         using var ledger = LoadLedger();
-        var dispositions = ledger.RootElement
+        var dispositions = ledger
+            .RootElement
             .GetProperty("activeDispositions")
             .EnumerateArray()
             .ToArray();
@@ -376,26 +427,26 @@ public class SpecDispositionContractTests
         foreach (var contractPath in contractPaths)
         {
             using var contract = JsonDocument.Parse(File.ReadAllText(contractPath));
-            foreach (var target in contract.RootElement
-                         .GetProperty("targets")
-                         .EnumerateArray())
+            foreach (var target in contract
+                .RootElement
+                .GetProperty("targets")
+                .EnumerateArray())
             {
                 var targetName = RequiredString(target, "target");
                 var targetTestIds = StringValues(target.GetProperty("testIds"));
-                foreach (var disposition in dispositions.Where(
-                             item => StringValues(item.GetProperty("targets")).Contains(
-                                 targetName,
-                                 StringComparer.Ordinal)))
+                foreach (var disposition in dispositions.Where(item => StringValues(item.GetProperty("targets"))
+                    .Contains(
+                        targetName,
+                        StringComparer.Ordinal)))
                 {
                     var fixture = RequiredString(disposition, "fixture");
                     var methodIdentifiers = StringValues(disposition.GetProperty("testMethods"));
                     var expected = targetTestIds
                         .Where(testId =>
                             testId.StartsWith($"{fixture}.", StringComparison.Ordinal)
-                            && methodIdentifiers.Any(
-                                methodIdentifier => IsMethodDisplayId(
-                                    testId,
-                                    methodIdentifier)))
+                            && methodIdentifiers.Any(methodIdentifier => IsMethodDisplayId(
+                                testId,
+                                methodIdentifier)))
                         .OrderBy(value => value, StringComparer.Ordinal)
                         .ToArray();
 
@@ -417,7 +468,8 @@ public class SpecDispositionContractTests
     public void Executable_skips_match_the_disposition_ledger()
     {
         using var document = LoadLedger();
-        var dispositions = document.RootElement
+        var dispositions = document
+            .RootElement
             .GetProperty("activeDispositions")
             .EnumerateArray()
             .ToArray();
@@ -453,7 +505,7 @@ public class SpecDispositionContractTests
             .Select(item => new
             {
                 item.Method,
-                DispositionId = item.Disposition!.DispositionId,
+                item.Disposition!.DispositionId,
                 UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
             });
 
@@ -468,7 +520,7 @@ public class SpecDispositionContractTests
             .Select(item => new
             {
                 item.Method,
-                DispositionId = item.Disposition!.DispositionId,
+                item.Disposition!.DispositionId,
                 UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
             });
 
@@ -488,11 +540,13 @@ public class SpecDispositionContractTests
 
             Assert.Contains(methodName, StringValues(disposition.GetProperty("testMethods")));
             Assert.Equal(
-                StringValues(disposition.GetProperty("targets")).OrderBy(value => value),
+                StringValues(disposition.GetProperty("targets"))
+                    .OrderBy(value => value),
                 item.UnsupportedTargets.OrderBy(value => value));
         }
 
-        var documentedEngineMethods = engineDispositions.Values
+        var documentedEngineMethods = engineDispositions
+            .Values
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
             .OrderBy(value => value)
             .ToArray();
@@ -544,12 +598,14 @@ public class SpecDispositionContractTests
             Assert.Contains(methodName, StringValues(disposition.GetProperty("testMethods")));
         }
 
-        var documentedFrameworkMethods = frameworkDispositions.Values
+        var documentedFrameworkMethods = frameworkDispositions
+            .Values
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
             .OrderBy(value => value)
             .ToArray();
 
-        var inheritedUpstreamFrameworkMethods = frameworkDispositions.Values
+        var inheritedUpstreamFrameworkMethods = frameworkDispositions
+            .Values
             .SelectMany(InheritedUpstreamMethods)
             .OrderBy(value => value)
             .ToArray();
@@ -557,6 +613,7 @@ public class SpecDispositionContractTests
         Assert.All(
             inheritedUpstreamFrameworkMethods,
             method => Assert.Contains(method, documentedFrameworkMethods));
+
         Assert.Equal(
             documentedFrameworkMethods
                 .Except(inheritedUpstreamFrameworkMethods, StringComparer.Ordinal)
@@ -585,9 +642,10 @@ public class SpecDispositionContractTests
             var matchingDisposition = Assert.Single(
                 notApplicableDispositions,
                 disposition =>
-                    StringValues(disposition.GetProperty("testMethods")).Contains(
-                        methodName,
-                        StringComparer.Ordinal));
+                    StringValues(disposition.GetProperty("testMethods"))
+                        .Contains(
+                            methodName,
+                            StringComparer.Ordinal));
 
             var dispositionId = RequiredString(matchingDisposition, "id");
 
@@ -622,15 +680,13 @@ public class SpecDispositionContractTests
 
         var forbiddenFragments = new[]
         {
-            "DOKA_SPEC_TEST_PROBE_" + "EXEMPTIONS",
-            "Skip" + "Exception",
-            "Task." + "CompletedTask",
+            "DOKA_SPEC_TEST_PROBE_" + "EXEMPTIONS", "Skip" + "Exception", "Task." + "CompletedTask",
         };
 
         foreach (var sourcePath in Directory.EnumerateFiles(
-                     specificationDirectory,
-                     "*.cs",
-                     SearchOption.AllDirectories))
+            specificationDirectory,
+            "*.cs",
+            SearchOption.AllDirectories))
         {
             var source = File.ReadAllText(sourcePath);
             foreach (var forbiddenFragment in forbiddenFragments)
@@ -722,7 +778,8 @@ public class SpecDispositionContractTests
                 type.IsClass
                 && type.Namespace?.StartsWith(
                     "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification",
-                    StringComparison.Ordinal) == true)
+                    StringComparison.Ordinal)
+                == true)
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Instance
                 | BindingFlags.Public
@@ -741,7 +798,11 @@ public class SpecDispositionContractTests
         providerType.FullName,
         method.ReturnType.FullName,
         method.Name,
-        string.Join(",", method.GetParameters().Select(parameter => $"{parameter.ParameterType.FullName} {parameter.Name}")));
+        string.Join(
+            ",",
+            method
+                .GetParameters()
+                .Select(parameter => $"{parameter.ParameterType.FullName} {parameter.Name}")));
 
     private static bool MatchesInheritedDisposition(
         Type providerType,
@@ -792,7 +853,8 @@ public class SpecDispositionContractTests
         }
 
         var suffix = methodStart + marker.Length;
-        if (suffix != testId.Length && testId[suffix] != '(')
+        if (suffix != testId.Length
+            && testId[suffix] != '(')
         {
             return false;
         }
@@ -828,7 +890,9 @@ public class SpecDispositionContractTests
         string propertyName
     )
     {
-        var value = element.GetProperty(propertyName).GetString();
+        var value = element
+            .GetProperty(propertyName)
+            .GetString();
 
         Assert.False(string.IsNullOrWhiteSpace(value));
         return value;
@@ -840,7 +904,10 @@ public class SpecDispositionContractTests
     )
     {
         var dispositionId = RequiredString(disposition, "id");
-        var sources = disposition.GetProperty("primarySources").EnumerateArray().ToArray();
+        var sources = disposition
+            .GetProperty("primarySources")
+            .EnumerateArray()
+            .ToArray();
 
         Assert.NotEmpty(sources);
 
@@ -865,6 +932,7 @@ public class SpecDispositionContractTests
                     DateTimeStyles.None,
                     out var retrievedAt),
                 $"Disposition '{dispositionId}' has invalid retrievedAt '{retrievedAtText}'.");
+
             Assert.True(
                 retrievedAt <= DateOnly.FromDateTime(DateTime.UtcNow),
                 $"Disposition '{dispositionId}' has a future retrieval date.");
@@ -886,8 +954,8 @@ public class SpecDispositionContractTests
         var evidenceKind = disposition.TryGetProperty(
             "evidenceKind",
             out var evidenceKindProperty)
-                ? evidenceKindProperty.GetString()
-                : "issue";
+            ? evidenceKindProperty.GetString()
+            : "issue";
 
         if (evidenceKind == "issue")
         {
@@ -897,6 +965,7 @@ public class SpecDispositionContractTests
                     "/dotnet/efcore/issues/",
                     source,
                     StringComparison.Ordinal));
+
             return;
         }
 
@@ -904,16 +973,17 @@ public class SpecDispositionContractTests
         Assert.Contains(
             sources,
             source => source.StartsWith(
-                "/dotnet/efcore/blob/v",
-                StringComparison.Ordinal)
+                    "/dotnet/efcore/blob/v",
+                    StringComparison.Ordinal)
                 && source.Contains(
                     "/test/",
                     StringComparison.Ordinal));
+
         Assert.Contains(
             sources,
             source => source.StartsWith(
-                "/dotnet/efcore/blob/v",
-                StringComparison.Ordinal)
+                    "/dotnet/efcore/blob/v",
+                    StringComparison.Ordinal)
                 && source.Contains(
                     "/src/",
                     StringComparison.Ordinal));
@@ -932,8 +1002,8 @@ public class SpecDispositionContractTests
         return disposition.TryGetProperty(
             "inheritedUpstreamTestMethods",
             out var inheritedMethods)
-                ? StringValues(inheritedMethods)
-                : [];
+            ? StringValues(inheritedMethods)
+            : [];
     }
 
     private static void ValidateProbe(
@@ -967,10 +1037,11 @@ public class SpecDispositionContractTests
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(
+            if (File.Exists(
+                Path.Combine(
                     directory.FullName,
                     "Doka.EntityFrameworkCore.MySql.slnx")))
             {

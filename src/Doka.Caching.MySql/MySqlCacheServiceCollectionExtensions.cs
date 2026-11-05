@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Doka.Caching.MySql;
 
 /// <summary>
@@ -15,7 +17,7 @@ public static class MySqlCacheServiceCollectionExtensions
 
     /// <summary>
     /// Adds one MySQL-backed cache instance for both
-    /// <see cref="IDistributedCache"/> and <see cref="IBufferDistributedCache"/>.
+    /// <see cref="IDistributedCache" /> and <see cref="IBufferDistributedCache" />.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">The cache configuration callback.</param>
@@ -39,7 +41,7 @@ public static class MySqlCacheServiceCollectionExtensions
         services.TryAddSingleton(static provider => new MySqlDistributedCache(
             provider.GetRequiredService<IOptions<MySqlCacheOptions>>(),
             provider.GetService<ILogger<MySqlDistributedCache>>()
-            ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<MySqlDistributedCache>.Instance,
+            ?? NullLogger<MySqlDistributedCache>.Instance,
             provider.GetService<TimeProvider>()));
 
         services.Remove(s_cacheRegistration);

@@ -18,23 +18,56 @@ public sealed partial class MySqlIndexByteBudgetTests
     )
     {
         // Arrange
-        using var context = CreateContext(reverse ? "reverse" : "forward");
+        using var context = CreateContext(
+            reverse
+                ? "reverse"
+                : "forward");
 
         // Act
-        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType("Budget")!;
-        var properties = entity.GetProperties().ToDictionary(property => property.Name);
+        var entity = context
+            .GetService<IDesignTimeModel>()
+            .Model
+            .FindEntityType("Budget")!;
+
+        var properties = entity
+            .GetProperties()
+            .ToDictionary(property => property.Name);
 
         // Assert
-        Assert.Equal(254, properties["Id"].GetMaxLength());
-        Assert.Equal(254, properties["Scope"].GetMaxLength());
-        Assert.Equal(254, properties["Tree"].GetMaxLength());
-        Assert.Equal(255, properties["Parent"].GetMaxLength());
+        Assert.Equal(
+            254,
+            properties["Id"]
+                .GetMaxLength());
+
+        Assert.Equal(
+            254,
+            properties["Scope"]
+                .GetMaxLength());
+
+        Assert.Equal(
+            254,
+            properties["Tree"]
+                .GetMaxLength());
+
+        Assert.Equal(
+            255,
+            properties["Parent"]
+                .GetMaxLength());
+
         Assert.All(
             properties.Values.Where(property => property.ClrType == typeof(string)),
             property => Assert.Equal(
                 ConfigurationSource.Convention,
                 ((IConventionProperty)property).GetMaxLengthConfigurationSource()));
-        Assert.Equal(3065, (3 * properties["Id"].GetMaxLength()!.Value * 4) + 17);
+
+        Assert.Equal(
+            3065,
+            3
+            * properties["Id"]
+                .GetMaxLength()!.Value
+            * 4
+            + 17);
+
         Assert.All(entity.GetIndexes(), index => Assert.Null(index.GetMySqlIndexPrefixLengths()));
     }
 
@@ -43,7 +76,8 @@ public sealed partial class MySqlIndexByteBudgetTests
         MySqlServerVersion? version = null
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<BudgetContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<BudgetContext>()
             .UseMySql(
                 "Server=localhost;Database=not_used;User Id=not_used;Password=not_used",
                 version ?? MySqlServerVersion.MySql(new Version(8, 4, 0)))
@@ -51,6 +85,49 @@ public sealed partial class MySqlIndexByteBudgetTests
             .Options;
 
         return new BudgetContext(options, scenario);
+    }
+
+    private static void ConfigureReportEntity(
+        EntityTypeBuilder<Dictionary<string, object>> entity,
+        bool reverse
+    )
+    {
+        entity
+            .Property<string>("Id")
+            .IsRequired();
+
+        entity
+            .Property<string>("Scope")
+            .IsRequired();
+
+        entity
+            .Property<string>("Tree")
+            .IsRequired();
+
+        entity.Property<string>("Parent");
+        entity.Property<long>("L");
+        entity.Property<long>("R");
+        entity.Property<long>("Position");
+        entity.Property<int>("Depth");
+        entity
+            .Property<bool>("Flag")
+            .HasComputedColumnSql("`R` > `L` + 1", stored: false);
+
+        entity.HasKey("Id");
+        string[][] definitions =
+        [
+            ["Scope", "Tree", "L"],
+            ["Scope", "Tree", "R"],
+            ["Scope", "Tree", "Parent", "Position"],
+            ["Scope", "Flag", "Tree", "R", "L", "Id"],
+        ];
+
+        foreach (var definition in reverse
+            ? definitions.Reverse()
+            : definitions)
+        {
+            entity.HasIndex(definition);
+        }
     }
 
     private sealed class BudgetContext(
@@ -82,45 +159,70 @@ public sealed partial class MySqlIndexByteBudgetTests
                     or "owned-table-first-wins"
                     or "owned-table-collation-first-wins";
 
-                modelBuilder.HasCharSet(narrowOwner ? "utf8mb4" : "latin1");
+                modelBuilder.HasCharSet(
+                    narrowOwner
+                        ? "utf8mb4"
+                        : "latin1");
+
                 modelBuilder.Entity<BudgetDefaultOwner>(owner =>
                 {
-                    owner.ToTable("SharedDefaultBudget").HasCharSet(narrowOwner ? "latin1" : "utf8mb4");
+                    owner
+                        .ToTable("SharedDefaultBudget")
+                        .HasCharSet(
+                            narrowOwner
+                                ? "latin1"
+                                : "utf8mb4");
 
                     if (scenario == "owned-table-collation-first-wins")
                     {
                         owner.HasAnnotation(RelationalAnnotationNames.Collation, "latin1_bin");
                     }
 
-                    owner.OwnsOne(value => value.Detail, detail =>
-                    {
-                        detail.ToTable("SharedDefaultBudget");
-                        detail.Property(value => value.A).HasMaxLength(
-                            scenario.EndsWith("first-wins", StringComparison.Ordinal) ? 1200 : 700);
-
-                        if (scenario.EndsWith("first-wins", StringComparison.Ordinal))
+                    owner.OwnsOne(
+                        value => value.Detail,
+                        detail =>
                         {
-                            detail.HasAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
-                        }
+                            detail.ToTable("SharedDefaultBudget");
+                            detail
+                                .Property(value => value.A)
+                                .HasMaxLength(
+                                    scenario.EndsWith("first-wins", StringComparison.Ordinal)
+                                        ? 1200
+                                        : 700);
 
-                        if (scenario == "owned-table-collation-first-wins")
-                        {
-                            detail.HasAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
-                        }
+                            if (scenario.EndsWith("first-wins", StringComparison.Ordinal))
+                            {
+                                detail.HasAnnotation(MySqlAnnotationNames.CharSet, "utf8mb4");
+                            }
 
+                            if (scenario == "owned-table-collation-first-wins")
+                            {
+                                detail.HasAnnotation(RelationalAnnotationNames.Collation, "utf8mb4_bin");
+                            }
 
-                        if (scenario == "owned-table-overlong")
-                        {
-                            detail.Property(value => value.B).HasMaxLength(100);
-                        }
-                        else if (scenario == "owned-table-property-collation")
-                        {
-                            detail.Property(value => value.A).UseCollation("latin1_bin");
-                        }
+                            if (scenario == "owned-table-overlong")
+                            {
+                                detail
+                                    .Property(value => value.B)
+                                    .HasMaxLength(100);
+                            }
+                            else if (scenario == "owned-table-property-collation")
+                            {
+                                detail
+                                    .Property(value => value.A)
+                                    .UseCollation("latin1_bin");
+                            }
 
-                        detail.HasIndex(value => new { value.A, value.B });
-                    });
-                    owner.Navigation(value => value.Detail).IsRequired();
+                            detail.HasIndex(value => new
+                            {
+                                value.A,
+                                value.B,
+                            });
+                        });
+
+                    owner
+                        .Navigation(value => value.Detail)
+                        .IsRequired();
                 });
 
                 return;
@@ -130,7 +232,9 @@ public sealed partial class MySqlIndexByteBudgetTests
             {
                 modelBuilder.Entity<BudgetDefaultBase>(entity =>
                 {
-                    entity.ToTable("DefaultBaseBudget").HasCharSet("latin1");
+                    entity
+                        .ToTable("DefaultBaseBudget")
+                        .HasCharSet("latin1");
 
                     if (scenario == "defaults-tph")
                     {
@@ -141,7 +245,10 @@ public sealed partial class MySqlIndexByteBudgetTests
                         entity.UseTptMappingStrategy();
                     }
                 });
-                var derived = modelBuilder.Entity<BudgetDefaultDerived>().HasCharSet("utf8mb4");
+
+                var derived = modelBuilder
+                    .Entity<BudgetDefaultDerived>()
+                    .HasCharSet("utf8mb4");
 
                 if (scenario == "defaults-tpt")
                 {
@@ -167,7 +274,10 @@ public sealed partial class MySqlIndexByteBudgetTests
                         value.Tree,
                     });
                 });
-                modelBuilder.Entity<BudgetTpcRow>().HasCharSet("utf8mb4");
+
+                modelBuilder
+                    .Entity<BudgetTpcRow>()
+                    .HasCharSet("utf8mb4");
 
                 return;
             }
@@ -177,23 +287,42 @@ public sealed partial class MySqlIndexByteBudgetTests
                 modelBuilder.Entity<BudgetBinaryOwner>(owner =>
                 {
                     owner.ToTable("SharedBinaryBudget");
-                    owner.Property(value => value.Code).HasColumnName("Code");
+                    owner
+                        .Property(value => value.Code)
+                        .HasColumnName("Code");
+
                     owner.HasIndex(value => value.Code);
-                    owner.OwnsOne(value => value.Detail, detail =>
-                    {
-                        detail.ToTable("SharedBinaryBudget");
-                        detail.Property(value => value.Code).HasColumnName("Code").HasMaxLength(16);
-                    });
-                    owner.Navigation(value => value.Detail).IsRequired();
+                    owner.OwnsOne(
+                        value => value.Detail,
+                        detail =>
+                        {
+                            detail.ToTable("SharedBinaryBudget");
+                            detail
+                                .Property(value => value.Code)
+                                .HasColumnName("Code")
+                                .HasMaxLength(16);
+                        });
+
+                    owner
+                        .Navigation(value => value.Detail)
+                        .IsRequired();
 
                     if (scenario == "shared-binary-mixed")
                     {
-                        owner.OwnsOne(value => value.StoreDetail, detail =>
-                        {
-                            detail.ToTable("SharedBinaryBudget");
-                            detail.Property(value => value.Code).HasColumnName("Code").HasColumnType("varbinary(17)");
-                        });
-                        owner.Navigation(value => value.StoreDetail).IsRequired();
+                        owner.OwnsOne(
+                            value => value.StoreDetail,
+                            detail =>
+                            {
+                                detail.ToTable("SharedBinaryBudget");
+                                detail
+                                    .Property(value => value.Code)
+                                    .HasColumnName("Code")
+                                    .HasColumnType("varbinary(17)");
+                            });
+
+                        owner
+                            .Navigation(value => value.StoreDetail)
+                            .IsRequired();
                     }
                     else
                     {
@@ -208,11 +337,22 @@ public sealed partial class MySqlIndexByteBudgetTests
             {
                 modelBuilder.Entity<BudgetOwner>(owner =>
                 {
-                    owner.ToTable(scenario == "shared-split" ? "BudgetMain" : "SharedBudget");
-                    owner.Property(value => value.Code).HasColumnName("Code");
+                    owner.ToTable(
+                        scenario == "shared-split"
+                            ? "BudgetMain"
+                            : "SharedBudget");
+
+                    owner
+                        .Property(value => value.Code)
+                        .HasColumnName("Code");
+
                     if (scenario is "shared-explicit-length" or "shared-explicit-store")
                     {
-                        owner.HasIndex(value => new { value.Code, value.Spare });
+                        owner.HasIndex(value => new
+                        {
+                            value.Code,
+                            value.Spare,
+                        });
                     }
                     else
                     {
@@ -221,34 +361,56 @@ public sealed partial class MySqlIndexByteBudgetTests
 
                     if (scenario == "shared-split")
                     {
-                        owner.SplitToTable("SharedBudget", split =>
-                        {
-                            split.Property(value => value.Code).HasColumnName("Code");
-                            split.Property(value => value.Spare);
-                        });
+                        owner.SplitToTable(
+                            "SharedBudget",
+                            split =>
+                            {
+                                split
+                                    .Property(value => value.Code)
+                                    .HasColumnName("Code");
+
+                                split.Property(value => value.Spare);
+                            });
                     }
 
-                    owner.OwnsOne(value => value.Detail, detail =>
-                    {
-                        detail.ToTable("SharedBudget");
-                        detail.Property(value => value.Code).HasColumnName("Code");
-                        detail.Property(value => value.Wide).HasMaxLength(700);
+                    owner.OwnsOne(
+                        value => value.Detail,
+                        detail =>
+                        {
+                            detail.ToTable("SharedBudget");
+                            detail
+                                .Property(value => value.Code)
+                                .HasColumnName("Code");
 
-                        if (scenario == "shared-explicit-length")
-                        {
-                            detail.Property(value => value.Code).HasMaxLength(700);
-                        }
-                        else if (scenario == "shared-explicit-store")
-                        {
-                            detail.Property(value => value.Code).HasColumnType("char(200)");
-                        }
-                        else
-                        {
-                            detail.HasIndex(value => new { value.Code, value.Wide });
-                        }
+                            detail
+                                .Property(value => value.Wide)
+                                .HasMaxLength(700);
 
-                    });
-                    owner.Navigation(value => value.Detail).IsRequired();
+                            if (scenario == "shared-explicit-length")
+                            {
+                                detail
+                                    .Property(value => value.Code)
+                                    .HasMaxLength(700);
+                            }
+                            else if (scenario == "shared-explicit-store")
+                            {
+                                detail
+                                    .Property(value => value.Code)
+                                    .HasColumnType("char(200)");
+                            }
+                            else
+                            {
+                                detail.HasIndex(value => new
+                                {
+                                    value.Code,
+                                    value.Wide,
+                                });
+                            }
+                        });
+
+                    owner
+                        .Navigation(value => value.Detail)
+                        .IsRequired();
                 });
 
                 return;
@@ -272,34 +434,5 @@ public sealed partial class MySqlIndexByteBudgetTests
             DbContext context,
             bool designTime
         ) => (context.GetType(), ((BudgetContext)context).Scenario, designTime);
-    }
-
-    private static void ConfigureReportEntity(
-        EntityTypeBuilder<Dictionary<string, object>> entity,
-        bool reverse
-    )
-    {
-        entity.Property<string>("Id").IsRequired();
-        entity.Property<string>("Scope").IsRequired();
-        entity.Property<string>("Tree").IsRequired();
-        entity.Property<string>("Parent");
-        entity.Property<long>("L");
-        entity.Property<long>("R");
-        entity.Property<long>("Position");
-        entity.Property<int>("Depth");
-        entity.Property<bool>("Flag").HasComputedColumnSql("`R` > `L` + 1", stored: false);
-        entity.HasKey("Id");
-        string[][] definitions =
-        [
-            ["Scope", "Tree", "L"],
-            ["Scope", "Tree", "R"],
-            ["Scope", "Tree", "Parent", "Position"],
-            ["Scope", "Flag", "Tree", "R", "L", "Id"],
-        ];
-
-        foreach (var definition in reverse ? definitions.Reverse() : definitions)
-        {
-            entity.HasIndex(definition);
-        }
     }
 }

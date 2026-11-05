@@ -1,26 +1,24 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Provides <see cref="ValueComparer"/> instances for JSON CLR types used in MySQL column mappings.
+/// Provides <see cref="ValueComparer" /> instances for JSON CLR types used in MySQL column mappings.
 /// The comparers use the .NET JSON DOM's structural equality and allocation-conscious hashing so
 /// EF Core's change tracker detects mutations inside JSON documents without a serialization
 /// round-trip per comparison.
-///
 /// Hot-path mechanics:
 /// <list type="bullet">
-/// <item><see cref="JsonElement"/> equality delegates to <see cref="JsonElement.DeepEquals"/>,
+/// <item><see cref="JsonElement" /> equality delegates to <see cref="JsonElement.DeepEquals" />,
 /// which walks the existing DOM instead of allocating writers and intermediate buffers.</item>
-/// <item><see cref="JsonElement"/> hashing follows the same structural semantics, including
+/// <item><see cref="JsonElement" /> hashing follows the same structural semantics, including
 /// order-independent JSON objects and equivalent numeric representations.</item>
-/// <item><see cref="JsonNode"/> equality walks ordinary object and array nodes once while
+/// <item><see cref="JsonNode" /> equality walks ordinary object and array nodes once while
 /// preserving symmetric property-name semantics; customized values fall back to
-/// <see cref="JsonNode.DeepEquals"/>.</item>
-/// <item>Snapshot uses <see cref="JsonNode.DeepClone"/> for the node-shaped CLR types so the
+/// <see cref="JsonNode.DeepEquals" />.</item>
+/// <item>Snapshot uses <see cref="JsonNode.DeepClone" /> for the node-shaped CLR types so the
 /// cloned tree carries the same metadata without an intermediate text round-trip.</item>
 /// </list>
-///
 /// AOT suppressions are scoped per-method (not per-type) so the trimmer's audit window stays
-/// limited to the call sites that genuinely touch <see cref="JsonNode"/> / <see cref="JsonDocument"/>
+/// limited to the call sites that genuinely touch <see cref="JsonNode" /> / <see cref="JsonDocument" />
 /// surfaces.
 /// </summary>
 internal static class MySqlJsonValueComparers
@@ -28,66 +26,69 @@ internal static class MySqlJsonValueComparers
     private const int InitialHashBufferSize = 1024;
 
     /// <summary>
-    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonElement"/> that compares and hashes
+    /// A <see cref="ValueComparer{T}" /> for <see cref="JsonElement" /> that compares and hashes
     /// using structural JSON semantics.
     /// </summary>
     public static ValueComparer<JsonElement> JsonElementComparer { get; } = new(
-        (
-            a,
-            b
-        ) => JsonElementEquals(a, b),
+        (a,
+            b) => JsonElementEquals(a, b),
         v => HashJsonElement(v),
         v => v.Clone());
 
     /// <summary>
-    /// A <see cref="ValueComparer{T}"/> for <see cref="JsonDocument"/> that compares and hashes
+    /// A <see cref="ValueComparer{T}" /> for <see cref="JsonDocument" /> that compares and hashes
     /// the document's root element using structural JSON semantics.
     /// </summary>
     public static ValueComparer<JsonDocument?> JsonDocumentComparer { get; } = new(
-        (
-            a,
-            b
-        ) => JsonDocumentEquals(a, b),
-        v => v != null ? HashJsonElement(v.RootElement) : 0,
+        (a,
+            b) => JsonDocumentEquals(a, b),
+        v => v != null
+            ? HashJsonElement(v.RootElement)
+            : 0,
         v => CloneJsonDocument(v));
 
     [field: UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "Delegates to CreateJsonNodeComparer which uses well-known JSON types that are preserved.")]
-    [field: System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [field: UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "CreateJsonNodeComparer's JsonNode write / clone paths do not trigger runtime code generation for the JSON primitives this comparer handles.")]
+        Justification =
+            "CreateJsonNodeComparer's JsonNode write / clone paths do not trigger runtime code generation for the JSON primitives this comparer handles.")]
     public static ValueComparer<JsonNode?> JsonNodeComparer
     {
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        [UnconditionalSuppressMessage(
             "Trimming",
             "IL2026",
-            Justification = "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+            Justification =
+                "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
+        [UnconditionalSuppressMessage(
             "AOT",
             "IL3050",
-            Justification = "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
+            Justification =
+                "Returns the s_jsonNodeComparer backing field whose initializer is suppression-covered at the field declaration.")]
         get;
     } = CreateJsonNodeComparer();
 
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
-        Justification = "The rare customized JsonValue fallback and JsonNode.DeepClone use well-known JSON types that the trimmer preserves.")]
+        Justification =
+            "The rare customized JsonValue fallback and JsonNode.DeepClone use well-known JSON types that the trimmer preserves.")]
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "The rare customized JsonValue fallback and clone path do not trigger runtime code generation for the JSON primitives this comparer handles.")]
+        Justification =
+            "The rare customized JsonValue fallback and clone path do not trigger runtime code generation for the JSON primitives this comparer handles.")]
     private static ValueComparer<JsonNode?> CreateJsonNodeComparer()
     {
         return new ValueComparer<JsonNode?>(
-            (
-                a,
-                b
-            ) => JsonNodeEquals(a, b),
-            v => v != null ? HashJsonNode(v) : 0,
+            (a,
+                b) => JsonNodeEquals(a, b),
+            v => v != null
+                ? HashJsonNode(v)
+                : 0,
             v => CloneJsonNode(v));
     }
 
@@ -335,7 +336,9 @@ internal static class MySqlJsonValueComparers
 
     private static int HashNullableJsonNode(
         JsonNode? node
-    ) => node is null ? HashJsonScalarKind(JsonValueKind.Null) : HashJsonNode(node);
+    ) => node is null
+        ? HashJsonScalarKind(JsonValueKind.Null)
+        : HashJsonNode(node);
 
     private static int HashJsonObject(
         JsonObject jsonObject
@@ -426,7 +429,7 @@ internal static class MySqlJsonValueComparers
             return element.TryGetDouble(out number);
         }
 
-        if (value.TryGetValue<double>(out number))
+        if (value.TryGetValue(out number))
         {
             return true;
         }
@@ -590,7 +593,8 @@ internal static class MySqlJsonValueComparers
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.DeepClone does not trigger runtime code generation for the JSON primitives this comparer handles.")]
+        Justification =
+            "JsonNode.DeepClone does not trigger runtime code generation for the JSON primitives this comparer handles.")]
     private static JsonNode? CloneJsonNode(
         JsonNode? source
     ) => source?.DeepClone();
@@ -627,14 +631,15 @@ internal static class MySqlJsonValueComparers
         element.WriteTo(writer);
     }
 
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026",
         Justification = "JsonNode.WriteTo uses well-known JSON types that the trimmer preserves.")]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+    [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.WriteTo does not trigger runtime code generation for the JSON primitives this comparer handles.")]
+        Justification =
+            "JsonNode.WriteTo does not trigger runtime code generation for the JSON primitives this comparer handles.")]
     private static void WriteCanonicalJson(
         JsonNode node,
         PooledByteBufferStream buffer
@@ -743,6 +748,7 @@ internal static class MySqlJsonValueComparers
             Buffer
                 .AsSpan(0, WrittenLength)
                 .CopyTo(newBuffer);
+
             _buffer = newBuffer;
             _pool.Return(oldBuffer);
         }

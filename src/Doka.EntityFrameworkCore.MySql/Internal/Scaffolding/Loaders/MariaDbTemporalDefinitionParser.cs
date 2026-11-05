@@ -116,8 +116,8 @@ internal static class MariaDbTemporalDefinitionParser
             constraintName = "PRIMARY";
         }
         else if (IsKeyword(clause, 0, "UNIQUE")
-                 && (IsKeyword(clause, 1, "KEY") || IsKeyword(clause, 1, "INDEX"))
-                 && TryReadIdentifier(clause, 2, out var uniqueName))
+            && (IsKeyword(clause, 1, "KEY") || IsKeyword(clause, 1, "INDEX"))
+            && TryReadIdentifier(clause, 2, out var uniqueName))
         {
             constraintName = uniqueName;
         }
@@ -255,8 +255,8 @@ internal static class MariaDbTemporalDefinitionParser
 
             var start = index;
             while (index < sql.Length
-                   && !char.IsWhiteSpace(sql[index])
-                   && sql[index] is not ('(' or ')' or ',' or '`' or '\'' or '"'))
+                && !char.IsWhiteSpace(sql[index])
+                && sql[index] is not ('(' or ')' or ',' or '`' or '\'' or '"'))
             {
                 index++;
             }

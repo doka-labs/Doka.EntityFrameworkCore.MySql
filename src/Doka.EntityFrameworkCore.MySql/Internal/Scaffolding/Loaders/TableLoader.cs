@@ -2,11 +2,11 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Loads tables and views from INFORMATION_SCHEMA.TABLES into the
-/// <see cref="ScaffoldingPipelineContext.DatabaseModel"/> and populates
-/// <see cref="ScaffoldingPipelineContext.TableLookup"/> for the downstream loaders.
+/// <see cref="ScaffoldingPipelineContext.DatabaseModel" /> and populates
+/// <see cref="ScaffoldingPipelineContext.TableLookup" /> for the downstream loaders.
 /// Attaches the table-level CharSet, Collation, and StorageEngine annotations. MariaDB
 /// reports native temporal tables as SYSTEM VERSIONED; that table type is preserved as
-/// source metadata and completed by <see cref="TemporalTableLoader"/>.
+/// source metadata and completed by <see cref="TemporalTableLoader" />.
 /// </summary>
 internal static class TableLoader
 {
@@ -50,7 +50,10 @@ internal static class TableLoader
                 continue;
             }
 
-            var tableType = reader.IsDBNull(4) ? "BASE TABLE" : reader.GetString(4);
+            var tableType = reader.IsDBNull(4)
+                ? "BASE TABLE"
+                : reader.GetString(4);
+
             var isView = string.Equals(tableType, "VIEW", StringComparison.OrdinalIgnoreCase);
             var isSystemVersioned = string.Equals(
                 tableType,
@@ -71,19 +74,28 @@ internal static class TableLoader
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
-                    Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
+                    Schema = context.QualifyNamesWithSchema
+                        ? context.DatabaseName
+                        : null,
                     Comment = comment,
                 }
                 : new DatabaseTable
                 {
                     Database = context.DatabaseModel,
                     Name = tableName,
-                    Schema = context.QualifyNamesWithSchema ? context.DatabaseName : null,
+                    Schema = context.QualifyNamesWithSchema
+                        ? context.DatabaseName
+                        : null,
                     Comment = comment,
                 };
 
-            var tableCollation = reader.IsDBNull(1) ? null : reader.GetString(1);
-            var storageEngine = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var tableCollation = reader.IsDBNull(1)
+                ? null
+                : reader.GetString(1);
+
+            var storageEngine = reader.IsDBNull(3)
+                ? null
+                : reader.GetString(3);
 
             if (!string.IsNullOrWhiteSpace(storageEngine))
             {

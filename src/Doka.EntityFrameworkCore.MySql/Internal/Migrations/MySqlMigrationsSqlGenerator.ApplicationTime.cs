@@ -13,7 +13,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             ? MySqlAnnotationNames.ApplicationTimeSourceIsApplicationTime
             : MySqlAnnotationNames.IsApplicationTime;
 
-        if (operation.FindAnnotation(isApplicationTimeAnnotation)?.Value is not true)
+        if (operation.FindAnnotation(isApplicationTimeAnnotation)
+            ?.Value is not true)
         {
             contract = null;
             return false;
@@ -39,7 +40,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             GetRequiredApplicationTimeAnnotation(operation, tableName, periodNameAnnotation),
             GetRequiredApplicationTimeAnnotation(operation, tableName, periodStartAnnotation),
             GetRequiredApplicationTimeAnnotation(operation, tableName, periodEndAnnotation),
-            operation.FindAnnotation(withoutOverlapsAnnotation)?.Value is true);
+            operation.FindAnnotation(withoutOverlapsAnnotation)
+                ?.Value is true);
 
         return true;
     }
@@ -72,7 +74,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             sourceContract: false,
             out var targetContract);
 
-        if (sourceContract is null && targetContract is null)
+        if (sourceContract is null
+            && targetContract is null)
         {
             return false;
         }
@@ -115,6 +118,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(DelimitMigrationIdentifier(contract.PeriodEndColumn))
             .Append(")")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -131,6 +135,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(" DROP PERIOD ")
             .Append(DelimitMigrationIdentifier(periodName))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -156,7 +161,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         // The table-level flag is retained for migrations created before the key-level
         // annotation existed. New migrations bind the period to the exact constraint.
-        if (periodName is not null || contract.WithoutOverlaps)
+        if (periodName is not null
+            || contract.WithoutOverlaps)
         {
             builder
                 .Append(", ")
@@ -169,19 +175,21 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private static string? GetApplicationTimeConstraintPeriodName(
         MigrationOperation operation
-    ) => operation.FindAnnotation(MySqlAnnotationNames.ApplicationTimeConstraintPeriodName)?.Value switch
-    {
-        null => null,
-        string periodName when !string.IsNullOrWhiteSpace(periodName) => periodName,
-        _ => throw new InvalidOperationException(
-            $"Migration operation '{operation.GetType().Name}' contains an invalid application-time constraint period annotation."),
-    };
+    ) => operation.FindAnnotation(MySqlAnnotationNames.ApplicationTimeConstraintPeriodName)
+            ?.Value switch
+        {
+            null => null,
+            string periodName when !string.IsNullOrWhiteSpace(periodName) => periodName,
+            _ => throw new InvalidOperationException(
+                $"Migration operation '{operation.GetType().Name}' contains an invalid application-time constraint period annotation."),
+        };
 
     private static string GetRequiredApplicationTimeAnnotation(
         MigrationOperation operation,
         string tableName,
         string annotationName
-    ) => operation.FindAnnotation(annotationName)?.Value as string is { } value
+    ) => operation.FindAnnotation(annotationName)
+            ?.Value as string is { } value
         && !string.IsNullOrWhiteSpace(value)
             ? value
             : throw new InvalidOperationException(

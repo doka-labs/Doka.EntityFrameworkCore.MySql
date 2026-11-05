@@ -6,10 +6,10 @@ internal static class BenchmarkEnvironment
     // avoids carrying AUTO_INCREMENT DDL and storage-engine flush work into
     // the next measured sample.
     private const string ClearSaveChangesTableSql = "DELETE FROM `SaveChangeEntities`;";
+    private const string DatabaseName = "benchmark_suite";
 
     private static readonly Lock s_initializationGate = new();
     private static readonly BenchmarkDatabaseTarget s_target = BenchmarkDatabaseTarget.Current;
-    private const string DatabaseName = "benchmark_suite";
     private static bool s_initialized;
 
     public static string DatabaseNameValue => DatabaseName;
@@ -66,6 +66,7 @@ internal static class BenchmarkEnvironment
                     mySqlOptions.MaxBatchSize(maxBatchSize.Value);
                 }
             });
+
         builder.EnableServiceProviderCaching(serviceProviderCaching);
 
         return builder.Options;
@@ -114,7 +115,8 @@ internal static class BenchmarkEnvironment
     {
         await using var context = CreateContext();
         await context
-            .Database.ExecuteSqlRawAsync(ClearSaveChangesTableSql, cancellationToken)
+            .Database
+            .ExecuteSqlRawAsync(ClearSaveChangesTableSql, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -133,6 +135,7 @@ internal static class BenchmarkEnvironment
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT VERSION();";
         var result = await command
@@ -210,7 +213,7 @@ internal static class BenchmarkEnvironment
         .Range(1, 1000)
         .Select(index => new SpatialBenchmarkEntity
         {
-            Location = new Point(13.4050 + ((index % 20) * 0.01d), 52.5200 + ((index % 20) * 0.01d))
+            Location = new Point(13.4050 + index % 20 * 0.01d, 52.5200 + index % 20 * 0.01d)
             {
                 SRID = 4326,
             },

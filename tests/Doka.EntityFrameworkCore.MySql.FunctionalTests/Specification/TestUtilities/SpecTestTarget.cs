@@ -51,8 +51,8 @@ internal static class SpecTestTarget
     /// <summary>
     /// Resolves an explicit discovery target or the stable default when it is absent.
     /// </summary>
-    /// <param name="configuredTarget">Configured target value, or <see langword="null"/>.</param>
-    /// <returns>The configured target or <see cref="DefaultTarget"/>.</returns>
+    /// <param name="configuredTarget">Configured target value, or <see langword="null" />.</param>
+    /// <returns>The configured target or <see cref="DefaultTarget" />.</returns>
     internal static string Resolve(
         string? configuredTarget
     ) => configuredTarget ?? DefaultTarget;

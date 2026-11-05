@@ -63,6 +63,8 @@ public sealed class MySqlMigrationOperationHandlerException : InvalidOperationEx
         return $"Migration operation handler failure {failureCode} for "
             + $"{operationType.FullName ?? operationType.Name} at ordinal {operationOrdinal} "
             + $"with generation options {generationOptions}"
-            + (handlerId is null ? "." : $" and handler {handlerId}.");
+            + (handlerId is null
+                ? "."
+                : $" and handler {handlerId}.");
     }
 }

@@ -45,8 +45,8 @@ public sealed class TestDatabaseSessionEvidenceTests
         try
         {
             // Act
-            var exception = await Record.ExceptionAsync(
-                () => TestDatabaseSession.StartAsync([request], CancellationToken.None));
+            var exception =
+                await Record.ExceptionAsync(() => TestDatabaseSession.StartAsync([request], CancellationToken.None));
 
             // Assert
             Assert.IsAssignableFrom<IOException>(exception);

@@ -36,8 +36,8 @@ public sealed partial class AdrRepositoryValidatorTests
         // Act
         var report = repository.Validate();
         var actual = report.Errors.Count(static error => error.Message.Contains(
-                "Generated decision artifact is missing",
-                StringComparison.Ordinal));
+            "Generated decision artifact is missing",
+            StringComparison.Ordinal));
 
         // Assert
         Assert.Equal(

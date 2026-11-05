@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.EntityFrameworkCore.Update;
@@ -8,13 +9,14 @@ public sealed partial class MySqlGeneratedValueSqlTests
 {
     private static ReadbackContext CreateContext(
         bool mariaDb = false
-    ) => new(new DbContextOptionsBuilder<ReadbackContext>()
-        .UseMySql(
-            "Server=localhost;Database=doka;User ID=root;Password=unused;",
-            mariaDb
-                ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-                : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-        .Options);
+    ) => new(
+        new DbContextOptionsBuilder<ReadbackContext>()
+            .UseMySql(
+                "Server=localhost;Database=doka;User ID=root;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .Options);
 
     private static IReadOnlyModificationCommand[] CreateCommands(
         ReadbackContext context,
@@ -23,7 +25,12 @@ public sealed partial class MySqlGeneratedValueSqlTests
         int firstKey = 1
     )
     {
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
         var commands = new IReadOnlyModificationCommand[count];
 
         for (var row = 0; row < count; row++)
@@ -41,18 +48,20 @@ public sealed partial class MySqlGeneratedValueSqlTests
                         ? "key-" + key
                         : propertyType == typeof(ConvertedKey)
                             ? new ConvertedKey(key)
-                            : Convert.ChangeType(key, propertyType, System.Globalization.CultureInfo.InvariantCulture);
+                            : Convert.ChangeType(key, propertyType, CultureInfo.InvariantCulture);
 
                 modifications.Add(CreateModification(column, value, $"p{row}_{index}", read: false, write: true));
             }
 
             modifications.Add(CreateModification(table.FindColumn("Payload")!, key, $"p{row}_payload", false, true));
-            modifications.Add(CreateModification(
-                table.FindColumn("Generated")!,
-                null,
-                $"p{row}_generated",
-                true,
-                false));
+            modifications.Add(
+                CreateModification(
+                    table.FindColumn("Generated")!,
+                    null,
+                    $"p{row}_generated",
+                    true,
+                    false));
+
             commands[row] = new TestCommand(table, modifications);
         }
 
@@ -68,24 +77,33 @@ public sealed partial class MySqlGeneratedValueSqlTests
         IUpdateEntry[] entries
     )
     {
-        var table = context.Model.GetRelationalModel().Tables.Single(candidate => candidate.Name == tableName);
+        var table = context
+            .Model
+            .GetRelationalModel()
+            .Tables
+            .Single(candidate => candidate.Name == tableName);
+
         var parameter = 0;
 
-        return entries.Select(entry =>
-        {
-            var command = context.GetService<IModificationCommandFactory>().CreateModificationCommand(
-                new ModificationCommandParameters(
-                    table,
-                    sensitiveLoggingEnabled: false,
-                    detailedErrorsEnabled: false,
-                    comparer: null,
-                    generateParameterName: () => "tracked" + parameter++,
-                    logger: context.GetService<IDiagnosticsLogger<DbLoggerCategory.Update>>()));
+        return entries
+            .Select(entry =>
+            {
+                var command = context
+                    .GetService<IModificationCommandFactory>()
+                    .CreateModificationCommand(
+                        new ModificationCommandParameters(
+                            table,
+                            sensitiveLoggingEnabled: false,
+                            detailedErrorsEnabled: false,
+                            comparer: null,
+                            generateParameterName: () => "tracked" + parameter++,
+                            logger: context.GetService<IDiagnosticsLogger<DbLoggerCategory.Update>>()));
 
-            command.AddEntry(entry, mainEntry: true);
+                command.AddEntry(entry, mainEntry: true);
 
-            return (IReadOnlyModificationCommand)command;
-        }).ToArray();
+                return (IReadOnlyModificationCommand)command;
+            })
+            .ToArray();
     }
 
     private static TestCommand UnsafeCommand(
@@ -118,6 +136,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
                     false,
                     true,
                     key: true);
+
                 break;
             case "different-table":
                 return (TestCommand)CreateCommands(context, "StringRows", 1)[0];
@@ -136,7 +155,10 @@ public sealed partial class MySqlGeneratedValueSqlTests
             case "wrong-schema":
                 return new TestCommand(table, modifications, schema: "other");
             case "foreign-column":
-                var foreignTable = context.Model.GetRelationalModel().Tables
+                var foreignTable = context
+                    .Model
+                    .GetRelationalModel()
+                    .Tables
                     .Single(candidate => candidate.Name == "StringRows");
 
                 modifications[^1] = CreateModification(
@@ -145,6 +167,7 @@ public sealed partial class MySqlGeneratedValueSqlTests
                     "foreign_generated",
                     true,
                     false);
+
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(failure));
@@ -192,19 +215,30 @@ public sealed partial class MySqlGeneratedValueSqlTests
             ModelBuilder modelBuilder
         )
         {
-            AddTable<int>(modelBuilder, "Rows").HasAlternateKey("Payload");
-            AddTable<int>(modelBuilder, "ExplicitInnoDbRows").UseStorageEngine("InnoDB");
-            AddTable<Guid>(modelBuilder, "GuidRows");
-            AddTable<string>(modelBuilder, "StringRows").Property<string>("Id").UseCollation("utf8mb4_general_ci");
-            AddTable<ConvertedKey>(modelBuilder, "ConvertedRows").Property<ConvertedKey>("Id")
-                .HasConversion(new ValueConverter<ConvertedKey, int>(
-                    key => key.Value,
-                    value => new ConvertedKey(value)));
+            AddTable<int>(modelBuilder, "Rows")
+                .HasAlternateKey("Payload");
 
-            AddTable<ConvertedKey>(modelBuilder, "ConvertedIdentityRows").Property<ConvertedKey>("Id")
-                .HasConversion(new ValueConverter<ConvertedKey, int>(
-                    key => key.Value,
-                    value => new ConvertedKey(value)))
+            AddTable<int>(modelBuilder, "ExplicitInnoDbRows")
+                .UseStorageEngine("InnoDB");
+
+            AddTable<Guid>(modelBuilder, "GuidRows");
+            AddTable<string>(modelBuilder, "StringRows")
+                .Property<string>("Id")
+                .UseCollation("utf8mb4_general_ci");
+
+            AddTable<ConvertedKey>(modelBuilder, "ConvertedRows")
+                .Property<ConvertedKey>("Id")
+                .HasConversion(
+                    new ValueConverter<ConvertedKey, int>(
+                        key => key.Value,
+                        value => new ConvertedKey(value)));
+
+            AddTable<ConvertedKey>(modelBuilder, "ConvertedIdentityRows")
+                .Property<ConvertedKey>("Id")
+                .HasConversion(
+                    new ValueConverter<ConvertedKey, int>(
+                        key => key.Value,
+                        value => new ConvertedKey(value)))
                 .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.AutoIncrement);
 
             AddNumericIdentityTable<sbyte>(modelBuilder, "SByteIdentityRows");
@@ -220,47 +254,70 @@ public sealed partial class MySqlGeneratedValueSqlTests
             composite.HasKey("Id", "Tenant");
             AddTable<int>(modelBuilder, "TriggeredRows")
                 .ToTable("TriggeredRows", table => table.HasTrigger("ChangesKey"));
+
             if (!Database.IsMariaDb())
             {
-                AddTable<int>(modelBuilder, "TemporalRows").ToTable("TemporalRows", table => table.IsTemporal());
+                AddTable<int>(modelBuilder, "TemporalRows")
+                    .ToTable("TemporalRows", table => table.IsTemporal());
             }
 
-            AddTable<int>(modelBuilder, "NontransactionalRows").UseStorageEngine("MyISAM");
+            AddTable<int>(modelBuilder, "NontransactionalRows")
+                .UseStorageEngine("MyISAM");
+
             AddSharedTable<TriggeredMapping>(
                 modelBuilder,
                 "SharedTriggeredRows",
                 trigger: true,
                 conflictingEngine: false);
+
             AddSharedTable<ConflictingEngineMapping>(
                 modelBuilder,
                 "SharedEngineRows",
                 trigger: false,
                 conflictingEngine: true);
+
             modelBuilder.Entity<GuidIdentityRow>(entity =>
             {
                 entity.ToTable("GuidIdentityRows");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Generated).HasComputedColumnSql("`Payload` + 1", stored: true);
+                entity
+                    .Property(row => row.Generated)
+                    .HasComputedColumnSql("`Payload` + 1", stored: true);
             });
+
             modelBuilder.Entity<ShadowRow>(entity =>
             {
                 entity.ToTable("ShadowRows");
-                entity.Property<int>("Id").ValueGeneratedNever();
+                entity
+                    .Property<int>("Id")
+                    .ValueGeneratedNever();
+
                 entity.HasKey("Id");
-                entity.Property(row => row.Generated).HasComputedColumnSql("`Payload` + 1", stored: true);
+                entity
+                    .Property(row => row.Generated)
+                    .HasComputedColumnSql("`Payload` + 1", stored: true);
             });
+
             modelBuilder.Entity<ZeroSentinelIdentityRow>(entity =>
             {
                 entity.ToTable("ZeroSentinelIdentityRows");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Id).HasSentinel(-1);
-                entity.Property(row => row.Generated).HasComputedColumnSql("`Payload` + 1", stored: true);
+                entity
+                    .Property(row => row.Id)
+                    .HasSentinel(-1);
+
+                entity
+                    .Property(row => row.Generated)
+                    .HasComputedColumnSql("`Payload` + 1", stored: true);
             });
+
             modelBuilder.Entity<IdentityRow>(entity =>
             {
                 entity.ToTable("IdentityRows");
                 entity.HasKey(row => row.Id);
-                entity.Property(row => row.Generated).HasComputedColumnSql("`Payload` + 1", stored: true);
+                entity
+                    .Property(row => row.Generated)
+                    .HasComputedColumnSql("`Payload` + 1", stored: true);
             });
         }
 
@@ -274,21 +331,34 @@ public sealed partial class MySqlGeneratedValueSqlTests
             var principal = modelBuilder.Entity<SharedPrincipal<TMapping>>();
             principal.ToTable(name);
             principal.HasKey(row => row.Id);
-            principal.Property(row => row.Id).ValueGeneratedNever();
-            principal.Property(row => row.Generated).HasComputedColumnSql("`Payload` + 1", stored: true);
+            principal
+                .Property(row => row.Id)
+                .ValueGeneratedNever();
+
+            principal
+                .Property(row => row.Generated)
+                .HasComputedColumnSql("`Payload` + 1", stored: true);
+
             principal.UseStorageEngine("InnoDB");
             var dependent = modelBuilder.Entity<SharedDependent<TMapping>>();
-            dependent.ToTable(name, table =>
-            {
-                if (trigger)
+            dependent.ToTable(
+                name,
+                table =>
                 {
-                    table.HasTrigger("SharedChangesKey");
-                }
-            });
+                    if (trigger)
+                    {
+                        table.HasTrigger("SharedChangesKey");
+                    }
+                });
 
             dependent.HasKey(row => row.Id);
-            dependent.Property(row => row.Id).ValueGeneratedNever();
-            dependent.HasOne<SharedPrincipal<TMapping>>().WithOne()
+            dependent
+                .Property(row => row.Id)
+                .ValueGeneratedNever();
+
+            dependent
+                .HasOne<SharedPrincipal<TMapping>>()
+                .WithOne()
                 .HasForeignKey<SharedDependent<TMapping>>(row => row.Id);
 
             if (conflictingEngine)
@@ -304,10 +374,15 @@ public sealed partial class MySqlGeneratedValueSqlTests
         {
             var entity = modelBuilder.SharedTypeEntity<Dictionary<string, object>>(name);
             entity.ToTable(name);
-            entity.Property<TKey>("Id").ValueGeneratedNever();
+            entity
+                .Property<TKey>("Id")
+                .ValueGeneratedNever();
+
             entity.HasKey("Id");
             entity.Property<int>("Payload");
-            entity.Property<int>("Generated").HasComputedColumnSql("`Payload` + 1", stored: true);
+            entity
+                .Property<int>("Generated")
+                .HasComputedColumnSql("`Payload` + 1", stored: true);
 
             return entity;
         }
@@ -321,7 +396,8 @@ public sealed partial class MySqlGeneratedValueSqlTests
 
             // WHY: The convention intentionally does not select every signed/unsigned
             // integer CLR type, but explicit AUTO_INCREMENT still needs a stable-key guard.
-            entity.Property<TKey>("Id")
+            entity
+                .Property<TKey>("Id")
                 .HasMySqlValueGenerationStrategy(MySqlValueGenerationStrategy.AutoIncrement);
         }
     }

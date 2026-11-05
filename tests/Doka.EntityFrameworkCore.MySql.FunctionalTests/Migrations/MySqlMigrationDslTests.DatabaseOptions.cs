@@ -17,7 +17,8 @@ public sealed partial class MySqlMigrationDslTests
             null,
             targetContext
                 .GetService<IDesignTimeModel>()
-                .Model.GetRelationalModel());
+                .Model
+                .GetRelationalModel());
 
         // Assert
         var alterDatabase = Assert.Single(operations.OfType<AlterDatabaseOperation>());
@@ -27,6 +28,7 @@ public sealed partial class MySqlMigrationDslTests
             "utf8mb4",
             alterDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)
                 ?.Value);
+
         Assert.Equal(
             "utf8mb4",
             createTable.FindAnnotation(MySqlAnnotationNames.CharSet)
@@ -56,7 +58,9 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Null(alterDatabase.OldDatabase.Collation);
         Assert.Equal(
             "utf8mb4",
-            alterDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value);
+            alterDatabase.FindAnnotation(MySqlAnnotationNames.CharSet)
+                ?.Value);
+
         Assert.Null(alterDatabase.OldDatabase.FindAnnotation(MySqlAnnotationNames.CharSet));
         Assert.Null(createTable.FindAnnotation(RelationalAnnotationNames.Collation));
         Assert.Null(createTable.FindAnnotation(MySqlAnnotationNames.Collation));
@@ -66,6 +70,7 @@ public sealed partial class MySqlMigrationDslTests
             "ALTER DATABASE CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "CREATE TABLE `DatabaseOptionEntities` (\n) COLLATE",
             sql,
@@ -101,6 +106,7 @@ public sealed partial class MySqlMigrationDslTests
             "utf8mb4_unicode_ci",
             "latin1",
             "latin1_swedish_ci");
+
         AssertDatabaseOptions(
             down,
             "latin1",
@@ -114,6 +120,7 @@ public sealed partial class MySqlMigrationDslTests
             $".Annotation(\"{MySqlAnnotationNames.CharSet}\", \"utf8mb4\")",
             migrationCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             $".OldAnnotation(\"{MySqlAnnotationNames.CharSet}\", \"latin1\")",
             migrationCode,
@@ -135,8 +142,15 @@ public sealed partial class MySqlMigrationDslTests
             CreateOptions<BinaryCollationOnlyContext>());
 
         var differ = targetContext.GetService<IMigrationsModelDiffer>();
-        var sourceModel = sourceContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
-        var targetModel = targetContext.GetService<IDesignTimeModel>().Model.GetRelationalModel();
+        var sourceModel = sourceContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
+
+        var targetModel = targetContext
+            .GetService<IDesignTimeModel>()
+            .Model
+            .GetRelationalModel();
 
         // Act
         var hasDifferences = differ.HasDifferences(sourceModel, targetModel);
@@ -156,9 +170,11 @@ public sealed partial class MySqlMigrationDslTests
             "utf8mb4_bin",
             sourceCharSet: null,
             "utf8mb4_unicode_ci");
+
         Assert.Equal(
             "ALTER DATABASE COLLATE = utf8mb4_bin;\n",
-            Assert.Single(commands).CommandText);
+            Assert.Single(commands)
+                .CommandText);
     }
 
     /// <summary>
@@ -178,8 +194,7 @@ public sealed partial class MySqlMigrationDslTests
         // Act
         var operations = GetDifferences(sourceContext, targetContext);
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => GenerateMigrationSql(targetContext, operations));
+        var exception = Assert.Throws<InvalidOperationException>(() => GenerateMigrationSql(targetContext, operations));
 
         // Assert
         var operation = Assert.Single(operations.OfType<AlterDatabaseOperation>());
@@ -216,7 +231,9 @@ public sealed partial class MySqlMigrationDslTests
 
         Assert.Equal(
             expectedCollation,
-            createTable.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            createTable.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
+
         Assert.Null(createTable.FindAnnotation(MySqlAnnotationNames.Collation));
 
         Assert.Contains($"COLLATE {expectedCollation}", sql, StringComparison.Ordinal);
@@ -245,15 +262,19 @@ public sealed partial class MySqlMigrationDslTests
 
         Assert.Equal(
             "utf8mb4_bin",
-            operation.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
+
         Assert.Equal(
             "utf8mb4_unicode_ci",
-            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
 
         Assert.Contains(
             "ALTER TABLE `DatabaseOptionEntities` DEFAULT COLLATE = utf8mb4_bin;",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("CONVERT TO CHARACTER SET", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("MODIFY COLUMN", sql, StringComparison.Ordinal);
     }
@@ -281,10 +302,13 @@ public sealed partial class MySqlMigrationDslTests
 
         Assert.Equal(
             "utf8mb4_unicode_ci",
-            operation.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
+
         Assert.Equal(
             "utf8mb4_bin",
-            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
 
         Assert.Contains(
             "ALTER TABLE `DatabaseOptionEntities` DEFAULT COLLATE = utf8mb4_unicode_ci;",
@@ -315,10 +339,13 @@ public sealed partial class MySqlMigrationDslTests
 
         Assert.Equal(
             "InnoDB",
-            operation.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value);
+            operation.FindAnnotation(MySqlAnnotationNames.StorageEngine)
+                ?.Value);
+
         Assert.Equal(
             "MyISAM",
-            operation.OldTable.FindAnnotation(MySqlAnnotationNames.StorageEngine)?.Value);
+            operation.OldTable.FindAnnotation(MySqlAnnotationNames.StorageEngine)
+                ?.Value);
 
         Assert.Contains(
             "ALTER TABLE `DatabaseOptionEntities` ENGINE = InnoDB;",
@@ -349,22 +376,30 @@ public sealed partial class MySqlMigrationDslTests
 
         Assert.Equal(
             "utf8mb4",
-            operation.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value);
+            operation.FindAnnotation(MySqlAnnotationNames.CharSet)
+                ?.Value);
+
         Assert.Equal(
             "latin1",
-            operation.OldTable.FindAnnotation(MySqlAnnotationNames.CharSet)?.Value);
+            operation.OldTable.FindAnnotation(MySqlAnnotationNames.CharSet)
+                ?.Value);
+
         Assert.Equal(
             "utf8mb4_unicode_ci",
-            operation.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
+
         Assert.Equal(
             "latin1_swedish_ci",
-            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)?.Value);
+            operation.OldTable.FindAnnotation(RelationalAnnotationNames.Collation)
+                ?.Value);
 
         Assert.Contains(
             "ALTER TABLE `DatabaseOptionEntities` DEFAULT CHARACTER SET = utf8mb4 "
             + "DEFAULT COLLATE = utf8mb4_unicode_ci;",
             sql,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("CONVERT TO CHARACTER SET", sql, StringComparison.Ordinal);
     }
 }

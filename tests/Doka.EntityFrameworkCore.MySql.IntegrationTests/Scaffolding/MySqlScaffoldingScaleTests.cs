@@ -13,11 +13,13 @@ public sealed partial class MySqlScaffoldingScaleTests
     private const string TablePrefix = "doka_scale_t";
     private const int ExpectedPolicySchemaVersion = 2;
     private const int ExpectedColumnsPerTable = 8;
+
     private static readonly JsonSerializerOptions s_policySerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
+
     private readonly ITestOutputHelper _output;
 
     public MySqlScaffoldingScaleTests(
@@ -132,7 +134,6 @@ public sealed partial class MySqlScaffoldingScaleTests
                     metrics.ManagedHeapGrowthBytes,
                     metrics.EntityFileCount,
                     metrics.Signature);
-
             }
 
             var firstQueryRun = MeasureMetadataCommands(
@@ -182,6 +183,7 @@ public sealed partial class MySqlScaffoldingScaleTests
                 target,
                 tableNames.Length,
                 policy.Budgets.MaximumSetBasedMetadataCommandsPerRun);
+
             AssertMetadataCommandContract(
                 secondQueryRun,
                 target,

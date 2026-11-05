@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -176,7 +178,7 @@ public sealed class MySqlHistoryRepositoryTests
             .GetType()
             .GetProperty(
                 "ExistsSql",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                BindingFlags.NonPublic | BindingFlags.Instance);
 
         return (string)property!.GetValue(repo)!;
     }

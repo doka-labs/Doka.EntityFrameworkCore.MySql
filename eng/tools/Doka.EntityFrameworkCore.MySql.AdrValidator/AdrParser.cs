@@ -36,7 +36,7 @@ internal static partial class AdrParser
     [
         ("Status", "status"),
         ("Date", "date"),
-        ("Scope", "scope")
+        ("Scope", "scope"),
     ];
 
     private static readonly HashSet<(string From, string To)> s_statusTransitions =
@@ -89,6 +89,7 @@ internal static partial class AdrParser
 
             errors.Add(
                 new AdrValidationError(relativePath, null, $"Non-ASCII byte 0x{bytes[index]:X2} at offset {index}."));
+
             break;
         }
 
@@ -152,6 +153,7 @@ internal static partial class AdrParser
                         relativePath,
                         index + 1,
                         "Metadata must use one flat 'key: value' entry per line."));
+
                 continue;
             }
 
@@ -193,7 +195,8 @@ internal static partial class AdrParser
             return null;
         }
 
-        var match = TitleRegex().Match(lines[titleIndex]);
+        var match = TitleRegex()
+            .Match(lines[titleIndex]);
 
         if (!match.Success)
         {
@@ -202,6 +205,7 @@ internal static partial class AdrParser
                     relativePath,
                     titleIndex + 1,
                     "The title must use '# D-NNN -- Short decision title'."));
+
             return null;
         }
 
@@ -263,7 +267,7 @@ internal static partial class AdrParser
     {
         var markerLength = 0;
         while (markerLength < line.Length
-               && line[markerLength] == '#')
+            && line[markerLength] == '#')
         {
             markerLength++;
         }
@@ -343,7 +347,7 @@ internal static partial class AdrParser
                 : lines.Length;
 
             if (!lines[start..end]
-                    .Any(static line => line.Length > 0))
+                .Any(static line => line.Length > 0))
             {
                 errors.Add(
                     new AdrValidationError(
@@ -369,10 +373,14 @@ internal static partial class AdrParser
                     relativePath,
                     headingPositions[2].Index + 1,
                     "Considered Options must list at least two options."));
+
             return;
         }
 
-        if (options.Distinct(StringComparer.Ordinal).Count() != options.Length)
+        if (options
+                .Distinct(StringComparer.Ordinal)
+                .Count()
+            != options.Length)
         {
             errors.Add(
                 new AdrValidationError(
@@ -383,7 +391,8 @@ internal static partial class AdrParser
 
         var outcomeLines = lines[(headingPositions[3].Index + 1)..headingPositions[4].Index];
         var outcome = string.Join(" ", outcomeLines);
-        var chosenMatch = ChosenOptionRegex().Match(outcome);
+        var chosenMatch = ChosenOptionRegex()
+            .Match(outcome);
 
         if (!chosenMatch.Success)
         {
@@ -409,6 +418,7 @@ internal static partial class AdrParser
             relativePath,
             "Consequences",
             errors);
+
         ValidateBulletSection(
             lines,
             headingPositions[5].Index,
@@ -416,6 +426,7 @@ internal static partial class AdrParser
             relativePath,
             "Confirmation",
             errors);
+
         ValidateOptionTradeoffs(
             lines,
             headingPositions[6].Index,
@@ -423,6 +434,7 @@ internal static partial class AdrParser
             options,
             relativePath,
             errors);
+
         ValidateHistory(lines, headingPositions[9].Index, headingPositions[10].Index, relativePath, errors);
         ValidateBulletSection(
             lines,
@@ -487,6 +499,7 @@ internal static partial class AdrParser
                         relativePath,
                         headingIndex + 1,
                         $"Missing trade-off section '{optionHeading}'."));
+
                 continue;
             }
 
@@ -496,7 +509,10 @@ internal static partial class AdrParser
                 end - optionIndex - 1,
                 static line => line.StartsWith("### ", StringComparison.Ordinal));
 
-            var optionEnd = nextHeading < 0 ? end : nextHeading;
+            var optionEnd = nextHeading < 0
+                ? end
+                : nextHeading;
+
             ValidateGoodBadSection(lines, optionIndex, optionEnd, relativePath, $"Option '{option}'", errors);
         }
     }
@@ -520,12 +536,14 @@ internal static partial class AdrParser
                     relativePath,
                     headingIndex + 1,
                     "Decision History must contain at least one dated entry."));
+
             return;
         }
 
         foreach (var entry in entries)
         {
-            var match = HistoryEntryRegex().Match(entry);
+            var match = HistoryEntryRegex()
+                .Match(entry);
 
             if (!match.Success)
             {
@@ -534,15 +552,16 @@ internal static partial class AdrParser
                         relativePath,
                         headingIndex + 1,
                         $"Invalid Decision History entry '{entry}'."));
+
                 continue;
             }
 
             if (!DateOnly.TryParseExact(
-                    match.Groups["date"].Value,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out _))
+                match.Groups["date"].Value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _))
             {
                 errors.Add(
                     new AdrValidationError(
@@ -577,7 +596,8 @@ internal static partial class AdrParser
             return;
         }
 
-        var recorded = RecordedStatusRegex().Match(entries[0]);
+        var recorded = RecordedStatusRegex()
+            .Match(entries[0]);
 
         if (!recorded.Success)
         {
@@ -586,6 +606,7 @@ internal static partial class AdrParser
                     relativePath,
                     historyIndex + 1,
                     "Decision History must begin with 'Decision recorded with status <status>.'"));
+
             return;
         }
 
@@ -597,12 +618,14 @@ internal static partial class AdrParser
                     relativePath,
                     historyIndex + 1,
                     $"Decision History starts with unsupported status '{currentStatus}'."));
+
             return;
         }
 
         foreach (var entry in entries.Skip(1))
         {
-            var transition = StatusTransitionRegex().Match(entry);
+            var transition = StatusTransitionRegex()
+                .Match(entry);
 
             if (!transition.Success)
             {
@@ -627,6 +650,7 @@ internal static partial class AdrParser
                         relativePath,
                         historyIndex + 1,
                         $"Status transition starts at '{from}', but the active history state is '{currentStatus}'."));
+
                 continue;
             }
 
@@ -637,6 +661,7 @@ internal static partial class AdrParser
                         relativePath,
                         historyIndex + 1,
                         $"Status transition '{from}' -> '{to}' is not allowed."));
+
                 continue;
             }
 
@@ -689,8 +714,10 @@ internal static partial class AdrParser
 
         for (var index = 0; index < sourcesIndex; index++)
         {
-            if (lines[index].Contains("https://", StringComparison.Ordinal)
-                || lines[index].Contains("http://", StringComparison.Ordinal))
+            if (lines[index]
+                    .Contains("https://", StringComparison.Ordinal)
+                || lines[index]
+                    .Contains("http://", StringComparison.Ordinal))
             {
                 errors.Add(
                     new AdrValidationError(relativePath, index + 1, "External URLs must be consolidated in Sources."));
@@ -738,6 +765,7 @@ internal static partial class AdrParser
                     relativePath,
                     sourcesIndex + 1,
                     "Sources must contain repository evidence or a dated primary source."));
+
             return;
         }
 
@@ -760,10 +788,13 @@ internal static partial class AdrParser
                 continue;
             }
 
-            var match = PrimarySourceRegex().Match(sourceLine);
+            var match = PrimarySourceRegex()
+                .Match(sourceLine);
+
             if (!match.Success)
             {
-                match = ReferencedPrimarySourceRegex().Match(sourceLine);
+                match = ReferencedPrimarySourceRegex()
+                    .Match(sourceLine);
 
                 if (match.Success)
                 {
@@ -775,6 +806,7 @@ internal static partial class AdrParser
                                 relativePath,
                                 lineNumber,
                                 $"Source entry references undefined link '{reference}'."));
+
                         continue;
                     }
 
@@ -786,15 +818,16 @@ internal static partial class AdrParser
             {
                 errors.Add(
                     new AdrValidationError(relativePath, lineNumber, $"Invalid source entry '{sourceLine}'."));
+
                 continue;
             }
 
             if (!DateOnly.TryParseExact(
-                    match.Groups["date"].Value,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out _))
+                match.Groups["date"].Value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _))
             {
                 errors.Add(
                     new AdrValidationError(
@@ -843,7 +876,8 @@ internal static partial class AdrParser
                 .StartsWith("  ", StringComparison.Ordinal))
         {
             index++;
-            url = lines[index].Trim();
+            url = lines[index]
+                .Trim();
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
@@ -883,7 +917,8 @@ internal static partial class AdrParser
         }
 
         var fileName = Path.GetFileName(relativePath);
-        var fileMatch = FileNameRegex().Match(fileName);
+        var fileMatch = FileNameRegex()
+            .Match(fileName);
 
         if (!fileMatch.Success)
         {
@@ -892,6 +927,7 @@ internal static partial class AdrParser
                     relativePath,
                     null,
                     "ADR filenames must use a lowercase dash or version-dot slug."));
+
             return false;
         }
 
@@ -910,11 +946,11 @@ internal static partial class AdrParser
         }
 
         if (!DateOnly.TryParseExact(
-                Unquote(metadata["date"]),
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var date))
+            Unquote(metadata["date"]),
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var date))
         {
             errors.Add(new AdrValidationError(relativePath, 4, "Date must use YYYY-MM-DD."));
         }
@@ -923,7 +959,9 @@ internal static partial class AdrParser
         ValidateList(metadata, "consulted", relativePath, errors);
         ValidateList(metadata, "informed", relativePath, errors);
 
-        if (Unquote(metadata["scope"]).Length == 0)
+        if (Unquote(metadata["scope"])
+                .Length
+            == 0)
         {
             errors.Add(new AdrValidationError(relativePath, 8, "Scope must not be empty."));
         }
@@ -953,6 +991,7 @@ internal static partial class AdrParser
             supersededBy,
             amends,
             amendedBy);
+
         return true;
     }
 
@@ -963,7 +1002,9 @@ internal static partial class AdrParser
         List<AdrValidationError> errors
     )
     {
-        if (ParseList(metadata[key], relativePath, errors).Length == 0)
+        if (ParseList(metadata[key], relativePath, errors)
+                .Length
+            == 0)
         {
             errors.Add(new AdrValidationError(relativePath, null, $"Metadata list '{key}' must not be empty."));
         }
@@ -988,10 +1029,13 @@ internal static partial class AdrParser
         {
             errors.Add(
                 new AdrValidationError(relativePath, null, $"List value '{value}' must use inline YAML list syntax."));
+
             return [];
         }
 
-        var inner = value[1..^1].Trim();
+        var inner = value[1..^1]
+            .Trim();
+
         if (inner.Length == 0)
         {
             return [];
@@ -1003,7 +1047,10 @@ internal static partial class AdrParser
             errors.Add(new AdrValidationError(relativePath, null, $"List value '{value}' contains an empty entry."));
         }
 
-        if (entries.Distinct(StringComparer.Ordinal).Count() != entries.Length)
+        if (entries
+                .Distinct(StringComparer.Ordinal)
+                .Count()
+            != entries.Length)
         {
             errors.Add(new AdrValidationError(relativePath, null, $"List value '{value}' contains duplicate entries."));
         }
@@ -1015,7 +1062,8 @@ internal static partial class AdrParser
         string value
     )
     {
-        if (value is ['"', _, ..] && value[^1] == '"')
+        if (value is ['"', _, ..]
+            && value[^1] == '"')
         {
             return value[1..^1];
         }

@@ -52,6 +52,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 11)));
+
         AddPlugin<SecondHandler>(builder);
 
         using var context = new HandlerContext(builder.Options);
@@ -86,6 +87,7 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             MySqlServerVersion.MySql(new Version(8, 4, 11)));
+
         if (conflictingHandlerType == typeof(DuplicateIdHandler))
         {
             AddPlugin<DuplicateIdHandler>(builder);
@@ -99,7 +101,8 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         using var context = new HandlerContext(builder.Options);
 
         // Act
-        var exception = Assert.Throws<MySqlMigrationOperationHandlerException>(context.GetService<IMigrationsSqlGenerator>);
+        var exception =
+            Assert.Throws<MySqlMigrationOperationHandlerException>(context.GetService<IMigrationsSqlGenerator>);
 
         // Assert
         Assert.Equal(expectedFailureCode, exception.FailureCode);

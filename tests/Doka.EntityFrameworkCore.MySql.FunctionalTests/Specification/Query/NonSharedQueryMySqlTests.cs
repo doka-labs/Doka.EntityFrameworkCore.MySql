@@ -1,5 +1,6 @@
 using System.Reflection;
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
+using NameSpace1;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -161,10 +162,12 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
         var contextFactory = await InitializeAsync<Context23981>();
         using var context = contextFactory.CreateContext();
         var query = context
-            .Set<NameSpace1.TestQuery>()
+            .Set<TestQuery>()
             .FromSqlRaw("SELECT CAST(NULL AS SIGNED) AS `MyValue`");
 
-        _ = async ? await query.ToListAsync() : query.ToList();
+        _ = async
+            ? await query.ToListAsync()
+            : query.ToList();
     }
 
     public override async Task Mapping_JsonElement_property_throws_a_meaningful_exception()
@@ -178,6 +181,7 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
             {
                 Json = document.RootElement.Clone(),
             });
+
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
@@ -185,7 +189,8 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest : AdHocMiscellaneou
 
         Assert.True(
             entity
-                .Json.GetProperty("enabled")
+                .Json
+                .GetProperty("enabled")
                 .GetBoolean());
     }
 }

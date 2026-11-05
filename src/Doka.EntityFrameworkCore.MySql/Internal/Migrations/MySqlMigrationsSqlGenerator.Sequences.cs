@@ -24,7 +24,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             {
                 builder
                     .Append(" AS ")
-                    .Append(GetSequenceTypeInfo(operation.ClrType).StoreType);
+                    .Append(
+                        GetSequenceTypeInfo(operation.ClrType)
+                            .StoreType);
             }
 
             builder
@@ -47,7 +49,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                     .Append(operation.MaxValue.Value.ToString(CultureInfo.InvariantCulture));
             }
 
-            builder.Append(operation.IsCyclic ? " CYCLE" : " NOCYCLE");
+            builder.Append(
+                operation.IsCyclic
+                    ? " CYCLE"
+                    : " NOCYCLE");
+
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
             return;
@@ -142,7 +148,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(", ")
             .Append(maximumValue.ToString(CultureInfo.InvariantCulture))
             .Append(", ")
-            .Append(operation.IsCyclic ? "TRUE" : "FALSE")
+            .Append(
+                operation.IsCyclic
+                    ? "TRUE"
+                    : "FALSE")
             .Append(", FALSE)")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
 
@@ -167,6 +176,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append("DROP SEQUENCE IF EXISTS ")
                 .Append(DelimitMigrationIdentifier(operation.Name))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             builder.EndCommand();
             return;
         }
@@ -205,11 +215,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 operation.MinValue.HasValue
                     ? " MINVALUE " + operation.MinValue.Value.ToString(CultureInfo.InvariantCulture)
                     : " NO MINVALUE");
+
             builder.Append(
                 operation.MaxValue.HasValue
                     ? " MAXVALUE " + operation.MaxValue.Value.ToString(CultureInfo.InvariantCulture)
                     : " NO MAXVALUE");
-            builder.Append(operation.IsCyclic ? " CYCLE" : " NOCYCLE");
+
+            builder.Append(
+                operation.IsCyclic
+                    ? " CYCLE"
+                    : " NOCYCLE");
 
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
             builder.EndCommand();
@@ -251,11 +266,15 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(", ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("is_cyclic"))
             .Append(" = ")
-            .Append(operation.IsCyclic ? "TRUE" : "FALSE")
+            .Append(
+                operation.IsCyclic
+                    ? "TRUE"
+                    : "FALSE")
             .Append(" WHERE ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
             .Append(" = 1")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         builder.EndCommand();
     }
 
@@ -286,6 +305,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(" TO ")
                 .Append(DelimitMigrationIdentifier(newName))
                 .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
             builder.EndCommand();
             return;
         }
@@ -368,6 +388,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier("id"))
             .Append(" = 1")
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
         EndStatement(builder);
     }
 
@@ -428,12 +449,16 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     private static long GetDefaultSequenceMinimum(
         SequenceTypeInfo typeInfo,
         int increment
-    ) => increment > 0 ? 1 : checked(typeInfo.MinimumValue + 1);
+    ) => increment > 0
+        ? 1
+        : checked(typeInfo.MinimumValue + 1);
 
     private static long GetDefaultSequenceMaximum(
         SequenceTypeInfo typeInfo,
         int increment
-    ) => increment > 0 ? checked(typeInfo.MaximumValue - 1) : -1;
+    ) => increment > 0
+        ? checked(typeInfo.MaximumValue - 1)
+        : -1;
 
     private static void ValidateSequenceIncrement(
         SequenceTypeInfo typeInfo,

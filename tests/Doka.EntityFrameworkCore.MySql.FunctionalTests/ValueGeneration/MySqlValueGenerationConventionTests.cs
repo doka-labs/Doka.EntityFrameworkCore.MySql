@@ -123,6 +123,7 @@ public sealed class MySqlValueGenerationConventionTests
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             convertedProperty.GetMySqlValueGenerationStrategy());
+
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             enumProperty.GetMySqlValueGenerationStrategy());
@@ -168,7 +169,8 @@ public sealed class MySqlValueGenerationConventionTests
         using var context = new ConventionContext();
 
         // Act
-        var property = context.Model
+        var property = context
+            .Model
             .GetEntityTypes()
             .Single(entityType => entityType.ClrType == typeof(OwnedCollectionElement))
             .FindProperty("Id")!;
@@ -179,6 +181,7 @@ public sealed class MySqlValueGenerationConventionTests
         Assert.Equal(
             MySqlValueGenerationStrategy.AutoIncrement,
             property.GetMySqlValueGenerationStrategy());
+
         Assert.Contains(
             "`Id` int NOT NULL AUTO_INCREMENT",
             script,
@@ -227,8 +230,13 @@ public sealed class MySqlValueGenerationConventionTests
         // Assert
         Assert.Equal("varchar(36)", principalProperty.GetColumnType());
         Assert.Equal(principalProperty.GetColumnType(), dependentProperty.GetColumnType());
-        Assert.NotNull(principalProperty.GetTypeMapping().Converter);
-        Assert.NotNull(dependentProperty.GetTypeMapping().Converter);
+        Assert.NotNull(
+            principalProperty.GetTypeMapping()
+                .Converter);
+
+        Assert.NotNull(
+            dependentProperty.GetTypeMapping()
+                .Converter);
     }
 
     private sealed class ExplicitKeyEntity
@@ -282,12 +290,12 @@ public sealed class MySqlValueGenerationConventionTests
 
     private sealed class OwnedCollectionElement
     {
-        public string Name { get; set; } = string.Empty;
+        public string Name { get; } = string.Empty;
     }
 
     private sealed class CompositeOwnedCollectionElement
     {
-        public string Name { get; set; } = string.Empty;
+        public string Name { get; } = string.Empty;
     }
 
     private sealed class GuidStringPrincipal
@@ -340,43 +348,56 @@ public sealed class MySqlValueGenerationConventionTests
             modelBuilder.Entity<DefaultKeyEntity>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Name).IsRequired();
+                entity
+                    .Property(e => e.Name)
+                    .IsRequired();
             });
 
             modelBuilder.Entity<ExplicitKeyEntity>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).ValueGeneratedNever();
-                entity.Property(e => e.Name).IsRequired();
+                entity
+                    .Property(e => e.Id)
+                    .ValueGeneratedNever();
+
+                entity
+                    .Property(e => e.Name)
+                    .IsRequired();
             });
 
             modelBuilder.Entity<ConvertedKeyEntity>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasConversion<string>();
+                entity
+                    .Property(e => e.Id)
+                    .HasConversion<string>();
             });
 
             modelBuilder.Entity<LongToIntKeyEntity>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasConversion<int>();
+                entity
+                    .Property(e => e.Id)
+                    .HasConversion<int>();
             });
 
             modelBuilder.Entity<EnumKeyEntity>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity
+                    .Property(e => e.Id)
+                    .ValueGeneratedOnAdd();
             });
 
             modelBuilder.Entity<DefaultedCompositeKeyEntity>(entity =>
             {
-                entity.HasKey(
-                    e => new
-                    {
-                        e.TargetId,
-                        e.SourceId,
-                        e.PrimaryGroup,
-                    });
+                entity.HasKey(e => new
+                {
+                    e.TargetId,
+                    e.SourceId,
+                    e.PrimaryGroup,
+                });
+
                 entity
                     .Property(e => e.PrimaryGroup)
                     .HasDefaultValue(1);
@@ -389,7 +410,9 @@ public sealed class MySqlValueGenerationConventionTests
                     owned =>
                     {
                         owned.HasKey("Id");
-                        owned.Property(e => e.Name).IsRequired();
+                        owned
+                            .Property(e => e.Name)
+                            .IsRequired();
                     });
 
                 entity.OwnsMany(
@@ -399,23 +422,35 @@ public sealed class MySqlValueGenerationConventionTests
                         owned
                             .WithOwner()
                             .HasForeignKey("OwnerId");
-                        owned.Property<int>("Id").ValueGeneratedOnAdd();
+
+                        owned
+                            .Property<int>("Id")
+                            .ValueGeneratedOnAdd();
+
                         owned.HasKey("OwnerId", "Id");
-                        owned.Property(e => e.Name).IsRequired();
+                        owned
+                            .Property(e => e.Name)
+                            .IsRequired();
                     });
             });
 
             modelBuilder.Entity<GuidStringPrincipal>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasConversion<string>();
+                entity
+                    .Property(e => e.Id)
+                    .HasConversion<string>();
             });
 
             modelBuilder.Entity<GuidStringDependent>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.PrincipalId).HasConversion<string?>();
-                entity.HasOne(e => e.Principal)
+                entity
+                    .Property(e => e.PrincipalId)
+                    .HasConversion<string?>();
+
+                entity
+                    .HasOne(e => e.Principal)
                     .WithMany(e => e.Dependents)
                     .HasForeignKey(e => e.PrincipalId);
             });

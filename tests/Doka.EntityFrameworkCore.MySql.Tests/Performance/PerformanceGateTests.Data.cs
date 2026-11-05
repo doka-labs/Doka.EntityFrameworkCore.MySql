@@ -1,3 +1,5 @@
+using Doka.EntityFrameworkCore.MySql.Benchmarks;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -8,7 +10,10 @@ public sealed partial class PerformanceGateTests
     public static IEnumerable<object[]> CacheSlidingControlCases()
     {
         using var document = LoadCheckedInPerformanceContract();
-        foreach (var target in document.RootElement.GetProperty("requiredTargets").EnumerateObject())
+        foreach (var target in document
+            .RootElement
+            .GetProperty("requiredTargets")
+            .EnumerateObject())
         {
             yield return [target.Name, 1d, 0];
             yield return [target.Name, 2d, 1];
@@ -21,12 +26,21 @@ public sealed partial class PerformanceGateTests
     public static IEnumerable<object[]> GenericLikeControlCases()
     {
         using var document = LoadCheckedInPerformanceContract();
-        var controls = document.RootElement.GetProperty("benchmarkDotNetControls").EnumerateArray()
-            .Where(control => control.GetProperty("type").GetString() == nameof(Benchmarks.GenericLikeBenchmark));
+        var controls = document
+            .RootElement
+            .GetProperty("benchmarkDotNetControls")
+            .EnumerateArray()
+            .Where(control => control
+                    .GetProperty("type")
+                    .GetString()
+                == nameof(GenericLikeBenchmark));
 
         foreach (var control in controls)
         {
-            var controlId = control.GetProperty("id").GetString()!;
+            var controlId = control
+                .GetProperty("id")
+                .GetString()!;
+
             yield return [controlId, 0, true, 0];
             yield return [controlId, 1, true, 1];
             yield return [controlId, 0, false, 78];
@@ -34,5 +48,5 @@ public sealed partial class PerformanceGateTests
     }
 
     private static JsonDocument LoadCheckedInPerformanceContract() => JsonDocument.Parse(
-        File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "performance-contract.json")));
 }

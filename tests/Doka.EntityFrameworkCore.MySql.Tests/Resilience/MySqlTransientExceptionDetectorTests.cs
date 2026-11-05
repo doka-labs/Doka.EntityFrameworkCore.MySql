@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed class MySqlTransientExceptionDetectorTests
 {
     private readonly MySqlTransientExceptionDetector _detector = new();
+
     // -- SocketException (retryable) --
 
     /// <summary>SocketException is retryable.</summary>
@@ -13,14 +16,14 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void SocketException_is_retryable()
     {
         // Arrange
-        var input = new System.Net.Sockets.SocketException();
+        var input = new SocketException();
 
         // Act
         var actual = _detector.ShouldRetryOn(input);
 
         // Assert
         Assert.True(
-        actual);
+            actual);
     }
 
     // -- IOException (retryable) --
@@ -30,14 +33,14 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void IOException_is_retryable()
     {
         // Arrange
-        var input = new System.IO.IOException("connection reset");
+        var input = new IOException("connection reset");
 
         // Act
         var actual = _detector.ShouldRetryOn(input);
 
         // Assert
         Assert.True(
-        actual);
+            actual);
     }
 
     // -- OperationCanceledException (not retryable) --
@@ -161,7 +164,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void Nested_socket_exception_is_retryable()
     {
         // Arrange
-        var inner = new System.Net.Sockets.SocketException();
+        var inner = new SocketException();
         var outer = new InvalidOperationException("wrapper", inner);
 
         // Act
@@ -177,7 +180,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     {
         // Arrange
         // Build a chain deeper than the 20-level limit.
-        Exception current = new System.Net.Sockets.SocketException();
+        Exception current = new SocketException();
         for (var i = 0; i < 25; i++)
         {
             current = new InvalidOperationException($"level_{i}", current);
@@ -218,7 +221,9 @@ public sealed class MySqlTransientExceptionDetectorTests
     [InlineData(MySqlErrorCode.LockDeadlock)]
     [InlineData(MySqlErrorCode.XARBDeadlock)]
     [InlineData(MySqlErrorCode.UserLockDeadlock)]
-    public void MySqlException_with_known_retryable_error_code_is_retryable(MySqlErrorCode code)
+    public void MySqlException_with_known_retryable_error_code_is_retryable(
+        MySqlErrorCode code
+    )
     {
         // Arrange: The theory supplies code.
 
@@ -234,7 +239,9 @@ public sealed class MySqlTransientExceptionDetectorTests
     [InlineData(MySqlErrorCode.AccessDenied)]
     [InlineData(MySqlErrorCode.NoSuchTable)]
     [InlineData(MySqlErrorCode.SyntaxError)]
-    public void MySqlException_with_unknown_error_code_is_not_retryable(MySqlErrorCode code)
+    public void MySqlException_with_unknown_error_code_is_not_retryable(
+        MySqlErrorCode code
+    )
     {
         // Arrange: The theory supplies code.
 
@@ -297,7 +304,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void Number_zero_mysql_exception_wrapping_io_failure_is_retryable()
     {
         // Arrange
-        var exception = CreateMySqlException((MySqlErrorCode)0, new IOException("unexpected EOF"));
+        var exception = CreateMySqlException(0, new IOException("unexpected EOF"));
 
         // Act
         var shouldRetry = _detector.ShouldRetryOn(exception);
@@ -330,7 +337,7 @@ public sealed class MySqlTransientExceptionDetectorTests
     public void Number_zero_mysql_exception_without_transport_cause_is_not_retryable()
     {
         // Arrange
-        var input = CreateMySqlException((MySqlErrorCode)0);
+        var input = CreateMySqlException(0);
 
         // Act
         var actual = _detector.ShouldRetryOn(input);
@@ -339,7 +346,9 @@ public sealed class MySqlTransientExceptionDetectorTests
         Assert.False(actual);
     }
 
-    private static MySqlException CreateMySqlException(MySqlErrorCode code)
+    private static MySqlException CreateMySqlException(
+        MySqlErrorCode code
+    )
         => CreateMySqlException(code, innerException: null);
 
     private static MySqlException CreateMySqlException(
@@ -351,7 +360,7 @@ public sealed class MySqlTransientExceptionDetectorTests
         // the only test-time path that can cover its complete classification
         // surface without manufacturing a real server failure.
         var ctor = typeof(MySqlException).GetConstructor(
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            BindingFlags.NonPublic | BindingFlags.Instance,
             binder: null,
             types: [typeof(MySqlErrorCode), typeof(string), typeof(Exception)],
             modifiers: null);

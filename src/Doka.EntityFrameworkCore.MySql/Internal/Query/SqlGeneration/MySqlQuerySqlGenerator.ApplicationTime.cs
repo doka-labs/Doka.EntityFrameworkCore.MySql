@@ -12,7 +12,7 @@ internal sealed partial class MySqlQuerySqlGenerator
     )
     {
         if (tableExpression.FindAnnotation(MySqlAnnotationNames.ApplicationTimeOperation)
-                ?.Value is not true)
+            ?.Value is not true)
         {
             return false;
         }
@@ -37,11 +37,13 @@ internal sealed partial class MySqlQuerySqlGenerator
                 GetRequiredApplicationTimeStringAnnotation(
                     tableExpression,
                     MySqlAnnotationNames.ApplicationTimePeriodName)));
+
         Sql.Append(" FROM ");
         AppendTemporalLiteral(
             GetRequiredApplicationTimeDateTimeAnnotation(
                 tableExpression,
                 MySqlAnnotationNames.ApplicationTimeRangeStart));
+
         Sql.Append(" TO ");
         AppendTemporalLiteral(
             GetRequiredApplicationTimeDateTimeAnnotation(
@@ -68,7 +70,8 @@ internal sealed partial class MySqlQuerySqlGenerator
     private static string GetRequiredApplicationTimeStringAnnotation(
         TableExpression tableExpression,
         string annotationName
-    ) => tableExpression.FindAnnotation(annotationName)?.Value as string is { } value
+    ) => tableExpression.FindAnnotation(annotationName)
+            ?.Value as string is { } value
         && !string.IsNullOrWhiteSpace(value)
             ? value
             : throw new InvalidOperationException(

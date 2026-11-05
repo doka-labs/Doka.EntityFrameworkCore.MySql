@@ -75,6 +75,7 @@ public sealed partial class MySql84CrudBaselineTests
                                   ELSE 0
                               END;
                               """;
+
         command.Parameters.AddWithValue("@tableName", tableName);
 
         var result = await command
@@ -92,6 +93,17 @@ public sealed partial class MySql84CrudBaselineTests
             decimal decimalValue => decimalValue != 0,
             _ => false,
         };
+    }
+
+    private static DbContextOptions<GuidRoundtripContext> CreateGuidRoundtripOptions(
+        string connectionString
+    )
+    {
+        var builder = IntegrationTestDbContextOptions.Create<GuidRoundtripContext>();
+
+        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
+
+        return builder.Options;
     }
 
     private sealed class MySql84CrudContext : DbContext
@@ -113,6 +125,7 @@ public sealed partial class MySql84CrudBaselineTests
                 entity
                     .Property(item => item.Id)
                     .ValueGeneratedOnAdd();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();
@@ -125,17 +138,6 @@ public sealed partial class MySql84CrudBaselineTests
         public int Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
-    }
-
-    private static DbContextOptions<GuidRoundtripContext> CreateGuidRoundtripOptions(
-        string connectionString
-    )
-    {
-        var builder = IntegrationTestDbContextOptions.Create<GuidRoundtripContext>();
-
-        builder.UseMySql(connectionString, MySqlServerVersion.MySql(new Version(8, 4, 0)));
-
-        return builder.Options;
     }
 
     private sealed class GuidRoundtripContext : DbContext
@@ -159,6 +161,7 @@ public sealed partial class MySql84CrudBaselineTests
                 entity
                     .Property(item => item.Id)
                     .UseMySqlClientGuidValueGeneration();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();
@@ -172,6 +175,7 @@ public sealed partial class MySql84CrudBaselineTests
                     .Property(item => item.Id)
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36)
                     .UseMySqlClientGuidValueGeneration();
+
                 entity
                     .Property(item => item.Name)
                     .IsRequired();

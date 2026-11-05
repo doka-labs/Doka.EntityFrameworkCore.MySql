@@ -13,7 +13,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Where(item => item.Id <= 8)
             .Select(item => new BoundSample
             {
@@ -39,14 +41,23 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // Assert
         Assert.Equal(8, actual.Length);
-        Assert.Equal(8, actual.Select(pair => pair.LeftStamp).Distinct().Count());
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftId, pair.RightId);
-            Assert.NotEqual(Guid.Empty, pair.LeftStamp);
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-            Assert.Equal(pair.LeftSample, pair.RightSample);
-        });
+        Assert.Equal(
+            8,
+            actual
+                .Select(pair => pair.LeftStamp)
+                .Distinct()
+                .Count());
+
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftId, pair.RightId);
+                Assert.NotEqual(Guid.Empty, pair.LeftStamp);
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+                Assert.Equal(pair.LeftSample, pair.RightSample);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -59,12 +70,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     {
         // Arrange
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
+
         // WHY: The second join makes differing random pages or recomputed source values observable
         // even when the two UNION ALL arms select disjoint rows. Nine guaranteed candidates
         // keep the page size deterministic while the remaining eligibility is volatile.
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Where(item => item.Id <= 9 || EF.Functions.Random() < 0.5)
             .OrderBy(_ => EF.Functions.Random())
             .Skip(2)
@@ -75,7 +89,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
                 Stamp = Guid.NewGuid(),
                 Sample = EF.Functions.Random(),
             })
-            .WithMaterializedSource(source => source.Where(item => item.Id % 2 == 0)
+            .WithMaterializedSource(source => source
+                .Where(item => item.Id % 2 == 0)
                 .Concat(source.Where(item => item.Id % 2 != 0))
                 .Join(
                     source,
@@ -95,12 +110,21 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // Assert
         Assert.Equal(7, actual.Length);
-        Assert.Equal(7, actual.Select(pair => pair.LeftId).Distinct().Count());
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-            Assert.Equal(pair.LeftSample, pair.RightSample);
-        });
+        Assert.Equal(
+            7,
+            actual
+                .Select(pair => pair.LeftId)
+                .Distinct()
+                .Count());
+
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+                Assert.Equal(pair.LeftSample, pair.RightSample);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -113,10 +137,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     {
         // Arrange
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
-        var occurrence = fixture.Context.Items.Where(item => item.Id == 1).Select(_ => 7);
+        var occurrence = fixture
+            .Context
+            .Items
+            .Where(item => item.Id == 1)
+            .Select(_ => 7);
 
         // Act
-        var query = occurrence.Concat(occurrence)
+        var query = occurrence
+            .Concat(occurrence)
             .WithMaterializedSource(source => source.Join(source, left => left, right => right, (left, _) => left));
 
         var actual = await query.ToArrayAsync(cancellationToken);
@@ -137,13 +166,19 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 4)
-            .WithMaterializedSource(source => source.Where(left => left.Id <= 2)
-                .SelectMany(_ => source.Where(right => right.Id >= 2), (left, right) => new BoundPair
-                {
-                    LeftId = left.Id,
-                    RightId = right.Id,
-                }))
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 4)
+            .WithMaterializedSource(source => source
+                .Where(left => left.Id <= 2)
+                .SelectMany(
+                    _ => source.Where(right => right.Id >= 2),
+                    (left, right) => new BoundPair
+                    {
+                        LeftId = left.Id,
+                        RightId = right.Id,
+                    }))
             .OrderBy(pair => pair.LeftId)
             .ThenBy(pair => pair.RightId);
 
@@ -167,7 +202,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var context = fixture.Context;
 
         // Act
-        var query = context.Items.Where(item => item.Id < 0)
+        var query = context
+            .Items
+            .Where(item => item.Id < 0)
             .WithMaterializedSource(source => context.Items.Where(item =>
                 item.Id >= source.Min(row => (int?)row.Id)
                 && item.Id <= source.Max(row => (int?)row.Id)));
@@ -191,10 +228,22 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var context = fixture.Context;
 
         // Act
-        var query = context.Items.Where(item => item.Id == 1)
-            .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
-            .WithMaterializedSource(left => context.Items.Where(item => item.Id == 1)
-                .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
+        var query = context
+            .Items
+            .Where(item => item.Id == 1)
+            .Select(item => new BoundSample
+            {
+                Id = item.Id,
+                Stamp = Guid.NewGuid(),
+            })
+            .WithMaterializedSource(left => context
+                .Items
+                .Where(item => item.Id == 1)
+                .Select(item => new BoundSample
+                {
+                    Id = item.Id,
+                    Stamp = Guid.NewGuid(),
+                })
                 .WithMaterializedSource(right => left.Join(
                     right,
                     first => first.Id,
@@ -226,7 +275,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var expectedCode = new BoundCode("code-1");
 
         // Act
-        var query = fixture.Context.Items
+        var query = fixture
+            .Context
+            .Items
             .Select(item => new
             {
                 item.Id,
@@ -264,9 +315,17 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Items.Where(item => item.Id <= 4)
-            .Select(item => new BoundSample { Id = item.Id, Stamp = Guid.NewGuid() })
-            .WithMaterializedSource(outer => outer.Where(item => item.Id <= 2)
+        var query = fixture
+            .Context
+            .Items
+            .Where(item => item.Id <= 4)
+            .Select(item => new BoundSample
+            {
+                Id = item.Id,
+                Stamp = Guid.NewGuid(),
+            })
+            .WithMaterializedSource(outer => outer
+                .Where(item => item.Id <= 2)
                 .WithMaterializedSource(inner => outer.Join(
                     inner,
                     left => left.Id,
@@ -284,12 +343,15 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         // Assert
         Assert.Equal([1, 2], actual.Select(pair => pair.LeftId));
-        Assert.All(actual, pair =>
-        {
-            Assert.Equal(pair.LeftId, pair.RightId);
-            Assert.NotEqual(Guid.Empty, pair.LeftStamp);
-            Assert.Equal(pair.LeftStamp, pair.RightStamp);
-        });
+        Assert.All(
+            actual,
+            pair =>
+            {
+                Assert.Equal(pair.LeftId, pair.RightId);
+                Assert.NotEqual(Guid.Empty, pair.LeftStamp);
+                Assert.Equal(pair.LeftStamp, pair.RightStamp);
+            });
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 }

@@ -30,7 +30,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         IntegrationDatabaseTarget target,
         string purpose
     ) => new(
-        IntegrationTestDbContextOptions.Create<NativeUuidContext>()
+        IntegrationTestDbContextOptions
+            .Create<NativeUuidContext>()
             .UseMySql(
                 CreateNativeConnectionString(target, purpose),
                 IntegrationTestEnvironment.GetServerVersion(target),
@@ -41,7 +42,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     private static VersionedUuidContext CreateVersionedContext(
         IntegrationDatabaseTarget target
     ) => new(
-        IntegrationTestDbContextOptions.Create<VersionedUuidContext>()
+        IntegrationTestDbContextOptions
+            .Create<VersionedUuidContext>()
             .UseMySql(
                 CreateNativeConnectionString(target, nameof(UuidDataSet.Versioned)),
                 IntegrationTestEnvironment.GetServerVersion(target),
@@ -56,8 +58,11 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        var model = context.GetService<IDesignTimeModel>().Model;
-        var operations = context.GetService<IMigrationsModelDiffer>()
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
+
+        var operations = context
+            .GetService<IMigrationsModelDiffer>()
             .GetDifferences(null, model.GetRelationalModel());
 
         var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -65,12 +70,13 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
         foreach (var command in generator.Generate(operations, model))
         {
-            _ = await command.ExecuteNonQueryAsync(
-                relationalConnection,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+            _ = await command
+                .ExecuteNonQueryAsync(
+                    relationalConnection,
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
     }
-
 
     /// <summary>Reads the storage types selected by property-level UUID opt-in.</summary>
     /// <param name="context">The context used for this operation.</param>
@@ -85,14 +91,20 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         command.CommandText = "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
             + "WHERE TABLE_SCHEMA = DATABASE() "
             + $"AND TABLE_NAME = '{OptInTable}' AND COLUMN_NAME IN ('NativeId', 'BinaryId');";
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         await using var reader = await command
             .ExecuteReaderAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             result.Add(reader.GetString(0), reader.GetString(1));
         }
@@ -121,7 +133,9 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
 
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader
+            .ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
         {
             result.Add(reader.GetString(0), reader.GetString(1));
         }
@@ -140,7 +154,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{DependentTable}`; "
             + $"DROP TABLE IF EXISTS `{PrincipalTable}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Drops the isolated UUID probe table.</summary>
@@ -153,7 +170,9 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{ProbeTable}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Drops the versioned UUID comparison table.</summary>
@@ -166,6 +185,8 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{VersionedTable}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

@@ -9,7 +9,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// Setting <c>DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true</c> disables the skip so an engine
 /// upgrade can be checked without editing test source.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method)]
 public sealed class SpecEngineLimitationFactAttribute : FactAttribute
 {
     /// <summary>

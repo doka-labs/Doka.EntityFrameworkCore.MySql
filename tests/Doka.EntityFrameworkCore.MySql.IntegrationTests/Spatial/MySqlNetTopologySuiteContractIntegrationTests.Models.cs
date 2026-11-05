@@ -49,32 +49,41 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                 entity
                     .Property(item => item.Point)
                     .HasColumnType("point");
+
                 entity
                     .Property(item => item.LineString)
                     .HasColumnType("linestring");
+
                 entity
                     .Property(item => item.Polygon)
                     .HasColumnType("polygon");
+
                 entity
                     .Property(item => item.MultiPoint)
                     .HasColumnType("multipoint");
+
                 entity
                     .Property(item => item.MultiLineString)
                     .HasColumnType("multilinestring");
+
                 entity
                     .Property(item => item.MultiPolygon)
                     .HasColumnType("multipolygon");
+
                 entity
                     .Property(item => item.GeometryCollection)
                     .HasColumnType("geometrycollection");
+
                 entity
                     .Property(item => item.Geometry)
                     .HasColumnType("geometry");
+
                 entity
                     .HasMany(item => item.Children)
                     .WithOne()
                     .HasForeignKey(child => child.ParentId);
             });
+
             modelBuilder.Entity<SpatialMaterializationChild>(entity =>
             {
                 entity.ToTable(MaterializationChildTable);
@@ -125,6 +134,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                 entity
                     .Property(item => item.LeftGeometry)
                     .HasColumnType("geometry");
+
                 entity
                     .Property(item => item.RightGeometry)
                     .HasColumnType("geometry");

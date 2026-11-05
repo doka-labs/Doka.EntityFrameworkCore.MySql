@@ -14,7 +14,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateNamedLineageFixtureAsync(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Set<NamedLineageNode>(mappingName)
+        var query = fixture
+            .Context
+            .Set<NamedLineageNode>(mappingName)
             .Select(row => row)
             .Where(row => row.Id == 1)
             .WithMaterializedSource(source => source.Select(row => row.Target.Name));
@@ -22,7 +24,12 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         var actual = await query.SingleAsync(cancellationToken);
 
         // Assert
-        Assert.Equal(mappingName == "First" ? "first-target" : "second-target", actual);
+        Assert.Equal(
+            mappingName == "First"
+                ? "first-target"
+                : "second-target",
+            actual);
+
         Assert.Equal(1, fixture.Probe.Count);
     }
 
@@ -36,11 +43,13 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         // Arrange
         await using var fixture = await CreateNamedLineageFixtureAsync(target, cancellationToken);
         var context = fixture.Context;
-        var source = context.Set<NamedLineageNode>("First").Join(
-            context.Set<NamedLineageNode>("Second"),
-            first => first.Id,
-            second => second.Id,
-            (_, second) => second);
+        var source = context
+            .Set<NamedLineageNode>("First")
+            .Join(
+                context.Set<NamedLineageNode>("Second"),
+                first => first.Id,
+                second => second.Id,
+                (_, second) => second);
 
         // Act
         var query = source.WithMaterializedSource(bound => bound.Select(row => row.Target.Name));
@@ -63,7 +72,9 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         await using var fixture = await CreateMappingFixtureAsync<OwnedMappedItem>(target, cancellationToken);
 
         // Act
-        var query = fixture.Context.Set<OwnedMappedItem>()
+        var query = fixture
+            .Context
+            .Set<OwnedMappedItem>()
             .WithMaterializedSource(source => source.Select(owner => new
             {
                 owner.Id,

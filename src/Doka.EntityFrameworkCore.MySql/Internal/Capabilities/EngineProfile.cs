@@ -2,12 +2,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Immutable per-engine and per-version fact snapshot. Provider support is kept
-/// out of this type and derived by <see cref="ProviderProfile"/>.
+/// out of this type and derived by <see cref="ProviderProfile" />.
 /// </summary>
 internal sealed record EngineProfile(
     EngineFamily Family,
     Version Version,
-    FrozenSet<EngineCapability> Capabilities)
+    FrozenSet<EngineCapability> Capabilities
+)
 {
     /// <summary>
     /// Compares capability membership by value so cache eviction cannot change

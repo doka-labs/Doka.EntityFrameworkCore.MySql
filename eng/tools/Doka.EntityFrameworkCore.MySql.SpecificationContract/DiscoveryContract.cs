@@ -138,7 +138,8 @@ internal static class DiscoveryContract
         }
 
         var duplicateTargets = document
-            .Targets.GroupBy(item => item.Target, StringComparer.Ordinal)
+            .Targets
+            .GroupBy(item => item.Target, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key);
 
@@ -150,7 +151,8 @@ internal static class DiscoveryContract
         if (requireAllTargets)
         {
             var actualTargets = document
-                .Targets.Select(item => item.Target)
+                .Targets
+                .Select(item => item.Target)
                 .OrderBy(value => value, StringComparer.Ordinal);
 
             var expectedTargets =
@@ -185,7 +187,8 @@ internal static class DiscoveryContract
             .ToArray();
 
         var expected = expectation
-            .TestIds.OrderBy(value => value, StringComparer.Ordinal)
+            .TestIds
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
         foreach (var missing in expected.Except(uniqueActual, StringComparer.Ordinal))
@@ -204,8 +207,8 @@ internal static class DiscoveryContract
             .OrderBy(value => value, StringComparer.Ordinal);
 
         if (!actualFixtures.SequenceEqual(
-                expectation.FixtureTypes.OrderBy(value => value, StringComparer.Ordinal),
-                StringComparer.Ordinal))
+            expectation.FixtureTypes.OrderBy(value => value, StringComparer.Ordinal),
+            StringComparer.Ordinal))
         {
             errors.Add($"Discovery fixture set changed for target '{target}'.");
         }
@@ -242,7 +245,10 @@ internal static class DiscoveryContract
     )
     {
         var parameters = testId.IndexOf('(', StringComparison.Ordinal);
-        var searchEnd = parameters >= 0 ? parameters - 1 : testId.Length - 1;
+        var searchEnd = parameters >= 0
+            ? parameters - 1
+            : testId.Length - 1;
+
         var separator = testId.LastIndexOf('.', searchEnd);
 
         return separator <= 0
@@ -257,9 +263,9 @@ internal static class DiscoveryContract
     )
     {
         foreach (var duplicate in testIds
-                     .GroupBy(value => value, StringComparer.Ordinal)
-                     .Where(group => group.Count() > 1)
-                     .Select(group => group.Key))
+            .GroupBy(value => value, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key))
         {
             errors.Add($"{source} contains duplicate test ID '{duplicate}'.");
         }

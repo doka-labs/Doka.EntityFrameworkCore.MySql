@@ -9,15 +9,18 @@ public sealed partial class QualificationStageExecutionTests
     [InlineData("""{"quality-gates":{"result":"success"},"foundation":{"result":"success"}}""")]
     [InlineData("""{"quality-gates":{"outputs":{},"result":"success"},"foundation":{"result":"success"}}""")]
     [InlineData("""{"quality-gates":{"result":"success","outputs":{}},"foundation":{"result":"success"}}""")]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success","outputs":{"nested":{"result":"failure"},"empty":{}}},
          "foundation":{"outputs":{},"result":"success"}}
         """)]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},"foundation":{"result":"success",
          "outputs":{"version":"10.0.8-test.1","engine_stages":"[\"runtime\"]"}}}
         """)]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},"foundation":{
          "outputs":{"version":"10.0.8-test.1","engine_stages":"[\"runtime\"]"},"result":"success"}}
         """)]
@@ -33,8 +36,12 @@ public sealed partial class QualificationStageExecutionTests
         };
 
         // Act
-        var result = Run(root, Path.Combine(root, "eng/quality/require-qualification.sh"), environment,
-            "quality-gates", "foundation");
+        var result = Run(
+            root,
+            Path.Combine(root, "eng/quality/require-qualification.sh"),
+            environment,
+            "quality-gates",
+            "foundation");
 
         // Assert
         Assert.Equal(0, result.ExitCode);
@@ -56,21 +63,28 @@ public sealed partial class QualificationStageExecutionTests
     [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"skipped\"}}")]
     [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"cancelled\"}}")]
     [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"unknown\"}}")]
-    [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"success\"},\"extra\":{\"result\":\"success\"}}")]
-    [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"failure\"},\"foundation\":{\"result\":\"success\"}}")]
-    [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"failure\",\"result\":\"success\"}}")]
-    [InlineData("""
+    [InlineData(
+        "{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"success\"},\"extra\":{\"result\":\"success\"}}")]
+    [InlineData(
+        "{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"failure\"},\"foundation\":{\"result\":\"success\"}}")]
+    [InlineData(
+        "{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"failure\",\"result\":\"success\"}}")]
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},"foundation":{"result":"success"},
          "foundation":{"result":"success","outputs":{}}}
         """)]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},
          "foundation":{"result":"success","outputs":{},"result":"success"}}
         """)]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},"foundation":{"outputs":{}},"foundation":{"result":"success"}}
         """)]
-    [InlineData("""
+    [InlineData(
+        """
         {"quality-gates":{"result":"success"},"foundation":{"result":"success"},"foundation":{"outputs":{}}}
         """)]
     [InlineData("{\"quality-gates\":{\"result\":\"success\"},\"foundation\":{\"result\":\"success\"}} {}")]
@@ -83,8 +97,12 @@ public sealed partial class QualificationStageExecutionTests
         var environment = new Dictionary<string, string> { ["RESULTS"] = results };
 
         // Act
-        var result = Run(root, Path.Combine(root, "eng/quality/require-qualification.sh"), environment,
-            "quality-gates", "foundation");
+        var result = Run(
+            root,
+            Path.Combine(root, "eng/quality/require-qualification.sh"),
+            environment,
+            "quality-gates",
+            "foundation");
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
@@ -103,7 +121,9 @@ public sealed partial class QualificationStageExecutionTests
         // Arrange
         var root = FindRepositoryRoot();
         var environment = new Dictionary<string, string> { ["RESULTS"] = "{\"foundation\":{\"result\":\"success\"}}" };
-        string[] expected = duplicate ? ["foundation", "foundation"] : [];
+        string[] expected = duplicate
+            ? ["foundation", "foundation"]
+            : [];
 
         // Act
         var result = Run(root, Path.Combine(root, "eng/quality/require-qualification.sh"), environment, expected);
@@ -131,11 +151,15 @@ public sealed partial class QualificationStageExecutionTests
         foreach (var id in s_packageIds)
         {
             var project = Path.Combine(repository.Root, "src", id, $"{id}.csproj");
-            var pack = Assert.Single(repository.DotnetCalls, arguments => arguments[0] == "pack"
-                && arguments[1] == project);
+            var pack = Assert.Single(
+                repository.DotnetCalls,
+                arguments => arguments[0] == "pack"
+                    && arguments[1] == project);
 
-            var build = Assert.Single(repository.DotnetCalls, arguments => arguments[0] == "build"
-                && arguments[1] == project);
+            var build = Assert.Single(
+                repository.DotnetCalls,
+                arguments => arguments[0] == "build"
+                    && arguments[1] == project);
 
             Assert.Contains("--no-build", pack);
             Assert.Contains("--no-restore", pack);
@@ -149,13 +173,13 @@ public sealed partial class QualificationStageExecutionTests
         string[] expectedConsumer =
         [
             "10.0.8-test.1", Path.Combine(repository.Output, "packages"),
-            Path.Combine(repository.Output, "local-package-consumer")
+            Path.Combine(repository.Output, "local-package-consumer"),
         ];
 
         string[] expectedReadback =
         [
             "10.0.8-test.1", "v10.0.8-test.1", StubSourceCommit, StubDatabaseImage,
-            Path.Combine(repository.Output, "local-package-consumer"), Path.Combine(repository.Output, "packages")
+            Path.Combine(repository.Output, "local-package-consumer"), Path.Combine(repository.Output, "packages"),
         ];
 
         Assert.Equal(expectedConsumer, repository.ConsumerArguments);
@@ -165,8 +189,13 @@ public sealed partial class QualificationStageExecutionTests
         Assert.True(File.Exists(Path.Combine(repository.Output, "resolved-packages.json")));
         foreach (var role in new[] { "runtime", "spatial", "cache" })
         {
-            Assert.Contains("qualified", File.ReadAllText(Path.Combine(repository.Output,
-                $"sbom-components/{role}/project.assets.json")), StringComparison.Ordinal);
+            Assert.Contains(
+                "qualified",
+                File.ReadAllText(
+                    Path.Combine(
+                        repository.Output,
+                        $"sbom-components/{role}/project.assets.json")),
+                StringComparison.Ordinal);
         }
     }
 
@@ -193,7 +222,9 @@ public sealed partial class QualificationStageExecutionTests
         Assert.Equal(31, result.ExitCode);
         if (failure != "graph")
         {
-            Assert.DoesNotContain(repository.Events, static entry => entry.StartsWith("dotnet|package list", StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                repository.Events,
+                static entry => entry.StartsWith("dotnet|package list", StringComparison.Ordinal));
         }
     }
 
@@ -228,7 +259,9 @@ public sealed partial class QualificationStageExecutionTests
         }
         else
         {
-            repository.Environment["DOKA_STUB_MISSING"] = mutation == "missing-package" ? "package" : mutation;
+            repository.Environment["DOKA_STUB_MISSING"] = mutation == "missing-package"
+                ? "package"
+                : mutation;
         }
 
         // Act
@@ -236,11 +269,16 @@ public sealed partial class QualificationStageExecutionTests
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
-        Assert.DoesNotContain(repository.Events, static entry => entry.StartsWith("dotnet|package list", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            repository.Events,
+            static entry => entry.StartsWith("dotnet|package list", StringComparison.Ordinal));
+
         if (mutation is not ("consumer" or "readback"))
         {
-            Assert.DoesNotContain(repository.Events, static entry => entry.StartsWith("consumer|", StringComparison.Ordinal)
-                || entry.StartsWith("readback|", StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                repository.Events,
+                static entry => entry.StartsWith("consumer|", StringComparison.Ordinal)
+                    || entry.StartsWith("readback|", StringComparison.Ordinal));
         }
     }
 
@@ -280,9 +318,11 @@ public sealed partial class QualificationStageExecutionTests
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
-        Assert.DoesNotContain(repository.Events, static entry => entry == "locks"
-            || entry.StartsWith("dotnet|", StringComparison.Ordinal)
-            || entry.StartsWith("consumer|", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            repository.Events,
+            static entry => entry == "locks"
+                || entry.StartsWith("dotnet|", StringComparison.Ordinal)
+                || entry.StartsWith("consumer|", StringComparison.Ordinal));
     }
 
     /// <summary>Generates SBOM evidence from only the three frozen production graphs without a production restore.</summary>
@@ -299,12 +339,25 @@ public sealed partial class QualificationStageExecutionTests
 
         // Assert
         Assert.True(result.ExitCode == 0, result.StandardError);
-        var materializations = repository.Events.Where(static entry => entry.StartsWith("materialize|", StringComparison.Ordinal)).ToArray();
+        var materializations = repository
+            .Events
+            .Where(static entry => entry.StartsWith("materialize|", StringComparison.Ordinal))
+            .ToArray();
+
         Assert.Equal(3, materializations.Length);
-        Assert.All(materializations, static entry => Assert.Contains("/sbom-components/", entry, StringComparison.Ordinal));
-        Assert.DoesNotContain(repository.Events, static entry => entry.StartsWith("dotnet|restore ", StringComparison.Ordinal)
-            || entry.StartsWith("dotnet|pack ", StringComparison.Ordinal));
-        var generation = Assert.Single(repository.Events, static entry => entry.StartsWith("dotnet|tool run sbom-tool", StringComparison.Ordinal));
+        Assert.All(
+            materializations,
+            static entry => Assert.Contains("/sbom-components/", entry, StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            repository.Events,
+            static entry => entry.StartsWith("dotnet|restore ", StringComparison.Ordinal)
+                || entry.StartsWith("dotnet|pack ", StringComparison.Ordinal));
+
+        var generation = Assert.Single(
+            repository.Events,
+            static entry => entry.StartsWith("dotnet|tool run sbom-tool", StringComparison.Ordinal));
+
         Assert.Contains("--allow-roll-forward -- Generate", generation, StringComparison.Ordinal);
         Assert.Contains("/sbom-components -m ", generation, StringComparison.Ordinal);
         Assert.Contains("-pv 10.0.8-test.1", generation, StringComparison.Ordinal);
@@ -342,7 +395,9 @@ public sealed partial class QualificationStageExecutionTests
         {
             var graph = Path.Combine(repository.Output, "sbom-components/cache/project.assets.json");
             File.Delete(graph);
-            File.CreateSymbolicLink(graph, Path.Combine(repository.Root, "artifacts/obj/Doka.Caching.MySql/project.assets.json"));
+            File.CreateSymbolicLink(
+                graph,
+                Path.Combine(repository.Root, "artifacts/obj/Doka.Caching.MySql/project.assets.json"));
         }
         else if (mutation == "missing-evidence")
         {
@@ -354,8 +409,12 @@ public sealed partial class QualificationStageExecutionTests
         }
 
         // Act
-        var result = repository.RunStage("generate-package-sbom.sh",
-            mutation == "wrong-version" ? "10.0.9" : "10.0.8-test.1", "artifacts/qualification");
+        var result = repository.RunStage(
+            "generate-package-sbom.sh",
+            mutation == "wrong-version"
+                ? "10.0.9"
+                : "10.0.8-test.1",
+            "artifacts/qualification");
 
         // Assert
         Assert.NotEqual(0, result.ExitCode);
@@ -391,7 +450,7 @@ public sealed partial class QualificationStageExecutionTests
 
         if (query == "--all-stages")
         {
-            expected = [..expected, "package", "sbom"];
+            expected = [.. expected, "package", "sbom"];
         }
 
         Assert.Equal(expected, stages);
@@ -430,15 +489,27 @@ public sealed partial class QualificationStageExecutionTests
         {
             var policyPath = Path.Combine(repository.Root, "eng/release/evidence-policy.json");
             using var policy = JsonDocument.Parse(File.ReadAllText(policyPath));
-            var gates = policy.RootElement.GetProperty("gates").EnumerateArray()
-                .Select(static gate => gate.Clone()).ToList();
+            var gates = policy
+                .RootElement
+                .GetProperty("gates")
+                .EnumerateArray()
+                .Select(static gate => gate.Clone())
+                .ToList();
 
-            gates.Add(mutation == "duplicate-policy"
-                ? gates.Single(static gate => gate.GetProperty("id").GetString() == "efcore-patch-matrix")
-                : JsonSerializer.SerializeToElement(new
-                {
-                    id = "unknown-gate", kind = "candidate-produced", implementation = "eng/testing/unknown.sh",
-                }));
+            gates.Add(
+                mutation == "duplicate-policy"
+                    ? gates.Single(static gate => gate
+                            .GetProperty("id")
+                            .GetString()
+                        == "efcore-patch-matrix")
+                    : JsonSerializer.SerializeToElement(
+                        new
+                        {
+                            id = "unknown-gate",
+                            kind = "candidate-produced",
+                            implementation = "eng/testing/unknown.sh",
+                        }));
+
             repository.Write("eng/release/evidence-policy.json", JsonSerializer.Serialize(new { gates }));
         }
 
@@ -480,14 +551,26 @@ public sealed partial class QualificationStageExecutionTests
     {
         // Arrange
         using var repository = new StageRepository();
-        using var policy = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository.Root,
-            "eng/release/evidence-policy.json")));
+        using var policy = JsonDocument.Parse(
+            File.ReadAllText(
+                Path.Combine(
+                    repository.Root,
+                    "eng/release/evidence-policy.json")));
 
-        var gates = policy.RootElement.GetProperty("gates").EnumerateArray()
-            .Select(static gate => gate.EnumerateObject().ToDictionary(
-                static property => property.Name, static property => property.Value.Clone())).ToList();
+        var gates = policy
+            .RootElement
+            .GetProperty("gates")
+            .EnumerateArray()
+            .Select(static gate => gate
+                .EnumerateObject()
+                .ToDictionary(
+                    static property => property.Name,
+                    static property => property.Value.Clone()))
+            .ToList();
 
-        var runtime = gates.Single(static gate => gate["id"].GetString() == "runtime-posture");
+        var runtime = gates.Single(static gate => gate["id"]
+                .GetString()
+            == "runtime-posture");
 
         if (mutation == "missing")
         {
@@ -511,7 +594,8 @@ public sealed partial class QualificationStageExecutionTests
             runtime["implementation"] = JsonSerializer.SerializeToElement(implementation);
             if (mutation == "symlink")
             {
-                File.CreateSymbolicLink(Path.Combine(repository.Root, "eng/testing/runtime-alias.sh"),
+                File.CreateSymbolicLink(
+                    Path.Combine(repository.Root, "eng/testing/runtime-alias.sh"),
                     Path.Combine(repository.Root, "eng/testing/test-runtime-posture.sh"));
             }
         }
@@ -541,7 +625,9 @@ public sealed partial class QualificationStageExecutionTests
         // Arrange
         using var repository = new StageRepository();
         repository.Environment["DOKA_STUB_FAIL"] = failure;
-        repository.Write("eng/testing/test-integration.sh", """
+        repository.Write(
+            "eng/testing/test-integration.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'integration|%s|%s|%s|%s\n' "${DOKA_INTEGRATION_TARGETS}" \
@@ -549,7 +635,10 @@ public sealed partial class QualificationStageExecutionTests
                 "${DOKA_COVERAGE_RESULTS_DIR}" >> "${DOKA_STUB_ROOT}/events"
             if [[ "${DOKA_STUB_FAIL:-}" == integration ]]; then exit 31; fi
             """);
-        repository.Write("eng/testing/test-examples.sh", """
+
+        repository.Write(
+            "eng/testing/test-examples.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'examples|%s|%s|%s\n' "${DOKA_EXAMPLE_TARGETS}" "${DOKA_EXAMPLE_RUN_ID}" \
@@ -558,23 +647,46 @@ public sealed partial class QualificationStageExecutionTests
             """);
 
         // Act
-        var result = repository.RunStage("qualify-engine.sh", "integration", "artifacts/release-candidate/process-1", "process-1");
+        var result = repository.RunStage(
+            "qualify-engine.sh",
+            "integration",
+            "artifacts/release-candidate/process-1",
+            "process-1");
 
         // Assert
-        Assert.Equal(failure.Length == 0 ? 0 : 31, result.ExitCode);
-        var integration = Assert.Single(repository.Events, static entry => entry.StartsWith("integration|", StringComparison.Ordinal));
-        Assert.Contains("|mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123|1|process-1|", integration,
+        Assert.Equal(
+            failure.Length == 0
+                ? 0
+                : 31,
+            result.ExitCode);
+
+        var integration = Assert.Single(
+            repository.Events,
+            static entry => entry.StartsWith("integration|", StringComparison.Ordinal));
+
+        Assert.Contains(
+            "|mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123|1|process-1|",
+            integration,
             StringComparison.Ordinal);
+
         Assert.EndsWith("/coverage-input/integration", integration, StringComparison.Ordinal);
         if (failure == "integration")
         {
-            Assert.DoesNotContain(repository.Events, static entry => entry.StartsWith("examples|", StringComparison.Ordinal));
+            Assert.DoesNotContain(
+                repository.Events,
+                static entry => entry.StartsWith("examples|", StringComparison.Ordinal));
         }
         else
         {
-            var examples = Assert.Single(repository.Events, static entry => entry.StartsWith("examples|", StringComparison.Ordinal));
-            Assert.Contains("|mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123|process-1|", examples,
+            var examples = Assert.Single(
+                repository.Events,
+                static entry => entry.StartsWith("examples|", StringComparison.Ordinal));
+
+            Assert.Contains(
+                "|mysql84,mysql97,mariadb1011,mariadb114,mariadb118,mariadb123|process-1|",
+                examples,
                 StringComparison.Ordinal);
+
             Assert.EndsWith("/integration/examples", examples, StringComparison.Ordinal);
         }
     }
@@ -594,8 +706,13 @@ public sealed partial class QualificationStageExecutionTests
     {
         // Arrange
         using var repository = new StageRepository();
-        repository.Environment["DOKA_STUB_FAIL"] = fails ? stage : string.Empty;
-        repository.Write("eng/testing/test-runtime-posture.sh", """
+        repository.Environment["DOKA_STUB_FAIL"] = fails
+            ? stage
+            : string.Empty;
+
+        repository.Write(
+            "eng/testing/test-runtime-posture.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'runtime|%s|%s|%s|%s|%s\n' "${DOKA_RUNTIME_POSTURE_RUN_ID}" \
@@ -603,7 +720,10 @@ public sealed partial class QualificationStageExecutionTests
                 "${DOKA_RUNTIME_POSTURE_EVIDENCE_DIR}" "$*" >> "${DOKA_STUB_ROOT}/events"
             if [[ "${DOKA_STUB_FAIL:-}" == runtime ]]; then exit 31; fi
             """);
-        repository.Write("eng/testing/test-migration-deployment.sh", """
+
+        repository.Write(
+            "eng/testing/test-migration-deployment.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'migration|%s|%s\n' "${DOKA_MIGRATION_DEPLOYMENT_RUN_ID}" \
@@ -612,10 +732,19 @@ public sealed partial class QualificationStageExecutionTests
             """);
 
         // Act
-        var result = repository.RunStage("qualify-engine.sh", stage, "artifacts/release-candidate/process-1", "process-1");
+        var result = repository.RunStage(
+            "qualify-engine.sh",
+            stage,
+            "artifacts/release-candidate/process-1",
+            "process-1");
 
         // Assert
-        Assert.Equal(fails ? 31 : 0, result.ExitCode);
+        Assert.Equal(
+            fails
+                ? 31
+                : 0,
+            result.ExitCode);
+
         var events = repository.Events;
         Assert.Equal("verify-dotnet", events[0]);
         var evidence = Assert.Single(events[1..]);
@@ -646,10 +775,17 @@ public sealed partial class QualificationStageExecutionTests
     {
         // Arrange
         using var repository = new StageRepository();
-        repository.Environment["DOKA_STUB_FAIL"] = fails ? stage : string.Empty;
-        repository.Write("tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json",
+        repository.Environment["DOKA_STUB_FAIL"] = fails
+            ? stage
+            : string.Empty;
+
+        repository.Write(
+            "tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json",
             "{\"efCoreVersions\":[\"10.0.8\",\"10.0.9\"]}");
-        repository.Write("eng/testing/test-efcore-matrix.sh", """
+
+        repository.Write(
+            "eng/testing/test-efcore-matrix.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'ef|%s|%s|%s|%s\n' "${DokaEfCoreVersion}" "${DOKA_EF_CORE_RESOLVED_PATTERN}" \
@@ -659,7 +795,10 @@ public sealed partial class QualificationStageExecutionTests
             mkdir -p "${directory}"
             printf 'qualified-ef' > "${directory}/evidence.json"
             """);
-        repository.Write("eng/testing/test-mysqlconnector-matrix.sh", """
+
+        repository.Write(
+            "eng/testing/test-mysqlconnector-matrix.sh",
+            """
             #!/usr/bin/env bash
             set -euo pipefail
             printf 'connector|%s|%s|%s\n' "${DOKA_MYSQLCONNECTOR_VERSION}" \
@@ -671,24 +810,47 @@ public sealed partial class QualificationStageExecutionTests
             """);
 
         // Act
-        var result = repository.RunStage("qualify-engine.sh", stage, "artifacts/release-candidate/process-1", "process-1");
+        var result = repository.RunStage(
+            "qualify-engine.sh",
+            stage,
+            "artifacts/release-candidate/process-1",
+            "process-1");
 
         // Assert
-        Assert.Equal(fails ? 31 : 0, result.ExitCode);
+        Assert.Equal(
+            fails
+                ? 31
+                : 0,
+            result.ExitCode);
+
         var events = repository.Events;
         Assert.Equal("verify-dotnet", events[0]);
         string[] expectedEvents = stage == "efcore-patch-matrix"
             ? ["ef|10.0.8|^10[.]0[.]8$|minimum-10-0-8|dependency-graph", "ef|10.0.9|^10[.]0[.]9$|latest-10-0|full"]
             : ["connector|2.6.1|^2[.]6[.]1$|minimum-2-6-1", "connector|2.*|^2[.][0-9]+[.][0-9]+$|latest-2-x"];
 
-        Assert.Equal(fails ? expectedEvents[..1] : expectedEvents, events[1..]);
+        Assert.Equal(
+            fails
+                ? expectedEvents[..1]
+                : expectedEvents,
+            events[1..]);
+
         if (!fails)
         {
             string[] legs = stage == "efcore-patch-matrix"
-                ? ["minimum-10-0-8", "latest-10-0"] : ["minimum-2-6-1", "latest-2-x"];
+                ? ["minimum-10-0-8", "latest-10-0"]
+                : ["minimum-2-6-1", "latest-2-x"];
 
-            Assert.All(legs, leg => Assert.True(File.Exists(Path.Combine(repository.Root,
-                "artifacts/release-candidate/process-1", stage, leg, "evidence.json"))));
+            Assert.All(
+                legs,
+                leg => Assert.True(
+                    File.Exists(
+                        Path.Combine(
+                            repository.Root,
+                            "artifacts/release-candidate/process-1",
+                            stage,
+                            leg,
+                            "evidence.json"))));
         }
     }
 
@@ -745,27 +907,53 @@ public sealed partial class QualificationStageExecutionTests
         // Arrange
         using var repository = new StageRepository();
         repository.Write("global.json", JsonSerializer.Serialize(new { test = new { runner } }));
-        repository.Environment["DOTNET_TEST_RUNNER"] = runner == "VSTest" ? "Microsoft.Testing.Platform" : "VSTest";
-        repository.Environment["DOKA_STUB_FAIL"] = fails ? "specification" : string.Empty;
+        repository.Environment["DOTNET_TEST_RUNNER"] = runner == "VSTest"
+            ? "Microsoft.Testing.Platform"
+            : "VSTest";
+
+        repository.Environment["DOKA_STUB_FAIL"] = fails
+            ? "specification"
+            : string.Empty;
+
         var results = Path.Combine(repository.Root, "artifacts/spec-tests", target);
-        var project = Path.Combine(repository.Root, "tests/Doka.EntityFrameworkCore.MySql.FunctionalTests",
+        var project = Path.Combine(
+            repository.Root,
+            "tests/Doka.EntityFrameworkCore.MySql.FunctionalTests",
             "Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj");
 
         // Act
         var result = repository.RunStage("test-spec-target.sh", target, $"artifacts/spec-tests/{target}");
 
         // Assert
-        Assert.Equal(fails ? 31 : 0, result.ExitCode);
+        Assert.Equal(
+            fails
+                ? 31
+                : 0,
+            result.ExitCode);
+
         Assert.Equal("verify-dotnet", repository.Events[0]);
-        var calls = repository.DotnetCalls.Where(static arguments => arguments[0] == "test").ToArray();
-        Assert.Equal(target == "mysql84" ? 2 : 1, calls.Length);
+        var calls = repository
+            .DotnetCalls
+            .Where(static arguments => arguments[0] == "test")
+            .ToArray();
+
+        Assert.Equal(
+            target == "mysql84"
+                ? 2
+                : 1,
+            calls.Length);
+
         Assert.All(calls, arguments => AssertNativeTestArguments(arguments, runner, project));
-        var evidence = repository.Events.Where(static entry => entry.StartsWith("spec-env|", StringComparison.Ordinal))
+        var evidence = repository
+            .Events
+            .Where(static entry => entry.StartsWith("spec-env|", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(calls.Length, evidence.Length);
         Assert.All(evidence, entry => Assert.Equal($"spec-env|{target}|{results}/test-database-evidence.json", entry));
-        var runners = repository.Events.Where(static entry => entry.StartsWith("test-runner|", StringComparison.Ordinal))
+        var runners = repository
+            .Events
+            .Where(static entry => entry.StartsWith("test-runner|", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(calls.Length, runners.Length);
@@ -792,9 +980,11 @@ public sealed partial class QualificationStageExecutionTests
         }
         else
         {
-            Assert.Equal("FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification."
+            Assert.Equal(
+                "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification."
                 + "|Category=Spec|Category=Live",
                 ArgumentAfter(command, "--filter"));
+
             Assert.Contains("--coverlet", command);
             Assert.Equal("cobertura", ArgumentAfter(command, "--coverlet-output-format"));
             Assert.Equal($"spec-{target}", ArgumentAfter(command, "--coverlet-file-prefix"));
@@ -843,7 +1033,11 @@ public sealed partial class QualificationStageExecutionTests
         Assert.Equal("verify-dotnet", repository.Events[0]);
         Assert.Equal("spec-contract", repository.Events[1]);
         Assert.Equal(failure != "contract", repository.Events.Contains("spec-discovery", StringComparer.Ordinal));
-        var calls = repository.DotnetCalls.Where(static arguments => arguments[0] == "test").ToArray();
+        var calls = repository
+            .DotnetCalls
+            .Where(static arguments => arguments[0] == "test")
+            .ToArray();
+
         Assert.Equal(expectedTestCount, calls.Length);
         if (calls.Length > 0)
         {

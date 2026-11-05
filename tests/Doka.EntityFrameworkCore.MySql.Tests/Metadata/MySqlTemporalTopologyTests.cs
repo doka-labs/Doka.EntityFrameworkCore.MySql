@@ -67,7 +67,9 @@ public sealed class MySqlTemporalTopologyTests
         var actual = owner.GetNavigations();
 
         // Assert
-        var owned = Assert.Single(actual).TargetEntityType;
+        var owned = Assert.Single(actual)
+            .TargetEntityType;
+
         var storeObject = StoreObjectIdentifier.Table("TemporalOwners", schema: null);
         Assert.True(owned.IsMySqlTemporal());
         Assert.Equal("TemporalOwnerHistory", owned.GetMySqlTemporalHistoryTableName());
@@ -92,7 +94,9 @@ public sealed class MySqlTemporalTopologyTests
         var actual = owner.GetNavigations();
 
         // Assert
-        var owned = Assert.Single(actual).TargetEntityType;
+        var owned = Assert.Single(actual)
+            .TargetEntityType;
+
         Assert.True(owner.IsMySqlTemporal());
         Assert.False(owned.IsMySqlTemporal());
         Assert.Equal("TemporalOwnerDetails", owned.GetTableName());
@@ -142,6 +146,7 @@ public sealed class MySqlTemporalTopologyTests
         Assert.Equal(
             owner.GetMySqlTemporalPeriodStartPropertyName(),
             owned.GetMySqlTemporalPeriodStartPropertyName());
+
         Assert.Equal(
             owner.GetMySqlTemporalPeriodEndPropertyName(),
             owned.GetMySqlTemporalPeriodEndPropertyName());
@@ -237,9 +242,75 @@ public sealed class MySqlTemporalTopologyTests
         return new TopologyContext<TConfiguration>(options);
     }
 
+    private static void ConfigureOwner(
+        ModelBuilder modelBuilder,
+        OwnedTemporalMapping ownedTemporalMapping
+    )
+    {
+        modelBuilder.Entity<TemporalOwner>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.ToTable(
+                "TemporalOwners",
+                table => table.IsTemporal(temporal =>
+                {
+                    temporal.UseHistoryTable("TemporalOwnerHistory");
+                    temporal
+                        .HasPeriodStart("ValidFrom")
+                        .HasColumnName("valid_from");
+
+                    temporal
+                        .HasPeriodEnd("ValidTo")
+                        .HasColumnName("valid_to");
+                }));
+
+            entity.OwnsOne(
+                item => item.Details,
+                owned =>
+                {
+                    if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTable)
+                    {
+                        owned.ToTable("TemporalOwnerDetails");
+                    }
+                    else if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTemporalTable)
+                    {
+                        owned.ToTable("TemporalOwnerDetails", table => table.IsTemporal());
+                    }
+                    else if (ownedTemporalMapping != OwnedTemporalMapping.Implicit)
+                    {
+                        owned.ToTable(
+                            "TemporalOwners",
+                            table =>
+                            {
+                                if (ownedTemporalMapping == OwnedTemporalMapping.ExplicitCurrent)
+                                {
+                                    table.IsTemporal(false);
+
+                                    return;
+                                }
+
+                                table.IsTemporal(temporal =>
+                                {
+                                    temporal.UseHistoryTable("TemporalOwnerHistory");
+                                    temporal
+                                        .HasPeriodStart("ValidFrom")
+                                        .HasColumnName("valid_from");
+
+                                    temporal
+                                        .HasPeriodEnd("ValidTo")
+                                        .HasColumnName("valid_to");
+                                });
+                            });
+                    }
+                });
+        });
+    }
+
     private interface ITopologyConfiguration
     {
-        void Configure(ModelBuilder modelBuilder);
+        void Configure(
+            ModelBuilder modelBuilder
+        );
     }
 
     private sealed class ManyToManyConfiguration : ITopologyConfiguration
@@ -252,7 +323,8 @@ public sealed class MySqlTemporalTopologyTests
             {
                 entity.HasKey(item => item.Id);
                 entity.ToTable("TemporalLefts", table => table.IsTemporal());
-                entity.HasMany(item => item.Rights)
+                entity
+                    .HasMany(item => item.Rights)
                     .WithMany(item => item.Lefts);
             });
 
@@ -329,7 +401,8 @@ public sealed class MySqlTemporalTopologyTests
                 entity.ToTable("TemporalAnimals", table => table.IsTemporal());
             });
 
-            modelBuilder.Entity<TemporalDog>()
+            modelBuilder
+                .Entity<TemporalDog>()
                 .ToTable("TemporalDogs");
         }
     }
@@ -346,65 +419,14 @@ public sealed class MySqlTemporalTopologyTests
                 entity.UseTpcMappingStrategy();
             });
 
-            modelBuilder.Entity<TemporalDog>()
+            modelBuilder
+                .Entity<TemporalDog>()
                 .ToTable("TemporalDogs", table => table.IsTemporal());
-            modelBuilder.Entity<TemporalCat>()
+
+            modelBuilder
+                .Entity<TemporalCat>()
                 .ToTable("TemporalCats");
         }
-    }
-
-    private static void ConfigureOwner(
-        ModelBuilder modelBuilder,
-        OwnedTemporalMapping ownedTemporalMapping
-    )
-    {
-        modelBuilder.Entity<TemporalOwner>(entity =>
-        {
-            entity.HasKey(item => item.Id);
-            entity.ToTable(
-                "TemporalOwners",
-                table => table.IsTemporal(
-                    temporal =>
-                    {
-                        temporal.UseHistoryTable("TemporalOwnerHistory");
-                        temporal.HasPeriodStart("ValidFrom").HasColumnName("valid_from");
-                        temporal.HasPeriodEnd("ValidTo").HasColumnName("valid_to");
-                    }));
-
-            entity.OwnsOne(
-                item => item.Details,
-                owned =>
-                {
-                    if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTable)
-                    {
-                        owned.ToTable("TemporalOwnerDetails");
-                    }
-                    else if (ownedTemporalMapping == OwnedTemporalMapping.SeparateTemporalTable)
-                    {
-                        owned.ToTable("TemporalOwnerDetails", table => table.IsTemporal());
-                    }
-                    else if (ownedTemporalMapping != OwnedTemporalMapping.Implicit)
-                    {
-                        owned.ToTable("TemporalOwners", table =>
-                        {
-                            if (ownedTemporalMapping == OwnedTemporalMapping.ExplicitCurrent)
-                            {
-                                table.IsTemporal(false);
-
-                                return;
-                            }
-
-                            table.IsTemporal(
-                                temporal =>
-                                {
-                                    temporal.UseHistoryTable("TemporalOwnerHistory");
-                                    temporal.HasPeriodStart("ValidFrom").HasColumnName("valid_from");
-                                    temporal.HasPeriodEnd("ValidTo").HasColumnName("valid_to");
-                                });
-                        });
-                    }
-                });
-        });
     }
 
     private enum OwnedTemporalMapping

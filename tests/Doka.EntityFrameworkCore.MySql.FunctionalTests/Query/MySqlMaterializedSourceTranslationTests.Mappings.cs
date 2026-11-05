@@ -16,8 +16,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<TptLeaf>()
-            .Select(row => new { row.Id, row.Label, row.Score })
+        var query = context
+            .Set<TptLeaf>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Label,
+                row.Score,
+            })
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -44,7 +50,13 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<TpcRoot>().Select(row => new { row.Id, row.Label })
+        var query = context
+            .Set<TpcRoot>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Label,
+            })
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -70,7 +82,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<SplitRecord>().Select(row => new { row.Id, row.Name, row.Extra })
+        var query = context
+            .Set<SplitRecord>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Name,
+                row.Extra,
+            })
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -97,8 +116,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<SharedRecord>()
-            .Select(row => new { row.Id, row.Label, row.Details.Value })
+        var query = context
+            .Set<SharedRecord>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Label,
+                row.Details.Value,
+            })
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -125,8 +150,14 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<OwnedRecord>()
-            .Select(row => new { row.Id, row.Profile.Token, row.Profile.Note })
+        var query = context
+            .Set<OwnedRecord>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Profile.Token,
+                row.Profile.Note,
+            })
             .WithMaterializedSource(shared => shared.Concat(shared));
 
         var sql = query.ToQueryString();
@@ -151,14 +182,27 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Set<ShadowRecord>()
-            .Select(row => new { row.Id, Scope = EF.Property<Guid>(row, "Scope") });
+        var source = context
+            .Set<ShadowRecord>()
+            .Select(row => new
+            {
+                row.Id,
+                Scope = EF.Property<Guid>(row, "Scope"),
+            });
 
         // Act
         var query = source.WithMaterializedSource(shared => shared.Join(
             shared,
-            first => new { first.Id, first.Scope },
-            second => new { second.Id, second.Scope },
+            first => new
+            {
+                first.Id,
+                first.Scope,
+            },
+            second => new
+            {
+                second.Id,
+                second.Scope,
+            },
             (first, _) => first));
 
         var sql = query.ToQueryString();
@@ -183,14 +227,24 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Set<ConvertedRecord>().Select(row => new { row.Id, row.Reference });
+        var source = context
+            .Set<ConvertedRecord>()
+            .Select(row => new
+            {
+                row.Id,
+                row.Reference,
+            });
 
         // Act
         var query = source.WithMaterializedSource(shared => shared.Join(
             shared,
             first => first.Reference,
             second => second.Reference,
-            (first, second) => new { First = first.Id, Second = second.Id }));
+            (first, second) => new
+            {
+                First = first.Id,
+                Second = second.Id,
+            }));
 
         var sql = query.ToQueryString();
 

@@ -5,8 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// share the entry point but emit different DDL:
 /// - MariaDB 11.8 (>= 10.5.2): native <c>ALTER TABLE ... RENAME COLUMN old TO new</c>.
 /// - Capability-driven fallback: <c>ALTER TABLE ... CHANGE COLUMN old new &lt;definition&gt;</c>
-///   exercised by forcing an older MariaDB version string so the engine profile drops
-///   <see cref="EngineCapability.RenameColumnSyntax"/>.
+/// exercised by forcing an older MariaDB version string so the engine profile drops
+/// <see cref="EngineCapability.RenameColumnSyntax" />.
 /// Every active MySQL and MariaDB LTS target shares the modern path; the snapshot
 /// DDL test pins both paths against live servers to keep the fallback honest.
 /// </summary>
@@ -132,12 +132,14 @@ public sealed class MySqlMigrationRenameColumnTests
         await context.Database.ExecuteSqlRawAsync(
             "DROP TABLE IF EXISTS `RenameItems`;",
             cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE `RenameItems` ("
             + "`Id` int NOT NULL AUTO_INCREMENT, "
             + "`Old` varchar(64) NOT NULL COMMENT 'rename\\\\comment ''quoted''', "
             + "PRIMARY KEY (`Id`)) CHARACTER SET utf8mb4;",
             cancellationToken);
+
         await context.Database.ExecuteSqlRawAsync(
             "INSERT INTO `RenameItems` (`Old`) VALUES ('alpha'), ('beta'), ('gamma');",
             cancellationToken);
@@ -152,7 +154,8 @@ public sealed class MySqlMigrationRenameColumnTests
                 NewName = "Renamed",
             };
 
-            var designTimeModel = context.GetService<IDesignTimeModel>().Model;
+            var designTimeModel = context.GetService<IDesignTimeModel>()
+                .Model;
 
             // Act
             var commands = generator.Generate([operation], designTimeModel);
@@ -184,7 +187,9 @@ public sealed class MySqlMigrationRenameColumnTests
                 + "AND TABLE_NAME = 'RenameItems' "
                 + "AND COLUMN_NAME = 'Renamed';";
 
-            var comment = await verifyCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            var comment = await verifyCommand
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.Single(commands);

@@ -71,12 +71,16 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
 
         // Assert
         Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(mapping, value));
-        Assert.Equal(value.ToString("D", CultureInfo.InvariantCulture), ReadProviderValue(
-            mapping,
-            value.ToString("D", CultureInfo.InvariantCulture)));
+        Assert.Equal(
+            value.ToString("D", CultureInfo.InvariantCulture),
+            ReadProviderValue(
+                mapping,
+                value.ToString("D", CultureInfo.InvariantCulture)));
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => ReadProviderValue(mapping, value.ToByteArray(bigEndian: true)));
+        var exception =
+            Assert.Throws<InvalidOperationException>(() => ReadProviderValue(
+                mapping,
+                value.ToByteArray(bigEndian: true)));
 
         Assert.Contains("System.Byte[]", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(Convert.ToHexString(value.ToByteArray()), exception.Message, StringComparison.Ordinal);
@@ -123,6 +127,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.Equal(
             MySqlValueGenerationStrategy.ClientGuid,
             property.GetMySqlValueGenerationStrategy());
+
         Assert.NotEqual(Guid.Empty, entity.Id);
     }
 
@@ -144,7 +149,10 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
         Assert.Equal("char(36)", property.GetColumnType());
         Assert.Null(property.GetValueConverter());
         Assert.Null(property.GetProviderClrType());
-        Assert.IsType<GuidToStringConverter>(property.GetRelationalTypeMapping().Converter);
+        Assert.IsType<GuidToStringConverter>(
+            property.GetRelationalTypeMapping()
+                .Converter);
+
         Assert.Equal(MySqlValueGenerationStrategy.ClientGuid, property.GetMySqlValueGenerationStrategy());
         Assert.Equal(ValueGenerated.OnAdd, property.ValueGenerated);
     }
@@ -165,12 +173,18 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
             .FindProperty(nameof(ExplicitBinary16Entity.Id))!;
 
         var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
-        var literal = property.GetRelationalTypeMapping().GenerateSqlLiteral(value);
+        var literal = property
+            .GetRelationalTypeMapping()
+            .GenerateSqlLiteral(value);
 
         // Assert
         Assert.Null(property.GetValueConverter());
         Assert.Null(property.GetProviderClrType());
-        Assert.Equal("binary(16)", property.FindAnnotation(RelationalAnnotationNames.ColumnType)?.Value);
+        Assert.Equal(
+            "binary(16)",
+            property.FindAnnotation(RelationalAnnotationNames.ColumnType)
+                ?.Value);
+
         Assert.Equal("binary(16)", property.GetColumnType());
         Assert.IsType<MySqlGuidBinaryTypeMapping>(property.GetRelationalTypeMapping());
         Assert.Equal(
@@ -299,10 +313,7 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
 
     private static DbContextOptions<ValueGenerationContext> CreateOptions(
         MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16
-    )
-    {
-        return CreateOptions<ValueGenerationContext>(defaultGuidFormat);
-    }
+    ) => CreateOptions<ValueGenerationContext>(defaultGuidFormat);
 
     private static string ReadProviderValue(
         RelationalTypeMapping mapping,
@@ -367,7 +378,9 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
             {
                 entity.ToTable("Phase2ExplicitGeneratedGuidEntities");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).ValueGeneratedOnAdd();
+                entity
+                    .Property(item => item.Id)
+                    .ValueGeneratedOnAdd();
             });
 
             modelBuilder.Entity<ExplicitChar36Entity>(entity =>
@@ -394,14 +407,18 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
             {
                 entity.ToTable("Phase2ConvertedGuidEntities");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).HasConversion<string>();
+                entity
+                    .Property(item => item.Id)
+                    .HasConversion<string>();
             });
 
             modelBuilder.Entity<ConvertedGuidBytesEntity>(entity =>
             {
                 entity.ToTable("Phase2ConvertedGuidBytesEntities");
                 entity.HasKey(item => item.Id);
-                entity.Property(item => item.Id).HasConversion<byte[]>();
+                entity
+                    .Property(item => item.Id)
+                    .HasConversion<byte[]>();
             });
         }
     }
@@ -421,7 +438,8 @@ public sealed class MySqlValueGenerationAndGuidFormatTests
                 entity.HasKey(item => item.Id);
                 entity
                     .Property(item => item.Id)
-                    .Metadata.SetMySqlGuidFormat((MySqlGuidFormat)999);
+                    .Metadata
+                    .SetMySqlGuidFormat((MySqlGuidFormat)999);
             });
         }
     }

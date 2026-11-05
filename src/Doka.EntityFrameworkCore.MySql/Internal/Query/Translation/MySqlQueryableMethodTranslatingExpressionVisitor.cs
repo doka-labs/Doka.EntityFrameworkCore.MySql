@@ -7,9 +7,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed partial class
     MySqlQueryableMethodTranslatingExpressionVisitor : RelationalQueryableMethodTranslatingExpressionVisitor
 {
-    private readonly IRelationalTypeMappingSource _typeMappingSource;
-    private readonly ISqlExpressionFactory _sqlExpressionFactory;
     private readonly RelationalQueryCompilationContext _queryCompilationContext;
+    private readonly ISqlExpressionFactory _sqlExpressionFactory;
+    private readonly IRelationalTypeMappingSource _typeMappingSource;
 
     public MySqlQueryableMethodTranslatingExpressionVisitor(
         QueryableMethodTranslatingExpressionVisitorDependencies dependencies,

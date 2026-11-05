@@ -11,12 +11,28 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 [MemoryDiagnoser]
 public class EnumerationControlBenchmark : IDisposable
 {
-    private readonly string[] _setup = ["SET @doka_probe = 1;"];
     private readonly string[] _cleanup = ["SET @doka_probe = NULL;"];
-    private readonly string[] _wideSetup = Enumerable.Repeat("SET @doka_probe = 1;", 32).ToArray();
-    private readonly string[] _wideCleanup = Enumerable.Repeat("SET @doka_probe = NULL;", 32).ToArray();
+
     private readonly JsonDocument _document = JsonDocument.Parse(
         "{\"items\":[{\"id\":1,\"name\":\"one\"},{\"id\":2,\"name\":\"two\"}],\"active\":true}");
+
+    private readonly string[] _setup = ["SET @doka_probe = 1;"];
+
+    private readonly string[] _wideCleanup = Enumerable
+        .Repeat("SET @doka_probe = NULL;", 32)
+        .ToArray();
+
+    private readonly string[] _wideSetup = Enumerable
+        .Repeat("SET @doka_probe = 1;", 32)
+        .ToArray();
+
+    /// <summary>Releases the document owned by this benchmark fixture.</summary>
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _document.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>Validates and constructs one minimal setup/body/cleanup scope.</summary>
     [Benchmark]
@@ -39,12 +55,4 @@ public class EnumerationControlBenchmark : IDisposable
     /// <summary>Hashes the complete JSON document through the provider's structural comparer.</summary>
     [Benchmark]
     public int HashJsonDocument() => MySqlJsonValueComparers.JsonElementComparer.GetHashCode(_document.RootElement);
-
-    /// <summary>Releases the document owned by this benchmark fixture.</summary>
-    [GlobalCleanup]
-    public void Dispose()
-    {
-        _document.Dispose();
-        GC.SuppressFinalize(this);
-    }
 }

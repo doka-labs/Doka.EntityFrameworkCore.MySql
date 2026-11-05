@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Provider-specific extension methods for <see cref="DbFunctions"/>.
+/// Provider-specific extension methods for <see cref="DbFunctions" />.
 /// </summary>
 public static class MySqlDbFunctionsExtensions
 {
@@ -9,13 +9,13 @@ public static class MySqlDbFunctionsExtensions
     /// Translates a supported scalar value to the MySQL <c>LIKE</c> operator.
     /// </summary>
     /// <typeparam name="T">The scalar value type.</typeparam>
-    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="functions">The <see cref="DbFunctions" /> instance.</param>
     /// <param name="matchExpression">The value to match.</param>
     /// <param name="pattern">The pattern, including any <c>%</c> or <c>_</c> wildcards.</param>
     /// <returns><c>true</c> if the value matches the pattern.</returns>
     /// <remarks>
-    /// Supported types are strings, numeric CLR types, <see cref="DateTime"/>,
-    /// <see cref="Guid"/>, and their nullable value-type forms. This method has
+    /// Supported types are strings, numeric CLR types, <see cref="DateTime" />,
+    /// <see cref="Guid" />, and their nullable value-type forms. This method has
     /// no in-memory implementation and may only be used in EF Core queries.
     /// </remarks>
     public static bool Like<T>(
@@ -29,14 +29,14 @@ public static class MySqlDbFunctionsExtensions
     /// with an explicit escape character.
     /// </summary>
     /// <typeparam name="T">The scalar value type.</typeparam>
-    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="functions">The <see cref="DbFunctions" /> instance.</param>
     /// <param name="matchExpression">The value to match.</param>
     /// <param name="pattern">The pattern, including any <c>%</c> or <c>_</c> wildcards.</param>
     /// <param name="escapeCharacter">The character used to escape wildcard characters.</param>
     /// <returns><c>true</c> if the value matches the pattern.</returns>
     /// <remarks>
-    /// Supported types are strings, numeric CLR types, <see cref="DateTime"/>,
-    /// <see cref="Guid"/>, and their nullable value-type forms. This method has
+    /// Supported types are strings, numeric CLR types, <see cref="DateTime" />,
+    /// <see cref="Guid" />, and their nullable value-type forms. This method has
     /// no in-memory implementation and may only be used in EF Core queries.
     /// </remarks>
     public static bool Like<T>(
@@ -50,7 +50,7 @@ public static class MySqlDbFunctionsExtensions
     /// Translates to <c>REGEXP_LIKE(input, pattern)</c> on MySQL 8.0+ or
     /// <c>input REGEXP pattern</c> on MariaDB.
     /// </summary>
-    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="functions">The <see cref="DbFunctions" /> instance.</param>
     /// <param name="input">The input string to match against.</param>
     /// <param name="pattern">The regular expression pattern.</param>
     /// <returns><c>true</c> if the input matches the pattern.</returns>
@@ -63,7 +63,7 @@ public static class MySqlDbFunctionsExtensions
     /// <summary>
     /// Translates to MySQL <c>MATCH(columns) AGAINST('term')</c> for full-text search.
     /// </summary>
-    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="functions">The <see cref="DbFunctions" /> instance.</param>
     /// <param name="column">The column to search.</param>
     /// <param name="searchTerm">The search term.</param>
     /// <returns><c>true</c> if the column matches the search term.</returns>
@@ -76,7 +76,7 @@ public static class MySqlDbFunctionsExtensions
     /// <summary>
     /// Translates to MySQL <c>MATCH(columns) AGAINST('term' IN BOOLEAN MODE)</c>.
     /// </summary>
-    /// <param name="functions">The <see cref="DbFunctions"/> instance.</param>
+    /// <param name="functions">The <see cref="DbFunctions" /> instance.</param>
     /// <param name="column">The column to search.</param>
     /// <param name="searchTerm">The boolean-mode search expression.</param>
     /// <returns><c>true</c> if the column matches the search term in boolean mode.</returns>
@@ -180,7 +180,7 @@ public static class MySqlDbFunctionsExtensions
 
     /// <summary>
     /// Translates to MySQL <c>JSON_CONTAINS(target, candidate)</c>.
-    /// Returns whether <paramref name="candidate"/> is contained within <paramref name="target"/>.
+    /// Returns whether <paramref name="candidate" /> is contained within <paramref name="target" />.
     /// </summary>
     public static bool JsonContains(
         this DbFunctions functions,

@@ -164,8 +164,8 @@ internal static class SymbolReadbackManifestBuilder
         // deterministic content ID and the checksum embedded in the assembly.
         var actualChecksum = CalculatePortablePdbChecksum(pdb, metadataHeader.IdStartOffset, metadataHeader.Id.Length);
         if (!actualChecksum
-                .AsSpan()
-                .SequenceEqual(expectedChecksum))
+            .AsSpan()
+            .SequenceEqual(expectedChecksum))
         {
             throw new InvalidDataException($"{pdbEntryName} does not match the checksum sealed into its assembly.");
         }
@@ -205,7 +205,8 @@ internal static class SymbolReadbackManifestBuilder
 
         using var archive = ZipFile.OpenRead(packagePath);
         var matches = archive
-            .Entries.Where(entry => StringComparer.Ordinal.Equals(entry.FullName, entryName))
+            .Entries
+            .Where(entry => StringComparer.Ordinal.Equals(entry.FullName, entryName))
             .ToArray();
 
         if (matches.Length != 1)

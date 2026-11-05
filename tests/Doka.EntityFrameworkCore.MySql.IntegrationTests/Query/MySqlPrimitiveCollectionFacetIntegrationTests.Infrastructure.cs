@@ -45,26 +45,6 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
         /// <summary>Defers database setup until a selected engine needs it.</summary>
         public Task InitializeAsync() => Task.CompletedTask;
 
-        /// <summary>Returns the original seed task, including any initialization failure.</summary>
-        /// <param name="target">The selected database engine.</param>
-        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
-        /// <returns>The completion of that engine's shared seed.</returns>
-        internal Task EnsureSeededAsync(
-            IntegrationDatabaseTarget target,
-            CancellationToken cancellationToken
-        )
-        {
-            // WHY: xUnit serializes cases in this class; caching the task prevents
-            // repeated DDL and keeps a seed failure visible to every dependent case.
-            if (!_seeds.TryGetValue(target, out var seed))
-            {
-                seed = SeedAsync(target, cancellationToken);
-                _seeds.Add(target, seed);
-            }
-
-            return seed;
-        }
-
         /// <summary>Drops each initialized table even if another engine's cleanup fails.</summary>
         public async Task DisposeAsync()
         {
@@ -91,6 +71,26 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
             }
         }
 
+        /// <summary>Returns the original seed task, including any initialization failure.</summary>
+        /// <param name="target">The selected database engine.</param>
+        /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+        /// <returns>The completion of that engine's shared seed.</returns>
+        internal Task EnsureSeededAsync(
+            IntegrationDatabaseTarget target,
+            CancellationToken cancellationToken
+        )
+        {
+            // WHY: xUnit serializes cases in this class; caching the task prevents
+            // repeated DDL and keeps a seed failure visible to every dependent case.
+            if (!_seeds.TryGetValue(target, out var seed))
+            {
+                seed = SeedAsync(target, cancellationToken);
+                _seeds.Add(target, seed);
+            }
+
+            return seed;
+        }
+
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
@@ -104,6 +104,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
             await context.Database.ExecuteSqlRawAsync(
                 context.Database.GenerateCreateScript(),
                 cancellationToken);
+
             context.Add(
                 new PrimitiveCollectionFacetEntity
                 {
@@ -119,6 +120,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
                     Duration = s_exactTimeSpan,
                     OptionalDuration = s_exactTimeSpan,
                 });
+
             context.Add(
                 new PrimitiveCollectionFacetEntity
                 {
@@ -131,6 +133,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
                     StartsAt = new TimeOnly(0, 0),
                     Duration = s_negativeTimeSpan,
                 });
+
             context.Add(
                 new PrimitiveCollectionFacetEntity
                 {
@@ -143,6 +146,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
                     StartsAt = new TimeOnly(1, 0),
                     Duration = s_maximumStoredTimeSpan,
                 });
+
             context.Add(
                 new PrimitiveCollectionFacetEntity
                 {
@@ -155,6 +159,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
                     StartsAt = new TimeOnly(2, 0),
                     Duration = s_minimumStoredTimeSpan,
                 });
+
             await context.SaveChangesAsync(cancellationToken);
             context.ChangeTracker.Clear();
         }

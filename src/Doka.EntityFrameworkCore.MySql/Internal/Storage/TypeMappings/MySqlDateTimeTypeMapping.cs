@@ -12,18 +12,13 @@ namespace Doka.EntityFrameworkCore.MySql;
 public sealed class MySqlDateTimeTypeMapping : DateTimeTypeMapping
 {
     /// <summary>
-    /// Gets the canonical mapping used as the cloning source for generated compiled models.
-    /// </summary>
-    public static new MySqlDateTimeTypeMapping Default { get; } = new("datetime(6)");
-
-    /// <summary>
     /// Creates a MySQL temporal mapping for the requested store type.
     /// </summary>
     /// <param name="storeType">The MySQL temporal store type.</param>
     /// <param name="dbType">The ADO.NET parameter type.</param>
-    /// <exception cref="ArgumentException"><paramref name="storeType"/> is empty.</exception>
+    /// <exception cref="ArgumentException"><paramref name="storeType" /> is empty.</exception>
     /// <exception cref="InvalidOperationException">
-    /// <paramref name="storeType"/> contains malformed precision metadata.
+    /// <paramref name="storeType" /> contains malformed precision metadata.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The declared fractional-seconds precision is outside the MySQL-family
@@ -47,6 +42,11 @@ public sealed class MySqlDateTimeTypeMapping : DateTimeTypeMapping
 
         _ = MySqlTemporalLiteralFormatter.ValidatePrecision(precision);
     }
+
+    /// <summary>
+    /// Gets the canonical mapping used as the cloning source for generated compiled models.
+    /// </summary>
+    public static new MySqlDateTimeTypeMapping Default { get; } = new("datetime(6)");
 
     /// <inheritdoc />
     protected override string SqlLiteralFormatString => @"'{0:yyyy-MM-dd HH\:mm\:ss.ffffff}'";

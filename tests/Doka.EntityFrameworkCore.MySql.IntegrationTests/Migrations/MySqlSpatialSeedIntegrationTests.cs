@@ -72,8 +72,12 @@ public sealed class MySqlSpatialSeedIntegrationTests
         var serverVersion = IntegrationTestEnvironment.GetServerVersion(target);
 
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await CleanupAsync(connection, cancellationToken).ConfigureAwait(false);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await CleanupAsync(connection, cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
@@ -87,7 +91,9 @@ public sealed class MySqlSpatialSeedIntegrationTests
                     .Options);
 
             // Act
-            var model = context.GetService<IDesignTimeModel>().Model;
+            var model = context.GetService<IDesignTimeModel>()
+                .Model;
+
             var operations = context
                 .GetService<IMigrationsModelDiffer>()
                 .GetDifferences(null, model.GetRelationalModel());
@@ -111,8 +117,11 @@ public sealed class MySqlSpatialSeedIntegrationTests
             await using var readCommand = connection.CreateCommand();
             readCommand.CommandText =
                 $"SELECT ST_SRID(`Location`) FROM `{SpatialSeedIntegrationContract.Table}` WHERE `Id` = 1;";
+
             var nativeSrid = Convert.ToInt32(
-                await readCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+                await readCommand
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
                 CultureInfo.InvariantCulture);
 
             // Assert
@@ -134,7 +143,8 @@ public sealed class MySqlSpatialSeedIntegrationTests
         }
         finally
         {
-            await CleanupAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await CleanupAsync(connection, CancellationToken.None)
+                .ConfigureAwait(false);
         }
     }
 
@@ -150,7 +160,9 @@ public sealed class MySqlSpatialSeedIntegrationTests
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{SpatialSeedIntegrationContract.Table}`;";
-        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        _ = await command
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 
@@ -183,6 +195,7 @@ internal sealed class SpatialSeedIntegrationContext : DbContext
             entity
                 .Property(record => record.Location)
                 .HasSrid(4326);
+
             entity.HasData(
                 new SpatialSeedIntegrationRecord
                 {

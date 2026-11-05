@@ -34,11 +34,19 @@ public sealed class MySqlCacheExpirationTests
     public void Absolute_expiration_is_normalized_to_utc_without_adding_default_sliding()
     {
         // Arrange
-        var absolute = new DateTimeOffset(2030, 4, 5, 12, 30, 0, TimeSpan.FromHours(3));
+        var absolute = new DateTimeOffset(
+            2030,
+            4,
+            5,
+            12,
+            30,
+            0,
+            TimeSpan.FromHours(3));
 
         // Act
         var expiration = MySqlCacheExpiration.Resolve(
-            new DistributedCacheEntryOptions { AbsoluteExpiration = absolute }, 12_345L);
+            new DistributedCacheEntryOptions { AbsoluteExpiration = absolute },
+            12_345L);
 
         // Assert
         Assert.Equal(new DateTime(2030, 4, 5, 9, 30, 0), expiration.AbsoluteExpirationUtc);
@@ -78,9 +86,16 @@ public sealed class MySqlCacheExpirationTests
         // Arrange
         var options = new DistributedCacheEntryOptions
         {
-            AbsoluteExpiration = new DateTimeOffset(absoluteYear, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            AbsoluteExpiration = new DateTimeOffset(
+                absoluteYear,
+                1,
+                1,
+                0,
+                0,
+                0,
+                TimeSpan.Zero),
             AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(2),
-            SlidingExpiration = TimeSpan.FromSeconds(1)
+            SlidingExpiration = TimeSpan.FromSeconds(1),
         };
 
         // Act
@@ -99,14 +114,21 @@ public sealed class MySqlCacheExpirationTests
     public void Absolute_and_sliding_expiration_are_both_preserved()
     {
         // Arrange
-        var absolute = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var absolute = new DateTimeOffset(
+            2030,
+            1,
+            1,
+            0,
+            0,
+            0,
+            TimeSpan.Zero);
 
         // Act
         var expiration = MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions
             {
                 AbsoluteExpiration = absolute,
-                SlidingExpiration = TimeSpan.FromSeconds(3)
+                SlidingExpiration = TimeSpan.FromSeconds(3),
             },
             12_345L);
 
@@ -141,11 +163,19 @@ public sealed class MySqlCacheExpirationTests
     public void Past_absolute_expiration_does_not_depend_on_the_application_clock()
     {
         // Arrange
-        var absolute = new DateTimeOffset(1000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var absolute = new DateTimeOffset(
+            1000,
+            1,
+            1,
+            0,
+            0,
+            0,
+            TimeSpan.Zero);
 
         // Act
         var expiration = MySqlCacheExpiration.Resolve(
-            new DistributedCacheEntryOptions { AbsoluteExpiration = absolute }, 12_345L);
+            new DistributedCacheEntryOptions { AbsoluteExpiration = absolute },
+            12_345L);
 
         // Assert
         Assert.Equal(absolute.UtcDateTime, expiration.AbsoluteExpirationUtc);
@@ -161,7 +191,14 @@ public sealed class MySqlCacheExpirationTests
         Action act = () => MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions
             {
-                AbsoluteExpiration = new DateTimeOffset(999, 12, 31, 23, 59, 59, TimeSpan.Zero),
+                AbsoluteExpiration = new DateTimeOffset(
+                    999,
+                    12,
+                    31,
+                    23,
+                    59,
+                    59,
+                    TimeSpan.Zero),
             },
             12_345L);
 

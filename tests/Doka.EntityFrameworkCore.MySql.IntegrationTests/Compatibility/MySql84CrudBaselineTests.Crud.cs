@@ -51,12 +51,14 @@ public sealed partial class MySql84CrudBaselineTests
             {
                 // Safe: SQL emitted by IMigrationsSqlGenerator from fixture-controlled operations.
                 await context
-                    .Database.ExecuteSqlRawAsync(command.CommandText, CancellationToken.None)
+                    .Database
+                    .ExecuteSqlRawAsync(command.CommandText, CancellationToken.None)
                     .ConfigureAwait(false);
             }
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     """
                     CREATE TABLE `Phase1CrudEntities` (
                         `Id` int NOT NULL AUTO_INCREMENT,
@@ -80,7 +82,8 @@ public sealed partial class MySql84CrudBaselineTests
             context.ChangeTracker.Clear();
 
             var queriedEntity = await context
-                .Entities.SingleAsync(
+                .Entities
+                .SingleAsync(
                     entity => entity.Id == createdEntity.Id,
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -95,7 +98,8 @@ public sealed partial class MySql84CrudBaselineTests
             context.ChangeTracker.Clear();
 
             var updatedEntity = await context
-                .Entities.SingleAsync(
+                .Entities
+                .SingleAsync(
                     entity => entity.Id == createdEntity.Id,
                     CancellationToken.None)
                 .ConfigureAwait(false);
@@ -108,7 +112,8 @@ public sealed partial class MySql84CrudBaselineTests
                 .ConfigureAwait(false);
 
             var remainingCount = await context
-                .Entities.CountAsync(CancellationToken.None)
+                .Entities
+                .CountAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             var historyExists = await TableExistsAsync(connectionString, HistoryTableName, CancellationToken.None)
@@ -158,7 +163,8 @@ public sealed partial class MySql84CrudBaselineTests
             await using var context = new MySql84CrudContext(CreateOptions(connectionString, interceptor));
 
             await context
-                .Database.ExecuteSqlRawAsync(
+                .Database
+                .ExecuteSqlRawAsync(
                     """
                     CREATE TABLE `Phase1CrudEntities` (
                         `Id` int NOT NULL AUTO_INCREMENT,
@@ -185,7 +191,8 @@ public sealed partial class MySql84CrudBaselineTests
                 .ConfigureAwait(false);
 
             var insertCommands = interceptor
-                .Commands.Where(command => command.CommandText.Contains(
+                .Commands
+                .Where(command => command.CommandText.Contains(
                     "INSERT INTO `Phase1CrudEntities`",
                     StringComparison.Ordinal))
                 .ToList();

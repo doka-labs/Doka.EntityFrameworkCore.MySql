@@ -14,7 +14,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     )
     {
         var probe = new BindingCommandProbe();
-        var options = IntegrationTestDbContextOptions.Create<FilterContext>()
+        var options = IntegrationTestDbContextOptions
+            .Create<FilterContext>()
             .UseMySql(
                 IntegrationTestEnvironment.GetConnectionString(target),
                 IntegrationTestEnvironment.GetServerVersion(target))
@@ -88,7 +89,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
 
         public int MinimumBValue { get; set; } = 4;
 
-        public int MinimumCValue { get; set; } = 6;
+        public int MinimumCValue { get; } = 6;
 
         public DbSet<FilterSourceA> SourceA => Set<FilterSourceA>();
 
@@ -111,19 +112,30 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
             modelBuilder.Entity<FilterSourceA>(entity =>
             {
                 entity.ToTable(FilterSourceATable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumA());
             });
+
             modelBuilder.Entity<FilterSourceB>(entity =>
             {
                 entity.ToTable(FilterSourceBTable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumB());
             });
+
             modelBuilder.Entity<FilterSourceC>(entity =>
             {
                 entity.ToTable(FilterSourceCTable);
-                entity.Property(row => row.Id).ValueGeneratedNever();
+                entity
+                    .Property(row => row.Id)
+                    .ValueGeneratedNever();
+
                 entity.HasQueryFilter(row => row.Id >= ReadMinimumC());
             });
         }

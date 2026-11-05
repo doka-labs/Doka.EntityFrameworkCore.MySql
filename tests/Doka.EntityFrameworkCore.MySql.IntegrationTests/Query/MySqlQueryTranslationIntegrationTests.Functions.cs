@@ -32,34 +32,38 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                     Name = "Alpha",
                     Value = 1,
                     Category = "G1",
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             context.Items.Add(
                 new QueryItem
                 {
                     Name = "Beta",
                     Value = 2,
                     Category = "G1",
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             context.Items.Add(
                 new QueryItem
                 {
                     Name = "Gamma",
                     Value = 3,
                     Category = "G2",
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             await context.SaveChangesAsync(cancellationToken: cancellationToken);
             context.ChangeTracker.Clear();
 
             // Act
             var groups = await context
-                .Items.GroupBy(e => e.Category)
+                .Items
+                .GroupBy(e => e.Category)
                 .Select(g => new
                 {
                     Category = g.Key,
-                    Names = string.Join(",", g.Select(e => e.Name))
+                    Names = string.Join(",", g.Select(e => e.Name)),
                 })
                 .OrderBy(g => g.Category)
                 .ToListAsync(cancellationToken: cancellationToken);
@@ -106,22 +110,25 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
                     Name = "abc123",
                     Value = 0,
                     Category = "R",
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             context.Items.Add(
                 new QueryItem
                 {
                     Name = "xyz",
                     Value = 0,
                     Category = "R",
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 });
+
             await context.SaveChangesAsync(cancellationToken: cancellationToken);
             context.ChangeTracker.Clear();
 
             // Act
             var matches = await context
-                .Items.Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
+                .Items
+                .Where(e => EF.Functions.Regexp(e.Name, "[0-9]+"))
                 .CountAsync(cancellationToken: cancellationToken);
 
             // Assert

@@ -8,16 +8,16 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
 public class TemporalLiteralBenchmark
 {
+    private readonly TimeSpan _negativeBoundary = -(TimeSpan.FromHours(838)
+        + TimeSpan.FromMinutes(59)
+        + TimeSpan.FromSeconds(59));
+
+    private readonly TimeSpan _positiveTimeSpan = TimeSpan.FromHours(27) + TimeSpan.FromTicks(1_234_567);
+    private readonly TimeOnly _timeOnly = new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567));
     private readonly MySqlTimeOnlyTypeMapping _timeOnlyPrecision0 = new("time", 0);
     private readonly MySqlTimeOnlyTypeMapping _timeOnlyPrecision3 = new("time(3)", 3);
     private readonly MySqlTimeOnlyTypeMapping _timeOnlyPrecision6 = new("time(6)", 6);
     private readonly MySqlTimeSpanTypeMapping _timeSpanPrecision6 = new("time(6)", 6);
-    private readonly TimeOnly _timeOnly = new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1_234_567));
-    private readonly TimeSpan _positiveTimeSpan = TimeSpan.FromHours(27) + TimeSpan.FromTicks(1_234_567);
-
-    private readonly TimeSpan _negativeBoundary = -(TimeSpan.FromHours(838)
-        + TimeSpan.FromMinutes(59)
-        + TimeSpan.FromSeconds(59));
 
     [Benchmark]
     public string GenerateTimeOnlyPrecision0Literal() => _timeOnlyPrecision0.GenerateSqlLiteral(_timeOnly);

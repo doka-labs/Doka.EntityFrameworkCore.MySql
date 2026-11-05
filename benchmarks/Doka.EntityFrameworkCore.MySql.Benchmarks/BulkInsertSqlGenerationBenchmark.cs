@@ -14,14 +14,21 @@ public class BulkInsertSqlGenerationBenchmark : IDisposable
     private const string ConnectionString =
         "Server=localhost;Database=benchmark_bulk_sql;User ID=root;Password=benchmark;";
 
+    private StringBuilder _builder = null!;
+
     private DbContext _context = null!;
+    private IReadOnlyModificationCommand _firstShape = null!;
     private MySqlUpdateSqlGenerator _generator = null!;
     private IReadOnlyModificationCommand[] _oneCommand = null!;
     private IReadOnlyModificationCommand[] _oneHundredCommands = null!;
     private IReadOnlyModificationCommand[] _oneThousandCommands = null!;
-    private IReadOnlyModificationCommand _firstShape = null!;
     private IReadOnlyModificationCommand _secondShape = null!;
-    private StringBuilder _builder = null!;
+
+    public void Dispose()
+    {
+        _context?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [GlobalSetup]
     public void GlobalSetup()
@@ -44,12 +51,6 @@ public class BulkInsertSqlGenerationBenchmark : IDisposable
 
     [GlobalCleanup]
     public void GlobalCleanup() => Dispose();
-
-    public void Dispose()
-    {
-        _context?.Dispose();
-        GC.SuppressFinalize(this);
-    }
 
     [Benchmark]
     public int GenerateWriteOnly1Row() => Generate(_oneCommand);
@@ -181,7 +182,9 @@ public class BulkInsertSqlGenerationBenchmark : IDisposable
             sensitiveLoggingEnabled: false,
             isNullable: false)
         {
-            GenerateParameterName = parameterName is null ? null : () => parameterName,
+            GenerateParameterName = parameterName is null
+                ? null
+                : () => parameterName,
         };
 
         return new ColumnModification(parameters);

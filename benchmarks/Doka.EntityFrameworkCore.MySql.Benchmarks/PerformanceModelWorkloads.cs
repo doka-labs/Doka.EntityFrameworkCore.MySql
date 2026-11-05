@@ -25,6 +25,7 @@ internal static class PerformanceModelWorkloads
             new PerformanceWorkload(
                 "model.cold.small",
                 _ => ValueTask.FromResult(InitializeColdSmallModel())));
+
         catalog.Add(
             new PerformanceWorkload(
                 "model.warm.small",
@@ -34,6 +35,7 @@ internal static class PerformanceModelWorkloads
             new PerformanceWorkload(
                 "model.cold.large-schema-256",
                 _ => ValueTask.FromResult(InitializeColdLargeModel())));
+
         catalog.Add(
             new PerformanceWorkload(
                 "model.warm.large-schema-256",
@@ -62,7 +64,8 @@ internal static class PerformanceModelWorkloads
         using var context = new BenchmarkContext(options);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 
@@ -73,7 +76,8 @@ internal static class PerformanceModelWorkloads
         using var context = new BenchmarkContext(options);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 
@@ -83,7 +87,8 @@ internal static class PerformanceModelWorkloads
         using var context = new LargeBenchmarkContext(options, LargeSchemaEntityCount);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 
@@ -94,7 +99,8 @@ internal static class PerformanceModelWorkloads
         using var context = new LargeBenchmarkContext(options, LargeSchemaEntityCount);
 
         return context
-            .Model.GetEntityTypes()
+            .Model
+            .GetEntityTypes()
             .Count();
     }
 }

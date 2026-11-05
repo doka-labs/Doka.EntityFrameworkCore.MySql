@@ -50,7 +50,8 @@ internal static class SpecEngineDispositionCatalog
         using var document = JsonDocument.Parse(File.ReadAllText(ledgerPath));
 
         return document
-            .RootElement.GetProperty("activeDispositions")
+            .RootElement
+            .GetProperty("activeDispositions")
             .EnumerateArray()
             .Where(disposition => string.Equals(
                 disposition

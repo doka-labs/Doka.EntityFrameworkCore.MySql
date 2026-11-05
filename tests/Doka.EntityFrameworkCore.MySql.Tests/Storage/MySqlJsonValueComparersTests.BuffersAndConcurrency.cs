@@ -158,11 +158,13 @@ public sealed partial class MySqlJsonValueComparersTests
             });
 
         // Assert
-        Assert.All(results, result =>
-        {
-            Assert.True(result.Equal);
-            Assert.Equal(expectedHash, result.Hash);
-        });
+        Assert.All(
+            results,
+            result =>
+            {
+                Assert.True(result.Equal);
+                Assert.Equal(expectedHash, result.Hash);
+            });
     }
 
     /// <summary>
@@ -190,11 +192,13 @@ public sealed partial class MySqlJsonValueComparersTests
             });
 
         // Assert
-        Assert.All(results, result =>
-        {
-            Assert.True(result.Equal);
-            Assert.Equal(expectedHash, result.Hash);
-        });
+        Assert.All(
+            results,
+            result =>
+            {
+                Assert.True(result.Equal);
+                Assert.Equal(expectedHash, result.Hash);
+            });
     }
 
     private static string CreateLargeJsonPayload() => "["

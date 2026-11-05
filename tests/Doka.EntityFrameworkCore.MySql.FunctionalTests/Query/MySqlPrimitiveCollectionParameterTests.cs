@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -36,8 +38,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         using var second = CreateContext(parameterTranslationMode: secondMode, cacheServiceProvider: true);
 
         // Act
-        var firstSql = Query(first, values).ToQueryString();
-        var secondSql = Query(second, values).ToQueryString();
+        var firstSql = Query(first, values)
+            .ToQueryString();
+
+        var secondSql = Query(second, values)
+            .ToQueryString();
 
         // Assert
         Assert.Equal(parameterFirst, firstSql.Contains("JSON_TABLE", StringComparison.Ordinal));
@@ -58,7 +63,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.Name))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.Name))
             .ToQueryString();
 
         // Assert
@@ -67,6 +74,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
             "JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64(`v`.`value`) USING utf8mb4)))",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("YWxwaGE=", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varchar(64) PATH '$'", sql, StringComparison.Ordinal);
     }
@@ -85,7 +93,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.OptionalName))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalName))
             .ToQueryString();
 
         // Assert
@@ -93,6 +103,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
             "JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64(`v`.`value`) USING utf8mb4)))",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("IS NULL", sql, StringComparison.Ordinal);
     }
 
@@ -110,7 +121,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedName))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedName))
             .ToQueryString();
 
         // Assert
@@ -119,6 +132,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
             "JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64(`v`.`value`) USING utf8mb4)))",
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("ZGItYWxwaGE=", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varchar(64) PATH '$'", sql, StringComparison.Ordinal);
     }
@@ -137,7 +151,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.Status))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.Status))
             .ToQueryString();
 
         // Assert
@@ -161,7 +177,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.OptionalStatus))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.OptionalStatus))
             .ToQueryString();
 
         // Assert
@@ -185,15 +203,18 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedText))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedText))
             .ToQueryString();
 
         // Assert
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
         Assert.Contains(
-            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(values[0].Value)),
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(values[0].Value)),
             sql,
             StringComparison.Ordinal);
+
         Assert.Contains("FROM_BASE64(`v`.`value`)", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varchar(64) PATH '$'", sql, StringComparison.Ordinal);
     }
@@ -212,7 +233,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedPrice))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPrice))
             .ToQueryString();
 
         // Assert
@@ -234,7 +257,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedDuration))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedDuration))
             .ToQueryString();
 
         // Assert
@@ -257,7 +282,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.ConvertedPayload))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.ConvertedPayload))
             .ToQueryString();
 
         // Assert
@@ -280,7 +307,10 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.Price) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.Price)
+                > 0)
             .ToQueryString();
 
         // Assert
@@ -302,7 +332,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Contains(item.CalendarDate))
+            .Where(item => EF
+                .Parameter(values)
+                .Contains(item.CalendarDate))
             .ToQueryString();
 
         // Assert
@@ -319,12 +351,20 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
     {
         // Arrange
         using var context = CreateContext();
-        var values = new[] { TimeSpan.FromHours(27).Add(TimeSpan.FromMilliseconds(500)) };
+        var values = new[]
+        {
+            TimeSpan
+                .FromHours(27)
+                .Add(TimeSpan.FromMilliseconds(500)),
+        };
 
         // Act
         var sql = context
             .Items
-            .Where(item => EF.Parameter(values).Count(value => value == item.Duration) > 0)
+            .Where(item => EF
+                    .Parameter(values)
+                    .Count(value => value == item.Duration)
+                > 0)
             .ToQueryString();
 
         // Assert

@@ -16,13 +16,6 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     private const string ConvertedTableName = "IncompleteConvertedDiscriminatorEntities";
     private const string KnownConvertedValue = "K'\\nown";
 
-    private enum DiscriminatorProbe
-    {
-        Sql,
-        Sync,
-        Async,
-    }
-
     /// <summary>
     /// Reports SQL generation, synchronous execution, and asynchronous execution
     /// independently for each selected supported engine.
@@ -160,7 +153,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Async => await query
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -218,7 +211,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                         .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -276,7 +269,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Async => await query
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -335,7 +328,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                         .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -396,7 +389,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 DiscriminatorProbe.Async => await query
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -455,7 +448,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                         .ToListAsync(cancellationToken)
                         .ConfigureAwait(false))
                     .ConfigureAwait(false),
-                _ => throw new ArgumentOutOfRangeException(nameof(probe))
+                _ => throw new ArgumentOutOfRangeException(nameof(probe)),
             };
 
             // Assert
@@ -528,22 +521,26 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        await DropTableAsync(context, StringTableName, cancellationToken).ConfigureAwait(false);
-        await context.Database.ExecuteSqlRawAsync(
-                $"""
-                CREATE TABLE `{StringTableName}` (
-                    `Id` int NOT NULL,
-                    `Discriminator` varchar(64) NOT NULL,
-                    `Name` varchar(100) NOT NULL,
-                    `KnownValue` varchar(100) NULL,
-                    CONSTRAINT `PK_{StringTableName}` PRIMARY KEY (`Id`)
-                ) CHARACTER SET utf8mb4;
+        await DropTableAsync(context, StringTableName, cancellationToken)
+            .ConfigureAwait(false);
 
-                INSERT INTO `{StringTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
-                VALUES
-                    (1, 'Known', 'known', 'mapped'),
-                    (2, 'Future', 'future', NULL);
-                """,
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
+                $"""
+                 CREATE TABLE `{StringTableName}` (
+                     `Id` int NOT NULL,
+                     `Discriminator` varchar(64) NOT NULL,
+                     `Name` varchar(100) NOT NULL,
+                     `KnownValue` varchar(100) NULL,
+                     CONSTRAINT `PK_{StringTableName}` PRIMARY KEY (`Id`)
+                 ) CHARACTER SET utf8mb4;
+
+                 INSERT INTO `{StringTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
+                 VALUES
+                     (1, 'Known', 'known', 'mapped'),
+                     (2, 'Future', 'future', NULL);
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -558,22 +555,26 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         CancellationToken cancellationToken
     )
     {
-        await DropTableAsync(context, IntTableName, cancellationToken).ConfigureAwait(false);
-        await context.Database.ExecuteSqlRawAsync(
-                $"""
-                CREATE TABLE `{IntTableName}` (
-                    `Id` int NOT NULL,
-                    `Discriminator` int NOT NULL,
-                    `Name` varchar(100) NOT NULL,
-                    `KnownValue` varchar(100) NULL,
-                    CONSTRAINT `PK_{IntTableName}` PRIMARY KEY (`Id`)
-                ) CHARACTER SET utf8mb4;
+        await DropTableAsync(context, IntTableName, cancellationToken)
+            .ConfigureAwait(false);
 
-                INSERT INTO `{IntTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
-                VALUES
-                    (1, 1, 'known', 'mapped'),
-                    (2, 2, 'future', NULL);
-                """,
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
+                $"""
+                 CREATE TABLE `{IntTableName}` (
+                     `Id` int NOT NULL,
+                     `Discriminator` int NOT NULL,
+                     `Name` varchar(100) NOT NULL,
+                     `KnownValue` varchar(100) NULL,
+                     CONSTRAINT `PK_{IntTableName}` PRIMARY KEY (`Id`)
+                 ) CHARACTER SET utf8mb4;
+
+                 INSERT INTO `{IntTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
+                 VALUES
+                     (1, 1, 'known', 'mapped'),
+                     (2, 2, 'future', NULL);
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -590,22 +591,27 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     {
         await DropTableAsync(context, ConvertedTableName, cancellationToken)
             .ConfigureAwait(false);
-        await context.Database.ExecuteSqlRawAsync(
+
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
                 $"""
-                CREATE TABLE `{ConvertedTableName}` (
-                    `Id` int NOT NULL,
-                    `Discriminator` char(16) NOT NULL,
-                    `Name` varchar(100) NOT NULL,
-                    `KnownValue` varchar(100) NULL,
-                    CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
-                ) CHARACTER SET utf8mb4;
-                """,
+                 CREATE TABLE `{ConvertedTableName}` (
+                     `Id` int NOT NULL,
+                     `Discriminator` char(16) NOT NULL,
+                     `Name` varchar(100) NOT NULL,
+                     `KnownValue` varchar(100) NULL,
+                     CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
+                 ) CHARACTER SET utf8mb4;
+                 """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         // Parameterize fixture rows so the query assertion, not test SQL,
         // qualifies the provider's escaping of the converted value.
-        await context.Database.ExecuteSqlRawAsync(
+        await context
+            .Database
+            .ExecuteSqlRawAsync(
                 $"INSERT INTO `{ConvertedTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`) "
                 + "VALUES (1, {0}, 'known', 'mapped'), (2, {1}, 'future', NULL);",
                 new object[] { KnownConvertedValue, "F" },
@@ -623,10 +629,19 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         DbContext context,
         string tableName,
         CancellationToken cancellationToken
-    ) => await context.Database.ExecuteSqlRawAsync(
+    ) => await context
+        .Database
+        .ExecuteSqlRawAsync(
             $"DROP TABLE IF EXISTS `{tableName}`;",
             cancellationToken)
         .ConfigureAwait(false);
+
+    private enum DiscriminatorProbe
+    {
+        Sql,
+        Sync,
+        Async,
+    }
 
     private abstract class DiscriminatorContext(DbContextOptions options) : DbContext(options)
     {
@@ -669,9 +684,11 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 .Entity<DiscriminatorEntity>()
                 .HasDiscriminator<string>("Discriminator")
                 .IsComplete(false);
+
             modelBuilder
                 .Entity<KnownDiscriminatorEntity>()
-                .Metadata.SetDiscriminatorValue("Known");
+                .Metadata
+                .SetDiscriminatorValue("Known");
         }
     }
 
@@ -685,7 +702,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Entity<DiscriminatorEntity>()
             .HasDiscriminator()
             .HasValue<KnownDiscriminatorEntity>("Known")
-            .IsComplete(true);
+            .IsComplete();
     }
 
     private abstract class IntDiscriminatorContext(DbContextOptions options) : DbContext(options)
@@ -740,7 +757,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Entity<IntDiscriminatorEntity>()
             .HasDiscriminator(entity => entity.Discriminator)
             .HasValue<KnownIntDiscriminatorEntity>(1)
-            .IsComplete(true);
+            .IsComplete();
     }
 
     private abstract class ConvertedDiscriminatorContext(DbContextOptions options) : DbContext(options)
@@ -758,6 +775,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 entity
                     .Property(item => item.Name)
                     .HasMaxLength(100);
+
                 entity
                     .Property(item => item.Discriminator)
                     .HasConversion<TestEnumValueConverter<ConvertedDiscriminator>>()
@@ -800,7 +818,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Entity<ConvertedDiscriminatorEntity>()
             .HasDiscriminator(entity => entity.Discriminator)
             .HasValue<KnownConvertedDiscriminatorEntity>(ConvertedDiscriminator.Known)
-            .IsComplete(true);
+            .IsComplete();
     }
 
     private abstract class DiscriminatorEntity
@@ -868,8 +886,11 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
                 .GetMember(value.ToString())
                 .Single();
 
-            var jsonName = member.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name;
-            var enumMemberName = member.GetCustomAttribute<EnumMemberAttribute>()?.Value;
+            var jsonName = member.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()
+                ?.Name;
+
+            var enumMemberName = member.GetCustomAttribute<EnumMemberAttribute>()
+                ?.Value;
 
             return jsonName ?? enumMemberName ?? value.ToString();
         }

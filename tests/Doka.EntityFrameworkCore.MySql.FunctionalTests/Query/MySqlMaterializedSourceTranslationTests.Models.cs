@@ -10,7 +10,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         bool splitQueryDefault = false
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<BindingContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<BindingContext>()
             .UseMySql(
                 "Server=localhost;Database=materialized_translation;User ID=unused;",
                 CreateServerVersion(mariaDb),
@@ -33,7 +34,8 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         bool mariaDb
     )
     {
-        var options = MySqlFunctionalTestOptions.CreateTransientBuilder<AutoIncludeContext>()
+        var options = MySqlFunctionalTestOptions
+            .CreateTransientBuilder<AutoIncludeContext>()
             .UseMySql(
                 "Server=localhost;Database=materialized_translation;User ID=unused;",
                 CreateServerVersion(mariaDb))
@@ -56,7 +58,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     private sealed class AutoIncludeContext : DbContext
     {
         /// <summary>Initializes the automatic collection Include model.</summary>
-        public AutoIncludeContext(DbContextOptions<AutoIncludeContext> options) : base(options) { }
+        public AutoIncludeContext(
+            DbContextOptions<AutoIncludeContext> options
+        ) : base(options) { }
 
         /// <summary>Gets entities whose collection is included unless the query opts out.</summary>
         public DbSet<BindingNode> Nodes => Set<BindingNode>();
@@ -70,12 +74,23 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             {
                 entity.ToTable("BindingNodes");
                 entity.HasKey(node => node.Id);
-                entity.Property(node => node.Token).HasColumnType("binary(16)");
-                entity.HasMany(node => node.Children).WithOne(child => child.Node).HasForeignKey(child => child.NodeId);
-                entity.Navigation(node => node.Children).AutoInclude();
+                entity
+                    .Property(node => node.Token)
+                    .HasColumnType("binary(16)");
+
+                entity
+                    .HasMany(node => node.Children)
+                    .WithOne(child => child.Node)
+                    .HasForeignKey(child => child.NodeId);
+
+                entity
+                    .Navigation(node => node.Children)
+                    .AutoInclude();
             });
 
-            modelBuilder.Entity<BindingChild>().ToTable("BindingChildren");
+            modelBuilder
+                .Entity<BindingChild>()
+                .ToTable("BindingChildren");
         }
     }
 
@@ -85,7 +100,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     private sealed class BindingContext : DbContext
     {
         /// <summary>Initializes a translation-only context.</summary>
-        public BindingContext(DbContextOptions<BindingContext> options) : base(options) { }
+        public BindingContext(
+            DbContextOptions<BindingContext> options
+        ) : base(options) { }
 
         /// <summary>Gets ordinary entities with native scalar payload.</summary>
         public DbSet<BindingNode> Nodes => Set<BindingNode>();
@@ -102,20 +119,53 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             {
                 entity.ToTable("BindingNodes");
                 entity.HasKey(node => node.Id);
-                entity.Property(node => node.Token).HasColumnType("binary(16)");
-                entity.Property(node => node.Name).HasMaxLength(80);
-                entity.Property(node => node.OptionalName).HasMaxLength(80).UseCollation("utf8mb4_general_ci");
-                entity.HasMany(node => node.Children).WithOne(child => child.Node).HasForeignKey(child => child.NodeId);
+                entity
+                    .Property(node => node.Token)
+                    .HasColumnType("binary(16)");
+
+                entity
+                    .Property(node => node.Name)
+                    .HasMaxLength(80);
+
+                entity
+                    .Property(node => node.OptionalName)
+                    .HasMaxLength(80)
+                    .UseCollation("utf8mb4_general_ci");
+
+                entity
+                    .HasMany(node => node.Children)
+                    .WithOne(child => child.Node)
+                    .HasForeignKey(child => child.NodeId);
             });
 
-            modelBuilder.Entity<BindingChild>().ToTable("BindingChildren");
-            modelBuilder.Entity<CollisionRecord>().ToTable("__doka_source_0");
+            modelBuilder
+                .Entity<BindingChild>()
+                .ToTable("BindingChildren");
 
-            modelBuilder.Entity<TptRoot>().UseTptMappingStrategy().ToTable("BindingTptRoots");
-            modelBuilder.Entity<TptLeaf>().ToTable("BindingTptLeaves");
-            modelBuilder.Entity<TpcRoot>().UseTpcMappingStrategy();
-            modelBuilder.Entity<TpcFirst>().ToTable("BindingTpcFirst");
-            modelBuilder.Entity<TpcSecond>().ToTable("BindingTpcSecond");
+            modelBuilder
+                .Entity<CollisionRecord>()
+                .ToTable("__doka_source_0");
+
+            modelBuilder
+                .Entity<TptRoot>()
+                .UseTptMappingStrategy()
+                .ToTable("BindingTptRoots");
+
+            modelBuilder
+                .Entity<TptLeaf>()
+                .ToTable("BindingTptLeaves");
+
+            modelBuilder
+                .Entity<TpcRoot>()
+                .UseTpcMappingStrategy();
+
+            modelBuilder
+                .Entity<TpcFirst>()
+                .ToTable("BindingTpcFirst");
+
+            modelBuilder
+                .Entity<TpcSecond>()
+                .ToTable("BindingTpcSecond");
 
             modelBuilder.Entity<SplitRecord>(entity =>
             {
@@ -126,36 +176,57 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
             modelBuilder.Entity<SharedRecord>(entity =>
             {
                 entity.ToTable("BindingSharedRecords");
-                entity.HasOne(row => row.Details).WithOne().HasForeignKey<SharedDetails>(row => row.Id);
-                entity.Navigation(row => row.Details).IsRequired();
+                entity
+                    .HasOne(row => row.Details)
+                    .WithOne()
+                    .HasForeignKey<SharedDetails>(row => row.Id);
+
+                entity
+                    .Navigation(row => row.Details)
+                    .IsRequired();
             });
 
-            modelBuilder.Entity<SharedDetails>().ToTable("BindingSharedRecords");
+            modelBuilder
+                .Entity<SharedDetails>()
+                .ToTable("BindingSharedRecords");
 
             modelBuilder.Entity<OwnedRecord>(entity =>
             {
                 entity.ToTable("BindingOwnedRecords");
-                entity.OwnsOne(row => row.Profile, owned => owned.Property(profile => profile.Token)
-                    .HasColumnType("binary(16)"));
-                entity.OwnsMany(row => row.Tags, owned =>
-                {
-                    owned.ToTable("BindingOwnedTags");
-                    owned.WithOwner().HasForeignKey("OwnerId");
-                    owned.HasKey("OwnerId", nameof(OwnedTag.Id));
-                });
+                entity.OwnsOne(
+                    row => row.Profile,
+                    owned => owned
+                        .Property(profile => profile.Token)
+                        .HasColumnType("binary(16)"));
+
+                entity.OwnsMany(
+                    row => row.Tags,
+                    owned =>
+                    {
+                        owned.ToTable("BindingOwnedTags");
+                        owned
+                            .WithOwner()
+                            .HasForeignKey("OwnerId");
+
+                        owned.HasKey("OwnerId", nameof(OwnedTag.Id));
+                    });
             });
 
             modelBuilder.Entity<ShadowRecord>(entity =>
             {
                 entity.ToTable("BindingShadowRecords");
-                entity.Property<Guid>("Scope").HasColumnType("binary(16)");
+                entity
+                    .Property<Guid>("Scope")
+                    .HasColumnType("binary(16)");
+
                 entity.HasKey("Scope", nameof(ShadowRecord.Id));
             });
 
             modelBuilder.Entity<ConvertedRecord>(entity =>
             {
                 entity.ToTable("BindingConvertedRecords");
-                entity.Property(row => row.Reference)
+                entity
+                    .Property(row => row.Reference)
                     .HasConversion(value => value.Value, value => new ConvertedIdentifier(value))
                     .HasColumnType("binary(16)");
             });
@@ -312,7 +383,7 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
         public int Id { get; set; }
 
         /// <summary>Gets or sets the collection payload.</summary>
-        public string Value { get; set; } = string.Empty;
+        public string Value { get; } = string.Empty;
     }
 
     /// <summary>A flat set of owned reference values.</summary>
@@ -346,7 +417,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     private sealed class ConvertedIdentifier
     {
         /// <summary>Initializes the mapped value.</summary>
-        public ConvertedIdentifier(Guid value)
+        public ConvertedIdentifier(
+            Guid value
+        )
         {
             Value = value;
         }

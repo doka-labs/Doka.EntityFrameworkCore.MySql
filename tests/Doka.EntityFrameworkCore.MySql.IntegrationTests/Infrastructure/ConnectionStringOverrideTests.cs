@@ -68,7 +68,9 @@ public sealed class ConnectionStringOverrideTests
         try
         {
             await using var context = new ConnectionOverrideContext(
-                IntegrationTestDbContextOptions.Create<ConnectionOverrideContext>().UseMySql(baseConnectionString, serverVersion)
+                IntegrationTestDbContextOptions
+                    .Create<ConnectionOverrideContext>()
+                    .UseMySql(baseConnectionString, serverVersion)
                     .Options);
 
             context.Database.SetConnectionString(overriddenConnectionString);
@@ -78,16 +80,21 @@ public sealed class ConnectionStringOverrideTests
             // Act
             // WHY: Existence, creation and the selected server database must all
             // observe the same EF tooling override throughout this lifecycle.
-            var existedBefore = await databaseCreator.ExistsAsync(cancellationToken).ConfigureAwait(false);
+            var existedBefore = await databaseCreator
+                .ExistsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             await databaseCreator
                 .CreateAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var existsAfter = await databaseCreator.ExistsAsync(cancellationToken).ConfigureAwait(false);
+            var existsAfter = await databaseCreator
+                .ExistsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
             await context
-                .Database.OpenConnectionAsync(cancellationToken)
+                .Database
+                .OpenConnectionAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             string? selectedDatabase;
@@ -95,19 +102,23 @@ public sealed class ConnectionStringOverrideTests
             try
             {
                 await using var command = context
-                    .Database.GetDbConnection()
+                    .Database
+                    .GetDbConnection()
                     .CreateCommand();
 
                 command.CommandText = "SELECT DATABASE();";
 
                 selectedDatabase = Convert.ToString(
-                    await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false),
+                    await command
+                        .ExecuteScalarAsync(cancellationToken)
+                        .ConfigureAwait(false),
                     CultureInfo.InvariantCulture);
             }
             finally
             {
                 await context
-                    .Database.CloseConnectionAsync()
+                    .Database
+                    .CloseConnectionAsync()
                     .ConfigureAwait(false);
             }
 

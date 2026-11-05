@@ -121,6 +121,7 @@ public sealed partial class AdrRepositoryValidatorTests
             transform: content => content
                 .Replace("status: implemented", "status: superseded", StringComparison.Ordinal)
                 .Replace("status implemented.", "status superseded.", StringComparison.Ordinal));
+
         repository.WriteDecision(id: "D-002", slug: "second-decision", title: "Second decision", supersedes: ["D-001"]);
 
         // Act

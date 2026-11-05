@@ -6,46 +6,76 @@ public sealed partial class MySqlStraightJoinTests
     /// <summary>Enumerates both supported database families and both EF null-comparison modes.</summary>
     public static TheoryData<bool, bool, string> Shapes => new()
     {
-        { false, false, "scalar" }, { true, false, "scalar" },
-        { false, true, "scalar" }, { true, true, "scalar" },
-        { false, false, "nullable" }, { true, false, "nullable" },
-        { false, true, "nullable" }, { true, true, "nullable" },
-        { false, false, "composite" }, { true, false, "composite" },
-        { false, true, "composite" }, { true, true, "composite" },
-        { false, false, "converted" }, { true, false, "converted" },
-        { false, true, "converted" }, { true, true, "converted" },
-        { false, false, "entity" }, { true, false, "entity" },
-        { false, false, "reference" }, { true, false, "reference" },
-        { false, false, "reference-navigation" }, { true, false, "reference-navigation" },
-        { false, true, "reference-navigation" }, { true, true, "reference-navigation" },
-        { false, false, "owned-collection" }, { true, false, "owned-collection" },
-        { false, false, "collection" }, { true, false, "collection" },
-        { false, false, "constant-true" }, { true, false, "constant-true" },
-        { false, false, "empty" }, { true, false, "empty" },
-        { false, false, "paging" }, { true, false, "paging" },
-        { false, false, "nested" }, { true, false, "nested" },
-        { false, false, "repeated" }, { true, false, "repeated" },
+        { false, false, "scalar" },
+        { true, false, "scalar" },
+        { false, true, "scalar" },
+        { true, true, "scalar" },
+        { false, false, "nullable" },
+        { true, false, "nullable" },
+        { false, true, "nullable" },
+        { true, true, "nullable" },
+        { false, false, "composite" },
+        { true, false, "composite" },
+        { false, true, "composite" },
+        { true, true, "composite" },
+        { false, false, "converted" },
+        { true, false, "converted" },
+        { false, true, "converted" },
+        { true, true, "converted" },
+        { false, false, "entity" },
+        { true, false, "entity" },
+        { false, false, "reference" },
+        { true, false, "reference" },
+        { false, false, "reference-navigation" },
+        { true, false, "reference-navigation" },
+        { false, true, "reference-navigation" },
+        { true, true, "reference-navigation" },
+        { false, false, "owned-collection" },
+        { true, false, "owned-collection" },
+        { false, false, "collection" },
+        { true, false, "collection" },
+        { false, false, "constant-true" },
+        { true, false, "constant-true" },
+        { false, false, "empty" },
+        { true, false, "empty" },
+        { false, false, "paging" },
+        { true, false, "paging" },
+        { false, false, "nested" },
+        { true, false, "nested" },
+        { false, false, "repeated" },
+        { true, false, "repeated" },
     };
 
     /// <summary>The directive changes only selected edge grammar, including null and navigation processing.</summary>
     [Theory]
     [MemberData(nameof(Shapes))]
-    public void Translation_matches_the_corresponding_ordinary_join(bool mariaDb, bool relationalNulls, string shape)
+    public void Translation_matches_the_corresponding_ordinary_join(
+        bool mariaDb,
+        bool relationalNulls,
+        string shape
+    )
     {
         // Arrange
         using var context = CreateContext(mariaDb, relationalNulls);
-        var ordinary = Query(context, shape, directed: false).ToQueryString();
-        var expectedEdges = shape == "repeated" ? 2 : 1;
+        var ordinary = Query(context, shape, directed: false)
+            .ToQueryString();
+
+        var expectedEdges = shape == "repeated"
+            ? 2
+            : 1;
 
         // Act
-        var actual = Query(context, shape, directed: true).ToQueryString();
+        var actual = Query(context, shape, directed: true)
+            .ToQueryString();
 
         // Assert
         if (shape == "constant-true")
         {
             // WHY: EF simplifies an ordinary TRUE inner join to CROSS JOIN; directed grammar must
             // retain its edge. Removing only this tautology compares their otherwise identical SQL.
-            Assert.Equal(Normalize(ordinary).Replace("CROSS JOIN", "INNER JOIN", StringComparison.Ordinal),
+            Assert.Equal(
+                Normalize(ordinary)
+                    .Replace("CROSS JOIN", "INNER JOIN", StringComparison.Ordinal),
                 Regex.Replace(Normalize(actual), @" ON (?:TRUE|1)(?=\r?\n|$)", string.Empty));
         }
         else
@@ -83,15 +113,32 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData("outerKeySelector")]
     [InlineData("innerKeySelector")]
     [InlineData("resultSelector")]
-    public void Null_arguments_fail_at_the_public_boundary(string argument)
+    public void Null_arguments_fail_at_the_public_boundary(
+        string argument
+    )
     {
         // Arrange
         using var context = CreateContext();
-        IQueryable<JoinNode>? outer = argument == "outer" ? null : context.Nodes;
-        IQueryable<JoinNode>? inner = argument == "inner" ? null : context.Nodes;
-        Expression<Func<JoinNode, int>>? outerKey = argument == "outerKeySelector" ? null : value => value.Id;
-        Expression<Func<JoinNode, int>>? innerKey = argument == "innerKeySelector" ? null : value => value.Id;
-        Expression<Func<JoinNode, JoinNode, int>>? result = argument == "resultSelector" ? null : (left, right) => left.Id;
+        IQueryable<JoinNode>? outer = argument == "outer"
+            ? null
+            : context.Nodes;
+
+        IQueryable<JoinNode>? inner = argument == "inner"
+            ? null
+            : context.Nodes;
+
+        Expression<Func<JoinNode, int>>? outerKey = argument == "outerKeySelector"
+            ? null
+            : value => value.Id;
+
+        Expression<Func<JoinNode, int>>? innerKey = argument == "innerKeySelector"
+            ? null
+            : value => value.Id;
+
+        Expression<Func<JoinNode, JoinNode, int>>? result = argument == "resultSelector"
+            ? null
+            : (left, right) => left.Id;
+
         Action act = () => outer!.StraightJoin(inner!, outerKey!, innerKey!, result!);
 
         // Act
@@ -108,8 +155,14 @@ public sealed partial class MySqlStraightJoinTests
     public void Enumerable_inputs_are_rejected()
     {
         // Arrange
-        var input = Array.Empty<int>().AsQueryable();
-        Action act = () => input.StraightJoin(input, value => value, value => value,
+        var input = Array
+            .Empty<int>()
+            .AsQueryable();
+
+        Action act = () => input.StraightJoin(
+            input,
+            value => value,
+            value => value,
             (left, right) => left);
 
         // Act
@@ -127,8 +180,11 @@ public sealed partial class MySqlStraightJoinTests
         // Arrange
         using var first = CreateContext();
         using var second = CreateContext();
-        Action act = () => first.Nodes.StraightJoin(second.Nodes,
-            value => value.Id, value => value.Id, (left, right) => left);
+        Action act = () => first.Nodes.StraightJoin(
+            second.Nodes,
+            value => value.Id,
+            value => value.Id,
+            (left, right) => left);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -145,12 +201,22 @@ public sealed partial class MySqlStraightJoinTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task Async_query_translates_before_the_blocked_connection(bool mariaDb, bool relationalNulls)
+    public async Task Async_query_translates_before_the_blocked_connection(
+        bool mariaDb,
+        bool relationalNulls
+    )
     {
         // Arrange
         await using var context = CreateContext(mariaDb, relationalNulls);
-        var query = context.Nodes.StraightJoin(context.Nodes.Where(value => value.ParentId != null),
-            value => value.Id, value => value.ParentId!.Value, (left, right) => new { left.Id, Child = right.Id });
+        var query = context.Nodes.StraightJoin(
+            context.Nodes.Where(value => value.ParentId != null),
+            value => value.Id,
+            value => value.ParentId!.Value,
+            (left, right) => new
+            {
+                left.Id,
+                Child = right.Id,
+            });
 
         var sql = query.ToQueryString();
         Func<Task> act = () => query.ToArrayAsync(CancellationToken.None);
@@ -169,19 +235,35 @@ public sealed partial class MySqlStraightJoinTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Repeated_construction_keeps_fresh_parameter_values(bool mariaDb)
+    public void Repeated_construction_keeps_fresh_parameter_values(
+        bool mariaDb
+    )
     {
         // Arrange
         using var context = CreateContext(mariaDb);
         var minimum = 11;
-        var first = context.Nodes.Where(value => value.Id >= minimum).StraightJoin(context.Nodes,
-            value => value.Id, value => value.Id, (left, right) => left.Id).ToQueryString();
+        var first = context
+            .Nodes
+            .Where(value => value.Id >= minimum)
+            .StraightJoin(
+                context.Nodes,
+                value => value.Id,
+                value => value.Id,
+                (left, right) => left.Id)
+            .ToQueryString();
 
         minimum = 29;
 
         // Act
-        var second = context.Nodes.Where(value => value.Id >= minimum).StraightJoin(context.Nodes,
-            value => value.Id, value => value.Id, (left, right) => left.Id).ToQueryString();
+        var second = context
+            .Nodes
+            .Where(value => value.Id >= minimum)
+            .StraightJoin(
+                context.Nodes,
+                value => value.Id,
+                value => value.Id,
+                (left, right) => left.Id)
+            .ToQueryString();
 
         // Assert
         Assert.Contains("'11'", first, StringComparison.Ordinal);
@@ -191,54 +273,208 @@ public sealed partial class MySqlStraightJoinTests
     }
 
     /// <summary>Builds equivalent expression trees without hiding any provider branch inside application callbacks.</summary>
-    private static IQueryable Query(JoinContext context, string shape, bool directed)
+    private static IQueryable Query(
+        JoinContext context,
+        string shape,
+        bool directed
+    )
     {
         var outer = context.Nodes.Where(value => value.Id > 0);
         var inner = context.Nodes.Where(value => value.Id < 20);
 
         return shape switch
         {
-            "nullable" => Join(outer, inner, left => left.OptionalKey, right => right.OptionalKey,
-                (left, right) => new { left.Id, Child = right.Id }, directed),
-            "composite" => Join(outer, inner, left => new { left.TenantId, left.OptionalKey },
-                right => new { right.TenantId, right.OptionalKey }, (left, right) => new { left.Id, Child = right.Id }, directed),
-            "converted" => Join(outer, inner, left => left.Code, right => right.Code,
-                (left, right) => new { left.Id, Child = right.Id }, directed),
-            "entity" => Join(outer, inner, left => left.Id, right => right.Id, (left, right) => right, directed),
-            "reference" => Join(outer, inner, left => left.Id, right => right.Id,
-                (left, right) => new { left.Id, right.Details.Text }, directed),
-            "reference-navigation" => Join(outer, inner, left => left.Id, right => right.Id,
+            "nullable" => Join(
+                outer,
+                inner,
+                left => left.OptionalKey,
+                right => right.OptionalKey,
                 (left, right) => new
                 {
                     left.Id,
-                    OuterParent = left.Parent == null ? null : left.Parent.Details.Text,
-                    InnerParent = right.Parent == null ? null : right.Parent.Details.Text,
-                }, directed),
-            "owned-collection" => Join(outer, inner, left => left.Id, right => right.Id,
-                (left, right) => new { left.Id, Tags = right.Tags.Select(tag => tag.Text).ToArray() }, directed),
-            "collection" => Join(outer, inner, left => left.Id, right => right.Id,
-                (left, right) => new { left.Id, Items = right.Items.Select(item => item.Text).ToArray() }, directed),
-            "constant-true" => Join(outer, inner, left => 1, right => 1, (left, right) => new { left.Id, Child = right.Id }, directed),
-            "empty" => Join(outer.Where(value => false), inner, left => left.Id, right => right.Id,
-                (left, right) => new { left.Id, Child = right.Id }, directed),
-            "paging" => Join(outer.OrderBy(value => value.Id).Skip(2).Take(7), inner.OrderBy(value => value.Id).Take(9),
-                left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }, directed)
-                .OrderBy(value => value.Child).Skip(1).Take(3),
-            "nested" => Join(Join(outer, inner, left => left.Id, right => right.Id, (left, right) => new { left.Id }, false),
-                context.Nodes, left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }, directed),
-            "repeated" => Join(Join(outer, inner, left => left.Id, right => right.Id, (left, right) => new { left.Id }, directed),
-                context.Nodes, left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }, directed),
-            _ => Join(outer, inner, left => left.Id, right => right.Id, (left, right) => new { left.Id, Child = right.Id }, directed),
+                    Child = right.Id,
+                },
+                directed),
+            "composite" => Join(
+                outer,
+                inner,
+                left => new
+                {
+                    left.TenantId,
+                    left.OptionalKey,
+                },
+                right => new
+                {
+                    right.TenantId,
+                    right.OptionalKey,
+                },
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            "converted" => Join(
+                outer,
+                inner,
+                left => left.Code,
+                right => right.Code,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            "entity" => Join(outer, inner, left => left.Id, right => right.Id, (left, right) => right, directed),
+            "reference" => Join(
+                outer,
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    right.Details.Text,
+                },
+                directed),
+            "reference-navigation" => Join(
+                outer,
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    OuterParent = left.Parent == null
+                        ? null
+                        : left.Parent.Details.Text,
+                    InnerParent = right.Parent == null
+                        ? null
+                        : right.Parent.Details.Text,
+                },
+                directed),
+            "owned-collection" => Join(
+                outer,
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Tags = right
+                        .Tags
+                        .Select(tag => tag.Text)
+                        .ToArray(),
+                },
+                directed),
+            "collection" => Join(
+                outer,
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Items = right
+                        .Items
+                        .Select(item => item.Text)
+                        .ToArray(),
+                },
+                directed),
+            "constant-true" => Join(
+                outer,
+                inner,
+                left => 1,
+                right => 1,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            "empty" => Join(
+                outer.Where(value => false),
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            "paging" => Join(
+                    outer
+                        .OrderBy(value => value.Id)
+                        .Skip(2)
+                        .Take(7),
+                    inner
+                        .OrderBy(value => value.Id)
+                        .Take(9),
+                    left => left.Id,
+                    right => right.Id,
+                    (left, right) => new
+                    {
+                        left.Id,
+                        Child = right.Id,
+                    },
+                    directed)
+                .OrderBy(value => value.Child)
+                .Skip(1)
+                .Take(3),
+            "nested" => Join(
+                Join(outer, inner, left => left.Id, right => right.Id, (left, right) => new { left.Id }, false),
+                context.Nodes,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            "repeated" => Join(
+                Join(outer, inner, left => left.Id, right => right.Id, (left, right) => new { left.Id }, directed),
+                context.Nodes,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
+            _ => Join(
+                outer,
+                inner,
+                left => left.Id,
+                right => right.Id,
+                (left, right) => new
+                {
+                    left.Id,
+                    Child = right.Id,
+                },
+                directed),
         };
     }
 
     /// <summary>Selects the public operator only while constructing the test's complete EF expression.</summary>
-    private static IQueryable<TResult> Join<TOuter, TInner, TKey, TResult>(IQueryable<TOuter> outer, IQueryable<TInner> inner,
-        Expression<Func<TOuter, TKey>> outerKey, Expression<Func<TInner, TKey>> innerKey,
-        Expression<Func<TOuter, TInner, TResult>> result, bool directed)
-        => directed ? outer.StraightJoin(inner, outerKey, innerKey, result) : outer.Join(inner, outerKey, innerKey, result);
+    private static IQueryable<TResult> Join<TOuter, TInner, TKey, TResult>(
+        IQueryable<TOuter> outer,
+        IQueryable<TInner> inner,
+        Expression<Func<TOuter, TKey>> outerKey,
+        Expression<Func<TInner, TKey>> innerKey,
+        Expression<Func<TOuter, TInner, TResult>> result,
+        bool directed
+    )
+        => directed
+            ? outer.StraightJoin(inner, outerKey, innerKey, result)
+            : outer.Join(inner, outerKey, innerKey, result);
 
     /// <summary>Compares parameterized SQL structure independently of values and the explicitly selected edge grammar.</summary>
-    private static string Normalize(string sql) => Regex.Replace(sql, @"^(?:SET|--)[^\n]*\n", string.Empty, RegexOptions.Multiline)
+    private static string Normalize(
+        string sql
+    ) => Regex
+        .Replace(sql, @"^(?:SET|--)[^\n]*\n", string.Empty, RegexOptions.Multiline)
         .Replace("STRAIGHT_JOIN", "INNER JOIN", StringComparison.Ordinal);
 }

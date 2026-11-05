@@ -7,6 +7,17 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlTemporalMetadataTests
 {
+    private static readonly MySqlServerVersion s_mySql84 =
+        MySqlServerVersion.MySql(new Version(8, 4, 0));
+
+    private static readonly MySqlServerVersion s_mariaDb114 =
+        MySqlServerVersion.MariaDb(new Version(11, 4, 0));
+
+    private static readonly MySqlServerVersion s_mariaDb1033 =
+        MySqlServerVersion.MariaDb(
+            new Version(10, 3, 3),
+            MySqlServerVersionCompatibilityMode.AllowUnsupported);
+
     /// <summary>
     /// MySQL emulation receives a separate history table and UTC-safe period columns.
     /// </summary>
@@ -81,6 +92,7 @@ public sealed class MySqlTemporalMetadataTests
         // Arrange
         const string tableName =
             "TemporalRecordsWhoseNameIsDeliberatelyLongEnoughToRequireStableTruncation";
+
         var first = MySqlTemporalMetadata.CreateDefaultHistoryTableName(tableName);
 
         // Act
@@ -252,8 +264,11 @@ public sealed class MySqlTemporalMetadataTests
 
         // Assert
         var exception = Assert.IsType<InvalidOperationException>(recordedException);
-        Assert.Contains("cascaded foreign-key actions do not activate triggers", exception.Message,
+        Assert.Contains(
+            "cascaded foreign-key actions do not activate triggers",
+            exception.Message,
             StringComparison.Ordinal);
+
         Assert.Contains("without a corresponding history record", exception.Message, StringComparison.Ordinal);
     }
 
@@ -299,17 +314,6 @@ public sealed class MySqlTemporalMetadataTests
         Assert.Null(entityType.FindProperty("PeriodEnd"));
     }
 
-    private static readonly MySqlServerVersion s_mySql84 =
-        MySqlServerVersion.MySql(new Version(8, 4, 0));
-
-    private static readonly MySqlServerVersion s_mariaDb114 =
-        MySqlServerVersion.MariaDb(new Version(11, 4, 0));
-
-    private static readonly MySqlServerVersion s_mariaDb1033 =
-        MySqlServerVersion.MariaDb(
-            new Version(10, 3, 3),
-            MySqlServerVersionCompatibilityMode.AllowUnsupported);
-
     private static TemporalContext<TConfiguration> CreateContext<TConfiguration>(
         MySqlServerVersion serverVersion
     )
@@ -340,7 +344,9 @@ public sealed class MySqlTemporalMetadataTests
 
     private interface ITemporalConfiguration
     {
-        void Configure(EntityTypeBuilder<TemporalRecord> entity);
+        void Configure(
+            EntityTypeBuilder<TemporalRecord> entity
+        );
     }
 
     private sealed class MySqlDefaultConfiguration : ITemporalConfiguration
@@ -363,13 +369,12 @@ public sealed class MySqlTemporalMetadataTests
             EntityTypeBuilder<TemporalRecord> entity
         ) => entity.ToTable(
             "TemporalRecords",
-            table => table.IsTemporal(
-                temporal =>
-                {
-                    temporal.UseHistoryTable("TemporalRecordAudit", "audit");
-                    temporal.HasPeriodStart("ValidFrom");
-                    temporal.HasPeriodEnd("ValidUntil");
-                }));
+            table => table.IsTemporal(temporal =>
+            {
+                temporal.UseHistoryTable("TemporalRecordAudit", "audit");
+                temporal.HasPeriodStart("ValidFrom");
+                temporal.HasPeriodEnd("ValidUntil");
+            }));
     }
 
     private sealed class NativeHistoryTableConfiguration : ITemporalConfiguration
@@ -378,8 +383,7 @@ public sealed class MySqlTemporalMetadataTests
             EntityTypeBuilder<TemporalRecord> entity
         ) => entity.ToTable(
             "TemporalRecords",
-            table => table.IsTemporal(
-                temporal => temporal.UseHistoryTable("TemporalRecordAudit")));
+            table => table.IsTemporal(temporal => temporal.UseHistoryTable("TemporalRecordAudit")));
     }
 
     private sealed class IdenticalPeriodsConfiguration : ITemporalConfiguration
@@ -388,12 +392,11 @@ public sealed class MySqlTemporalMetadataTests
             EntityTypeBuilder<TemporalRecord> entity
         ) => entity.ToTable(
             "TemporalRecords",
-            table => table.IsTemporal(
-                temporal =>
-                {
-                    temporal.HasPeriodStart("ValidAt");
-                    temporal.HasPeriodEnd("ValidAt");
-                }));
+            table => table.IsTemporal(temporal =>
+            {
+                temporal.HasPeriodStart("ValidAt");
+                temporal.HasPeriodEnd("ValidAt");
+            }));
     }
 
     private sealed class InvalidPeriodTypeConfiguration : ITemporalConfiguration
@@ -405,8 +408,7 @@ public sealed class MySqlTemporalMetadataTests
             entity.Property<string>("ValidFrom");
             entity.ToTable(
                 "TemporalRecords",
-                table => table.IsTemporal(
-                    temporal => temporal.HasPeriodStart("ValidFrom")));
+                table => table.IsTemporal(temporal => temporal.HasPeriodStart("ValidFrom")));
         }
     }
 
@@ -434,10 +436,12 @@ public sealed class MySqlTemporalMetadataTests
             EntityTypeBuilder<TemporalRecord> entity
         )
         {
-            entity.HasOne(record => record.Parent)
+            entity
+                .HasOne(record => record.Parent)
                 .WithMany()
                 .HasForeignKey(record => record.ParentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
             entity.ToTable("TemporalRecords", table => table.IsTemporal());
         }
     }
@@ -448,8 +452,10 @@ public sealed class MySqlTemporalMetadataTests
             EntityTypeBuilder<TemporalRecord> entity
         )
         {
-            entity.Property(record => record.NameLength)
+            entity
+                .Property(record => record.NameLength)
                 .HasComputedColumnSql("CHAR_LENGTH(`Name`)", stored: true);
+
             entity.ToTable("TemporalRecords", table => table.IsTemporal());
         }
     }

@@ -189,7 +189,7 @@ public sealed class ByteArrayTypeMySqlFixture : RelationalTypeFixtureBase<byte[]
     [
         1,
         2,
-        3
+        3,
     ];
 
     public override byte[] OtherValue { get; } =
@@ -197,13 +197,11 @@ public sealed class ByteArrayTypeMySqlFixture : RelationalTypeFixtureBase<byte[]
         4,
         5,
         6,
-        7
+        7,
     ];
 
-    public override Func<byte[], byte[], bool> Comparer { get; } = (
-        left,
-        right
-    ) => left.SequenceEqual(right);
+    public override Func<byte[], byte[], bool> Comparer { get; } = (left,
+        right) => left.SequenceEqual(right);
 
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }

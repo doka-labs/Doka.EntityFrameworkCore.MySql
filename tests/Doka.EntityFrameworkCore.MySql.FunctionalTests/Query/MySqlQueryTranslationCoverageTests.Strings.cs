@@ -139,7 +139,7 @@ public sealed partial class MySqlQueryTranslationCoverageTests
             .Select(g => new
             {
                 Category = g.Key,
-                Names = string.Join(", ", g.Select(e => e.Name))
+                Names = string.Join(", ", g.Select(e => e.Name)),
             })
             .ToQueryString();
 

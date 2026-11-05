@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlGuidTextIntegrationTests
@@ -7,6 +9,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
     private const string UppercasePropertyName = "UppercaseCharColumnToken";
     private static readonly Guid s_matchingGuid = new(MatchingText);
     private static readonly MySqlGuidFormat[] s_defaultFormats = [MySqlGuidFormat.Binary16, MySqlGuidFormat.Char36];
+
     private static readonly string[] s_properties =
     [
         "DefaultToken",
@@ -19,7 +22,9 @@ public sealed partial class MySqlGuidTextIntegrationTests
     ];
 
     private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment.GetSupportedTargets().Where(IntegrationTestEnvironment.IsTargetSelected);
+        IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>
     /// Lazily owns one immutable GUID dataset per requested engine and default format.
@@ -30,6 +35,34 @@ public sealed partial class MySqlGuidTextIntegrationTests
 
         /// <inheritdoc />
         public Task InitializeAsync() => Task.CompletedTask;
+
+        /// <inheritdoc />
+        public async Task DisposeAsync()
+        {
+            List<Exception>? failures = null;
+
+            foreach (var key in _seeds.Keys)
+            {
+                try
+                {
+                    await using var context = CreateContext(key.Target, key.Format);
+                    await DropTableAsync(context, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    // WHY: Cleanup must still reach the remaining engine/format pairs.
+                    (failures ??= []).Add(
+                        new InvalidOperationException(
+                            $"Could not drop {TableName} on {key.Target} with {key.Format}.",
+                            exception));
+                }
+            }
+
+            if (failures is not null)
+            {
+                throw new AggregateException("GUID text fixture cleanup failed.", failures);
+            }
+        }
 
         /// <summary>
         /// Seeds one selected engine/format pair once and returns a fresh context.
@@ -54,32 +87,6 @@ public sealed partial class MySqlGuidTextIntegrationTests
             return CreateContext(target, format);
         }
 
-        /// <inheritdoc />
-        public async Task DisposeAsync()
-        {
-            List<Exception>? failures = null;
-
-            foreach (var key in _seeds.Keys)
-            {
-                try
-                {
-                    await using var context = CreateContext(key.Target, key.Format);
-                    await DropTableAsync(context, CancellationToken.None);
-                }
-                catch (Exception exception)
-                {
-                    // WHY: Cleanup must still reach the remaining engine/format pairs.
-                    (failures ??= []).Add(new InvalidOperationException(
-                        $"Could not drop {TableName} on {key.Target} with {key.Format}.", exception));
-                }
-            }
-
-            if (failures is not null)
-            {
-                throw new AggregateException("GUID text fixture cleanup failed.", failures);
-            }
-        }
-
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
@@ -99,19 +106,30 @@ public sealed partial class MySqlGuidTextIntegrationTests
                 // WHY: Explicit seed keys need no asynchronous value generation;
                 // SaveChangesAsync below owns the database work.
                 // ReSharper disable once MethodHasAsyncOverload
-                var entry = context.Add(new GuidItem
-                {
-                    Id = id,
-                    Pattern = "00112233-%-aabbccddeeff",
-                });
+                var entry = context.Add(
+                    new GuidItem
+                    {
+                        Id = id,
+                        Pattern = "00112233-%-aabbccddeeff",
+                    });
 
                 foreach (var propertyName in s_properties)
                 {
-                    entry.Property(propertyName).CurrentValue = id == 1 ? s_matchingGuid : Guid.Empty;
-                    entry.Property($"Optional{propertyName}").CurrentValue = id == 1 ? s_matchingGuid : null;
+                    entry.Property(propertyName)
+                        .CurrentValue = id == 1
+                        ? s_matchingGuid
+                        : Guid.Empty;
+
+                    entry.Property($"Optional{propertyName}")
+                        .CurrentValue = id == 1
+                        ? s_matchingGuid
+                        : null;
                 }
 
-                entry.Property(UppercasePropertyName).CurrentValue = id == 1 ? s_matchingGuid : Guid.Empty;
+                entry.Property(UppercasePropertyName)
+                    .CurrentValue = id == 1
+                    ? s_matchingGuid
+                    : Guid.Empty;
             }
 
             await context.SaveChangesAsync(cancellationToken);
@@ -176,25 +194,39 @@ public sealed partial class MySqlGuidTextIntegrationTests
 
             foreach (var prefix in new[] { string.Empty, "Optional" })
             {
-                var type = prefix.Length == 0 ? typeof(Guid) : typeof(Guid?);
+                var type = prefix.Length == 0
+                    ? typeof(Guid)
+                    : typeof(Guid?);
 
                 entity.Property(type, $"{prefix}DefaultToken");
-                entity.Property(type, $"{prefix}BinaryToken")
+                entity
+                    .Property(type, $"{prefix}BinaryToken")
                     .HasMySqlGuidFormat(MySqlGuidFormat.Binary16);
-                entity.Property(type, $"{prefix}TextToken")
+
+                entity
+                    .Property(type, $"{prefix}TextToken")
                     .HasMySqlGuidFormat(MySqlGuidFormat.Char36);
-                entity.Property(type, $"{prefix}BinaryColumnToken")
+
+                entity
+                    .Property(type, $"{prefix}BinaryColumnToken")
                     .HasColumnType("binary(16)");
-                entity.Property(type, $"{prefix}CharColumnToken")
+
+                entity
+                    .Property(type, $"{prefix}CharColumnToken")
                     .HasColumnType("char(36)")
                     .UseCollation("utf8mb4_bin");
-                entity.Property(type, $"{prefix}VarCharColumnToken")
+
+                entity
+                    .Property(type, $"{prefix}VarCharColumnToken")
                     .HasColumnType("varchar(36)");
-                entity.Property(type, $"{prefix}ConvertedTextToken")
-                    .HasConversion<Microsoft.EntityFrameworkCore.Storage.ValueConversion.GuidToStringConverter>();
+
+                entity
+                    .Property(type, $"{prefix}ConvertedTextToken")
+                    .HasConversion<GuidToStringConverter>();
             }
 
-            entity.Property<Guid>(UppercasePropertyName)
+            entity
+                .Property<Guid>(UppercasePropertyName)
                 .HasColumnType("char(36)")
                 .UseCollation("utf8mb4_bin");
         }

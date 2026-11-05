@@ -63,7 +63,6 @@ public sealed partial class MySqlMigrationOperationHandlerTests
         string comment
     )
     {
-
         return new AlterColumnOperation
         {
             Table = "Entries",

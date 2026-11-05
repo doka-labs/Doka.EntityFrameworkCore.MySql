@@ -13,9 +13,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class EfCoreServiceDecorator
 {
     /// <summary>
-    /// Replaces the most-recently-registered <typeparamref name="TService"/> descriptor
+    /// Replaces the most-recently-registered <typeparamref name="TService" /> descriptor
     /// with one that resolves the inner instance via the captured descriptor and hands
-    /// it to <paramref name="factory"/> for wrapping. The inner descriptor's lifetime
+    /// it to <paramref name="factory" /> for wrapping. The inner descriptor's lifetime
     /// is preserved so the decorator inherits singleton- or scoped-scoping from EF Core.
     /// </summary>
     /// <typeparam name="TService">The EF Core service interface being wrapped.</typeparam>

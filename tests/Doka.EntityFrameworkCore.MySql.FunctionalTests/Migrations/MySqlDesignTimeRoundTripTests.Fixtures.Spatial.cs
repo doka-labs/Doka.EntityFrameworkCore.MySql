@@ -23,6 +23,7 @@ public sealed class SpatialSridDesignContext : DbContext
             entity
                 .Property(record => record.Location)
                 .HasSrid(4326);
+
             entity.HasData(
                 new SpatialSridDesignRecord
                 {

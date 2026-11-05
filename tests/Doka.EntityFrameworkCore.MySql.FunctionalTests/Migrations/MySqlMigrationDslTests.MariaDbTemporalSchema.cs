@@ -24,8 +24,8 @@ public sealed partial class MySqlMigrationDslTests
         using var targetContext = contexts.Target;
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => GenerateMigrationSql(sourceContext, targetContext));
+        var exception =
+            Assert.Throws<InvalidOperationException>(() => GenerateMigrationSql(sourceContext, targetContext));
 
         // Assert
         Assert.Contains("native MariaDB temporal table", exception.Message, StringComparison.Ordinal);
@@ -67,14 +67,17 @@ public sealed partial class MySqlMigrationDslTests
             + "ADD SYSTEM VERSIONING;",
             enableSql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ADD `ValidTo` timestamp(6) GENERATED ALWAYS AS ROW END",
             enableSql,
             StringComparison.Ordinal);
+
         Assert.Contains(
             "ADD PERIOD FOR SYSTEM_TIME (`ValidFrom`, `ValidTo`)",
             enableSql,
             StringComparison.Ordinal);
+
         Assert.True(periodActivation > finalPeriodColumn);
         Assert.Contains("ADD SYSTEM VERSIONING", enableSql, StringComparison.Ordinal);
         Assert.DoesNotContain("TemporalRecordsHistory", enableSql, StringComparison.Ordinal);
@@ -118,11 +121,13 @@ public sealed partial class MySqlMigrationDslTests
             + "DROP COLUMN `ValidFrom`, DROP COLUMN `ValidTo`;",
             disableSql,
             StringComparison.Ordinal);
+
         Assert.True(
             disableOperations
                 .OfType<AlterTableOperation>()
                 .Single()
                 .IsDestructiveChange);
+
         Assert.True(periodDeactivation > systemVersioningDeactivation);
         Assert.True(firstPeriodColumnDrop > periodDeactivation);
         Assert.Contains("DROP COLUMN `ValidFrom`", disableSql, StringComparison.Ordinal);
@@ -130,6 +135,7 @@ public sealed partial class MySqlMigrationDslTests
         Assert.Equal(
             firstPeriodColumnDrop,
             disableSql.LastIndexOf("DROP COLUMN `ValidFrom`", StringComparison.Ordinal));
+
         Assert.DoesNotContain("TemporalRecordsHistory", disableSql, StringComparison.Ordinal);
         Assert.DoesNotContain("TRIGGER", disableSql, StringComparison.Ordinal);
     }

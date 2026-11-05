@@ -11,6 +11,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 {
     private static readonly ScopedScenario[] s_executionScenarios =
         [ScopedScenario.Success, ScopedScenario.BodyFailure];
+
     private static readonly ScopedScenario[] s_setupScenarios =
         [ScopedScenario.FirstSetupFailure, ScopedScenario.LaterSetupFailure];
 
@@ -18,7 +19,8 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
     /// <summary>Identifies each selected supported engine.</summary>
     public static IEnumerable<object[]> TargetCases =>
-        SelectedTargets().Select(target => new object[] { target.ToString() });
+        SelectedTargets()
+            .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies independent successful and failed command executions.</summary>
     public static IEnumerable<object[]> ExecutionCases =>
@@ -51,7 +53,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var execution = Enum.Parse<ScopedScenario>(scenario);
         var bodyFailure = execution == ScopedScenario.BodyFailure;
         await using var connection = CreateConnection(engine, pooling: false);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, execution, transactionSuppressed: bodyFailure);
 
@@ -67,9 +72,12 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         }
         else
         {
-            result = await generated.Command.ExecuteNonQueryAsync(
-                context.GetService<IRelationalConnection>(),
-                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            result = await generated
+                .Command
+                .ExecuteNonQueryAsync(
+                    context.GetService<IRelationalConnection>(),
+                    cancellationToken: CancellationToken.None)
+                .ConfigureAwait(false);
         }
 
         var state = connection.State;
@@ -157,7 +165,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         await using var connection = CreateConnection(engine, pooling: false);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, Enum.Parse<ScopedScenario>(scenario), transactionSuppressed: false);
 
@@ -165,6 +176,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: CancellationToken.None));
+
         var state = connection.State;
         var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
             .ConfigureAwait(false);
@@ -185,7 +197,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         await using var connection = CreateConnection(engine, pooling: false);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.PreparedBodyFailure, transactionSuppressed: true);
         await using var deallocate = connection.CreateCommand();
@@ -195,6 +210,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var exception = await Assert.ThrowsAsync<MySqlException>(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: CancellationToken.None));
+
         var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -217,7 +233,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         await using var connection = CreateConnection(engine, pooling: false);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.Cancellation, transactionSuppressed: false);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
@@ -226,6 +245,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var exception = await Record.ExceptionAsync(() => generated.Command.ExecuteNonQueryAsync(
             context.GetService<IRelationalConnection>(),
             cancellationToken: cancellation.Token));
+
         var state = connection.State;
         var session = await ObserveSessionAsync(connection, generated.Operation, CancellationToken.None)
             .ConfigureAwait(false);
@@ -257,15 +277,20 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         var connectionString = CreateConnectionString(engine, pooling: true, connectionReset: false);
         await using var connection = new MySqlConnection(connectionString);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-        var unsafeConnectionId = await ReadConnectionIdAsync(connection, CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var unsafeConnectionId = await ReadConnectionIdAsync(connection, CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.CleanupFailure, transactionSuppressed: true);
         var operation = generated.Operation;
         await ExecuteNonQueryAsync(
-            connection,
-            $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine,
-            CancellationToken.None)
+                connection,
+                $"CREATE TABLE `{operation.CleanupAuditTableName}` (`Id` int NOT NULL);" + Environment.NewLine,
+                CancellationToken.None)
             .ConfigureAwait(false);
 
         await using var replacementConnection = new MySqlConnection(connectionString);
@@ -277,6 +302,7 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
                 generated.Command.ExecuteNonQueryAsync(
                     context.GetService<IRelationalConnection>(),
                     cancellationToken: CancellationToken.None));
+
             var state = connection.State;
             long? replacementId = null;
             long? cleanupCount = null;
@@ -285,18 +311,28 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
             // the one-slot pool would hide the state failure behind pool timeout.
             if (state == ConnectionState.Closed)
             {
-                await replacementConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+                await replacementConnection
+                    .OpenAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+
                 replacementId = await ReadConnectionIdAsync(replacementConnection, CancellationToken.None)
                     .ConfigureAwait(false);
+
                 await using var audit = replacementConnection.CreateCommand();
                 audit.CommandText = $"SELECT COUNT(*) FROM `{operation.CleanupAuditTableName}`;";
                 cleanupCount = Convert.ToInt64(
-                    await audit.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false),
+                    await audit
+                        .ExecuteScalarAsync(CancellationToken.None)
+                        .ConfigureAwait(false),
                     CultureInfo.InvariantCulture);
             }
 
             // Assert
-            Assert.Equal(1644, Assert.IsType<MySqlException>(exception.InnerException).Number);
+            Assert.Equal(
+                1644,
+                Assert.IsType<MySqlException>(exception.InnerException)
+                    .Number);
+
             Assert.Equal(ConnectionState.Closed, state);
             Assert.NotEqual(unsafeConnectionId, replacementId);
             Assert.Equal(1L, cleanupCount);
@@ -315,8 +351,12 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
                 // WHY: Teardown must not need a slot retained by an unsafe session
                 // when the quarantine assertion itself fails.
                 await using var cleanupConnection = CreateConnection(engine, pooling: false);
-                await cleanupConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
-                await ExecuteNonQueryAsync(cleanupConnection, dropSql, CancellationToken.None).ConfigureAwait(false);
+                await cleanupConnection
+                    .OpenAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                await ExecuteNonQueryAsync(cleanupConnection, dropSql, CancellationToken.None)
+                    .ConfigureAwait(false);
             }
         }
     }
@@ -331,7 +371,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         // Arrange
         var engine = Enum.Parse<IntegrationDatabaseTarget>(target);
         await using var connection = CreateConnection(engine, pooling: true);
-        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await connection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         await using var context = CreateContext(connection, engine);
         var generated = GenerateCommand(context, ScopedScenario.BodyAndCleanupFailure, transactionSuppressed: true);
 
@@ -340,15 +383,24 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
             generated.Command.ExecuteNonQueryAsync(
                 context.GetService<IRelationalConnection>(),
                 cancellationToken: CancellationToken.None));
+
         var state = connection.State;
 
         // Assert
-        var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
+        var failures = Assert.IsType<AggregateException>(exception.InnerException)
+            .InnerExceptions;
 
         Assert.Collection(
             failures,
-            primary => Assert.Equal(1062, Assert.IsType<MySqlException>(primary).Number),
-            cleanup => Assert.Equal(1644, Assert.IsType<MySqlException>(cleanup).Number));
+            primary => Assert.Equal(
+                1062,
+                Assert.IsType<MySqlException>(primary)
+                    .Number),
+            cleanup => Assert.Equal(
+                1644,
+                Assert.IsType<MySqlException>(cleanup)
+                    .Number));
+
         Assert.Equal(ConnectionState.Closed, state);
     }
 
@@ -367,7 +419,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 
         await using (var seedConnection = new MySqlConnection(connectionString))
         {
-            await seedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+            await seedConnection
+                .OpenAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+
             initialConnectionId = await ReadConnectionIdAsync(seedConnection, CancellationToken.None)
                 .ConfigureAwait(false);
         }
@@ -388,7 +443,10 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
         }
 
         await using var reusedConnection = new MySqlConnection(connectionString);
-        await reusedConnection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        await reusedConnection
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+
         var reusedConnectionId = await ReadConnectionIdAsync(reusedConnection, CancellationToken.None)
             .ConfigureAwait(false);
 

@@ -17,7 +17,9 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         // Act
         var generated = GenerateAndCompile(context);
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
+
         var snapshotRoundTrip = CaptureRoundTrip(context, generated.SnapshotModel);
         var designerRoundTrip = CaptureRoundTrip(context, generated.DesignerModel);
         var sourceMigration = CaptureInitialMigration(context, sourceModel);
@@ -43,18 +45,22 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             ".HasDefaultValue(new Guid(\"00000000-0000-0000-0000-000000000000\"))",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasDefaultValue(new Guid(\"00000000-0000-0000-0000-000000000000\"))",
             generated.DesignerCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             ".HasDefaultValue(\"27caab1e-a588-4dcc-bace-fef7cf47e1fd\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             ".HasDefaultValue(\"27caab1e-a588-4dcc-bace-fef7cf47e1fd\")",
             generated.DesignerCode,
             StringComparison.Ordinal);
+
         AssertProviderGuidDefaultModelValues(sourceModel);
         AssertProviderGuidDefaultModelValues(generated.SnapshotModel);
         AssertProviderGuidDefaultModelValues(generated.DesignerModel);
@@ -62,10 +68,12 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             "Id = \"bf1da273-beed-4197-ab57-4cf8395244d4\"",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             "ExplicitChar36 = \"5153b4e4-0158-4641-b387-433631824557\"",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         AssertRoundTripsWithoutOperations(snapshotRoundTrip);
         AssertRoundTripsWithoutOperations(designerRoundTrip);
         AssertGuidSeedDataOperations(sourceMigration);
@@ -115,7 +123,8 @@ public sealed partial class MySqlDesignTimeRoundTripTests
 
         // Act
         var generated = GenerateAndCompile(context);
-        var sourceModel = context.GetService<IDesignTimeModel>().Model;
+        var sourceModel = context.GetService<IDesignTimeModel>()
+            .Model;
 
         // Assert
         Assert.Contains("using System;", generated.SnapshotCode, StringComparison.Ordinal);
@@ -153,21 +162,25 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             "Id = \"89a78261-ea26-494e-a520-b518f51ed3d1\"",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("Id = new Guid(", generated.SnapshotCode, StringComparison.Ordinal);
         Assert.Contains(".Property<string>(\"Id\")", generated.DesignerCode, StringComparison.Ordinal);
         Assert.Contains(
             "Id = \"89a78261-ea26-494e-a520-b518f51ed3d1\"",
             generated.DesignerCode,
             StringComparison.Ordinal);
+
         Assert.DoesNotContain("Id = new Guid(", generated.DesignerCode, StringComparison.Ordinal);
         Assert.Contains(
             ".HasDefaultValue(\"89a78261-ea26-494e-a520-b518f51ed3d1\")",
             generated.SnapshotCode,
             StringComparison.Ordinal);
+
         Assert.Contains(
             ".HasDefaultValue(\"89a78261-ea26-494e-a520-b518f51ed3d1\")",
             generated.DesignerCode,
             StringComparison.Ordinal);
+
         AssertRoundTripsWithoutOperations(snapshotRoundTrip);
         AssertRoundTripsWithoutOperations(designerRoundTrip);
     }

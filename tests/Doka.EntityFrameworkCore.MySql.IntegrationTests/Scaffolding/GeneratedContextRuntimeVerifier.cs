@@ -34,7 +34,10 @@ internal static class GeneratedContextRuntimeVerifier
 
         var temporaryDirectory = Path.Combine(
             Path.GetTempPath(),
-            "doka-generated-context-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+            "doka-generated-context-"
+            + Guid
+                .NewGuid()
+                .ToString("N", CultureInfo.InvariantCulture));
 
         Directory.CreateDirectory(temporaryDirectory);
 
@@ -108,34 +111,38 @@ internal static class GeneratedContextRuntimeVerifier
         var efCoreVersion = GetEfCoreVersion();
         var projectCode =
             $"""
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net10.0</TargetFramework>
-                <Nullable>enable</Nullable>
-                <ImplicitUsings>disable</ImplicitUsings>
-                <WarningsAsErrors>true</WarningsAsErrors>
-                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
-                <NuGetAudit>false</NuGetAudit>
-                <DokaEfCoreVersion>{efCoreVersion}</DokaEfCoreVersion>
-              </PropertyGroup>
-              <ItemGroup>
-                <ProjectReference Include="{providerProject}" />
-                <ProjectReference Include="{spatialProject}" />
-              </ItemGroup>
-            </Project>
-            """;
+             <Project Sdk="Microsoft.NET.Sdk">
+               <PropertyGroup>
+                 <OutputType>Exe</OutputType>
+                 <TargetFramework>net10.0</TargetFramework>
+                 <Nullable>enable</Nullable>
+                 <ImplicitUsings>disable</ImplicitUsings>
+                 <WarningsAsErrors>true</WarningsAsErrors>
+                 <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                 <NuGetAudit>false</NuGetAudit>
+                 <DokaEfCoreVersion>{efCoreVersion}</DokaEfCoreVersion>
+               </PropertyGroup>
+               <ItemGroup>
+                 <ProjectReference Include="{providerProject}" />
+                 <ProjectReference Include="{spatialProject}" />
+               </ItemGroup>
+             </Project>
+             """;
 
-        await File.WriteAllTextAsync(
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, "GeneratedContext.csproj"),
                 projectCode,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        await File.WriteAllTextAsync(
+
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, "Program.cs"),
                 CreateProgramCode(),
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
+
         await WriteScaffoldedFileAsync(temporaryDirectory, scaffoldedModel.ContextFile, cancellationToken)
             .ConfigureAwait(false);
 
@@ -165,7 +172,8 @@ internal static class GeneratedContextRuntimeVerifier
             throw new InvalidOperationException("A scaffolded source file did not have a valid file name.");
         }
 
-        await File.WriteAllTextAsync(
+        await File
+            .WriteAllTextAsync(
                 Path.Combine(temporaryDirectory, fileName),
                 scaffoldedFile.Code,
                 cancellationToken: cancellationToken)
@@ -256,7 +264,10 @@ internal static class GeneratedContextRuntimeVerifier
 
             await exited
                 .ConfigureAwait(false);
-            output = await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
+
+            output = await Task
+                .WhenAll(standardOutput, standardError)
+                .ConfigureAwait(false);
         }
 
         return new ProcessResult(process.ExitCode, output[0], output[1]);
@@ -264,7 +275,8 @@ internal static class GeneratedContextRuntimeVerifier
 
     private static string GetEfCoreVersion()
     {
-        var version = typeof(DbContext).Assembly.GetName().Version
+        var version = typeof(DbContext).Assembly.GetName()
+                .Version
             ?? throw new InvalidOperationException("The EF Core assembly has no version.");
 
         return FormattableString.Invariant($"{version.Major}.{version.Minor}.{version.Build}");
@@ -278,8 +290,8 @@ internal static class GeneratedContextRuntimeVerifier
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
+            directory is not null;
+            directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Doka.EntityFrameworkCore.MySql.slnx")))
             {

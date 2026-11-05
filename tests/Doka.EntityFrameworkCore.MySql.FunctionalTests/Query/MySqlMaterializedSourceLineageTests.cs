@@ -5,8 +5,23 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 /// <summary>Verifies exact mapping and temporal lineage across statement-local source leaves.</summary>
 public sealed partial class MySqlMaterializedSourceLineageTests
 {
-    private static readonly DateTime s_firstPoint = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-    private static readonly DateTime s_secondPoint = new(2026, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+    private static readonly DateTime s_firstPoint = new(
+        2026,
+        1,
+        2,
+        3,
+        4,
+        5,
+        DateTimeKind.Utc);
+
+    private static readonly DateTime s_secondPoint = new(
+        2026,
+        2,
+        3,
+        4,
+        5,
+        6,
+        DateTimeKind.Utc);
 
     /// <summary>Named shared mappings remain usable as flat source rows.</summary>
     [Theory]
@@ -24,8 +39,14 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<SharedNode>(name).Where(row => row.Id > 1)
-            .WithMaterializedSource(shared => shared.Select(row => new { row.Id, row.Name }));
+        var query = context
+            .Set<SharedNode>(name)
+            .Where(row => row.Id > 1)
+            .WithMaterializedSource(shared => shared.Select(row => new
+            {
+                row.Id,
+                row.Name,
+            }));
 
         var sql = query.ToQueryString();
 
@@ -50,7 +71,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<SharedNode>(name).Where(row => row.Id > 1)
+        var query = context
+            .Set<SharedNode>(name)
+            .Where(row => row.Id > 1)
             .WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
@@ -73,7 +96,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateContext(mariaDb);
 
         // Act
-        var query = context.Set<SharedNode>("Second").Select(row => row)
+        var query = context
+            .Set<SharedNode>("Second")
+            .Select(row => row)
             .WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
 
         var sql = query.ToQueryString();
@@ -94,11 +119,13 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Set<SharedNode>("First").Join(
-            context.Set<SharedNode>("Second"),
-            first => first.Id,
-            second => second.Id,
-            (_, second) => second);
+        var source = context
+            .Set<SharedNode>("First")
+            .Join(
+                context.Set<SharedNode>("Second"),
+                first => first.Id,
+                second => second.Id,
+                (_, second) => second);
 
         // Act
         var query = source.WithMaterializedSource(shared => shared.Select(row => row.Target.Name));
@@ -121,7 +148,10 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var query = context.Parents.TemporalAsOf(s_firstPoint).Where(parent => parent.Id > 1)
+        var query = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .Where(parent => parent.Id > 1)
             .WithMaterializedSource(shared => shared.Select(parent => parent.Child.Name));
 
         // Act
@@ -143,7 +173,11 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var source = context.Parents.TemporalAsOf(s_firstPoint).Select(parent => parent.Child);
+        var source = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .Select(parent => parent.Child);
+
         var query = source.WithMaterializedSource(shared => shared.Select(child => child.Next!.Name));
 
         // Act
@@ -165,7 +199,11 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var historical = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
+        var historical = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .WithMaterializedSource(shared => shared);
+
         var current = context.Parents.WithMaterializedSource(shared => shared);
 
         // Act
@@ -187,8 +225,15 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var first = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
-        var second = context.Parents.TemporalAsOf(s_secondPoint).WithMaterializedSource(shared => shared);
+        var first = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .WithMaterializedSource(shared => shared);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(s_secondPoint)
+            .WithMaterializedSource(shared => shared);
 
         // Act
         var query = first.Concat(second);
@@ -209,8 +254,16 @@ public sealed partial class MySqlMaterializedSourceLineageTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var first = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
-        var second = context.Parents.TemporalAsOf(s_firstPoint).WithMaterializedSource(shared => shared);
+        var first = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .WithMaterializedSource(shared => shared);
+
+        var second = context
+            .Parents
+            .TemporalAsOf(s_firstPoint)
+            .WithMaterializedSource(shared => shared);
+
         var query = first.Concat(second);
 
         // Act
@@ -228,7 +281,9 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         using var context = CreateApplicationContext();
 
         // Act
-        var query = context.Parents.ForPortionOf(s_firstPoint, s_secondPoint)
+        var query = context
+            .Parents
+            .ForPortionOf(s_firstPoint, s_secondPoint)
             .WithMaterializedSource(shared => shared.Select(parent => parent.Child.Name));
 
         var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
@@ -274,7 +329,11 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         bool mariaDb,
         string table
     )
-        => Assert.Contains(mariaDb ? $"`{table}` FOR SYSTEM_TIME" : $"FROM `{table}History`", sql,
+        => Assert.Contains(
+            mariaDb
+                ? $"`{table}` FOR SYSTEM_TIME"
+                : $"FROM `{table}History`",
+            sql,
             StringComparison.Ordinal);
 
     /// <summary>Counts historical roots for both provider-owned temporal lowerings.</summary>
@@ -283,7 +342,13 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         bool mariaDb,
         int count
     )
-        => Assert.Equal(count, CountOccurrences(sql, mariaDb ? "FOR SYSTEM_TIME AS OF" : "History`"));
+        => Assert.Equal(
+            count,
+            CountOccurrences(
+                sql,
+                mariaDb
+                    ? "FOR SYSTEM_TIME AS OF"
+                    : "History`"));
 
     /// <summary>Counts statement fragments whose multiplicity establishes root propagation.</summary>
     private static int CountOccurrences(

@@ -1,3 +1,7 @@
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -15,7 +19,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var mapping = new MySqlNetTopologySuiteGeometryTypeMapping<Geometry>(
-            new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<Geometry, MySqlGeometry>(
+            new ValueConverter<Geometry, MySqlGeometry>(
                 geometry => MySqlGeometry.FromWkb(geometry.SRID, new WKBWriter().Write(geometry)),
                 providerValue => ReadProviderGeometry(providerValue)),
             "geometry",
@@ -26,8 +30,8 @@ public sealed class MySqlSpatialInputGuardTests
         var readerMethod = mapping.GetDataReaderMethod();
 
         // Assert
-        Assert.Equal(typeof(System.Data.Common.DbDataReader), readerMethod.DeclaringType);
-        Assert.Equal(nameof(System.Data.Common.DbDataReader.GetValue), readerMethod.Name);
+        Assert.Equal(typeof(DbDataReader), readerMethod.DeclaringType);
+        Assert.Equal(nameof(DbDataReader.GetValue), readerMethod.Name);
         Assert.Equal(typeof(object), readerMethod.ReturnType);
     }
 
@@ -66,17 +70,17 @@ public sealed class MySqlSpatialInputGuardTests
     /// <summary>Supplies concrete geometry families and both supported driver value shapes.</summary>
     public static IEnumerable<object[]> GeometryFamilyCases()
     {
-        foreach (var (mappingType, wkt) in new (Type, string)[]
-                 {
-                     (typeof(Point), "POINT (1 2)"),
-                     (typeof(LineString), "LINESTRING (0 0, 1 1)"),
-                     (typeof(Polygon), "POLYGON ((0 0, 0 1, 1 1, 0 0))"),
-                     (typeof(MultiPoint), "MULTIPOINT ((0 0), (1 1))"),
-                     (typeof(MultiLineString), "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))"),
-                     (typeof(MultiPolygon), "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))"),
-                     (typeof(GeometryCollection), "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"),
-                     (typeof(Geometry), "POINT (3 4)"),
-                 })
+        foreach (var (mappingType, wkt) in new[]
+            {
+                (typeof(Point), "POINT (1 2)"),
+                (typeof(LineString), "LINESTRING (0 0, 1 1)"),
+                (typeof(Polygon), "POLYGON ((0 0, 0 1, 1 1, 0 0))"),
+                (typeof(MultiPoint), "MULTIPOINT ((0 0), (1 1))"),
+                (typeof(MultiLineString), "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))"),
+                (typeof(MultiPolygon), "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))"),
+                (typeof(GeometryCollection), "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))"),
+                (typeof(Geometry), "POINT (3 4)"),
+            })
         {
             yield return [mappingType, wkt, false];
             yield return [mappingType, wkt, true];
@@ -151,16 +155,16 @@ public sealed class MySqlSpatialInputGuardTests
     public static IEnumerable<object[]> SpatialReaderCases()
     {
         foreach (var wkt in new[]
-                 {
-                     "POINT (1 2)",
-                     "LINESTRING (0 0, 1 1)",
-                     "POLYGON ((0 0, 0 1, 1 1, 0 0))",
-                     "MULTIPOINT ((0 0), (1 1))",
-                     "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))",
-                     "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))",
-                     "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))",
-                     "GEOMETRYCOLLECTION EMPTY"
-                 })
+            {
+                "POINT (1 2)",
+                "LINESTRING (0 0, 1 1)",
+                "POLYGON ((0 0, 0 1, 1 1, 0 0))",
+                "MULTIPOINT ((0 0), (1 1))",
+                "MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))",
+                "MULTIPOLYGON (((0 0, 0 1, 1 1, 0 0)))",
+                "GEOMETRYCOLLECTION (POINT (0 0), LINESTRING (0 0, 1 1))",
+                "GEOMETRYCOLLECTION EMPTY",
+            })
         {
             yield return [wkt, false];
             yield return [wkt, true];
@@ -299,7 +303,10 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
-        object providerValue = useMySqlGeometry ? MySqlGeometry.FromWkb(0, wkb) : wkb;
+        object providerValue = useMySqlGeometry
+            ? MySqlGeometry.FromWkb(0, wkb)
+            : wkb;
+
         Action act = () =>
             InvokeReadSpatialColumn(typeof(Geometry), providerValue);
 
@@ -331,7 +338,7 @@ public sealed class MySqlSpatialInputGuardTests
             encodedCollectionType,
             includesSrid);
 
-        Action act = () => MySqlSpatialInputGuard.ValidateWkb(wkb);
+        var act = () => MySqlSpatialInputGuard.ValidateWkb(wkb);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -395,7 +402,7 @@ public sealed class MySqlSpatialInputGuardTests
         var mappingType = typeof(MySqlNetTopologySuiteGeometryTypeMapping<>).MakeGenericType(geometryType);
         var method = mappingType.GetMethod(
             "ReadSpatialColumn",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
 
         Assert.NotNull(method);
 
@@ -403,14 +410,12 @@ public sealed class MySqlSpatialInputGuardTests
         {
             return Assert.IsType<Geometry>(method.Invoke(null, [reader, 0]), exactMatch: false);
         }
-        catch (System.Reflection.TargetInvocationException exception) when (exception.InnerException is not null)
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
-            System
-                .Runtime
-                .ExceptionServices
-                .ExceptionDispatchInfo
+            ExceptionDispatchInfo
                 .Capture(exception.InnerException)
                 .Throw();
+
             throw;
         }
     }
@@ -430,7 +435,7 @@ public sealed class MySqlSpatialInputGuardTests
         bool littleEndian
     )
     {
-        var wkb = new byte[(9 * depth) + 21];
+        var wkb = new byte[9 * depth + 21];
         var offset = 0;
 
         for (var collectionIndex = 0; collectionIndex < depth; collectionIndex++)
@@ -453,7 +458,13 @@ public sealed class MySqlSpatialInputGuardTests
         bool includesSrid
     )
     {
-        var headerLength = sizeof(byte) + sizeof(uint) + (includesSrid ? sizeof(uint) : 0) + sizeof(uint);
+        var headerLength = sizeof(byte)
+            + sizeof(uint)
+            + (includesSrid
+                ? sizeof(uint)
+                : 0)
+            + sizeof(uint);
+
         var wkb = new byte[headerLength * depth];
         var offset = 0;
 
@@ -481,7 +492,10 @@ public sealed class MySqlSpatialInputGuardTests
         bool littleEndian
     )
     {
-        destination[offset++] = littleEndian ? (byte)1 : (byte)0;
+        destination[offset++] = littleEndian
+            ? (byte)1
+            : (byte)0;
+
         WriteUInt32(destination, ref offset, geometryType, littleEndian);
     }
 

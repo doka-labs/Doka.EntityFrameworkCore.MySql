@@ -70,6 +70,7 @@ public class BulkInsertBenchmark
                     Name = $"per-row-{index}",
                     Score = index,
                 });
+
             await context
                 .SaveChangesAsync(CancellationToken.None)
                 .ConfigureAwait(false);
@@ -118,6 +119,7 @@ public class BulkInsertBenchmark
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;"
             + $"CREATE TABLE `{TableName}` ("
@@ -126,6 +128,7 @@ public class BulkInsertBenchmark
             + "  `Score` INT NOT NULL,"
             + "  PRIMARY KEY (`Id`)"
             + ") CHARACTER SET utf8mb4;";
+
         await command
             .ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -143,6 +146,7 @@ public class BulkInsertBenchmark
         await connection
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"TRUNCATE TABLE `{TableName}`;";
         await command
@@ -160,6 +164,7 @@ public class BulkInsertBenchmark
         await connection
             .OpenAsync(CancellationToken.None)
             .ConfigureAwait(false);
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"DROP TABLE IF EXISTS `{TableName}`;";
         await command

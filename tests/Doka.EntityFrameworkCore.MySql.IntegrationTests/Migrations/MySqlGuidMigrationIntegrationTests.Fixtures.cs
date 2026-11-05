@@ -22,9 +22,17 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
             {
                 entity.ToTable(StorageTransitionTable);
                 entity.HasKey(record => record.Id);
-                entity.Property(record => record.Id).UseMySqlAutoIncrementColumn();
-                entity.Property(record => record.RequiredValue).HasMySqlGuidFormat(GuidFormat);
-                entity.Property(record => record.OptionalValue).HasMySqlGuidFormat(GuidFormat);
+                entity
+                    .Property(record => record.Id)
+                    .UseMySqlAutoIncrementColumn();
+
+                entity
+                    .Property(record => record.RequiredValue)
+                    .HasMySqlGuidFormat(GuidFormat);
+
+                entity
+                    .Property(record => record.OptionalValue)
+                    .HasMySqlGuidFormat(GuidFormat);
             });
         }
     }
