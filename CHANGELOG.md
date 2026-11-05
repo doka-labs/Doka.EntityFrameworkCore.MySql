@@ -43,6 +43,12 @@ dotnet package add Doka.Caching.MySql --version 10.6.4
 
 ### Fixed
 
+- Remove the fixed scaffolding-scale runtime ceiling so CPU speed and host load
+  cannot fail its performance verdict. Keep elapsed times as diagnostics and
+  preserve resource, metadata-command, determinism and cleanup checks.
+- Synchronize generated-context cancellation tests through a test-owned
+  connection instead of comparing independently derived Linux process start
+  timestamps; verify child termination before test cleanup.
 - Distinguish caller cancellation from execution deadlines in fixture startup,
   fault proxies and generated-context child processes. Await owned teardown and
   drain child output before reporting completion; retain startup, cancellation,

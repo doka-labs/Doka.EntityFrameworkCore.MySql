@@ -129,8 +129,6 @@ public sealed partial class MySqlScaffoldingScaleTests
     {
         public required int MaximumSetBasedMetadataCommandsPerRun { get; init; }
 
-        public required int MaximumElapsedMillisecondsPerRun { get; init; }
-
         public required long MaximumAllocatedBytesPerRun { get; init; }
 
         public required long MaximumManagedHeapGrowthBytesPerRun { get; init; }

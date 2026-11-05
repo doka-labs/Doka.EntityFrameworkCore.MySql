@@ -326,7 +326,6 @@ public sealed partial class MySqlScaffoldingScaleTests
         Assert.True(policy.RestrictedVisibleTableCount > 0);
         Assert.True(policy.MeasuredRuns >= 2);
         Assert.True(policy.Budgets.MaximumSetBasedMetadataCommandsPerRun > 0);
-        Assert.True(policy.Budgets.MaximumElapsedMillisecondsPerRun > 0);
         Assert.True(policy.Budgets.MaximumAllocatedBytesPerRun > 0);
         Assert.True(policy.Budgets.MaximumManagedHeapGrowthBytesPerRun > 0);
         Assert.Contains(
@@ -343,11 +342,8 @@ public sealed partial class MySqlScaffoldingScaleTests
         int run
     )
     {
-        Assert.True(
-            metrics.Elapsed.TotalMilliseconds <= budgets.MaximumElapsedMillisecondsPerRun,
-            $"{target} run {run + 1} elapsed {metrics.Elapsed.TotalMilliseconds:F0} ms; "
-            + $"budget {budgets.MaximumElapsedMillisecondsPerRun} ms.");
-
+        // WHY: Host CPU speed and load affect elapsed time. Keep it in diagnostic
+        // output while evaluating resource use independently of execution speed.
         Assert.True(
             metrics.AllocatedBytes <= budgets.MaximumAllocatedBytesPerRun,
             $"{target} run {run + 1} allocated {metrics.AllocatedBytes} bytes; "

@@ -27,6 +27,13 @@ runners. Process-memory growth alone is a noisy observation, not a substitute
 for those explicit resource-ownership assertions. Genuine infrastructure
 failures and timeouts can still fail either mode.
 
+The integration scaffolding scale tests follow the same rule for elapsed time:
+the 128-table, least-privilege scenario records duration as a diagnostic, with
+no absolute runtime ceiling. Its separate
+[resource policy](../../eng/scaffolding-performance-policy.json) still enforces
+allocation, managed-heap growth and metadata-command budgets; output
+determinism, visibility and cleanup checks remain active.
+
 ## Profiles
 
 | Profile | Provider workloads | Soak |

@@ -4,14 +4,14 @@ using Xunit.Abstractions;
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
-/// Enforces the declared large-schema, least-privilege, latency, allocation, managed
-/// heap, query-count, determinism, and cleanup contract for reverse engineering.
+/// Enforces the declared large-schema, least-privilege, allocation, managed-heap,
+/// query-count, determinism and cleanup contract, with diagnostic elapsed times.
 /// </summary>
 [IntegrationDatabaseTest]
 public sealed partial class MySqlScaffoldingScaleTests
 {
     private const string TablePrefix = "doka_scale_t";
-    private const int ExpectedPolicySchemaVersion = 2;
+    private const int ExpectedPolicySchemaVersion = 3;
     private const int ExpectedColumnsPerTable = 8;
 
     private static readonly JsonSerializerOptions s_policySerializerOptions = new()
