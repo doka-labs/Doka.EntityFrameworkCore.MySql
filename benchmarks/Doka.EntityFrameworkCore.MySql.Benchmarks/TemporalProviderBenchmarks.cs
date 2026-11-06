@@ -162,7 +162,7 @@ public class TemporalProviderBenchmarks
 
         totalLength += context
             .CteEntities
-            .FromSqlInterpolated(
+            .FromSql(
                 $"""
                  WITH filtered AS (
                      SELECT `Id`, `Name`

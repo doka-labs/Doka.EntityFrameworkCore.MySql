@@ -108,11 +108,11 @@ public sealed class MySqlBinaryByteArrayTypeMappingTests
         var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
 
         // Act
-        var actual = (First: ReadProviderValue(mapping, value), Second: ReadProviderValue(mapping, value));
+        var (first, second) = (ReadProviderValue(mapping, value), ReadProviderValue(mapping, value));
 
         // Assert
-        Assert.NotSame(actual.First, actual.Second);
-        Assert.Equal(actual.First, actual.Second);
+        Assert.NotSame(first, second);
+        Assert.Equal(first, second);
     }
 
     /// <summary>Rejects unsupported values rather than coercing or exposing their payload.</summary>

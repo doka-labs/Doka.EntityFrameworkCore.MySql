@@ -302,7 +302,7 @@ public sealed class MySqlScalarConvertTests
     public void Unsupported_type_throws_invalid_operation_exception()
     {
         // Arrange
-        Action act = () => MySqlScalarConvert.ToBoolean(new object());
+        static void act() => MySqlScalarConvert.ToBoolean(new object());
 
         // Act
         var recordedException = Record.Exception(act);
@@ -317,7 +317,7 @@ public sealed class MySqlScalarConvertTests
     public void DateTime_throws_invalid_operation_exception()
     {
         // Arrange
-        Action act = () => MySqlScalarConvert.ToBoolean(DateTime.Now);
+        static void act() => MySqlScalarConvert.ToBoolean(DateTime.Now);
 
         // Act
         var recordedException = Record.Exception(act);

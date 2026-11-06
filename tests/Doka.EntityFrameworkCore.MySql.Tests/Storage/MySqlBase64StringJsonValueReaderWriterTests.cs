@@ -45,7 +45,7 @@ public sealed class MySqlBase64StringJsonValueReaderWriterTests
     {
         // Arrange
         var readerWriter = MySqlBase64StringJsonValueReaderWriter.Instance;
-        Action act = () => readerWriter.FromJsonString("\"/w==\"");
+        void act() => readerWriter.FromJsonString("\"/w==\"");
 
         // Act
         var recordedException = Record.Exception(act);

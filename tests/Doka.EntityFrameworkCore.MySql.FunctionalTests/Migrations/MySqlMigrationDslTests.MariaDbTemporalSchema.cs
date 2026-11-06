@@ -18,10 +18,10 @@ public sealed partial class MySqlMigrationDslTests
     {
         // Arrange
         var serverVersion = MySqlServerVersion.MariaDb(new Version(11, 4, 0));
-        var contexts = CreateNativeTemporalSchemaChangeContexts(schemaChange, serverVersion);
+        var (source, target) = CreateNativeTemporalSchemaChangeContexts(schemaChange, serverVersion);
 
-        using var sourceContext = contexts.Source;
-        using var targetContext = contexts.Target;
+        using var sourceContext = source;
+        using var targetContext = target;
 
         // Act
         var exception =

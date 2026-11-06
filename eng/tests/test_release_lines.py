@@ -28,6 +28,19 @@ def initial_policy() -> dict:
     return lines.load_policy(INITIAL_POLICY_PATH)
 
 
+def ga_specification_baseline() -> dict[str, object]:
+    """Return detached GA-10 patch-review data for historical source fixtures.
+
+    WHY: the checked-out branch may prepare another upstream major; these
+    lifecycle tests consume only the reviewed version set, not its full suite.
+    """
+    return {
+        "schemaVersion": 1,
+        "efCoreVersions": ["10.0.8", "10.0.10", "10.0.11", "10.0.12", "10.0.13"],
+        "entries": [],
+    }
+
+
 def prepared_policy() -> dict:
     """Return detached qualification-only grants using the existing publisher."""
     policy = initial_policy()
@@ -634,8 +647,7 @@ class ToolchainTests(unittest.TestCase):
         self.write_toolchain()
         self.baseline_path = self.repo / lines.SPECIFICATION_BASELINE_PATH
         self.baseline_path.parent.mkdir(parents=True)
-        baseline_source = Path(__file__).resolve().parents[2] / lines.SPECIFICATION_BASELINE_PATH
-        self.baseline_path.write_bytes(baseline_source.read_bytes())
+        self.baseline_path.write_text(json.dumps(ga_specification_baseline()), encoding="ascii")
 
     def write_toolchain(
         self,

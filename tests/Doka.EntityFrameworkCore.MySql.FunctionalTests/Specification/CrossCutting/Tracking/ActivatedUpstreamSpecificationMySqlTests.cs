@@ -8,13 +8,13 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutt
 /// </summary>
 public sealed partial class ComplexTypesTrackingMySqlTest
 {
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override void Can_remove_from_complex_record_collection_with_nested_complex_collection(
         bool trackFromQuery
     ) => base.Can_remove_from_complex_record_collection_with_nested_complex_collection(trackFromQuery);
 
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override void Can_remove_from_complex_record_field_collection_with_nested_complex_collection(
         bool trackFromQuery

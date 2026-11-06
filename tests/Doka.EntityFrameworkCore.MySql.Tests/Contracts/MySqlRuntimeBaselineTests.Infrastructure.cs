@@ -84,7 +84,7 @@ public sealed partial class MySqlRuntimeBaselineTests
     {
         private ConnectionState _state = ConnectionState.Closed;
 
-        public List<RecordingDbCommand> Commands { get; } = new();
+        public List<RecordingDbCommand> Commands { get; } = [];
 
         public RecordingDbTransaction? LastTransaction { get; private set; }
 
@@ -144,9 +144,9 @@ public sealed partial class MySqlRuntimeBaselineTests
 
     private sealed class AsyncAwareDriverFacade : IMySqlDriverFacade
     {
-        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = new();
+        public List<AsyncAwareDbConnection> DatabaseConnections { get; } = [];
 
-        public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
+        public List<AsyncAwareDbConnection> ServerConnections { get; } = [];
 
         public string DriverName => "AsyncAware";
 

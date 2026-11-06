@@ -89,7 +89,7 @@ public sealed class MySqlClientScriptExecutorTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             MySqlClientScriptExecutor.ParseStatements(script);
 
         // Act

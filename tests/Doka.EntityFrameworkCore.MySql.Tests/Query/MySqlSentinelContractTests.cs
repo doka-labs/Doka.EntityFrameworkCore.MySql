@@ -140,7 +140,7 @@ public sealed class MySqlSentinelContractTests
             .GetName(MySqlSentinelKind.JsonSet)
             .Replace("json_set", "unknown", StringComparison.Ordinal);
 
-        Action act = () => MySqlSentinelContract.Resolve(unknownName, argumentCount: 1);
+        void act() => MySqlSentinelContract.Resolve(unknownName, argumentCount: 1);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -156,7 +156,7 @@ public sealed class MySqlSentinelContractTests
     public void Non_interval_sentinel_rejects_interval_unit()
     {
         // Arrange
-        Action act = () => MySqlSentinelContract.GetName(
+        static void act() => MySqlSentinelContract.GetName(
             MySqlSentinelKind.Match,
             MySqlIntervalUnit.Day);
 
@@ -177,6 +177,10 @@ public sealed class MySqlSentinelContractTests
             or MySqlSentinelKind.GuidToString
             or MySqlSentinelKind.StringJsonDecode
             or MySqlSentinelKind.TimeSpanJsonDecode
+            or MySqlSentinelKind.IsNotTrue
+            or MySqlSentinelKind.DateTimeOffsetDateTime
+            or MySqlSentinelKind.DateTimeOffsetUtcDateTime
+            or MySqlSentinelKind.DateTimeOffsetLocalDateTime
             or MySqlSentinelKind.TimeOfDayTicks
             or MySqlSentinelKind.OnesComplement => 1,
         MySqlSentinelKind.JsonSet => 3,

@@ -27,12 +27,16 @@ output_directory="$(cd "${output_directory}" && pwd)"
 reports="$(
     find "${coverage_root}" \
         -type f \
-        -name 'coverage.cobertura.xml' \
+        \( \
+            -name 'coverage.cobertura.xml' \
+            -o -name 'coverage.cobertura.*.xml' \
+            -o -name '*.coverage.cobertura.*.xml' \
+        \) \
         ! -path "${output_directory}/*" \
         | sort -u
 )"
 if [[ -z "${reports}" ]]; then
-    echo "No coverage.cobertura.xml inputs found below '${coverage_root}'." >&2
+    echo "No Cobertura coverage inputs found below '${coverage_root}'." >&2
     exit 2
 fi
 

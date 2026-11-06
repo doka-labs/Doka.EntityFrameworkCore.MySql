@@ -5,16 +5,19 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.4 patch release, see the [changelog](../CHANGELOG.md#1064---2026-11-05),
+This checkout prepares the isolated `11.0.0-rc.3` line for .NET 11 and the
+exact EF Core release candidate pinned in `Directory.Packages.props`.
+See the [preview changelog](../CHANGELOG.md#unreleased),
 [asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
-[shared qualification overview](operations/workflow-overview.md). The release
-corrects [fixed binary byte-array reads](provider-configuration.md#fixed-binary-byte-arrays),
-strengthens cancellation and lifecycle handling, and improves generated-context
-runtime qualification. Repository cleanup follows the reviewed Rider rules.
-Application configuration, the .NET 10 requirement, EF Core 10.0.8 minimum,
-supported engines and storage defaults remain unchanged. The stable API baseline
-adds mapping infrastructure for generated compiled models; regenerate existing
-compiled models after upgrading to adopt the corrected binary reader.
+[shared qualification overview](operations/workflow-overview.md).
+
+The branch also includes the [10.6.4 fixes](../CHANGELOG.md#1064---2026-11-05)
+for [fixed binary byte-array reads](provider-configuration.md#fixed-binary-byte-arrays),
+cancellation, lifecycle handling and generated-context runtime qualification.
+Repository cleanup follows the reviewed Rider rules. Supported engines and
+storage defaults remain unchanged. Mapping infrastructure preserves the
+corrected binary reader in generated compiled models; regenerate existing
+compiled models after upgrading to adopt that reader.
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
 remains `>= 2.6.1` and `< 3.0.0`.
 

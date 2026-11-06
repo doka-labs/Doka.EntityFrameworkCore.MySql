@@ -24,7 +24,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies my sql84 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -35,7 +35,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies my sql97 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql97 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -46,7 +46,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies maria db1011 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb1011)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb1011 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -57,7 +57,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies maria db114 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb114)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb114 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -68,7 +68,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies maria db118 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb118)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb118 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -79,7 +79,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// <summary>
     /// Verifies maria db123 validates index key contracts.
     /// </summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb123)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MariaDb123 })]
     [InlineData(IndexKeyScenario.Overlong)]
     [InlineData(IndexKeyScenario.Boundary)]
     [InlineData(IndexKeyScenario.PrefixEvolution)]
@@ -180,7 +180,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
             // Act
             // WHY: This case exercises the synchronous migration warning path independently of MigrateAsync.
             // ReSharper disable once MethodHasAsyncOverload
-            var exception = Assert.Throws<InvalidOperationException>(() => context.Database.Migrate());
+            var exception = Assert.Throws<InvalidOperationException>(context.Database.Migrate);
 
             // Assert
             Assert.Contains("server code 1071", exception.Message, StringComparison.Ordinal);

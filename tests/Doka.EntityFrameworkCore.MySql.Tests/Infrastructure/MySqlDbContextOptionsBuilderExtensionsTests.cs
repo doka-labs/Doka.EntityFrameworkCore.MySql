@@ -75,7 +75,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     {
         // Arrange
         const ParameterTranslationMode invalidMode = (ParameterTranslationMode)99;
-        Action act = () =>
+        static void act() =>
             BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode));
 
         // Act
@@ -149,7 +149,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     public void RequireUserVariables_stores_the_requirement()
     {
         // Arrange
-        Action<MySqlDbContextOptionsBuilder> configure = options => options.RequireUserVariables();
+        static void configure(MySqlDbContextOptionsBuilder options) => options.RequireUserVariables();
 
         // Act
         var extension = BuildExtension(configure);
@@ -249,7 +249,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;GuidFormat=Binary16;");
 
-        Action act = () =>
+        void act() =>
             builder.UseMySql(
                 connection,
                 MySqlServerVersion.MySql(new Version(8, 4, 0)));
@@ -301,7 +301,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
-        Action act = () => builder.UseMySql(
+        void act() => builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
             options => options.EnableRetryOnFailure(maxRetryCount: 0));
@@ -341,7 +341,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             BuildExtension(options => options.CommandTimeout(commandTimeout));
 
         // Act
@@ -379,7 +379,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             BuildExtension(options => options.MaxBatchSize(maxBatchSize));
 
         // Act
@@ -417,7 +417,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        Action act = () =>
+        void act() =>
             BuildExtension(options => options.MinBatchSize(minBatchSize));
 
         // Act
@@ -479,7 +479,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        Action act = () => BuildExtension(options => options.MigrationsHistoryTable(tableName));
+        void act() => BuildExtension(options => options.MigrationsHistoryTable(tableName));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -515,7 +515,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     {
         // Arrange
         const QuerySplittingBehavior invalidValue = (QuerySplittingBehavior)99;
-        Action act = () =>
+        static void act() =>
             BuildExtension(options => options.UseQuerySplittingBehavior(invalidValue));
 
         // Act

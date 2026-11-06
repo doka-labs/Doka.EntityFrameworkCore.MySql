@@ -350,7 +350,7 @@ public sealed partial class MySqlQueryTranslationExtendedTests
         // Act
         var sql = context
             .Items
-            .FromSqlInterpolated(
+            .FromSql(
                 $"""
                  WITH `FilteredItems` AS (
                      SELECT *

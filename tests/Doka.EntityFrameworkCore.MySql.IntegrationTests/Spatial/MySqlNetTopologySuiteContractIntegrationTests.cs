@@ -72,10 +72,13 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
     /// <summary>Retains migration, enforcement, catalog recovery, and scaffolding as one SRID lifecycle.</summary>
     [RequiresDatabaseTargetsTheory(
+        new[]
+        {
         IntegrationDatabaseTarget.MariaDb1011,
         IntegrationDatabaseTarget.MariaDb114,
         IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+            IntegrationDatabaseTarget.MariaDb123
+        })]
     [MemberData(nameof(MariaDbCases))]
     public async Task MariaDb_srid_check_migrates_enforces_and_scaffolds(
         string target
@@ -131,7 +134,7 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                     .ConfigureAwait(false);
             }
 
-            var showCreate = await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
+            var (hasRow, createSql) = await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
                 .ConfigureAwait(false);
 
             var failure = await Record.ExceptionAsync(() => context.Database.ExecuteSqlRawAsync(
@@ -152,8 +155,8 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             // Assert
             Assert.Contains("CHECK (ST_SRID(`Location`) = 4326)", sql, StringComparison.Ordinal);
             Assert.DoesNotContain("point SRID 4326", sql, StringComparison.OrdinalIgnoreCase);
-            Assert.True(showCreate.HasRow);
-            var showCreateSql = showCreate.Sql;
+            Assert.True(hasRow);
+            var showCreateSql = createSql;
 
             Assert.NotNull(showCreateSql);
             Assert.Contains("CHECK (srid(`Location`) = 4326)", showCreateSql, StringComparison.OrdinalIgnoreCase);

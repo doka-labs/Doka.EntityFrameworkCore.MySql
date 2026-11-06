@@ -66,7 +66,7 @@ public sealed class MySqlMigrationFeatureSetTests
             MySqlServerVersion.MySql(new Version(8, 4, 11))
                 .Profile);
 
-        Action act = () => features.GetSupport((MySqlMigrationFeature)int.MaxValue);
+        void act() => features.GetSupport((MySqlMigrationFeature)int.MaxValue);
 
         // Act
         var recordedException = Record.Exception(act);

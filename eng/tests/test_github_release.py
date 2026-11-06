@@ -577,6 +577,8 @@ class GitHubReleaseTests(unittest.TestCase):
                 "sbom/provider.cdx.json": (b'{"bomFormat":"CycloneDX"}\n', "sbom"),
             }
         )
+        # WHY: Historical GA-10 evidence retains its floor/latest receipts
+        # even when this test runs on an upstream RC preparation branch.
         efcore_packages = (
             "Microsoft.EntityFrameworkCore.Design",
             "Microsoft.EntityFrameworkCore.Relational",
