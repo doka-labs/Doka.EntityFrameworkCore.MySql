@@ -1,5 +1,3 @@
-using System.Runtime.ExceptionServices;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies bounded cleanup scheduling and cancellation recovery.</summary>
@@ -317,81 +315,22 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         }
     }
 
-    /// <summary>Releases a probe's lock and observes all owned work without masking its primary failure.</summary>
-    /// <param name="cancellation">The cancellation source, or null when unlocking completes the work.</param>
-    /// <param name="releaseLock">The protected asynchronous release of the probe-owned database lock.</param>
-    /// <param name="pending">The operation that must finish before its resources can be disposed.</param>
-    /// <param name="primaryFailure">The existing failure that remains authoritative over teardown failures.</param>
-    private static async Task CompleteLockProbeAsync(
+    /// <summary>Completes the cache probe through the shared protected database-lock cleanup boundary.</summary>
+    /// <param name="cancellation">The optional foreground cancellation source.</param>
+    /// <param name="releaseLock">The protected release of the test-owned lock.</param>
+    /// <param name="pending">The work that must be observed before resources are reused.</param>
+    /// <param name="primaryFailure">The failure that remains authoritative over cleanup failures.</param>
+    private static Task CompleteLockProbeAsync(
         CancellationTokenSource? cancellation,
         Func<Task> releaseLock,
         Task pending,
         Exception? primaryFailure
-    )
-    {
-        // WHY: Cancellation, lock release, and task drainage must all finish even if one fails.
-        // This ownership boundary deliberately has no cancellation token or abandonable timed wait.
-        List<Exception>? failures = null;
-
-        try
-        {
-            if (cancellation is not null)
-            {
-                await cancellation
-                    .CancelAsync()
-                    .ConfigureAwait(false);
-            }
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-        }
-
-        try
-        {
-            await releaseLock()
-                .ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-        }
-
-        try
-        {
-            // WHY: IsCompleted also includes faulted and canceled tasks, which still require observation.
-            await pending.ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            if (!ReferenceEquals(exception, primaryFailure))
-            {
-                (failures ??= []).Add(exception);
-            }
-        }
-
-        if (failures is null)
-        {
-            return;
-        }
-
-        if (primaryFailure is not null)
-        {
-            // WHY: Keep secondary failures available without changing the original exception identity or stack.
-            primaryFailure.Data[nameof(CompleteLockProbeAsync)] = new AggregateException(failures);
-
-            return;
-        }
-
-        if (failures.Count == 1)
-        {
-            ExceptionDispatchInfo
-                .Capture(failures[0])
-                .Throw();
-        }
-
-        throw new AggregateException("Lock probe teardown failed.", failures);
-    }
+    ) => DatabaseLockProbeCleanup.CompleteLockProbeAsync(
+        cancellation,
+        releaseLock,
+        pending,
+        primaryFailure,
+        afterDrain: null);
 
     /// <summary>Starts the selected foreground operation that initiates opportunistic cleanup.</summary>
     private static async Task<byte[]?> InvokeCleanupInitiatorAsync(

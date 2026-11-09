@@ -13,6 +13,105 @@ public sealed class MySqlCacheCleanupIntegrationTests
     /// <summary>Reports each selected engine and binary-key access mode.</summary>
     public static TheoryData<string, bool> BinaryKeyCases => CreateBinaryKeyCases();
 
+    /// <summary>Reports each selected engine with and without deterministic lock-probe prioritization.</summary>
+    public static TheoryData<string, bool> CleanupCandidateOrderCases
+    {
+        get
+        {
+            var cases = new TheoryData<string, bool>();
+
+            foreach (var target in IntegrationTestEnvironment.GetSelectedTargets())
+            {
+                cases.Add(target.ToString(), false);
+                cases.Add(target.ToString(), true);
+            }
+
+            return cases;
+        }
+    }
+
+    /// <summary>Probe preparation must place the locked seed in the bounded batch regardless of elapsed setup time.</summary>
+    /// <param name="targetName">The selected supported engine.</param>
+    /// <param name="prioritizeProbe">Whether preparation must move the otherwise excluded seed to the first position.</param>
+    [Theory]
+    [MemberData(nameof(CleanupCandidateOrderCases))]
+    public async Task Cleanup_probe_prioritization_uses_seed_order_instead_of_elapsed_wall_time(
+        string targetName,
+        bool prioritizeProbe
+    )
+    {
+        // Arrange
+        await using var store = await CacheIntegrationStore
+            .CreateAsync(Enum.Parse<IntegrationDatabaseTarget>(targetName), CancellationToken.None)
+            .ConfigureAwait(true);
+
+        await store
+            .ExecuteAsync(MySqlCacheSchema.GetCreateScript(store.SchemaName, store.TableName), CancellationToken.None)
+            .ConfigureAwait(true);
+
+        await store
+            .InsertExpiredEntriesAsync(1005, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        // WHY: Historical seed times reproduce arbitrarily slow setup without sleeps or a machine-speed assumption.
+        await store
+            .ExecuteAsync(
+                $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = '2020-01-01 00:00:00';",
+                CancellationToken.None)
+            .ConfigureAwait(true);
+
+        await store
+            .ExecuteForKeyAsync(
+                $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = '2020-01-01 00:00:01' "
+                + "WHERE `Id` = CAST(@key AS BINARY);",
+                "expired-0",
+                CancellationToken.None)
+            .ConfigureAwait(true);
+
+        await using var observer = new MySqlConnection(store.ConnectionString);
+        await observer
+            .OpenAsync(CancellationToken.None)
+            .ConfigureAwait(true);
+
+        await using var command = new MySqlCommand(new MySqlCacheSql(store.QualifiedTableName).SelectExpired, observer);
+        command.Parameters.AddWithValue("@batchSize", MySqlCacheDatabaseOperations.CleanupBatchSize);
+        var candidateCount = 0;
+        var probeMatches = 0;
+
+        // Act
+        if (prioritizeProbe)
+        {
+            await PrioritizeCleanupProbeRowAsync(store, "expired-0", CancellationToken.None)
+                .ConfigureAwait(true);
+        }
+
+        await using var reader = await command
+            .ExecuteReaderAsync(CancellationToken.None)
+            .ConfigureAwait(true);
+
+        while (await reader
+            .ReadAsync(CancellationToken.None)
+            .ConfigureAwait(true))
+        {
+            candidateCount++;
+
+            if (reader
+                .GetFieldValue<byte[]>(0)
+                .AsSpan()
+                .SequenceEqual("expired-0"u8))
+            {
+                probeMatches++;
+            }
+        }
+
+        // Assert
+        Assert.Equal(MySqlCacheDatabaseOperations.CleanupBatchSize, candidateCount);
+        Assert.Equal(prioritizeProbe
+                ? 1
+                : 0,
+            probeMatches);
+    }
+
     /// <summary>Cleanup keeps binary candidate keys as binary SQL parameters.</summary>
     [Fact]
     public void Cleanup_command_preserves_binary_candidate_keys()
@@ -338,12 +437,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
 
         const string key = "expired-0";
 
-        await store
-            .ExecuteForKeyAsync(
-                $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -2, UTC_TIMESTAMP(6)) "
-                + "WHERE `Id` = CAST(@key AS BINARY);",
-                key,
-                cancellationToken)
+        await PrioritizeCleanupProbeRowAsync(store, key, cancellationToken)
             .ConfigureAwait(false);
 
         var time = new CacheManualTimeProvider();
@@ -495,6 +589,22 @@ public sealed class MySqlCacheCleanupIntegrationTests
             await cache
                 .GetAsync(key, cancellationToken)
                 .ConfigureAwait(false));
+    }
+
+    /// <summary>Moves the locked seed ahead of the other expired entries without depending on setup duration.</summary>
+    private static Task PrioritizeCleanupProbeRowAsync(
+        CacheIntegrationStore store,
+        string key,
+        CancellationToken cancellationToken
+    )
+    {
+        // WHY: The 1,000-key batch orders by expiry. Wall-clock-relative expiry can exclude the locked row
+        // after slow setup, so derive its earlier timestamp from the seed already stored in the database.
+        return store.ExecuteForKeyAsync(
+            $"UPDATE {store.QualifiedTableName} SET `ExpiresAtUtc` = TIMESTAMPADD(SECOND, -2, `ExpiresAtUtc`) "
+            + "WHERE `Id` = CAST(@key AS BINARY);",
+            key,
+            cancellationToken);
     }
 
     private static Task<byte[]?> RunCleanupAsync(

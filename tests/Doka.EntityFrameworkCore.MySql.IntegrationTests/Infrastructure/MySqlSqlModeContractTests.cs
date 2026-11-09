@@ -10,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 [IntegrationDatabaseTest]
 [Trait("Category", "ConfigurationContract")]
 [Trait("VerificationLane", "FullIntegration")]
-public sealed class MySqlSqlModeContractTests
+public sealed partial class MySqlSqlModeContractTests
 {
     private static readonly string[] s_sqlModes =
     [
@@ -98,6 +98,16 @@ public sealed class MySqlSqlModeContractTests
             .ConfigureAwait(false);
     }
 
+    // WHY: Schema ownership uses CallerFilePath, so every partial must obtain its connection string here.
+    /// <summary>Keeps every topic partial in the same test-owned schema and uses physical lock-owner sessions.</summary>
+    private static string CreateSqlModeConnectionString(
+        IntegrationDatabaseTarget target
+    ) => new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
+    {
+        GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
+        Pooling = false,
+    }.ConnectionString;
+
     private static async Task AssertTextLiteralContractAsync(
         IntegrationDatabaseTarget target,
         MySqlServerVersion serverVersion,
@@ -106,12 +116,7 @@ public sealed class MySqlSqlModeContractTests
     {
         // Arrange
         const string payload = "path\\segment 'quoted'\nemoji:\U0001F680";
-        var connectionString =
-            new MySqlConnectionStringBuilder(IntegrationTestEnvironment.GetConnectionString(target))
-            {
-                GuidFormat = MySqlConnector.MySqlGuidFormat.Binary16,
-                Pooling = false,
-            }.ConnectionString;
+        var connectionString = CreateSqlModeConnectionString(target);
 
         await using var connection = new MySqlConnection(connectionString);
         await connection
@@ -575,150 +580,6 @@ public sealed class MySqlSqlModeContractTests
         Assert.True(reader.Read());
         Assert.Equal(expectedSqlMode, reader.GetString(0));
         Assert.Equal(1, reader.GetInt32(1));
-    }
-
-    private static async Task AssertCanceledMigrationRestoresSessionAsync(
-        string connectionString,
-        MySqlConnection connection,
-        DbContext context,
-        CancellationToken cancellationToken
-    )
-    {
-        // Arrange
-        const string expectedSqlMode = "ANSI_QUOTES,STRICT_TRANS_TABLES";
-        var tableName = $"SqlModeCancellation_{Guid.NewGuid():N}";
-        await using var blocker = new MySqlConnection(connectionString);
-        await using var observer = new MySqlConnection(connectionString);
-        await blocker
-            .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await observer
-            .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await SetSqlModeAsync(connection, expectedSqlMode, cancellationToken)
-            .ConfigureAwait(false);
-
-        await using (var createTable = connection.CreateCommand())
-        {
-            createTable.CommandText = $"CREATE TABLE `{tableName}` (`Id` int NOT NULL);";
-            _ = await createTable
-                .ExecuteNonQueryAsync(cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        var lockHeld = false;
-
-        try
-        {
-            await using (var lockCommand = blocker.CreateCommand())
-            {
-                lockCommand.CommandText = $"LOCK TABLES `{tableName}` WRITE;";
-                _ = await lockCommand
-                    .ExecuteNonQueryAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                lockHeld = true;
-            }
-
-            var generator = context.GetService<IMigrationsSqlGenerator>();
-            var relationalConnection = context.GetService<IRelationalConnection>();
-            var operation = new AddColumnOperation
-            {
-                Table = tableName,
-                Name = "Value",
-                ClrType = typeof(string),
-                ColumnType = "varchar(64)",
-                IsNullable = true,
-                Comment = "path\\segment",
-            };
-
-            var migrationCommand = Assert.Single(generator.Generate([operation], context.Model));
-            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-            // Act
-            var execution = migrationCommand.ExecuteNonQueryAsync(
-                relationalConnection,
-                cancellationToken: cancellation.Token);
-
-            await WaitForMetadataLockAsync(observer, connection.ServerThread, cancellationToken)
-                .ConfigureAwait(false);
-
-            await cancellation
-                .CancelAsync()
-                .ConfigureAwait(false);
-
-            // WHY: Join the canceled command before verifying restoration; canceling this wait could leave it running.
-            _ = await Assert
-                .ThrowsAnyAsync<OperationCanceledException>(async () =>
-                    await execution.ConfigureAwait(false))
-                .WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
-                .ConfigureAwait(false);
-
-            // Assert
-            Assert.Equal(
-                expectedSqlMode,
-                await ReadSqlModeAsync(connection, cancellationToken)
-                    .ConfigureAwait(false));
-
-            await using var verify = connection.CreateCommand();
-            verify.CommandText = "SELECT 1;";
-            Assert.Equal(
-                1,
-                Convert.ToInt32(
-                    await verify
-                        .ExecuteScalarAsync(cancellationToken)
-                        .ConfigureAwait(false),
-                    CultureInfo.InvariantCulture));
-        }
-        finally
-        {
-            if (lockHeld)
-            {
-                await using var unlock = blocker.CreateCommand();
-                unlock.CommandText = "UNLOCK TABLES;";
-                _ = await unlock
-                    .ExecuteNonQueryAsync(CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-
-            await using var dropTable = connection.CreateCommand();
-            dropTable.CommandText = $"DROP TABLE IF EXISTS `{tableName}`;";
-            _ = await dropTable
-                .ExecuteNonQueryAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-        }
-    }
-
-    private static async Task WaitForMetadataLockAsync(
-        MySqlConnection observer,
-        int connectionId,
-        CancellationToken cancellationToken
-    )
-    {
-        var timeout = Stopwatch.StartNew();
-
-        while (timeout.Elapsed < TimeSpan.FromSeconds(10))
-        {
-            await using var command = observer.CreateCommand();
-            command.CommandText = "SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @connectionId;";
-            command.Parameters.AddWithValue("@connectionId", connectionId);
-            var state = await command
-                .ExecuteScalarAsync(cancellationToken)
-                .ConfigureAwait(false) as string;
-
-            if (state?.Contains("metadata lock", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                return;
-            }
-
-            await Task
-                .Delay(TimeSpan.FromMilliseconds(25), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        throw new TimeoutException("The migration command did not enter the expected metadata-lock wait state.");
     }
 
     private static async Task AssertPoolReuseAfterFailureAsync(

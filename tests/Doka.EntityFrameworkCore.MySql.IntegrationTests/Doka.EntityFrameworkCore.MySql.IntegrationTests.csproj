@@ -32,6 +32,9 @@
 
   <ItemGroup>
     <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Infrastructure/MySqlSqlModeContractTests.*.cs">
+      <DependentUpon>MySqlSqlModeContractTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Storage/MySqlBinaryByteArrayIntegrationTests.*.cs">
       <DependentUpon>MySqlBinaryByteArrayIntegrationTests.cs</DependentUpon>
     </Compile>
