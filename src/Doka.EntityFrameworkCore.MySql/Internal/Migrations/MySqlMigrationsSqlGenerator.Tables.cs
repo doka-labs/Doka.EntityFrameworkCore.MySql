@@ -752,7 +752,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
-        if (_mySqlSingletonOptions.Profile?.GetSupport(ProviderCapability.RenameColumn) == ProviderSupportStatus.Native)
+        if (Profile.GetSupport(ProviderCapability.RenameColumn) == ProviderSupportStatus.Native)
         {
             builder
                 .Append("ALTER TABLE ")

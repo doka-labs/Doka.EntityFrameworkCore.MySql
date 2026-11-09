@@ -247,7 +247,8 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mySql84);
-        Action act = () => _ = context.Model;
+
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -266,7 +267,8 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mariaDb1043);
-        Action act = () => _ = context.Model;
+
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -284,7 +286,8 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<NonUniqueIndexConfiguration>(s_mariaDb114);
-        Action act = () => _ = context.Model;
+
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);

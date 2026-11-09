@@ -132,7 +132,8 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         using var fixture = PerformanceGateFixture.Create(sampleCountOffset: 1);
-        Action act = () => BenchmarkPerformanceGate.Evaluate(
+
+        void act() => BenchmarkPerformanceGate.Evaluate(
             fixture.ContractPath,
             fixture.ReportsPath,
             "mysql84",

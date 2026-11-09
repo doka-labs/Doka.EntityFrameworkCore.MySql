@@ -1,6 +1,5 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -45,10 +44,6 @@ public sealed class FunkyDataQueryMySqlTest : FunkyDataQueryTestBase<FunkyDataQu
         Fixture.TestSqlLoggerFactory.Clear();
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
-
-    protected override QueryAsserter CreateQueryAsserter(
-        FunkyDataQueryMySqlFixture fixture
-    ) => new RelationalQueryAsserter(fixture, RewriteExpectedQueryExpression, RewriteServerQueryExpression);
 }
 
 public sealed class

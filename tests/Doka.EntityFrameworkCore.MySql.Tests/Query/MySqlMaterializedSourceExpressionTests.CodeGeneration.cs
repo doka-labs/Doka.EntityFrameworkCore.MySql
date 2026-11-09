@@ -2,7 +2,6 @@ using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.EntityFrameworkCore.Design.Internal;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
@@ -112,7 +111,8 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         var source = CreateSource("cyclic_seed", tables, []);
         var expression = new MySqlMaterializedSourceExpression("cycle", 41, source);
         tables.Add(expression);
-        Action act = () => TranslateConstantToCSharp(expression, context);
+
+        void act() => TranslateConstantToCSharp(expression, context);
 
         // Act
         var recordedException = Record.Exception(act);

@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Validates temporal-table mappings, shared-table contracts, and engine restrictions.
-/// </summary>
+/// <summary>Validates temporal-table mappings, shared-table contracts, and engine restrictions.</summary>
 internal sealed partial class MySqlModelValidator
 {
     private void ValidateTemporalTables(
@@ -191,7 +189,9 @@ internal sealed partial class MySqlModelValidator
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            ThrowInvalidTemporalTable(logger, $"Entity type '{entityType.DisplayName()}' has no {role} name.");
+            ThrowInvalidTemporalTable(
+                logger,
+                $"Entity type '{entityType.DisplayName()}' has no {role} name.");
         }
 
         if (name!.Length > MySqlConventionSetBuilder.MaxIdentifierLength)

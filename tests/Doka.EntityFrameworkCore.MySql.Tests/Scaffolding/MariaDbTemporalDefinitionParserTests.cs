@@ -96,16 +96,15 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unknown_without_overlaps_period()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime(
-                """
-                CREATE TABLE `invalid` (
-                  `ValidFrom` datetime(6) NOT NULL,
-                  `ValidTo` datetime(6) NOT NULL,
-                  PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
-                  PRIMARY KEY (`OtherPeriod` WITHOUT OVERLAPS)
-                ) ENGINE=InnoDB
-                """);
+        static void act() => MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            """
+            CREATE TABLE `invalid` (
+              `ValidFrom` datetime(6) NOT NULL,
+              `ValidTo` datetime(6) NOT NULL,
+              PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
+              PRIMARY KEY (`OtherPeriod` WITHOUT OVERLAPS)
+            ) ENGINE=InnoDB
+            """);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -149,18 +148,17 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_multiple_application_periods()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime(
-                """
-                CREATE TABLE `multiple_periods` (
-                  `FirstStart` datetime(6) NOT NULL,
-                  `FirstEnd` datetime(6) NOT NULL,
-                  `SecondStart` datetime(6) NOT NULL,
-                  `SecondEnd` datetime(6) NOT NULL,
-                  PERIOD FOR `FirstValidity` (`FirstStart`, `FirstEnd`),
-                  PERIOD FOR `SecondValidity` (`SecondStart`, `SecondEnd`)
-                ) ENGINE=InnoDB
-                """);
+        static void act() => MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            """
+            CREATE TABLE `multiple_periods` (
+              `FirstStart` datetime(6) NOT NULL,
+              `FirstEnd` datetime(6) NOT NULL,
+              `SecondStart` datetime(6) NOT NULL,
+              `SecondEnd` datetime(6) NOT NULL,
+              PERIOD FOR `FirstValidity` (`FirstStart`, `FirstEnd`),
+              PERIOD FOR `SecondValidity` (`SecondStart`, `SecondEnd`)
+            ) ENGINE=InnoDB
+            """);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -177,14 +175,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_without_overlaps_without_period()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime(
-                """
-                CREATE TABLE `missing_period` (
-                  `Validity` datetime(6) NOT NULL,
-                  PRIMARY KEY (`Validity` WITHOUT OVERLAPS)
-                ) ENGINE=InnoDB
-                """);
+        static void act() => MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            """
+            CREATE TABLE `missing_period` (
+              `Validity` datetime(6) NOT NULL,
+              PRIMARY KEY (`Validity` WITHOUT OVERLAPS)
+            ) ENGINE=InnoDB
+            """);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -223,9 +220,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_literal()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime(
-                "CREATE TABLE `invalid` (`Value` varchar(32) DEFAULT 'unterminated);");
+        static void act() => MariaDbTemporalDefinitionParser.ParseApplicationTime(
+            "CREATE TABLE `invalid` (`Value` varchar(32) DEFAULT 'unterminated);");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -242,8 +238,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_identifier()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `unterminated (id int);");
+        static void act()
+            => MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `unterminated (id int);");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -260,8 +256,7 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_missing_table_definition()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid`;");
+        static void act() => MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid`;");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -278,8 +273,8 @@ public sealed class MariaDbTemporalDefinitionParserTests
     public void ParseApplicationTime_rejects_unterminated_table_definition()
     {
         // Arrange
-        Action act = () =>
-            MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid` (`Id` int(11)");
+        static void act()
+            => MariaDbTemporalDefinitionParser.ParseApplicationTime("CREATE TABLE `invalid` (`Id` int(11)");
 
         // Act
         var recordedException = Record.Exception(act);

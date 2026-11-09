@@ -226,7 +226,7 @@ public sealed class MySqlStraightJoinExpressionTests
                 + string.Join(Environment.NewLine, accessors)
                 + " }";
 
-            syntax = CSharpSyntaxTree.ParseText(generated);
+            syntax = CSharpSyntaxTree.ParseText(generated, cancellationToken: TestContext.Current.CancellationToken);
             rebuilt = CompileAndReconstruct(syntax, context.GetService<IRelationalTypeMappingSource>());
         }
         else
@@ -261,7 +261,9 @@ public sealed class MySqlStraightJoinExpressionTests
             Assert.NotNull(syntax);
             Assert.Equal(3, Regex.Count(csharp, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\("));
             Assert.Contains(nameof(MySqlStraightJoinExpression), csharp, StringComparison.Ordinal);
-            Assert.DoesNotContain(syntax.GetDiagnostics(), value => value.Severity == DiagnosticSeverity.Error);
+            Assert.DoesNotContain(
+                syntax.GetDiagnostics(TestContext.Current.CancellationToken),
+                value => value.Severity == DiagnosticSeverity.Error);
         }
     }
 
@@ -302,7 +304,7 @@ public sealed class MySqlStraightJoinExpressionTests
             + " }";
 
         var reconstructed = CompileAndReconstruct(
-            CSharpSyntaxTree.ParseText(generated),
+            CSharpSyntaxTree.ParseText(generated, cancellationToken: TestContext.Current.CancellationToken),
             context.GetService<IRelationalTypeMappingSource>());
 
         var expectedSql = context

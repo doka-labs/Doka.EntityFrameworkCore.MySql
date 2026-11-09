@@ -97,8 +97,8 @@ public sealed class MySqlSpatialInputGuardTests
         // Arrange
         var line = new WKTReader().Read("LINESTRING (0 0, 1 1)");
         var providerValue = MySqlGeometry.FromWkb(4326, new WKBWriter().Write(line));
-        Action act = () =>
-            InvokeReadSpatialColumn(typeof(Point), providerValue);
+
+        void act() => InvokeReadSpatialColumn(typeof(Point), providerValue);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -115,8 +115,7 @@ public sealed class MySqlSpatialInputGuardTests
     public void ReadSpatialColumn_rejects_an_unknown_driver_shape()
     {
         // Arrange
-        Action act = () =>
-            InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)");
+        static void act() => InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -197,7 +196,8 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkt = CreateNestedWkt(MySqlSpatialInputGuard.MaximumNestingDepth);
-        Action act = () => MySqlSpatialValueReader.ReadWkt(wkt);
+
+        void act() => MySqlSpatialValueReader.ReadWkt(wkt);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -217,7 +217,8 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkt = CreateNestedWkt(depth: 50_000);
-        Action act = () => MySqlSpatialValueReader.ReadWkt(wkt);
+
+        void act() => MySqlSpatialValueReader.ReadWkt(wkt);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -261,7 +262,8 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkb = CreateNestedWkb(MySqlSpatialInputGuard.MaximumNestingDepth, littleEndian);
-        Action act = () => MySqlSpatialValueReader.ReadWkb(wkb);
+
+        void act() => MySqlSpatialValueReader.ReadWkb(wkb);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -280,7 +282,8 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
-        Action act = () => MySqlSpatialValueReader.ReadWkb(wkb);
+
+        void act() => MySqlSpatialValueReader.ReadWkb(wkb);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -307,8 +310,7 @@ public sealed class MySqlSpatialInputGuardTests
             ? MySqlGeometry.FromWkb(0, wkb)
             : wkb;
 
-        Action act = () =>
-            InvokeReadSpatialColumn(typeof(Geometry), providerValue);
+        void act() => InvokeReadSpatialColumn(typeof(Geometry), providerValue);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -338,7 +340,7 @@ public sealed class MySqlSpatialInputGuardTests
             encodedCollectionType,
             includesSrid);
 
-        var act = () => MySqlSpatialInputGuard.ValidateWkb(wkb);
+        void act() => MySqlSpatialInputGuard.ValidateWkb(wkb);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -356,7 +358,7 @@ public sealed class MySqlSpatialInputGuardTests
     public void ReadWkt_preserves_existing_parse_errors_for_malformed_input()
     {
         // Arrange
-        Action act = () => MySqlSpatialValueReader.ReadWkt("POINT (");
+        static void act() => MySqlSpatialValueReader.ReadWkt("POINT (");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -373,7 +375,7 @@ public sealed class MySqlSpatialInputGuardTests
     public void ReadWkb_preserves_existing_parse_errors_for_malformed_input()
     {
         // Arrange
-        Action act = () => MySqlSpatialValueReader.ReadWkb([1]);
+        static void act() => MySqlSpatialValueReader.ReadWkb([1]);
 
         // Act
         var recordedException = Record.Exception(act);

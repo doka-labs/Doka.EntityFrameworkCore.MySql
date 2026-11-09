@@ -39,7 +39,8 @@ public sealed class MySqlTemporalTopologyTests
     {
         // Arrange
         using var context = CreateContext<CurrentOwnedConfiguration>();
-        Action act = () => _ = context.Model;
+
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -113,7 +114,7 @@ public sealed class MySqlTemporalTopologyTests
         using var context = CreateContext<SeparateTemporalOwnedConfiguration>(
             MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        Action act = () => _ = context.Model;
+        void act() => _ = context.Model;
 
         // Act
         var recordedException = Record.Exception(act);

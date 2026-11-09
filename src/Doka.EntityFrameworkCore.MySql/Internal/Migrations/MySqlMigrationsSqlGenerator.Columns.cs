@@ -59,7 +59,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
             GenerateAddColumn(operation, model, builder, terminate: true);
-            AppendTemporalHistoryColumnAddition(operation, model, targetTemporalContract, builder);
+            AppendTemporalHistoryColumnAddition(operation, targetTemporalContract, builder);
             AppendTemporalTriggersFromModel(
                 operation.Table,
                 operation.Schema,
@@ -135,7 +135,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
             AppendDropTemporalTriggers(operation.Table, operation.Schema, builder);
             GenerateAlterColumn(operation, model, builder);
-            AppendTemporalHistoryColumnAlteration(operation, model, targetTemporalContract, builder);
+            AppendTemporalHistoryColumnAlteration(operation, targetTemporalContract, builder);
             AppendTemporalTriggersFromModel(
                 operation.Table,
                 operation.Schema,

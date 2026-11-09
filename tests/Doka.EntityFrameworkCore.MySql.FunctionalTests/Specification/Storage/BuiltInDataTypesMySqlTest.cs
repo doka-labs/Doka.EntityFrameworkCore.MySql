@@ -49,7 +49,7 @@ public class BuiltInDataTypesMySqlTest : BuiltInDataTypesTestBase<
         /// <c>MySqlException: Duplicate entry</c> on every insert-based test. The framework
         /// reads this flag and routes the test-store request through
         /// <see cref="MySqlTestStoreFactory.Create(string)" />, which produces a non-shared
-        /// store; <see cref="MySqlTestStore.InitializeAsync" /> then drops any existing
+        /// store; <see cref="RelationalTestStore.InitializeAsync(IServiceProvider, Func{DbContext}, Func{DbContext, Task}, Func{DbContext, Task})" /> then drops any existing
         /// database before creating the schema afresh.
         /// </summary>
         protected override bool RecreateStore => true;

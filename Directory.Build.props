@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup Label="Target framework and build outputs">
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
     <IncludeProjectNameInArtifactsPaths>true</IncludeProjectNameInArtifactsPaths>
@@ -39,7 +39,8 @@
   <PropertyGroup Label="Shared build identity">
     <!-- WHY: Shipping packages, tests and engineering tools retain one version identity.
          Package metadata is scoped separately under src/Directory.Build.props. -->
-    <VersionPrefix>10.6.5</VersionPrefix>
+    <VersionPrefix>11.0.0</VersionPrefix>
+    <VersionSuffix>rc.3</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup Label="Debug information and CI">

@@ -11,7 +11,8 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         MigrationOperation operation = null!;
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -228,7 +229,8 @@ public sealed partial class MySqlMigrationOperationContractTests
             : CreateColumnOperation();
 
         operation[annotationName] = "invalid";
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -246,7 +248,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var operation = CreateColumnOperation();
         operation[MySqlAnnotationNames.GuidFormat] = (MySqlGuidFormat)int.MaxValue;
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -273,7 +276,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         operation.ClrType = clrType;
         operation.ColumnType = columnType;
         operation[MySqlAnnotationNames.GuidFormat] = format;
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -342,7 +346,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var operation = new SqlOperation { Sql = "SELECT 1;" };
         operation[annotationName] = annotationValue ?? new[] { 0 };
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -366,7 +371,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { -1 };
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -390,7 +396,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);
@@ -414,7 +421,8 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
-        Action act = () => operation.GetMySqlMigrationMetadata();
+
+        void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
         var recordedException = Record.Exception(act);

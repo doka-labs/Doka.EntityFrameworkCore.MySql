@@ -40,13 +40,13 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
     /// <summary>Seeds immutable rows once per engine for independently reported queries.</summary>
     public sealed class SeededDatabaseFixture : IAsyncLifetime
     {
-        private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = new();
+        private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = [];
 
         /// <summary>Defers database setup until a selected engine needs it.</summary>
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <summary>Drops each initialized table even if another engine's cleanup fails.</summary>
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 
@@ -60,7 +60,7 @@ public sealed partial class MySqlPrimitiveCollectionFacetIntegrationTests
                 }
                 catch (Exception exception)
                 {
-                    (failures ??= new List<Exception>()).Add(
+                    (failures ??= []).Add(
                         new InvalidOperationException($"Could not drop {TableName} on {target}.", exception));
                 }
             }

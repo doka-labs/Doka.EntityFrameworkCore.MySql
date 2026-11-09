@@ -5,15 +5,18 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.5 maintenance patch, see the [changelog](../CHANGELOG.md#1065---2026-11-09)
-and [shared qualification overview](operations/workflow-overview.md). The release
-hardens cache and SQL-mode integration probes, cancellation cleanup and
-deterministic test preparation. It refreshes workflow tooling and MySQL image
-digests and applies the reviewed Rider formatting and C# simplifications.
-Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
-minimum, supported engines and storage defaults remain unchanged.
-When upgrading from a version before 10.6.4, regenerate existing compiled models
-to adopt the corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
+This checkout prepares the isolated `11.0.0-rc.3` line for .NET 11 and the
+exact EF Core release candidate pinned in `Directory.Packages.props`.
+See the [preview changelog](../CHANGELOG.md#unreleased),
+[asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
+[shared qualification overview](operations/workflow-overview.md).
+
+The branch also includes the [10.6.5 maintenance changes](../CHANGELOG.md#1065---2026-11-09)
+to cache and SQL-mode integration probes, cancellation cleanup, deterministic
+test preparation, workflow tooling, MySQL image digests and reviewed C# style.
+Supported engines and storage defaults remain unchanged. When upgrading from
+a version before 10.6.4, regenerate existing compiled models to adopt the
+corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
 remains `>= 2.6.1` and `< 3.0.0`.
 

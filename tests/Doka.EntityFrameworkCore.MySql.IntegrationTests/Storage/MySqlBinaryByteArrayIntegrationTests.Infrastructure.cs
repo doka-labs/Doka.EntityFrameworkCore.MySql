@@ -63,10 +63,10 @@ public sealed partial class MySqlBinaryByteArrayIntegrationTests
         private readonly Dictionary<(IntegrationDatabaseTarget Target, MySqlGuidFormat Format), Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

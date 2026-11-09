@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Update;
+
 namespace Doka.EntityFrameworkCore.MySql.SpecificationContract;
 
 /// <summary>
@@ -409,6 +411,13 @@ internal static class SpecificationContractValidator
 
     private sealed class OfficialComplianceProbe(Assembly targetAssembly) : RelationalComplianceTestBase
     {
+        // The inventory validates every StoredProcedureUpdateTestBase signature
+        // on the xUnit 4-compatible facade before this independent gate runs.
+        protected override ICollection<Type> IgnoredTestBases { get; } =
+        [
+            typeof(StoredProcedureUpdateTestBase),
+        ];
+
         protected override Assembly TargetAssembly => targetAssembly;
 
         internal void Verify()

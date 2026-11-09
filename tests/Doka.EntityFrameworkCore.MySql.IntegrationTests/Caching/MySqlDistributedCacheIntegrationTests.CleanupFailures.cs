@@ -70,7 +70,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.IsAssignableFrom<OperationCanceledException>(Assert.Single(secondaryFailures.InnerExceptions));
         Assert.Contains(
             nameof(Cleanup_observer_failure_is_not_replaced_by_foreground_cancellation),
-            failure.StackTrace);
+            expectedFailure.StackTrace);
 
         Assert.Equal(2L, await store.CountExpiredAsync(CancellationToken.None));
     }

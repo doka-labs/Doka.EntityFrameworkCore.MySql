@@ -118,13 +118,14 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     `mariadb118`, and `mariadb123`
   - merged source-coverage gate: `coverage-gate`
   - runtime posture: the real Linux RID path runs through `engine-contracts`
-- Scheduled drift and manually dispatched full workflow:
+- Scheduled drift and explicit maintenance dispatch:
   - workflow: `.github/workflows/ci.yml`
-  - cadence: weekly for the three drift jobs; on demand for product and drift
-    lanes together
+  - cadence: weekly or explicit maintenance dispatch for branch-applicable
+    drift jobs; ordinary manual CI calls the shared qualifier once
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
-  - independent floating EF Core drift probe: `efcore-patch-matrix`; ordinary
-    qualification uses the reviewed floor/highest-admitted recipe
+  - exact EF Core 11 RC.3 graph: repository and six-engine specification gates
+    qualify the branch's pinned prerelease; no stable EF floor/latest or
+    floating patch-range gate is declared on this line
   - independent floating MySqlConnector drift probe:
     `mysqlconnector-patch-matrix`; ordinary qualification retains its reviewed
     floor/latest recipe
@@ -192,10 +193,11 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     `quality-gates.yml` executes the complete reversible graph for the explicit
     candidate version; separate same-run assembly, attestation and publication
     follow without granting the qualifier publication authority
-  - candidate stage receipts: migration deployment, runtime posture, both
-    patch matrices, package, and SBOM retain exactly six stage receipts on
-    current main/10 while the source is still untagged. This inventory is
-    separate from the complete product job graph; assembly verifies selected
+  - candidate stage receipts: this preview line retains five stage receipts:
+    migration deployment, runtime posture, MySqlConnector patch matrix, package
+    and SBOM. Stable main/10 additionally declares the EF Core patch matrix for
+    six receipts. Both inventories come from the branch's reviewed policy and
+    remain separate from the complete product graph; assembly verifies selected
     artifacts and never repacks qualified bytes
   - dependency evidence: locked restore and vulnerability audit include all
     three release projects; SBOM generation consumes the exact candidate-local
@@ -204,16 +206,16 @@ The release-hardening evidence model is intentionally explicit and repeatable:
     ordinary, fully trimmed, and NativeAOT standalone-cache execution; runtime
     evidence binds the cache executable hashes as well as the provider binary,
     without changing the provider NativeAOT deferral in D-017
-  - EF Core patch scope: the candidate re-resolves and records the exact floor
-    graph already behavior-qualified by the tree-exact pull-request
-    `repository-qualification`, then fully executes the highest exact patch
-    already admitted to `SpecSuiteBaseline.json`; scheduled CI alone uses the
-    floating selector to detect a newer upstream patch. Both scopes, resolved
-    package graphs, per-target TRX and engine evidence, and the full-row
-    integration result are independently verified during evidence assembly
+  - EF Core preview scope: the candidate uses the exact prerelease SDK and EF
+    graph pinned in `global.json` and `Directory.Packages.props`, with native
+    MTP execution. Repository and six-engine specification qualification bind
+    that exact graph; this line does not resolve a stable floor/latest matrix
+    or floating EF patch selector. Resolved package graphs, per-target TRX,
+    engine evidence and full integration results remain independently verified
+    during evidence assembly
   - EF Core version preflight: exact inventory, complete baseline membership,
     and six-target discovery contracts are required immediately after restore,
-    before the full repository and live qualified-patch matrix begins
+    before the full repository and six-engine live qualification begins
   - local consumer boundary: before publication, isolated projects restore
     the exact local provider, spatial, and cache packages into an empty package
     cache and bind their SHA-256 digests. The provider/spatial consumer compiles

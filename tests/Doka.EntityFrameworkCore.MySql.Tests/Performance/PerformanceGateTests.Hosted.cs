@@ -55,8 +55,10 @@ public sealed partial class PerformanceGateTests
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start the benchmark evaluator.");
 
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
+        // WHY: Drain both pipes until the owned evaluator exits so cancellation
+        // cannot leave an unobserved reader task or discard its diagnostics.
+        var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var error = process.StandardError.ReadToEndAsync(CancellationToken.None);
         await process.WaitForExitAsync(CancellationToken.None);
         var diagnostics = await output + await error;
 
@@ -105,7 +107,7 @@ public sealed partial class PerformanceGateTests
     )
     {
         // Arrange
-        Action act = () => PerformanceEvaluationPolicy.Resolve(requested, "true");
+        void act() => PerformanceEvaluationPolicy.Resolve(requested, "true");
 
         // Act
         var exception = Record.Exception(act);
@@ -370,7 +372,7 @@ public sealed partial class PerformanceGateTests
     public void Hosted_policy_rejects_unclassified_metrics()
     {
         // Arrange
-        Action act = () => PerformanceEvaluationPolicy.IsDiagnostic(
+        static void act() => PerformanceEvaluationPolicy.IsDiagnostic(
             PerformanceEvaluationMode.AllocationsOnly,
             "newMetric");
 
@@ -387,7 +389,8 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         using var fixture = PerformanceGateFixture.Create();
-        Action act = () => BenchmarkPerformanceGate.Evaluate(
+
+        void act() => BenchmarkPerformanceGate.Evaluate(
             fixture.ContractPath,
             fixture.ReportsPath,
             "mysql84",

@@ -15,7 +15,7 @@ from unittest import mock
 from urllib.parse import quote
 
 from eng.release import lines, publication
-from eng.tests.test_release_lines import initial_policy, shared_policy
+from eng.tests.test_release_lines import ga_specification_baseline, initial_policy, shared_policy
 
 
 def authority(policy: dict | None = None) -> dict:
@@ -1156,7 +1156,25 @@ class PublicationAdmissionTests(unittest.TestCase):
         self.assertIn("no retained job history", str(error))
 
     def preflight_arguments(self, root: Path):
-        """Build the exact workflow preflight invocation without hosted writes."""
+        """Create an isolated GA-10 source contract and its preflight invocation."""
+        # WHY: Hosted GA-10 scenarios must inspect their own toolchain rather
+        # than inherit the checked-out branch's upstream RC SDK and EF graph.
+        (root / "global.json").write_text(json.dumps({"sdk": {
+            "version": "10.0.402", "allowPrerelease": False, "rollForward": "disable",
+        }}), encoding="ascii")
+        (root / "Directory.Build.props").write_text(
+            "<Project><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>\n",
+            encoding="ascii",
+        )
+        (root / "Directory.Packages.props").write_text(
+            "<Project><PropertyGroup><DokaEfCoreVersion>"
+            "[10.0.8, 10.1.0)</DokaEfCoreVersion></PropertyGroup></Project>\n",
+            encoding="ascii",
+        )
+        baseline = root / lines.SPECIFICATION_BASELINE_PATH
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(json.dumps(ga_specification_baseline()), encoding="ascii")
+
         return publication.build_parser().parse_args([
             "preflight", "--repository", lines.REPOSITORY,
             "--source-ref", "refs/heads/main", "--version", "10.6.2",
@@ -1181,7 +1199,9 @@ class PublicationAdmissionTests(unittest.TestCase):
             # Act
             with mock.patch.object(publication, "GitHubClient", return_value=client), mock.patch.object(
                 publication, "fetch_current_authority", return_value=authority()
-            ), mock.patch.dict("os.environ", hosted, clear=True):
+            ), mock.patch.object(publication.Path, "cwd", return_value=root), mock.patch.dict(
+                "os.environ", hosted, clear=True
+            ):
                 publication.preflight(args)
 
             # Assert
@@ -1193,14 +1213,17 @@ class PublicationAdmissionTests(unittest.TestCase):
         """An old workflow checkout cannot borrow the new protected-main grant."""
         # Arrange
         with tempfile.TemporaryDirectory() as directory:
-            args = self.preflight_arguments(Path(directory))
+            root = Path(directory)
+            args = self.preflight_arguments(root)
             client = mock.Mock(spec=publication.GitHubClient)
             client.request.return_value = {"protected": True, "commit": {"sha": "a" * 40}}
 
             # Act
             with mock.patch.object(publication, "GitHubClient", return_value=client), mock.patch.object(
                 publication, "fetch_current_authority", return_value=authority()
-            ), mock.patch.dict("os.environ", environment(), clear=True):
+            ), mock.patch.object(publication.Path, "cwd", return_value=root), mock.patch.dict(
+                "os.environ", environment(), clear=True
+            ):
                 error = failure(lambda: publication.preflight(args))
 
             # Assert
@@ -1210,7 +1233,8 @@ class PublicationAdmissionTests(unittest.TestCase):
         """The qualifier's reusable signer must not replace the actual caller binding."""
         # Arrange
         with tempfile.TemporaryDirectory() as directory:
-            args = self.preflight_arguments(Path(directory))
+            root = Path(directory)
+            args = self.preflight_arguments(root)
             hosted = environment()
             hosted["GITHUB_SHA"] = "a" * 40
             hosted["GITHUB_WORKFLOW_REF"] = f"{lines.REPOSITORY}/.github/workflows/other.yml@refs/heads/main"
@@ -1220,11 +1244,36 @@ class PublicationAdmissionTests(unittest.TestCase):
             # Act
             with mock.patch.object(publication, "GitHubClient", return_value=client), mock.patch.object(
                 publication, "fetch_current_authority", return_value=authority()
-            ), mock.patch.dict("os.environ", hosted, clear=True):
+            ), mock.patch.object(publication.Path, "cwd", return_value=root), mock.patch.dict(
+                "os.environ", hosted, clear=True
+            ):
                 error = failure(lambda: publication.preflight(args))
 
             # Assert
             self.assertIn("caller workflow", str(error))
+
+    def test_preflight_rejects_prerelease_sdk_selection_for_ga_source(self) -> None:
+        """Fixture isolation must preserve the production GA-stage SDK guard."""
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = self.preflight_arguments(root)
+            sdk_path = root / "global.json"
+            settings = json.loads(sdk_path.read_text(encoding="ascii"))
+            settings["sdk"]["allowPrerelease"] = True
+            sdk_path.write_text(json.dumps(settings), encoding="ascii")
+            client = mock.Mock(spec=publication.GitHubClient)
+
+            # Act
+            with mock.patch.object(publication, "GitHubClient", return_value=client), mock.patch.object(
+                publication, "fetch_current_authority", return_value=authority()
+            ), mock.patch.object(publication.Path, "cwd", return_value=root):
+                error = failure(lambda: publication.preflight(args))
+
+            # Assert
+            self.assertIn("allowPrerelease contract must match", str(error))
+            client.request.assert_not_called()
+            self.assertFalse(args.output.exists())
 
 
 if __name__ == "__main__":

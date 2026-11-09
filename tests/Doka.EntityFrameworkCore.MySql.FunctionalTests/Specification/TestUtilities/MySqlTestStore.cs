@@ -38,7 +38,7 @@ public class MySqlTestStore : RelationalTestStore
     /// the shared-connection identity so the transaction enrolls correctly.
     /// Override to <see langword="false" /> for fixtures whose tests spawn concurrent contexts
     /// against the same store (Migrations <c>Can_apply_*_in_parallel*</c> patterns); without
-    /// per-context connections the parallel <see cref="DbConnection.OpenAsync" /> calls race
+    /// per-context connections the parallel <see cref="DbConnection.OpenAsync(CancellationToken)" /> calls race
     /// on the single shared connection and surface as
     /// <c>InvalidOperationException: Cannot Open when State is Connecting</c>.
     /// </summary>
@@ -146,7 +146,8 @@ public class MySqlTestStore : RelationalTestStore
     }
 
     public override async Task CleanAsync(
-        DbContext context
+        DbContext context,
+        bool createTables = true
     )
     {
         // CleanAsync is invoked when the spec-test framework explicitly requests a per-test
@@ -157,7 +158,11 @@ public class MySqlTestStore : RelationalTestStore
         // the recreate path consistently with the rest of the suite.
         // WHY: EF fixes the reset callback signature and does not provide a cancellation token.
         await context.Database.EnsureDeletedAsync(CancellationToken.None);
-        await context.Database.EnsureCreatedAsync(CancellationToken.None);
+
+        if (createTables)
+        {
+            await context.Database.EnsureCreatedAsync(CancellationToken.None);
+        }
     }
 
     public override async ValueTask DisposeAsync()

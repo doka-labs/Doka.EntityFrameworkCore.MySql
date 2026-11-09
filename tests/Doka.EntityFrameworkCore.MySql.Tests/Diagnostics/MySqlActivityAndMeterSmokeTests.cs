@@ -214,7 +214,8 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             .Options;
 
         using var context = new FailureContext(options);
-        Action act = () => context
+
+        void act() => context
             .GetService<IMigrationsSqlGenerator>()
             .Generate([new FailureOperation()], context.Model);
 

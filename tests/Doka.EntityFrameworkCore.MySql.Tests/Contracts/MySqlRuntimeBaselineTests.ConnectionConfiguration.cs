@@ -93,8 +93,8 @@ public sealed partial class MySqlRuntimeBaselineTests
             options => options.RequireUserVariables());
 
         using var context = new RuntimeBaselineContext(builder.Options);
-        Action act = () =>
-            _ = context.Database.GetDbConnection();
+
+        void act() => _ = context.Database.GetDbConnection();
 
         // Act
         var recordedException = Record.Exception(act);

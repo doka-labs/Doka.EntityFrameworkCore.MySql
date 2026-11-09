@@ -289,15 +289,6 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
             : builder.Database;
     }
 
-    private static bool IsMissingDatabase(
-        MySqlException exception
-    )
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-
-        return exception.ErrorCode == MySqlErrorCode.NoSuchDb || exception.Number == 1049;
-    }
-
     private static bool IsMissingDatabaseAccessDenied(
         MySqlException exception
     )
@@ -305,39 +296,5 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         ArgumentNullException.ThrowIfNull(exception);
 
         return exception.ErrorCode == MySqlErrorCode.DatabaseAccessDenied;
-    }
-
-    private bool CanConnectToServer()
-    {
-        try
-        {
-            using var lease = CreateServerConnection();
-            lease.Open();
-
-            return true;
-        }
-        catch (MySqlException)
-        {
-            return false;
-        }
-    }
-
-    private async Task<bool> CanConnectToServerAsync(
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await using var lease = CreateServerConnection();
-            await lease
-                .OpenAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            return true;
-        }
-        catch (MySqlException)
-        {
-            return false;
-        }
     }
 }

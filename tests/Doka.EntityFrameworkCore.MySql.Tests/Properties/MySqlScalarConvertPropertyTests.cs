@@ -162,7 +162,7 @@ public sealed class MySqlScalarConvertPropertyTests
     public void ToBoolean_throws_for_unsupported_clr_type()
     {
         // Arrange
-        Action act = () => MySqlScalarConvert.ToBoolean(new object());
+        static void act() => MySqlScalarConvert.ToBoolean(new object());
 
         // Act
         var recordedException = Record.Exception(act);
