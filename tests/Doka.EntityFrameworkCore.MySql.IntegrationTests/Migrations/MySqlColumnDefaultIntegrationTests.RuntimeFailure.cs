@@ -8,11 +8,10 @@ public sealed partial class MySqlColumnDefaultIntegrationTests
     public Task Failed_runtime_migration_preserves_history(
         string targetName,
         bool useDatabaseFacade
-    ) =>
-        AssertRuntimeFailureForTargetAsync(
-            Enum.Parse<IntegrationDatabaseTarget>(targetName),
-            useDatabaseFacade,
-            CancellationToken.None);
+    ) => AssertRuntimeFailureForTargetAsync(
+        Enum.Parse<IntegrationDatabaseTarget>(targetName),
+        useDatabaseFacade,
+        CancellationToken.None);
 
     /// <summary>
     /// Verifies runtime failure for target for the integration contract.

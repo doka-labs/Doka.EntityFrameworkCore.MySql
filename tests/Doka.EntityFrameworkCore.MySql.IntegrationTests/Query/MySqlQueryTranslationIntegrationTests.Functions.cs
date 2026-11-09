@@ -4,13 +4,13 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 {
     /// <summary>Verifies the named aggregate or regular-expression translation on the selected engine.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Group_concat_executes_on_mysql84() =>
-        await RunGroupConcatTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Group_concat_executes_on_mysql84()
+        => await RunGroupConcatTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Verifies the named aggregate or regular-expression translation on the selected engine.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Group_concat_executes_on_mariadb118() =>
-        await RunGroupConcatTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task Group_concat_executes_on_mariadb118()
+        => await RunGroupConcatTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the group concat test integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -82,13 +82,13 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
     /// <summary>Verifies the named aggregate or regular-expression translation on the selected engine.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Regexp_executes_on_mysql84() =>
-        await RunRegexpTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Regexp_executes_on_mysql84()
+        => await RunRegexpTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Verifies the named aggregate or regular-expression translation on the selected engine.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Regexp_executes_on_mariadb118() =>
-        await RunRegexpTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task Regexp_executes_on_mariadb118()
+        => await RunRegexpTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the regexp test integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

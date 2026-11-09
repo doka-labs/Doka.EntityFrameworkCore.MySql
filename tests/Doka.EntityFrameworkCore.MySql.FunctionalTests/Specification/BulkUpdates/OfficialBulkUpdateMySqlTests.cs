@@ -128,8 +128,7 @@ public sealed class NorthwindBulkUpdatesMySqlFixture<TModelCustomizer>
     : NorthwindBulkUpdatesRelationalFixture<TModelCustomizer>
     where TModelCustomizer : ITestModelCustomizer, new()
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlNorthwindBulkUpdatesTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlNorthwindBulkUpdatesTestStoreFactory.Instance;
 
     protected override Type ContextType => typeof(NorthwindBulkUpdatesMySqlContext);
 }
@@ -211,8 +210,7 @@ public sealed class NonSharedModelBulkUpdatesMySqlTest
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 /// <summary>
@@ -261,8 +259,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
         bool async
     ) => base.Update_where_hierarchy_subquery(async);
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 }
 
 /// <summary>
@@ -271,8 +268,7 @@ public sealed class TpcFiltersInheritanceBulkUpdatesMySqlTest
 public sealed class TpcFiltersInheritanceBulkUpdatesMySqlFixture
     : TpcInheritanceBulkUpdatesMySqlFixture
 {
-    protected override string StoreName =>
-        "TpcFiltersInheritanceBulkUpdatesMySql";
+    protected override string StoreName => "TpcFiltersInheritanceBulkUpdatesMySql";
 
     public override bool EnableFilters => true;
 }
@@ -323,8 +319,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
         bool async
     ) => base.Update_where_hierarchy_subquery(async);
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 }
 
 /// <summary>
@@ -333,8 +328,7 @@ public sealed class TpcInheritanceBulkUpdatesMySqlTest
 public class TpcInheritanceBulkUpdatesMySqlFixture
     : TPCInheritanceBulkUpdatesFixture
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     public override bool UseGeneratedKeys => false;
 }
@@ -406,8 +400,7 @@ public sealed class TphInheritanceBulkUpdatesMySqlTest
 public sealed class TphInheritanceBulkUpdatesMySqlFixture
     : TPHInheritanceBulkUpdatesFixture
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 /// <summary>
@@ -456,8 +449,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
         bool async
     ) => base.Update_where_hierarchy_subquery(async);
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 }
 
 /// <summary>
@@ -466,8 +458,7 @@ public sealed class TptFiltersInheritanceBulkUpdatesMySqlTest
 public sealed class TptFiltersInheritanceBulkUpdatesMySqlFixture
     : TptInheritanceBulkUpdatesMySqlFixture
 {
-    protected override string StoreName =>
-        "TptFiltersInheritanceBulkUpdatesMySql";
+    protected override string StoreName => "TptFiltersInheritanceBulkUpdatesMySql";
 
     public override bool EnableFilters => true;
 }
@@ -538,8 +529,7 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
         bool async
     ) => base.Update_where_hierarchy_subquery(async);
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 }
 
 /// <summary>
@@ -548,6 +538,5 @@ public sealed class TptInheritanceBulkUpdatesMySqlTest
 public class TptInheritanceBulkUpdatesMySqlFixture
     : TPTInheritanceBulkUpdatesFixture
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }

@@ -408,9 +408,8 @@ public sealed class MySqlStraightJoinExpressionTests
         /// <inheritdoc />
         protected override Expression VisitParameter(
             ParameterExpression node
-        )
-            => node.Name == "relationalTypeMappingSource"
-                ? Expression.Constant(source, node.Type)
-                : base.VisitParameter(node);
+        ) => node.Name == "relationalTypeMappingSource"
+            ? Expression.Constant(source, node.Type)
+            : base.VisitParameter(node);
     }
 }

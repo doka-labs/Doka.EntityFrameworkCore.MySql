@@ -81,20 +81,20 @@ public sealed class MariaDbFeatureIntegrationTests
     // -- MariaDB JSON Alias (longtext + CHECK) CRUD --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public async Task MariaDb1011_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public async Task MariaDb1011_json_alias_column_crud_roundtrip()
+        => await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task MariaDb118_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task MariaDb118_json_alias_column_crud_roundtrip()
+        => await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public async Task MariaDb114_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public async Task MariaDb114_json_alias_column_crud_roundtrip()
+        => await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public async Task MariaDb123_json_alias_column_crud_roundtrip() =>
-        await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public async Task MariaDb123_json_alias_column_crud_roundtrip()
+        => await RunJsonAliasCrudTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     private static async Task RunJsonAliasCrudTest(
         IntegrationDatabaseTarget target,
@@ -352,13 +352,13 @@ public sealed class MariaDbFeatureIntegrationTests
     // -- MariaDB DateTime/DateOnly Arithmetic --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_datetime_arithmetic_executes_correctly() =>
-        AssertDateTimeArithmeticAsync(addMonths: false, cancellationToken: CancellationToken.None);
+    public Task MariaDb118_datetime_arithmetic_executes_correctly()
+        => AssertDateTimeArithmeticAsync(addMonths: false, cancellationToken: CancellationToken.None);
 
     /// <summary>Verifies calendar-month arithmetic independently from DateTime day arithmetic.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_dateonly_month_arithmetic_executes_correctly() =>
-        AssertDateTimeArithmeticAsync(addMonths: true, cancellationToken: CancellationToken.None);
+    public Task MariaDb118_dateonly_month_arithmetic_executes_correctly()
+        => AssertDateTimeArithmeticAsync(addMonths: true, cancellationToken: CancellationToken.None);
 
     private static async Task AssertDateTimeArithmeticAsync(
         bool addMonths,

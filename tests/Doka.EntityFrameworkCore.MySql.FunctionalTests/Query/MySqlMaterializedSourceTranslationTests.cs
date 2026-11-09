@@ -284,12 +284,11 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     private static IQueryable<int> BuildParameterizedQuery(
         BindingContext context,
         int minimum
-    )
-        => context
-            .Nodes
-            .Where(node => node.Left > minimum)
-            .Select(node => node.Id)
-            .WithMaterializedSource(shared => shared.Concat(shared));
+    ) => context
+        .Nodes
+        .Where(node => node.Left > minimum)
+        .Select(node => node.Id)
+        .WithMaterializedSource(shared => shared.Concat(shared));
 
     /// <summary>
     /// Checks the provider-owned recursive fence without coupling tests to generated aliases.

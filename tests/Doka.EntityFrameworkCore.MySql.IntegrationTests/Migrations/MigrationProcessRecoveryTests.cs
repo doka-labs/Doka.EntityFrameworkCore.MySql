@@ -17,43 +17,43 @@ public sealed class MigrationProcessRecoveryTests
     /// Verifies process-abort recovery against MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql84() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql84()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql97() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mysql97()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb1011() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb1011()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb114() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb114()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb118() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb118()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies process-abort recovery against MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb123() =>
-        VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Killed_migrator_releases_lock_and_next_process_recovers_on_mariadb123()
+        => VerifyProcessRecoveryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies process recovery for the integration contract.

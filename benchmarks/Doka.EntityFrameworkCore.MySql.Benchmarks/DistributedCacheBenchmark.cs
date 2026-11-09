@@ -132,12 +132,12 @@ public class DistributedCacheBenchmark : IDisposable
     public Task SetSmallAsync() => _cache.SetAsync("write-small", _smallValue, _expiration, CancellationToken.None);
 
     [Benchmark]
-    public ValueTask SetLargeAsync() =>
-        _cache.SetAsync("write-large", _largeSequence, _expiration, CancellationToken.None);
+    public ValueTask SetLargeAsync()
+        => _cache.SetAsync("write-large", _largeSequence, _expiration, CancellationToken.None);
 
     [Benchmark]
-    public ValueTask SetLargeMultiSegmentAsync() =>
-        _cache.SetAsync("write-large", _segmentedSequence, _expiration, CancellationToken.None);
+    public ValueTask SetLargeMultiSegmentAsync()
+        => _cache.SetAsync("write-large", _segmentedSequence, _expiration, CancellationToken.None);
 
     /// <summary>
     /// Measures concurrent buffered reads of an absolute-expiration entry.

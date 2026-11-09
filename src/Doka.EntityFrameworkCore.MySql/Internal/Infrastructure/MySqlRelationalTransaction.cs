@@ -31,8 +31,8 @@ internal sealed class MySqlRelationalTransaction : RelationalTransaction
             .CreateLogger(MySqlLoggerCategory.Resilience);
     }
 
-    public override bool SupportsSavepoints =>
-        base.SupportsSavepoints && (_singletonOptions.Profile?.Supports(ProviderCapability.Savepoints) ?? false);
+    public override bool SupportsSavepoints => base.SupportsSavepoints
+        && (_singletonOptions.Profile?.Supports(ProviderCapability.Savepoints) ?? false);
 
     public override void CreateSavepoint(
         string name

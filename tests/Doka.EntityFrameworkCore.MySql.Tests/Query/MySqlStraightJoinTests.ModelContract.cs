@@ -31,8 +31,14 @@ public sealed partial class MySqlStraightJoinTests
         };
 
         // Act
-        var property = context.Model.FindEntityType(payload.GetType())?.FindProperty(nameof(JoinDetails.Text));
-        var mappedValue = property?.GetGetter().GetClrValue(payload);
+        var property = context
+            .Model
+            .FindEntityType(payload.GetType())
+            ?.FindProperty(nameof(JoinDetails.Text));
+
+        var mappedValue = property
+            ?.GetGetter()
+            .GetClrValue(payload);
 
         // Assert
         Assert.NotNull(property);

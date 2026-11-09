@@ -111,8 +111,7 @@ public sealed partial class MySqlMigrationDslTests
     }
 
     private static DbContextOptions<TContext> CreateOptions<TContext>()
-        where TContext : DbContext
-        => CreateOptions<TContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        where TContext : DbContext => CreateOptions<TContext>(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
     private static DbContextOptions<TContext> CreateOptions<TContext>(
         MySqlServerVersion serverVersion

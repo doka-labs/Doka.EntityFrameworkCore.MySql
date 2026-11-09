@@ -507,8 +507,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             byte[]? buffer,
             int bufferOffset,
             int length
-        )
-            => throw new NotSupportedException();
+        ) => throw new NotSupportedException();
 
         public override long GetChars(
             int ordinal,
@@ -516,8 +515,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             char[]? buffer,
             int bufferOffset,
             int length
-        )
-            => throw new NotSupportedException();
+        ) => throw new NotSupportedException();
 
         public override IEnumerator GetEnumerator() => Current.Rows.GetEnumerator();
 

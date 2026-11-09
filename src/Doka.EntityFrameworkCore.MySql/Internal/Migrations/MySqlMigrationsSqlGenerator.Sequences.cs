@@ -478,8 +478,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         }
     }
 
-    private bool UsesNativeSequences() =>
-        Profile.GetSupport(ProviderCapability.Sequences) == ProviderSupportStatus.Native;
+    private bool UsesNativeSequences()
+        => Profile.GetSupport(ProviderCapability.Sequences) == ProviderSupportStatus.Native;
 
     private readonly record struct SequenceTypeInfo(
         string StoreType,

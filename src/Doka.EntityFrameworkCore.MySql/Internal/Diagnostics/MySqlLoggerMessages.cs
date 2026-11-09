@@ -779,27 +779,26 @@ internal static class MySqlLoggerMessages
 
         public KeyValuePair<string, object?> this[
             int index
-        ] =>
-            index switch
-            {
-                0 => new KeyValuePair<string, object?>(
-                    "DatabaseEngine",
-                    _serverVersion.IsMariaDb
-                        ? "MariaDB"
-                        : "MySQL"),
-                1 => new KeyValuePair<string, object?>("ServerVersion", _serverVersion.Version.ToString()),
-                2 => new KeyValuePair<string, object?>("SupportStatus", _serverVersion.SupportStatus.ToString()),
-                3 => new KeyValuePair<string, object?>(
-                    "CompatibilityMode",
-                    _serverVersion.CompatibilityMode.ToString()),
-                _ when index < Count => new KeyValuePair<string, object?>(
-                    s_capabilitySnapshot[index - 4].Label,
-                    _serverVersion
-                        .Profile
-                        .GetSupport(s_capabilitySnapshot[index - 4].Capability)
-                        .ToString()),
-                _ => throw new ArgumentOutOfRangeException(nameof(index)),
-            };
+        ] => index switch
+        {
+            0 => new KeyValuePair<string, object?>(
+                "DatabaseEngine",
+                _serverVersion.IsMariaDb
+                    ? "MariaDB"
+                    : "MySQL"),
+            1 => new KeyValuePair<string, object?>("ServerVersion", _serverVersion.Version.ToString()),
+            2 => new KeyValuePair<string, object?>("SupportStatus", _serverVersion.SupportStatus.ToString()),
+            3 => new KeyValuePair<string, object?>(
+                "CompatibilityMode",
+                _serverVersion.CompatibilityMode.ToString()),
+            _ when index < Count => new KeyValuePair<string, object?>(
+                s_capabilitySnapshot[index - 4].Label,
+                _serverVersion
+                    .Profile
+                    .GetSupport(s_capabilitySnapshot[index - 4].Capability)
+                    .ToString()),
+            _ => throw new ArgumentOutOfRangeException(nameof(index)),
+        };
 
         public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
         {

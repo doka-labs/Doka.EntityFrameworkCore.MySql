@@ -93,13 +93,13 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
     /// <summary>A concurrent update cannot replace an inserted row before readback completes.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task ConcurrentUpdateWaitsForGeneratedReadbackTransaction() =>
-        AssertConcurrentWriterWaitsAsync(delete: false, cancellationToken: CancellationToken.None);
+    public Task ConcurrentUpdateWaitsForGeneratedReadbackTransaction()
+        => AssertConcurrentWriterWaitsAsync(delete: false, cancellationToken: CancellationToken.None);
 
     /// <summary>A concurrent delete cannot remove an inserted row before readback completes.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task ConcurrentDeleteWaitsForGeneratedReadbackTransaction() =>
-        AssertConcurrentWriterWaitsAsync(delete: true, cancellationToken: CancellationToken.None);
+    public Task ConcurrentDeleteWaitsForGeneratedReadbackTransaction()
+        => AssertConcurrentWriterWaitsAsync(delete: true, cancellationToken: CancellationToken.None);
 
     /// <summary>Verifies a competing write waits until generated-value readback completes.</summary>
     /// <param name="delete">The delete used by this operation.</param>

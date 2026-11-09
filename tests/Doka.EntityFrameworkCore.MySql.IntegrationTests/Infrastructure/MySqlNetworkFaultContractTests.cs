@@ -170,14 +170,14 @@ public sealed class MySqlNetworkFaultContractTests
             .CreateCommand();
 
         command.CommandText = """
-                              /* doka_stream_fault */
-                              WITH RECURSIVE sequence AS (
-                                  SELECT 1 AS value
-                                  UNION ALL
-                                  SELECT value + 1 FROM sequence WHERE value < 50
-                              )
-                              SELECT value, value * 2 FROM sequence
-                              """;
+        /* doka_stream_fault */
+        WITH RECURSIVE sequence AS (
+            SELECT 1 AS value
+            UNION ALL
+            SELECT value + 1 FROM sequence WHERE value < 50
+        )
+        SELECT value, value * 2 FROM sequence
+        """;
 
         command.CommandTimeout = 10;
         proxy.ArmQueryResponseFault("doka_stream_fault", responsePacketsToForward: 5);
@@ -508,12 +508,12 @@ public sealed class MySqlNetworkFaultContractTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS {TableName};
-                               CREATE TABLE {TableName} (
-                                   OperationId varchar(64) NOT NULL PRIMARY KEY,
-                                   EffectCount int NOT NULL
-                               );
-                               """;
+            DROP TABLE IF EXISTS {TableName};
+            CREATE TABLE {TableName} (
+                OperationId varchar(64) NOT NULL PRIMARY KEY,
+                EffectCount int NOT NULL
+            );
+            """;
 
         _ = await command
             .ExecuteNonQueryAsync(cancellationToken)

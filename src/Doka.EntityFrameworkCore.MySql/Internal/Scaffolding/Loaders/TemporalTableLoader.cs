@@ -58,17 +58,17 @@ internal static class TemporalTableLoader
     {
         using var command = context.Connection.CreateCommand();
         command.CommandText = """
-                              SELECT
-                                  TABLE_NAME,
-                                  COLUMN_NAME,
-                                  IS_SYSTEM_TIME_PERIOD_START,
-                                  IS_SYSTEM_TIME_PERIOD_END
-                              FROM information_schema.COLUMNS
-                              WHERE TABLE_SCHEMA = DATABASE()
-                                AND (IS_SYSTEM_TIME_PERIOD_START = 'YES'
-                                     OR IS_SYSTEM_TIME_PERIOD_END = 'YES')
-                              ORDER BY TABLE_NAME, ORDINAL_POSITION;
-                              """;
+        SELECT
+            TABLE_NAME,
+            COLUMN_NAME,
+            IS_SYSTEM_TIME_PERIOD_START,
+            IS_SYSTEM_TIME_PERIOD_END
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND (IS_SYSTEM_TIME_PERIOD_START = 'YES'
+               OR IS_SYSTEM_TIME_PERIOD_END = 'YES')
+        ORDER BY TABLE_NAME, ORDINAL_POSITION;
+        """;
 
         using var reader = command.ExecuteReader();
         var periodColumns = new Dictionary<string, NativePeriodColumns>(StringComparer.Ordinal);
@@ -567,8 +567,8 @@ internal static class TemporalTableLoader
     private static bool IsValidPeriodColumn(
         IReadOnlyList<PhysicalColumnMetadata> columns,
         string columnName
-    ) =>
-        columns.FirstOrDefault(column => string.Equals(column.Name, columnName, StringComparison.Ordinal)) is { } column
+    ) => columns.FirstOrDefault(column => string.Equals(column.Name, columnName, StringComparison.Ordinal)) is
+            { } column
         && string.Equals(column.ColumnType, "datetime(6)", StringComparison.OrdinalIgnoreCase)
         && !column.IsNullable
         && string.IsNullOrWhiteSpace(column.GenerationExpression);

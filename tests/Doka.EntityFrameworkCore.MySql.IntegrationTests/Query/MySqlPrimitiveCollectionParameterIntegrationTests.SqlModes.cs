@@ -231,9 +231,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 .CreateCommand();
 
             command.CommandText = """
-                                  SELECT COERCIBILITY(
-                                      JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64('YQ==') USING utf8mb4))));
-                                  """;
+            SELECT COERCIBILITY(
+                JSON_UNQUOTE(JSON_QUOTE(CONVERT(FROM_BASE64('YQ==') USING utf8mb4))));
+            """;
 
             return Convert.ToInt32(
                 await command.ExecuteScalarAsync(cancellationToken),

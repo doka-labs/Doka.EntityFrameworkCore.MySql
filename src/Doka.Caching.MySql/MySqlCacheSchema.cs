@@ -25,16 +25,16 @@ public static class MySqlCacheSchema
         var qualifiedTableName = MySqlCacheIdentifier.GetQualifiedName(schemaName, tableName);
 
         return $"""
-                CREATE TABLE IF NOT EXISTS {qualifiedTableName} (
-                    `Id` varbinary(1024) NOT NULL,
-                    `Value` longblob NOT NULL,
-                    `ExpiresAtUtc` datetime(6) NOT NULL,
-                    `SlidingExpirationMicroseconds` bigint NULL,
-                    `AbsoluteExpirationUtc` datetime(6) NULL,
-                    `Revision` bigint NOT NULL,
-                    CONSTRAINT `PK_DokaCache` PRIMARY KEY (`Id`),
-                    INDEX `IX_DokaCache_ExpiresAtUtc` (`ExpiresAtUtc`)
-                ) ENGINE=InnoDB COMMENT='Doka.Caching.MySql schema version {Version}';
-                """;
+            CREATE TABLE IF NOT EXISTS {qualifiedTableName} (
+                `Id` varbinary(1024) NOT NULL,
+                `Value` longblob NOT NULL,
+                `ExpiresAtUtc` datetime(6) NOT NULL,
+                `SlidingExpirationMicroseconds` bigint NULL,
+                `AbsoluteExpirationUtc` datetime(6) NULL,
+                `Revision` bigint NOT NULL,
+                CONSTRAINT `PK_DokaCache` PRIMARY KEY (`Id`),
+                INDEX `IX_DokaCache_ExpiresAtUtc` (`ExpiresAtUtc`)
+            ) ENGINE=InnoDB COMMENT='Doka.Caching.MySql schema version {Version}';
+            """;
     }
 }

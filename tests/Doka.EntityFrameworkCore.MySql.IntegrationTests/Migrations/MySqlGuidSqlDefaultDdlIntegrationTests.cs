@@ -13,29 +13,27 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     /// <summary>
     /// Identifies each supported engine and usable SQL-default storage format.
     /// </summary>
-    public static IEnumerable<object[]> CreateTableCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> CreateTableCases => from target in SelectedTargets()
         from format in FormatsFor(target)
         select new object[] { target.ToString(), format };
 
     /// <summary>
     /// Identifies MariaDB formats whose populated tables accept nondeterministic defaults.
     /// </summary>
-    public static IEnumerable<object[]> PopulatedAddColumnCases =>
-        CreateTableCases.Where(values => IsMariaDb(Enum.Parse<IntegrationDatabaseTarget>((string)values[0])));
+    public static IEnumerable<object[]> PopulatedAddColumnCases => CreateTableCases.Where(values
+        => IsMariaDb(Enum.Parse<IntegrationDatabaseTarget>((string)values[0])));
 
     /// <summary>
     /// Identifies MySQL formats whose ADD COLUMN restriction is measured independently.
     /// </summary>
-    public static IEnumerable<object[]> RejectedAddColumnCases =>
-        CreateTableCases.Where(values => !IsMariaDb(Enum.Parse<IntegrationDatabaseTarget>((string)values[0])));
+    public static IEnumerable<object[]> RejectedAddColumnCases => CreateTableCases.Where(values
+        => !IsMariaDb(Enum.Parse<IntegrationDatabaseTarget>((string)values[0])));
 
     /// <summary>
     /// Identifies each selected supported engine for the invalid Binary16 expression control.
     /// </summary>
-    public static IEnumerable<object[]> BinaryDefaultCases =>
-        SelectedTargets()
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> BinaryDefaultCases => SelectedTargets()
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// The literal table.Column&lt;Guid&gt; API retains its SQL expression and generates a fresh ID per omitted value.
@@ -262,10 +260,9 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
         IntegrationDatabaseTarget target
     ) => IntegrationTestEnvironment.GetConnectionString(target);
 
-    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment
-            .GetSupportedTargets()
-            .Where(IntegrationTestEnvironment.IsTargetSelected);
+    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() => IntegrationTestEnvironment
+        .GetSupportedTargets()
+        .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     private static bool IsMariaDb(
         IntegrationDatabaseTarget target

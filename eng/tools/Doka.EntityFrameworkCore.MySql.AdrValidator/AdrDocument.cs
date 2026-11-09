@@ -18,10 +18,9 @@ internal sealed record AdrValidationError(
     string Message
 )
 {
-    public override string ToString() =>
-        Line is null
-            ? $"{RelativePath}: {Message}"
-            : $"{RelativePath}:{Line}: {Message}";
+    public override string ToString() => Line is null
+        ? $"{RelativePath}: {Message}"
+        : $"{RelativePath}:{Line}: {Message}";
 }
 
 internal sealed record AdrParseResult(

@@ -109,7 +109,8 @@ public sealed class MySqlBinaryByteArrayModelTests
 
         // Act
         var files = generator.GenerateModel(
-            context.GetService<IDesignTimeModel>().Model,
+            context.GetService<IDesignTimeModel>()
+                .Model,
             options);
 
         var assembly = Compile(files.Select(file => file.Code));
@@ -176,7 +177,8 @@ public sealed class MySqlBinaryByteArrayModelTests
         // Arrange
         using var context = new BinaryByteArrayModelContext(CreateOptions());
         using var services = CreateDesignTimeServices();
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
 
         var generator = services
             .GetRequiredService<IMigrationsCodeGeneratorSelector>()
@@ -235,7 +237,8 @@ public sealed class MySqlBinaryByteArrayModelTests
         // Arrange
         using var context = new BinaryByteArrayModelContext(CreateOptions());
         using var services = CreateDesignTimeServices();
-        var model = context.GetService<IDesignTimeModel>().Model;
+        var model = context.GetService<IDesignTimeModel>()
+            .Model;
 
         var generator = services
             .GetRequiredService<IMigrationsCodeGeneratorSelector>()

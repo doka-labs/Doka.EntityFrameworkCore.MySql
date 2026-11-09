@@ -13,12 +13,12 @@ public sealed class FullMigrationsMySqlTest
     : MigrationsTestBase<FullMigrationsMySqlTest.FullMigrationsMySqlFixture>
 {
     private const string MariaDbJsonColumnAlterSql = """
-                                                     ALTER TABLE `Entity` MODIFY COLUMN `Name` longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(`Name`));
-                                                     """;
+        ALTER TABLE `Entity` MODIFY COLUMN `Name` longtext COLLATE utf8mb4_bin CHECK (JSON_VALID(`Name`));
+        """;
 
     private const string MySqlJsonColumnAlterSql = """
-                                                   ALTER TABLE `Entity` MODIFY COLUMN `Name` json NULL;
-                                                   """;
+        ALTER TABLE `Entity` MODIFY COLUMN `Name` json NULL;
+        """;
 
     /// <summary>
     /// Creates a migration specification test instance with an isolated SQL baseline log.
@@ -31,10 +31,9 @@ public sealed class FullMigrationsMySqlTest
         Fixture.TestSqlLoggerFactory.Clear();
     }
 
-    private static string ExpectedJsonColumnAlterSql =>
-        MySqlTestStore.ServerVersion.IsMariaDb
-            ? MariaDbJsonColumnAlterSql
-            : MySqlJsonColumnAlterSql;
+    private static string ExpectedJsonColumnAlterSql => MySqlTestStore.ServerVersion.IsMariaDb
+        ? MariaDbJsonColumnAlterSql
+        : MySqlJsonColumnAlterSql;
 
     protected override bool AssertSchemaNames => false;
 
@@ -158,8 +157,7 @@ public sealed class FullMigrationsMySqlTest
         "mysql84",
         "mariadb114",
         "mariadb118")]
-    public override Task Create_index_with_filter() =>
-        base.Create_index_with_filter();
+    public override Task Create_index_with_filter() => base.Create_index_with_filter();
 
     /// <summary>
     /// Keeps the official unique filtered-index fact discoverable while documenting the
@@ -170,8 +168,7 @@ public sealed class FullMigrationsMySqlTest
         "mysql84",
         "mariadb114",
         "mariadb118")]
-    public override Task Create_unique_index_with_filter() =>
-        base.Create_unique_index_with_filter();
+    public override Task Create_unique_index_with_filter() => base.Create_unique_index_with_filter();
 
     /// <summary>
     /// Verifies conversion of a string column to a JSON-owned reference and records the
@@ -202,86 +199,79 @@ public sealed class FullMigrationsMySqlTest
     }
 
     public override Task
-        Add_required_primitive_collection_with_custom_default_value_sql_to_existing_table() =>
-        Add_required_primitive_collection_with_custom_default_value_sql_to_existing_table_core(
+        Add_required_primitive_collection_with_custom_default_value_sql_to_existing_table()
+        => Add_required_primitive_collection_with_custom_default_value_sql_to_existing_table_core(
             "JSON_ARRAY()");
 
     public override Task
-        Add_required_primitve_collection_with_custom_default_value_sql_to_existing_table() =>
-        Add_required_primitve_collection_with_custom_default_value_sql_to_existing_table_core(
+        Add_required_primitve_collection_with_custom_default_value_sql_to_existing_table()
+        => Add_required_primitve_collection_with_custom_default_value_sql_to_existing_table_core(
             "JSON_ARRAY()");
 
     /// <inheritdoc />
-    public override Task Add_column_with_required() =>
-        AssertExplicitBackfillRequired(base.Add_column_with_required, cancellationToken: CancellationToken.None);
+    public override Task Add_column_with_required() => AssertExplicitBackfillRequired(base.Add_column_with_required,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Add_column_with_check_constraint() =>
-        AssertExplicitBackfillRequired(
-            base.Add_column_with_check_constraint,
-            cancellationToken: CancellationToken.None);
+    public override Task Add_column_with_check_constraint() => AssertExplicitBackfillRequired(
+        base.Add_column_with_check_constraint,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Add_json_columns_to_existing_table() =>
-        AssertExplicitBackfillRequired(
-            base.Add_json_columns_to_existing_table,
-            cancellationToken: CancellationToken.None);
+    public override Task Add_json_columns_to_existing_table() => AssertExplicitBackfillRequired(
+        base.Add_json_columns_to_existing_table,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Add_primary_key_with_name() =>
-        AssertExplicitBackfillRequired(base.Add_primary_key_with_name, cancellationToken: CancellationToken.None);
+    public override Task Add_primary_key_with_name() => AssertExplicitBackfillRequired(base.Add_primary_key_with_name,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Add_required_primitive_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(
-            base.Add_required_primitive_collection_to_existing_table,
-            cancellationToken: CancellationToken.None);
+    public override Task Add_required_primitive_collection_to_existing_table() => AssertExplicitBackfillRequired(
+        base.Add_required_primitive_collection_to_existing_table,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
-    public override Task Add_required_primitive_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(
+    public override Task Add_required_primitive_collection_with_custom_converter_to_existing_table()
+        => AssertExplicitBackfillRequired(
             base.Add_required_primitive_collection_with_custom_converter_to_existing_table,
             cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Add_required_primitve_collection_to_existing_table() =>
-        AssertExplicitBackfillRequired(
-            base.Add_required_primitve_collection_to_existing_table,
-            cancellationToken: CancellationToken.None);
+    public override Task Add_required_primitve_collection_to_existing_table() => AssertExplicitBackfillRequired(
+        base.Add_required_primitve_collection_to_existing_table,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
     [Fact]
-    public override Task Add_required_primitve_collection_with_custom_converter_to_existing_table() =>
-        AssertExplicitBackfillRequired(
+    public override Task Add_required_primitve_collection_with_custom_converter_to_existing_table()
+        => AssertExplicitBackfillRequired(
             base.Add_required_primitve_collection_with_custom_converter_to_existing_table,
             cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Alter_column_make_required() =>
-        AssertExplicitBackfillRequired(base.Alter_column_make_required, cancellationToken: CancellationToken.None);
+    public override Task Alter_column_make_required() => AssertExplicitBackfillRequired(base.Alter_column_make_required,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Alter_column_make_required_with_composite_index() =>
-        AssertExplicitBackfillRequired(
-            base.Alter_column_make_required_with_composite_index,
-            cancellationToken: CancellationToken.None);
+    public override Task Alter_column_make_required_with_composite_index() => AssertExplicitBackfillRequired(
+        base.Alter_column_make_required_with_composite_index,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Alter_column_make_required_with_index() =>
-        AssertExplicitBackfillRequired(
-            base.Alter_column_make_required_with_index,
-            cancellationToken: CancellationToken.None);
+    public override Task Alter_column_make_required_with_index() => AssertExplicitBackfillRequired(
+        base.Alter_column_make_required_with_index,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Alter_column_make_required_with_null_data() =>
-        AssertExplicitBackfillRequired(
-            base.Alter_column_make_required_with_null_data,
-            cancellationToken: CancellationToken.None);
+    public override Task Alter_column_make_required_with_null_data() => AssertExplicitBackfillRequired(
+        base.Alter_column_make_required_with_null_data,
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Convert_string_column_to_a_json_column_containing_required_reference() =>
-        AssertExplicitBackfillRequired(
+    public override Task Convert_string_column_to_a_json_column_containing_required_reference()
+        => AssertExplicitBackfillRequired(
             base.Convert_string_column_to_a_json_column_containing_required_reference,
             cancellationToken: CancellationToken.None);
 
@@ -289,47 +279,45 @@ public sealed class FullMigrationsMySqlTest
     /// Verifies every sequence option while adapting the relational schema assertion to
     /// the MySQL-family database boundary.
     /// </summary>
-    public override Task Create_sequence_all_settings() =>
-        Test(
-            _ => { },
-            builder =>
-            {
-                builder
-                    .HasSequence<long>("TestSequence", "dbo2")
-                    .StartsAt(3)
-                    .IncrementsBy(2)
-                    .HasMin(2)
-                    .HasMax(916)
-                    .IsCyclic();
-            },
-            model =>
-            {
-                var sequence = Assert.Single(model.Sequences);
+    public override Task Create_sequence_all_settings() => Test(
+        _ => { },
+        builder =>
+        {
+            builder
+                .HasSequence<long>("TestSequence", "dbo2")
+                .StartsAt(3)
+                .IncrementsBy(2)
+                .HasMin(2)
+                .HasMax(916)
+                .IsCyclic();
+        },
+        model =>
+        {
+            var sequence = Assert.Single(model.Sequences);
 
-                Assert.Equal("TestSequence", sequence.Name);
-                Assert.Null(sequence.Schema);
-                Assert.Equal(3, sequence.StartValue);
-                Assert.Equal(2, sequence.IncrementBy);
-                Assert.Equal(2, sequence.MinValue);
-                Assert.Equal(916, sequence.MaxValue);
-                Assert.True(sequence.IsCyclic);
-            });
+            Assert.Equal("TestSequence", sequence.Name);
+            Assert.Null(sequence.Schema);
+            Assert.Equal(3, sequence.StartValue);
+            Assert.Equal(2, sequence.IncrementBy);
+            Assert.Equal(2, sequence.MinValue);
+            Assert.Equal(916, sequence.MaxValue);
+            Assert.True(sequence.IsCyclic);
+        });
 
     /// <summary>
     /// Verifies that changing only a relational schema is a no-op on MySQL-family
     /// engines and does not drop or duplicate the sequence.
     /// </summary>
-    public override Task Move_sequence() =>
-        Test(
-            builder => builder.HasSequence<int>("TestSequence"),
-            builder => builder.HasSequence<int>("TestSequence", "TestSequenceSchema"),
-            model =>
-            {
-                var sequence = Assert.Single(model.Sequences);
+    public override Task Move_sequence() => Test(
+        builder => builder.HasSequence<int>("TestSequence"),
+        builder => builder.HasSequence<int>("TestSequence", "TestSequenceSchema"),
+        model =>
+        {
+            var sequence = Assert.Single(model.Sequences);
 
-                Assert.Equal("TestSequence", sequence.Name);
-                Assert.Null(sequence.Schema);
-            });
+            Assert.Equal("TestSequence", sequence.Name);
+            Assert.Null(sequence.Schema);
+        });
 
     /// <summary>
     /// Checks that the upstream migration scenario requires an explicit backfill.
@@ -594,14 +582,11 @@ public sealed class FullMigrationsMySqlTest
     /// </summary>
     public sealed class FullMigrationsMySqlFixture : MigrationsFixtureBase
     {
-        protected override string StoreName =>
-            nameof(FullMigrationsMySqlTest);
+        protected override string StoreName => nameof(FullMigrationsMySqlTest);
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            FullMigrationsTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => FullMigrationsTestStoreFactory.Instance;
 
-        public override RelationalTestHelpers TestHelpers =>
-            MySqlTestHelpers.Instance;
+        public override RelationalTestHelpers TestHelpers => MySqlTestHelpers.Instance;
     }
 
     /// <summary>

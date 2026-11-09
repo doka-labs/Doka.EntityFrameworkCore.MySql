@@ -60,8 +60,7 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
     /// connection while the root entity is being materialized. Other single queries retain
     /// EF Core's streaming behavior.
     /// </remarks>
-    public override bool IsBuffering =>
-        base.IsBuffering
+    public override bool IsBuffering => base.IsBuffering
         || QuerySplittingBehavior == Microsoft.EntityFrameworkCore.QuerySplittingBehavior.SplitQuery
         || Model.FindAnnotation(LazyLoadingProxyAnnotation)
             ?.Value is true;

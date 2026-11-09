@@ -348,8 +348,7 @@ public sealed class MySqlTransientExceptionDetectorTests
 
     private static MySqlException CreateMySqlException(
         MySqlErrorCode code
-    )
-        => CreateMySqlException(code, innerException: null);
+    ) => CreateMySqlException(code, innerException: null);
 
     private static MySqlException CreateMySqlException(
         MySqlErrorCode code,

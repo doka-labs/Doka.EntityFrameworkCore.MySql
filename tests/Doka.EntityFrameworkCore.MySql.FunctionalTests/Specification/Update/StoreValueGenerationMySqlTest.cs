@@ -68,8 +68,7 @@ public sealed class StoreValueGenerationMySqlTest
     {
         private string? _cleanDataSql;
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         public override void CleanData()
         {

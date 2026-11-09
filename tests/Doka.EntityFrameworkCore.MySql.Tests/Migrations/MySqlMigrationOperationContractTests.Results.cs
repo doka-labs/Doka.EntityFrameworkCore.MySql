@@ -4,18 +4,17 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed partial class MySqlMigrationOperationContractTests
 {
     /// <summary>Returns each invalid outcome code independently for both result factories.</summary>
-    public static IEnumerable<object?[]> InvalidOutcomeCases =>
-        new[]
-            {
-                null,
-                "",
-                "   ",
-                "Generated",
-                "generated-value",
-                "1_generated",
-                "generated value",
-            }
-            .SelectMany(code => new[] { new object?[] { code, false }, new object?[] { code, true } });
+    public static IEnumerable<object?[]> InvalidOutcomeCases => new[]
+        {
+            null,
+            "",
+            "   ",
+            "Generated",
+            "generated-value",
+            "1_generated",
+            "generated value",
+        }
+        .SelectMany(code => new[] { new object?[] { code, false }, new object?[] { code, true } });
 
     /// <summary>
     /// Verifies generated result snapshots the caller owned command collection.

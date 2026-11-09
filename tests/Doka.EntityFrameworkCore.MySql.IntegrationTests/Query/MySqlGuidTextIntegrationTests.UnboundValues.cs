@@ -12,8 +12,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
     /// <summary>
     /// Identifies unbound constants, nullable parameters, and required parameters.
     /// </summary>
-    public static IEnumerable<object[]> UnboundCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> UnboundCases => from target in SelectedTargets()
         from format in s_defaultFormats
         from operand in s_unboundOperands
         select new object[] { target.ToString(), format, operand };
@@ -21,8 +20,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
     /// <summary>
     /// Identifies uppercase and lowercase patterns against binary-collated stored GUID text.
     /// </summary>
-    public static IEnumerable<object[]> StoredTextCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> StoredTextCases => from target in SelectedTargets()
         from format in s_defaultFormats
         from pattern in s_storedTextPatterns
         select new object[] { target.ToString(), format, pattern };

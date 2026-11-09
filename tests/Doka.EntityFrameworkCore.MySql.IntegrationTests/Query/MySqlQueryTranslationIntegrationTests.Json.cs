@@ -56,13 +56,13 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
 
     /// <summary>Verifies constructor result types within a single server projection.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Json_constructors_materialize_server_results_on_mysql84() =>
-        RunJsonConstructorTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Json_constructors_materialize_server_results_on_mysql84()
+        => RunJsonConstructorTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Verifies constructor result types within a single server projection.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Json_constructors_materialize_server_results_on_mariadb118() =>
-        RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Json_constructors_materialize_server_results_on_mariadb118()
+        => RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the json constructor test integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

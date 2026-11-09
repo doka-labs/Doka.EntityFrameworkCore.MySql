@@ -7,48 +7,48 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// MySQL's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mysql84() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mysql84()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MySQL 9.7's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mysql97() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mysql97()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 10.11's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb1011() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb1011()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 11.4's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb114() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb114()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 11.8's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb118() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb118()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies binary GUID formatting and width-aware integral shifts against
     /// MariaDB 12.3's actual binary and unsigned-bitwise behavior.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Scalar_edge_cases_execute_correctly_on_mariadb123() =>
-        await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public async Task Scalar_edge_cases_execute_correctly_on_mariadb123()
+        => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the scalar edge case tests integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

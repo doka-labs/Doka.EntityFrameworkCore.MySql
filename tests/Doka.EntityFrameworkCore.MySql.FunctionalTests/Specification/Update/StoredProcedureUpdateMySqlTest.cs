@@ -19,8 +19,7 @@ public sealed class StoredProcedureUpdateMySqlTest
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory
-        => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override async Task CreateStoredProcedures(
         DbContext context,

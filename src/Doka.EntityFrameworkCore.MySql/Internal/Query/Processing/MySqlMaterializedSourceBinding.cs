@@ -310,8 +310,7 @@ internal sealed class MySqlMaterializedSourceBinding(
     /// <summary>Recognizes operators that retain their input entity identity.</summary>
     private static bool IsIdentityOperator(
         MethodCallExpression call
-    ) =>
-        ((call.Method.DeclaringType == typeof(Queryable) || call.Method.DeclaringType == typeof(Enumerable))
+    ) => ((call.Method.DeclaringType == typeof(Queryable) || call.Method.DeclaringType == typeof(Enumerable))
             && call.Method.Name is nameof(Queryable.Where)
                 or nameof(Queryable.OrderBy)
                 or nameof(Queryable.OrderByDescending)

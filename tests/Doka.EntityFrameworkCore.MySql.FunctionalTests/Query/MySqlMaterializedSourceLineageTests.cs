@@ -328,27 +328,25 @@ public sealed partial class MySqlMaterializedSourceLineageTests
         string sql,
         bool mariaDb,
         string table
-    )
-        => Assert.Contains(
-            mariaDb
-                ? $"`{table}` FOR SYSTEM_TIME"
-                : $"FROM `{table}History`",
-            sql,
-            StringComparison.Ordinal);
+    ) => Assert.Contains(
+        mariaDb
+            ? $"`{table}` FOR SYSTEM_TIME"
+            : $"FROM `{table}History`",
+        sql,
+        StringComparison.Ordinal);
 
     /// <summary>Counts historical roots for both provider-owned temporal lowerings.</summary>
     private static void AssertTemporalReads(
         string sql,
         bool mariaDb,
         int count
-    )
-        => Assert.Equal(
-            count,
-            CountOccurrences(
-                sql,
-                mariaDb
-                    ? "FOR SYSTEM_TIME AS OF"
-                    : "History`"));
+    ) => Assert.Equal(
+        count,
+        CountOccurrences(
+            sql,
+            mariaDb
+                ? "FOR SYSTEM_TIME AS OF"
+                : "History`"));
 
     /// <summary>Counts statement fragments whose multiplicity establishes root propagation.</summary>
     private static int CountOccurrences(

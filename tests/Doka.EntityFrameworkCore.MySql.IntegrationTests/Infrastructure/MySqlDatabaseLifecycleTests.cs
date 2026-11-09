@@ -313,8 +313,8 @@ public sealed class MySqlDatabaseLifecycleTests
     /// increment, and singleton-row contracts.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public void Sequence_table_emulation_sync_fetch_returns_start_then_increment() =>
-        AssertTableSequenceSync(IntegrationDatabaseTarget.MySql84);
+    public void Sequence_table_emulation_sync_fetch_returns_start_then_increment()
+        => AssertTableSequenceSync(IntegrationDatabaseTarget.MySql84);
 
     /// <summary>
     /// Verifies that the asynchronous table-emulation API returns the same first
@@ -465,23 +465,23 @@ public sealed class MySqlDatabaseLifecycleTests
 
     /// <summary>Verifies mariadb114 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public void Mariadb114_native_sequence_sync_fetch_returns_start_then_increment() =>
-        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb114);
+    public void Mariadb114_native_sequence_sync_fetch_returns_start_then_increment()
+        => AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb114);
 
     /// <summary>Verifies mariadb1011 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public void Mariadb1011_native_sequence_sync_fetch_returns_start_then_increment() =>
-        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb1011);
+    public void Mariadb1011_native_sequence_sync_fetch_returns_start_then_increment()
+        => AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb1011);
 
     /// <summary>Verifies mariadb118 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment() =>
-        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb118);
+    public void Mariadb118_native_sequence_sync_fetch_returns_start_then_increment()
+        => AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb118);
 
     /// <summary>Verifies mariadb123 native sequence sync fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public void Mariadb123_native_sequence_sync_fetch_returns_start_then_increment() =>
-        AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb123);
+    public void Mariadb123_native_sequence_sync_fetch_returns_start_then_increment()
+        => AssertNativeSequenceSync(IntegrationDatabaseTarget.MariaDb123);
 
     /// <summary>Verifies mariadb114 native sequence async fetch returns start then increment.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]

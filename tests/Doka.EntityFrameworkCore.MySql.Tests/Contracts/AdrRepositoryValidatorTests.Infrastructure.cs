@@ -151,8 +151,8 @@ public sealed partial class AdrRepositoryValidatorTests
             }
         }
 
-        public static TestRepository Create() =>
-            new(Path.Combine(Path.GetTempPath(), $"doka-adr-tests-{Guid.NewGuid():N}"));
+        public static TestRepository Create()
+            => new(Path.Combine(Path.GetTempPath(), $"doka-adr-tests-{Guid.NewGuid():N}"));
 
         public void WriteDecision(
             string id,
@@ -167,83 +167,83 @@ public sealed partial class AdrRepositoryValidatorTests
         )
         {
             var content = $$"""
-                            ---
-                            id: {{id}}
-                            status: implemented
-                            date: 2026-07-27
-                            decision-makers: [Doka maintainers]
-                            consulted: []
-                            informed: [Provider contributors]
-                            scope: "Test scope"
-                            supersedes: {{RenderList(supersedes)}}
-                            superseded-by: {{RenderList(supersededBy)}}
-                            amends: {{RenderList(amends)}}
-                            amended-by: {{RenderList(amendedBy)}}
-                            madr-version: "4.0.0"
-                            doka-profile-version: "1.0"
-                            ---
+                ---
+                id: {{id}}
+                status: implemented
+                date: 2026-07-27
+                decision-makers: [Doka maintainers]
+                consulted: []
+                informed: [Provider contributors]
+                scope: "Test scope"
+                supersedes: {{RenderList(supersedes)}}
+                superseded-by: {{RenderList(supersededBy)}}
+                amends: {{RenderList(amends)}}
+                amended-by: {{RenderList(amendedBy)}}
+                madr-version: "4.0.0"
+                doka-profile-version: "1.0"
+                ---
 
-                            # {{id}} -- {{title}}
+                # {{id}} -- {{title}}
 
-                            ## Context and Problem Statement
+                ## Context and Problem Statement
 
-                            The repository needs a deterministic decision contract.
+                The repository needs a deterministic decision contract.
 
-                            ## Decision Drivers
+                ## Decision Drivers
 
-                            - Deterministic validation
-                            - Reviewable trade-offs
+                - Deterministic validation
+                - Reviewable trade-offs
 
-                            ## Considered Options
+                ## Considered Options
 
-                            - Chosen option
-                            - Rejected option
+                - Chosen option
+                - Rejected option
 
-                            ## Decision Outcome
+                ## Decision Outcome
 
-                            Chosen option: "Chosen option", because it satisfies both drivers.
+                Chosen option: "Chosen option", because it satisfies both drivers.
 
-                            ### Consequences
+                ### Consequences
 
-                            - Good, because governance drift fails deterministically.
-                            - Bad, because every decision requires structured maintenance.
+                - Good, because governance drift fails deterministically.
+                - Bad, because every decision requires structured maintenance.
 
-                            ### Confirmation
+                ### Confirmation
 
-                            - Run `eng/validate-adrs.sh`.
+                - Run `eng/validate-adrs.sh`.
 
-                            ## Pros and Cons of the Options
+                ## Pros and Cons of the Options
 
-                            ### Chosen option
+                ### Chosen option
 
-                            - Good, because it is deterministic.
-                            - Bad, because the chosen option requires maintenance.
+                - Good, because it is deterministic.
+                - Bad, because the chosen option requires maintenance.
 
-                            ### Rejected option
+                ### Rejected option
 
-                            - Good, because it requires less initial structure.
-                            - Bad, because it cannot reject governance drift.
+                - Good, because it requires less initial structure.
+                - Bad, because it cannot reject governance drift.
 
-                            ## More Information
+                ## More Information
 
-                            This fixture exercises the repository validator.
+                This fixture exercises the repository validator.
 
-                            ### Re-evaluation Triggers
+                ### Re-evaluation Triggers
 
-                            - Re-evaluate when the upstream MADR major version changes.
+                - Re-evaluate when the upstream MADR major version changes.
 
-                            ### Decision History
+                ### Decision History
 
-                            - 2026-07-27: Decision recorded with status implemented.
+                - 2026-07-27: Decision recorded with status implemented.
 
-                            ### Implementation References
+                ### Implementation References
 
-                            - `eng/validate-adrs.sh`
+                - `eng/validate-adrs.sh`
 
-                            ### Sources
+                ### Sources
 
-                            {{source}}
-                            """;
+                {{source}}
+                """;
 
             if (transform is not null)
             {

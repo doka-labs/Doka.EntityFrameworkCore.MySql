@@ -33,8 +33,7 @@ public sealed class StoreGeneratedMySqlTest
         // Reusing an existing schema can hide provider type-mapping drift.
         protected override bool RecreateStore => true;
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         public override DbContextOptionsBuilder AddOptions(
             DbContextOptionsBuilder builder

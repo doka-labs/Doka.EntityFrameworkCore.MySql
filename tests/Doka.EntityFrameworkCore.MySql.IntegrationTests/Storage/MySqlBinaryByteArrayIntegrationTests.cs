@@ -18,22 +18,19 @@ public sealed partial class MySqlBinaryByteArrayIntegrationTests
     }
 
     /// <summary>Provides selected engines and both configured GUID defaults.</summary>
-    public static IEnumerable<object[]> FormatCases =>
-        from target in IntegrationTestEnvironment.GetSupportedTargets()
+    public static IEnumerable<object[]> FormatCases => from target in IntegrationTestEnvironment.GetSupportedTargets()
         where IntegrationTestEnvironment.IsTargetSelected(target)
         from format in s_defaultFormats
         select new object[] { target.ToString(), format };
 
     /// <summary>Separates streaming and retry-buffered reads for synchronous and asynchronous execution.</summary>
-    public static IEnumerable<object[]> ReadCases =>
-        from formatCase in FormatCases
+    public static IEnumerable<object[]> ReadCases => from formatCase in FormatCases
         from buffered in s_booleanCases
         from asynchronous in s_booleanCases
         select new[] { formatCase[0], formatCase[1], buffered, asynchronous };
 
     /// <summary>Separates tracked and untracked entity materialization in both reader modes.</summary>
-    public static IEnumerable<object[]> EntityCases =>
-        from formatCase in FormatCases
+    public static IEnumerable<object[]> EntityCases => from formatCase in FormatCases
         from buffered in s_booleanCases
         from tracking in s_booleanCases
         select new[] { formatCase[0], formatCase[1], buffered, tracking };

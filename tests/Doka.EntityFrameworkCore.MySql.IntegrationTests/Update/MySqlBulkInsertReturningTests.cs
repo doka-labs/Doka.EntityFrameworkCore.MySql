@@ -16,16 +16,16 @@ public sealed class MySqlBulkInsertReturningTests
     // -- MariaDB 11.8: multi-row INSERT + RETURNING with auto-increment --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_multirow_insert_returning_populates_auto_increment_ids()
+        => RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_multirow_insert_returning_populates_auto_increment_ids()
+        => RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_multirow_insert_returning_populates_auto_increment_ids() =>
-        RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_multirow_insert_returning_populates_auto_increment_ids()
+        => RunMariaDbInsertReturningAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Verifies multirow inserts populate generated keys through MariaDB RETURNING.</summary>
     /// <param name="target">The database target used for this operation.</param>
@@ -182,12 +182,12 @@ public sealed class MySqlBulkInsertReturningTests
     // -- MySQL 8.4: multi-row INSERT with auto-increment falls back to per-row --
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
-        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback()
+        => RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback() =>
-        RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_multirow_insert_with_auto_increment_populates_each_id_via_per_row_fallback()
+        => RunMySqlAutoIncrementFallbackAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>Verifies MySQL populates each auto-increment key through its per-row fallback.</summary>
     /// <param name="target">The database target used for this operation.</param>

@@ -110,8 +110,8 @@ public sealed class TptTableSplittingMySqlTest : TPTTableSplittingTestBase
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     [Fact(Skip = OneParentInapplicableReason)]
-    public override Task Can_insert_dependent_with_just_one_parent() =>
-        base.Can_insert_dependent_with_just_one_parent();
+    public override Task Can_insert_dependent_with_just_one_parent()
+        => base.Can_insert_dependent_with_just_one_parent();
 }
 
 /// <summary>

@@ -32,8 +32,8 @@ internal sealed partial class
         _straightJoinOwner = parentVisitor._straightJoinOwner ?? parentVisitor;
     }
 
-    protected override QueryableMethodTranslatingExpressionVisitor CreateSubqueryVisitor() =>
-        new MySqlQueryableMethodTranslatingExpressionVisitor(this);
+    protected override QueryableMethodTranslatingExpressionVisitor CreateSubqueryVisitor()
+        => new MySqlQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <summary>
     /// Converts provider query roots into ordinary relational selects whose table expressions

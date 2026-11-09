@@ -1,3 +1,5 @@
+using Xunit.Sdk;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies resource budgets independently of host speed and load.</summary>
@@ -13,7 +15,9 @@ public sealed partial class MySqlScaffoldingScaleTests
         public void Elapsed_time_does_not_change_a_passing_resource_verdict()
         {
             // Arrange
-            var budgets = LoadPolicy().Budgets;
+            var budgets = LoadPolicy()
+                .Budgets;
+
             var metrics = new ScaffoldingRunMetrics(
                 TimeSpan.MaxValue,
                 budgets.MaximumAllocatedBytesPerRun,
@@ -39,11 +43,19 @@ public sealed partial class MySqlScaffoldingScaleTests
         )
         {
             // Arrange
-            var budgets = LoadPolicy().Budgets;
+            var budgets = LoadPolicy()
+                .Budgets;
+
             var metrics = new ScaffoldingRunMetrics(
                 TimeSpan.Zero,
-                budgets.MaximumAllocatedBytesPerRun + (allocationOverrun ? 1 : 0),
-                budgets.MaximumManagedHeapGrowthBytesPerRun + (allocationOverrun ? 0 : 1),
+                budgets.MaximumAllocatedBytesPerRun
+                + (allocationOverrun
+                    ? 1
+                    : 0),
+                budgets.MaximumManagedHeapGrowthBytesPerRun
+                + (allocationOverrun
+                    ? 0
+                    : 1),
                 0,
                 "unused");
 
@@ -52,8 +64,11 @@ public sealed partial class MySqlScaffoldingScaleTests
                 AssertMeasuredBudgets(metrics, budgets, IntegrationDatabaseTarget.MariaDb123, 0));
 
             // Assert
-            var failure = Assert.IsType<Xunit.Sdk.TrueException>(exception);
-            Assert.Contains(allocationOverrun ? "allocated" : "grew the managed heap", failure.Message);
+            var failure = Assert.IsType<TrueException>(exception);
+            Assert.Contains(allocationOverrun
+                    ? "allocated"
+                    : "grew the managed heap",
+                failure.Message);
         }
     }
 }

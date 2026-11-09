@@ -164,14 +164,14 @@ public class TemporalProviderBenchmarks
             .CteEntities
             .FromSqlInterpolated(
                 $"""
-                 WITH filtered AS (
-                     SELECT `Id`, `Name`
-                     FROM `CteBenchmarkEntities`
-                     WHERE `Id` >= {minimumId}
-                 )
-                 SELECT `Id`, `Name`
-                 FROM filtered
-                 """)
+                WITH filtered AS (
+                    SELECT `Id`, `Name`
+                    FROM `CteBenchmarkEntities`
+                    WHERE `Id` >= {minimumId}
+                )
+                SELECT `Id`, `Name`
+                FROM filtered
+                """)
             .Where(entity => entity.Name != string.Empty)
             .ToQueryString()
             .Length;

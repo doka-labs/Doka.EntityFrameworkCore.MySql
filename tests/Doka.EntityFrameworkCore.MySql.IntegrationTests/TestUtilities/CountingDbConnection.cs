@@ -56,11 +56,10 @@ internal sealed class CountingDbConnection : DbConnection
         IsolationLevel isolationLevel
     ) => _innerConnection.BeginTransaction(isolationLevel);
 
-    protected override DbCommand CreateDbCommand() =>
-        new CountingDbCommand(
-            this,
-            _innerConnection.CreateCommand(),
-            RecordExecution);
+    protected override DbCommand CreateDbCommand() => new CountingDbCommand(
+        this,
+        _innerConnection.CreateCommand(),
+        RecordExecution);
 
     protected override void Dispose(
         bool disposing
@@ -145,8 +144,7 @@ internal sealed class CountingDbConnection : DbConnection
             }
         }
 
-        protected override DbParameterCollection DbParameterCollection =>
-            _innerCommand.Parameters;
+        protected override DbParameterCollection DbParameterCollection => _innerCommand.Parameters;
 
         protected override DbTransaction? DbTransaction
         {
@@ -190,8 +188,7 @@ internal sealed class CountingDbConnection : DbConnection
             CancellationToken cancellationToken = default
         ) => _innerCommand.PrepareAsync(cancellationToken);
 
-        protected override DbParameter CreateDbParameter() =>
-            _innerCommand.CreateParameter();
+        protected override DbParameter CreateDbParameter() => _innerCommand.CreateParameter();
 
         protected override DbDataReader ExecuteDbDataReader(
             CommandBehavior behavior

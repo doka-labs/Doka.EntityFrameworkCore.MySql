@@ -17,24 +17,24 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Scaffolding_roundtrip_on_mysql84() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Scaffolding_roundtrip_on_mysql84()
+        => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public async Task Scaffolding_roundtrip_on_mysql97() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public async Task Scaffolding_roundtrip_on_mysql97()
+        => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public async Task Scaffolding_roundtrip_on_mariadb1011() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public async Task Scaffolding_roundtrip_on_mariadb1011()
+        => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Scaffolding_roundtrip_on_mariadb118() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task Scaffolding_roundtrip_on_mariadb118()
+        => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Scaffolding_roundtrip_on_mariadb123() =>
-        await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public async Task Scaffolding_roundtrip_on_mariadb123()
+        => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the scaffolding round trip test integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -257,43 +257,49 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_crud_and_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "contains", 1, CancellationToken.None);
+    public Task MariaDb114_crud_and_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114,
+        "contains",
+        1,
+        CancellationToken.None);
 
     /// <summary>Checks the legacy server's substring translation independently from CRUD.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_contains_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "contains", 1, CancellationToken.None);
+    public Task MySql80_contains_query_parity()
+        => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "contains", 1, CancellationToken.None);
 
     /// <summary>Checks the legacy server's prefix translation independently from substring matching.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_starts_with_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "starts", 1, CancellationToken.None);
+    public Task MySql80_starts_with_query_parity()
+        => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "starts", 1, CancellationToken.None);
 
     /// <summary>Checks the legacy server's day arithmetic on one deterministic seeded row.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_datetime_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "days", 25, CancellationToken.None);
+    public Task MySql80_datetime_query_parity()
+        => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "days", 25, CancellationToken.None);
 
     /// <summary>Checks the legacy server's scalar absolute-value translation.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql80)]
-    public Task MySql80_absolute_value_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80, "absolute", 42.5, CancellationToken.None);
+    public Task MySql80_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MySql80,
+        "absolute",
+        42.5,
+        CancellationToken.None);
 
     /// <summary>Checks suffix translation on MariaDB independently from the substring probe.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_ends_with_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "ends", 1, CancellationToken.None);
+    public Task MariaDb114_ends_with_query_parity()
+        => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "ends", 1, CancellationToken.None);
 
     /// <summary>Checks absolute-value translation for a negative MariaDB input.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_absolute_value_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "absolute", 5, CancellationToken.None);
+    public Task MariaDb114_absolute_value_query_parity() => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114,
+        "absolute",
+        5,
+        CancellationToken.None);
 
     /// <summary>Checks calendar-month translation on one deterministic MariaDB row.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_datetime_query_parity() =>
-        AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5, CancellationToken.None);
+    public Task MariaDb114_datetime_query_parity()
+        => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5, CancellationToken.None);
 
     /// <summary>Verifies the parity query contract against the live database.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -611,24 +617,24 @@ public sealed class MySqlComprehensiveCoverageTests
     // ======================================================================
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql84()
+        => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql97() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mysql97()
+        => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb1011() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb1011()
+        => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb118() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb118()
+        => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb123() =>
-        await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public async Task EnsureCreated_and_EnsureDeleted_roundtrip_on_mariadb123()
+        => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the ensure created deleted test integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

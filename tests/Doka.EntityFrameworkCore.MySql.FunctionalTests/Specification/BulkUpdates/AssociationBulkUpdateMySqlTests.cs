@@ -29,8 +29,7 @@ public sealed class ComplexJsonBulkUpdateMySqlTest
 public sealed class ComplexJsonBulkUpdateMySqlFixture
     : ComplexJsonRelationalFixtureBase
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 /// <summary>
@@ -57,8 +56,7 @@ public sealed class ComplexTableSplittingBulkUpdateMySqlTest
 public sealed class ComplexTableSplittingBulkUpdateMySqlFixture
     : ComplexTableSplittingRelationalFixtureBase
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }
 
 /// <summary>
@@ -85,6 +83,5 @@ public sealed class OwnedJsonBulkUpdateMySqlTest
 public sealed class OwnedJsonBulkUpdateMySqlFixture
     : OwnedJsonRelationalFixtureBase
 {
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 }

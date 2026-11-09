@@ -118,7 +118,8 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
 
             modelBuilder
                 .Entity<
-                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb =>
+                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectly>(eb
+                    =>
                 {
                     eb
                         .Property(l => l.ProfileId1)
@@ -127,7 +128,8 @@ public class UpdatesMySqlTest : UpdatesRelationalTestBase<UpdatesMySqlTest.Updat
 
             modelBuilder
                 .Entity<
-                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>(eb =>
+                    LoginEntityTypeWithAnExtremelyLongAndOverlyConvolutedNameThatIsUsedToVerifyThatTheStoreIdentifierGenerationLengthLimitIsWorkingCorrectlyDetails>(eb
+                    =>
                 {
                     eb
                         .Property(l => l.ProfileId1)

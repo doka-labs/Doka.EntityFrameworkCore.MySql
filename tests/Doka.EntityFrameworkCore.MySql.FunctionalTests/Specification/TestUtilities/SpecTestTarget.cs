@@ -45,8 +45,8 @@ internal static class SpecTestTarget
     /// <summary>
     /// Determines whether framework-limitation skips are disabled for a re-evaluation probe.
     /// </summary>
-    public static bool IsFrameworkLimitationProbeEnabled() =>
-        IsEnabled(FrameworkLimitationProbeEnvironmentVariableName);
+    public static bool IsFrameworkLimitationProbeEnabled()
+        => IsEnabled(FrameworkLimitationProbeEnvironmentVariableName);
 
     /// <summary>
     /// Resolves an explicit discovery target or the stable default when it is absent.

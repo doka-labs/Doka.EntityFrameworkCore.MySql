@@ -21,20 +21,20 @@ public sealed class ApplicationTimeTableIntegrationTests
     private static readonly DateTime s_initialTo = new(2027, 1, 1);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task Bitemporal_contract_executes_on_mariadb1011() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task Bitemporal_contract_executes_on_mariadb1011()
+        => RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Bitemporal_contract_executes_on_mariadb114() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task Bitemporal_contract_executes_on_mariadb114()
+        => RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Bitemporal_contract_executes_on_mariadb118() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Bitemporal_contract_executes_on_mariadb118()
+        => RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Bitemporal_contract_executes_on_mariadb123() =>
-        RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Bitemporal_contract_executes_on_mariadb123()
+        => RunBitemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the bitemporal contract integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -422,10 +422,9 @@ public sealed class ApplicationTimeTableIntegrationTests
         string commandText,
         CancellationToken cancellationToken,
         params (string Name, object Value)[] parameters
-    ) =>
-        Convert.ToInt32(
-            await ExecuteScalarAsync(connection, commandText, cancellationToken, parameters),
-            CultureInfo.InvariantCulture);
+    ) => Convert.ToInt32(
+        await ExecuteScalarAsync(connection, commandText, cancellationToken, parameters),
+        CultureInfo.InvariantCulture);
 
     /// <summary>Executes the scalar with the caller's cancellation token.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

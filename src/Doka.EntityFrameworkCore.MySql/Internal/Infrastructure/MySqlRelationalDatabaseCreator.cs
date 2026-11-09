@@ -6,15 +6,15 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 {
     private const string HasTablesSql = """
-                                        SELECT CASE
-                                            WHEN EXISTS (
-                                                SELECT 1
-                                                FROM information_schema.tables
-                                                WHERE table_schema = DATABASE()
-                                            ) THEN 1
-                                            ELSE 0
-                                        END
-                                        """;
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+            ) THEN 1
+            ELSE 0
+        END
+        """;
 
     public MySqlRelationalDatabaseCreator(
         RelationalDatabaseCreatorDependencies dependencies
@@ -210,28 +210,23 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
         return MySqlScalarConvert.ToBoolean(result);
     }
 
-    private MySqlLifecycleConnection CreateDatabaseConnection()
-        => GetProviderConnection()
-            .CreateLifecycleConnection(GetConnectionString());
+    private MySqlLifecycleConnection CreateDatabaseConnection() => GetProviderConnection()
+        .CreateLifecycleConnection(GetConnectionString());
 
-    private MySqlLifecycleConnection CreateServerConnection()
-        => GetProviderConnection()
-            .CreateLifecycleConnection(CreateServerConnectionString());
+    private MySqlLifecycleConnection CreateServerConnection() => GetProviderConnection()
+        .CreateLifecycleConnection(CreateServerConnectionString());
 
-    private MySqlRelationalConnection GetProviderConnection()
-        => Dependencies.Connection as MySqlRelationalConnection
-            ?? throw new InvalidOperationException(
-                "The Doka MySQL database creator requires the provider relational connection.");
+    private MySqlRelationalConnection GetProviderConnection() => Dependencies.Connection as MySqlRelationalConnection
+        ?? throw new InvalidOperationException(
+            "The Doka MySQL database creator requires the provider relational connection.");
 
-    private string BuildCreateDatabaseSql()
-        => "CREATE DATABASE IF NOT EXISTS "
-            + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
-            + Dependencies.SqlGenerationHelper.StatementTerminator;
+    private string BuildCreateDatabaseSql() => "CREATE DATABASE IF NOT EXISTS "
+        + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
+        + Dependencies.SqlGenerationHelper.StatementTerminator;
 
-    private string BuildDropDatabaseSql()
-        => "DROP DATABASE IF EXISTS "
-            + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
-            + Dependencies.SqlGenerationHelper.StatementTerminator;
+    private string BuildDropDatabaseSql() => "DROP DATABASE IF EXISTS "
+        + Dependencies.SqlGenerationHelper.DelimitIdentifier(GetDatabaseName())
+        + Dependencies.SqlGenerationHelper.StatementTerminator;
 
     private string CreateServerConnectionString()
     {

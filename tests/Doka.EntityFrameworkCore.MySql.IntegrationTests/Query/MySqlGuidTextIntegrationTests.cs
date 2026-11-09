@@ -29,8 +29,7 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
     /// <summary>
     /// Identifies each configured default and explicit property mapping.
     /// </summary>
-    public static IEnumerable<object[]> PropertyCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> PropertyCases => from target in SelectedTargets()
         from format in s_defaultFormats
         from property in s_properties
         select new object[] { target.ToString(), format, property };
@@ -38,8 +37,7 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
     /// <summary>
     /// Identifies each matching operation independently of other operations.
     /// </summary>
-    public static IEnumerable<object[]> MatchingCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> MatchingCases => from target in SelectedTargets()
         from format in s_defaultFormats
         from property in s_properties
         from operation in s_matchingOperations
@@ -48,8 +46,7 @@ public sealed partial class MySqlGuidTextIntegrationTests : IClassFixture<MySqlG
     /// <summary>
     /// Identifies the selected engine and default-format pairs.
     /// </summary>
-    public static IEnumerable<object[]> FormatCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> FormatCases => from target in SelectedTargets()
         from format in s_defaultFormats
         select new object[] { target.ToString(), format };
 

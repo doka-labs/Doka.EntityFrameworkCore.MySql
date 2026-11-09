@@ -30,8 +30,8 @@ internal sealed class MySqlApplicationTimeQueryRootExpression : EntityQueryRootE
 
     public DateTime To { get; }
 
-    public override Expression DetachQueryProvider() =>
-        new MySqlApplicationTimeQueryRootExpression(EntityType, From, To);
+    public override Expression DetachQueryProvider()
+        => new MySqlApplicationTimeQueryRootExpression(EntityType, From, To);
 
     public override EntityQueryRootExpression UpdateEntityType(
         IEntityType entityType

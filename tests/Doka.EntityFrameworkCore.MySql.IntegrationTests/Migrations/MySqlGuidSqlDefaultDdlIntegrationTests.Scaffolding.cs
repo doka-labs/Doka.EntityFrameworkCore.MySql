@@ -7,8 +7,7 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     /// <summary>
     /// Identifies textual and native Guid defaults with both textual reverse-engineering policies.
     /// </summary>
-    public static IEnumerable<object[]> ScaffoldingCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> ScaffoldingCases => from target in SelectedTargets()
         from format in FormatsFor(target)
             .Where(format => format != MySqlGuidFormat.Binary16)
         from scaffoldTextGuids in s_scaffoldTextGuidPolicies

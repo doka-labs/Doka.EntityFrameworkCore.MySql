@@ -22,8 +22,8 @@ public class HiLoStateCacheBenchmarks
     public void GlobalSetup() => _ = MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
 
     [Benchmark]
-    public object ResolveCachedHiLoState() =>
-        MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
+    public object ResolveCachedHiLoState()
+        => MySqlHiLoStateCache.GetOrCreate(s_databaseIdentity, SequenceName, BlockSize);
 }
 
 /// <summary>

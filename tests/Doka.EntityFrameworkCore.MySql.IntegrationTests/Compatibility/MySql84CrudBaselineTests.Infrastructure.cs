@@ -39,13 +39,13 @@ public sealed partial class MySql84CrudBaselineTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS `{CrudTableName}`;
-                               DROP TABLE IF EXISTS `{MigrationProbeTableName}`;
-                               DROP TABLE IF EXISTS `{HistoryTableName}`;
-                               DROP TABLE IF EXISTS `{BinaryGuidTableName}`;
-                               DROP TABLE IF EXISTS `{CharGuidTableName}`;
-                               DROP TABLE IF EXISTS `{JsonTableName}`;
-                               """;
+            DROP TABLE IF EXISTS `{CrudTableName}`;
+            DROP TABLE IF EXISTS `{MigrationProbeTableName}`;
+            DROP TABLE IF EXISTS `{HistoryTableName}`;
+            DROP TABLE IF EXISTS `{BinaryGuidTableName}`;
+            DROP TABLE IF EXISTS `{CharGuidTableName}`;
+            DROP TABLE IF EXISTS `{JsonTableName}`;
+            """;
 
         await command
             .ExecuteNonQueryAsync(cancellationToken)
@@ -65,16 +65,16 @@ public sealed partial class MySql84CrudBaselineTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-                              SELECT CASE
-                                  WHEN EXISTS (
-                                      SELECT 1
-                                      FROM information_schema.tables
-                                      WHERE table_schema = DATABASE()
-                                        AND table_name = @tableName
-                                  ) THEN 1
-                                  ELSE 0
-                              END;
-                              """;
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = @tableName
+            ) THEN 1
+            ELSE 0
+        END;
+        """;
 
         command.Parameters.AddWithValue("@tableName", tableName);
 

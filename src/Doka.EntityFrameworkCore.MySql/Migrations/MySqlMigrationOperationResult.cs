@@ -108,8 +108,7 @@ public sealed class MySqlMigrationOperationResult
 
     internal static bool IsValidOutcomeCode(
         string outcomeCode
-    )
-        => s_outcomeCodePattern.IsMatch(outcomeCode);
+    ) => s_outcomeCodePattern.IsMatch(outcomeCode);
 
     private static void ValidateOutcomeCode(
         string outcomeCode

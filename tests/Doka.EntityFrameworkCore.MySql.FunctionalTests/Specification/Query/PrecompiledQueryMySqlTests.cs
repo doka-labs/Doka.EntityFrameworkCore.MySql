@@ -16,8 +16,8 @@ public sealed class AdHocPrecompiledQueryMySqlTest : AdHocPrecompiledQueryRelati
 
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-    protected override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers =>
-        MySqlPrecompiledQueryTestHelpers.Instance;
+    protected override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers
+        => MySqlPrecompiledQueryTestHelpers.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -37,8 +37,8 @@ public sealed class PrecompiledQueryMySqlFixture : PrecompiledQueryRelationalFix
 {
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-    public override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers =>
-        MySqlPrecompiledQueryTestHelpers.Instance;
+    public override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers
+        => MySqlPrecompiledQueryTestHelpers.Instance;
 }
 
 [Trait("Category", "Spec")]
@@ -58,6 +58,6 @@ public sealed class PrecompiledSqlPregenerationQueryMySqlFixture : PrecompiledSq
 {
     protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
-    public override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers =>
-        MySqlPrecompiledQueryTestHelpers.Instance;
+    public override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers
+        => MySqlPrecompiledQueryTestHelpers.Instance;
 }

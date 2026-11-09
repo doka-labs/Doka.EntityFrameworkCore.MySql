@@ -26,8 +26,7 @@ internal sealed class MySqlScaffoldingContext
     /// </summary>
     public string? DetectedServerVersionText => Current.DetectedServerVersionText;
 
-    private MySqlScaffoldingState Current =>
-        _current.Value
+    private MySqlScaffoldingState Current => _current.Value
         ?? throw new InvalidOperationException(
             "No MySQL scaffolding operation is active in the current execution context.");
 
@@ -50,8 +49,7 @@ internal sealed class MySqlScaffoldingContext
         UsesNetTopologySuiteScaffolding = usesNetTopologySuiteScaffolding,
     };
 
-    public void MarkUsesNetTopologySuiteScaffolding() =>
-        SetUsesNetTopologySuiteScaffolding(true);
+    public void MarkUsesNetTopologySuiteScaffolding() => SetUsesNetTopologySuiteScaffolding(true);
 
     /// <summary>
     /// Returns and removes the completed state for the current scaffolding operation.

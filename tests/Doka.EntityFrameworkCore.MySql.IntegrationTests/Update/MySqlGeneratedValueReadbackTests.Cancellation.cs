@@ -129,8 +129,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             byte[]? buffer,
             int bufferOffset,
             int length
-        ) =>
-            inner.GetBytes(ordinal, offset, buffer, bufferOffset, length);
+        ) => inner.GetBytes(ordinal, offset, buffer, bufferOffset, length);
 
         public override char GetChar(
             int ordinal
@@ -142,8 +141,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             char[]? buffer,
             int bufferOffset,
             int length
-        ) =>
-            inner.GetChars(ordinal, offset, buffer, bufferOffset, length);
+        ) => inner.GetChars(ordinal, offset, buffer, bufferOffset, length);
 
         public override string GetDataTypeName(
             int ordinal
@@ -220,19 +218,16 @@ public sealed partial class MySqlGeneratedValueReadbackTests
         public override Task<T> GetFieldValueAsync<T>(
             int ordinal,
             CancellationToken cancellationToken
-        ) =>
-            inner.GetFieldValueAsync<T>(ordinal, cancellationToken);
+        ) => inner.GetFieldValueAsync<T>(ordinal, cancellationToken);
 
         public override Task<bool> IsDBNullAsync(
             int ordinal,
             CancellationToken cancellationToken
-        ) =>
-            inner.IsDBNullAsync(ordinal, cancellationToken);
+        ) => inner.IsDBNullAsync(ordinal, cancellationToken);
 
         public override Task<bool> NextResultAsync(
             CancellationToken cancellationToken
-        ) =>
-            inner.NextResultAsync(cancellationToken);
+        ) => inner.NextResultAsync(cancellationToken);
 
         public override async Task<bool> ReadAsync(
             CancellationToken cancellationToken

@@ -27,8 +27,7 @@ public sealed class MySqlUpdateSqlGeneratorTest : UpdateSqlGeneratorTestBase, ID
     /// <inheritdoc />
     public void Dispose() => _context.Dispose();
 
-    protected override IUpdateSqlGenerator CreateSqlGenerator()
-        => _context.GetService<IUpdateSqlGenerator>();
+    protected override IUpdateSqlGenerator CreateSqlGenerator() => _context.GetService<IUpdateSqlGenerator>();
 
     /// <summary>
     /// Verifies that relational schema input does not leak into a MySQL-family sequence

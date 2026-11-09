@@ -28,8 +28,8 @@ public sealed class AdHocAdvancedMappingsQueryMySqlTest : AdHocAdvancedMappingsQ
     ) => base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix);
 
     [SpecEngineLimitationFact("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
-    public Task Query_generates_correct_datetime2_parameter_definition_at_precision_7() =>
-        base.Query_generates_correct_datetime2_parameter_definition(7, " (Scale = 7)");
+    public Task Query_generates_correct_datetime2_parameter_definition_at_precision_7()
+        => base.Query_generates_correct_datetime2_parameter_definition(7, " (Scale = 7)");
 
     [DirectTheory]
     [InlineData(null, "")]
@@ -45,8 +45,8 @@ public sealed class AdHocAdvancedMappingsQueryMySqlTest : AdHocAdvancedMappingsQ
     ) => base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix);
 
     [SpecEngineLimitationFact("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
-    public Task Query_generates_correct_timespan_parameter_definition_at_precision_7() =>
-        base.Query_generates_correct_timespan_parameter_definition(7, " (Scale = 7)");
+    public Task Query_generates_correct_timespan_parameter_definition_at_precision_7()
+        => base.Query_generates_correct_timespan_parameter_definition(7, " (Scale = 7)");
 }
 
 [Trait("Category", "Spec")]

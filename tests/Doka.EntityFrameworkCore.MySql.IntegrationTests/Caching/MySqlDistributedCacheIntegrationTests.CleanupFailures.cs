@@ -4,12 +4,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlDistributedCacheIntegrationTests
 {
     /// <summary>Returns each selected engine with a foreground operation that can wait on a live row.</summary>
-    public static IEnumerable<object[]> CleanupObserverFailureCases =>
-        SelectedTargets.SelectMany(target => new[]
-        {
-            new[] { target[0], "refresh" },
-            new[] { target[0], "try-get" },
-        });
+    public static IEnumerable<object[]> CleanupObserverFailureCases => SelectedTargets.SelectMany(target
+        => new[] { new[] { target[0], "refresh" }, new[] { target[0], "try-get" } });
 
     /// <summary>An observer failure remains visible when protected teardown cancels blocked foreground work.</summary>
     /// <param name="targetName">The selected engine for the isolated lock scenario.</param>
@@ -75,6 +71,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Contains(
             nameof(Cleanup_observer_failure_is_not_replaced_by_foreground_cancellation),
             failure.StackTrace);
+
         Assert.Equal(2L, await store.CountExpiredAsync(CancellationToken.None));
     }
 
@@ -102,7 +99,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             {
                 released = true;
 
-                return releaseFails ? Task.FromException(releaseFailure) : Task.CompletedTask;
+                return releaseFails
+                    ? Task.FromException(releaseFailure)
+                    : Task.CompletedTask;
             },
             pending,
             primaryFailure);
@@ -111,7 +110,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.True(cancellation.IsCancellationRequested);
         Assert.True(released);
         var secondaryFailures = Assert.IsType<AggregateException>(primaryFailure.Data[nameof(CompleteLockProbeAsync)]);
-        Assert.Equal(releaseFails ? 2 : 1, secondaryFailures.InnerExceptions.Count);
+        Assert.Equal(releaseFails
+                ? 2
+                : 1,
+            secondaryFailures.InnerExceptions.Count);
+
         Assert.Same(pendingFailure, secondaryFailures.InnerExceptions[^1]);
 
         if (releaseFails)

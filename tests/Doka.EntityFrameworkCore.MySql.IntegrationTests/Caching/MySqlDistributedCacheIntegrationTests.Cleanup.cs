@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies bounded cleanup scheduling and cancellation recovery.</summary>
@@ -335,7 +337,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         {
             if (cancellation is not null)
             {
-                await cancellation.CancelAsync().ConfigureAwait(false);
+                await cancellation
+                    .CancelAsync()
+                    .ConfigureAwait(false);
             }
         }
         catch (Exception exception)
@@ -345,7 +349,8 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         try
         {
-            await releaseLock().ConfigureAwait(false);
+            await releaseLock()
+                .ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -380,7 +385,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         if (failures.Count == 1)
         {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            ExceptionDispatchInfo
+                .Capture(failures[0])
+                .Throw();
         }
 
         throw new AggregateException("Lock probe teardown failed.", failures);

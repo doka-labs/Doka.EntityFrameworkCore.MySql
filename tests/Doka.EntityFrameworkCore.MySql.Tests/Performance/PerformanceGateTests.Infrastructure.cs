@@ -8,17 +8,17 @@ public sealed partial class PerformanceGateTests
         string maximumProperties,
         string metric = "meanRatio"
     ) => $$"""
-           [
-               {
-                   "id": "ratio-control",
-                   "type": "ControlBenchmark",
-                   "method": "Measured",
-                   "baselineMethod": "Baseline",
-                   {{maximumProperties}}{{(maximumProperties.Length > 0 ? "," : string.Empty)}}
-                   "metric": "{{metric}}"
-               }
-           ]
-           """;
+        [
+            {
+                "id": "ratio-control",
+                "type": "ControlBenchmark",
+                "method": "Measured",
+                "baselineMethod": "Baseline",
+                {{maximumProperties}}{{(maximumProperties.Length > 0 ? "," : string.Empty)}}
+                "metric": "{{metric}}"
+            }
+        ]
+        """;
 
     private static string ParameterizedCollectionControlsJson()
     {
@@ -114,16 +114,16 @@ public sealed partial class PerformanceGateTests
             using var controlsDocument = JsonDocument.Parse(
                 controlsJson
                 ?? """
-                   [
-                       {
-                           "id": "allocation-control",
-                           "type": "ControlBenchmark",
-                           "method": "Execute",
-                           "metric": "allocatedBytes",
-                           "maximum": 0
-                       }
-                   ]
-                   """);
+                [
+                    {
+                        "id": "allocation-control",
+                        "type": "ControlBenchmark",
+                        "method": "Execute",
+                        "metric": "allocatedBytes",
+                        "maximum": 0
+                    }
+                ]
+                """);
 
             File.WriteAllText(
                 fixture.ContractPath,

@@ -35,33 +35,29 @@ public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistribut
 
     // WHY: xUnit v2 cannot skip individual InlineData rows at runtime. Select the
     // engine rows during discovery while keeping each selected engine visible in Rider.
-    public static IEnumerable<object[]> SelectedTargets =>
-        IntegrationTestEnvironment
-            .GetSelectedTargets()
-            .Where(target => IntegrationTestEnvironment
-                .GetSupportedTargets()
-                .Contains(target))
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(target => IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Contains(target))
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Returns the selected engines crossed with all byte payload sizes.</summary>
-    public static IEnumerable<object[]> BytePayloadCases =>
-        SelectedTargets.SelectMany(target => s_payloadSizes.Select(size => new[] { target[0], size }));
+    public static IEnumerable<object[]> BytePayloadCases
+        => SelectedTargets.SelectMany(target => s_payloadSizes.Select(size => new[] { target[0], size }));
 
     /// <summary>Returns sizes large enough to exercise multi-segment payloads.</summary>
-    public static IEnumerable<object[]> SegmentedBytePayloadCases =>
-        SelectedTargets.SelectMany(target => s_payloadSizes
-            .Where(size => size > 1)
-            .Select(size => new[] { target[0], size }));
+    public static IEnumerable<object[]> SegmentedBytePayloadCases => SelectedTargets.SelectMany(target => s_payloadSizes
+        .Where(size => size > 1)
+        .Select(size => new[] { target[0], size }));
 
     /// <summary>Returns each selected engine crossed with an independent cleanup initiator.</summary>
-    public static IEnumerable<object[]> CleanupCancellationCases =>
-        SelectedTargets.SelectMany(target =>
-            s_cleanupInitiators.Select(initiator => new[] { target[0], initiator }));
+    public static IEnumerable<object[]> CleanupCancellationCases => SelectedTargets.SelectMany(target =>
+        s_cleanupInitiators.Select(initiator => new[] { target[0], initiator }));
 
     /// <summary>Returns each selected engine with one synchronous or asynchronous cache path.</summary>
-    public static IEnumerable<object[]> SyncAsyncCases =>
-        SelectedTargets.SelectMany(target =>
-            new[] { new[] { target[0], false }, new[] { target[0], true } });
+    public static IEnumerable<object[]> SyncAsyncCases => SelectedTargets.SelectMany(target =>
+        new[] { new[] { target[0], false }, new[] { target[0], true } });
 
     /// <summary>Returns each engine with either deployment selected for the isolation operation.</summary>
     public static IEnumerable<object[]> TableIsolationCases => SyncAsyncCases;
@@ -70,19 +66,17 @@ public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistribut
     public static IEnumerable<object[]> CappedSlidingCases => SyncAsyncCases;
 
     /// <summary>Returns each selected engine with one sliding-read outcome.</summary>
-    public static IEnumerable<object[]> SlidingLockWaitCases =>
-        SelectedTargets.SelectMany(target => new[]
-        {
-            new[] { target[0], false, false },
-            new[] { target[0], false, true },
-            new[] { target[0], true, false },
-            new[] { target[0], true, true },
-        });
+    public static IEnumerable<object[]> SlidingLockWaitCases => SelectedTargets.SelectMany(target => new[]
+    {
+        new[] { target[0], false, false },
+        new[] { target[0], false, true },
+        new[] { target[0], true, false },
+        new[] { target[0], true, true },
+    });
 
     /// <summary>Returns each selected engine with one lock-waiting cache operation.</summary>
-    public static IEnumerable<object[]> WaitedRefreshCases =>
-        SelectedTargets.SelectMany(target =>
-            s_waitedRefreshOperations.Select(operation => new[] { target[0], operation }));
+    public static IEnumerable<object[]> WaitedRefreshCases => SelectedTargets.SelectMany(target =>
+        s_waitedRefreshOperations.Select(operation => new[] { target[0], operation }));
 
     /// <summary>Returns each selected engine with one table-lock cancellation initiator.</summary>
     public static IEnumerable<object[]> LockedCancellationCases => CleanupCancellationCases;

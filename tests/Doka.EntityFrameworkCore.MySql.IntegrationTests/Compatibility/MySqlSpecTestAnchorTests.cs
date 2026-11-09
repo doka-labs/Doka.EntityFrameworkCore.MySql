@@ -136,7 +136,7 @@ public sealed class MySqlSpecTestAnchorTests
             DbContextOptionsBuilder builder
         ) => builder.UseMySql(BuildConnectionString(), MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
-        private static string BuildConnectionString() =>
-            IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
+        private static string BuildConnectionString()
+            => IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
     }
 }

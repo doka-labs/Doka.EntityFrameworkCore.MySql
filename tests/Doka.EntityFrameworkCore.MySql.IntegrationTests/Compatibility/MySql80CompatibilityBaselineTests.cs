@@ -62,12 +62,12 @@ public sealed class MySql80CompatibilityBaselineTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{TableName}` (
-                         `Id` int NOT NULL AUTO_INCREMENT,
-                         `Name` longtext NOT NULL,
-                         CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
-                     ) CHARACTER SET utf8mb4;
-                     """,
+                    CREATE TABLE `{TableName}` (
+                        `Id` int NOT NULL AUTO_INCREMENT,
+                        `Name` longtext NOT NULL,
+                        CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
+                    ) CHARACTER SET utf8mb4;
+                    """,
                     CancellationToken.None)
                 .ConfigureAwait(false);
 

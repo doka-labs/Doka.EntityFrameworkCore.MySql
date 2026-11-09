@@ -12,11 +12,10 @@ public sealed class MariaDbCompatibilityBaselineTests
     /// Verifies the approved capability-driven baseline against MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_capability_driven_runtime_baseline_succeeds() =>
-        VerifyMariaDbCompatibilityBaselineAsync(
-            IntegrationDatabaseTarget.MariaDb1011,
-            new Version(10, 11, 0),
-            CancellationToken.None);
+    public Task MariaDb1011_capability_driven_runtime_baseline_succeeds() => VerifyMariaDbCompatibilityBaselineAsync(
+        IntegrationDatabaseTarget.MariaDb1011,
+        new Version(10, 11, 0),
+        CancellationToken.None);
 
     /// <summary>
     /// Verifies the approved capability-driven baseline against MariaDB 11.4.
@@ -40,11 +39,10 @@ public sealed class MariaDbCompatibilityBaselineTests
     /// Verifies the approved capability-driven baseline against MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_capability_driven_runtime_baseline_succeeds() =>
-        VerifyMariaDbCompatibilityBaselineAsync(
-            IntegrationDatabaseTarget.MariaDb123,
-            new Version(12, 3, 0),
-            CancellationToken.None);
+    public Task MariaDb123_capability_driven_runtime_baseline_succeeds() => VerifyMariaDbCompatibilityBaselineAsync(
+        IntegrationDatabaseTarget.MariaDb123,
+        new Version(12, 3, 0),
+        CancellationToken.None);
 
     private static async Task VerifyMariaDbCompatibilityBaselineAsync(
         IntegrationDatabaseTarget target,
@@ -149,12 +147,12 @@ public sealed class MariaDbCompatibilityBaselineTests
 
             await using var metadataCommand = connection.CreateCommand();
             metadataCommand.CommandText = """
-                                          SELECT DATA_TYPE, COLLATION_NAME
-                                          FROM information_schema.COLUMNS
-                                          WHERE TABLE_SCHEMA = DATABASE()
-                                            AND TABLE_NAME = @tableName
-                                            AND COLUMN_NAME = 'Payload';
-                                          """;
+            SELECT DATA_TYPE, COLLATION_NAME
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = @tableName
+              AND COLUMN_NAME = 'Payload';
+            """;
 
             var tableNameParameter = metadataCommand.CreateParameter();
             tableNameParameter.ParameterName = "@tableName";
@@ -212,16 +210,16 @@ public sealed class MariaDbCompatibilityBaselineTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS `{TableName}`;
-                               CREATE TABLE `{TableName}` (
-                                   `Id` int NOT NULL AUTO_INCREMENT,
-                                   `Name` longtext NOT NULL,
-                                   `Payload` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Payload`)),
-                                   `VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL,
-                                   `StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) STORED,
-                                   CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
-                               ) CHARACTER SET utf8mb4;
-                               """;
+            DROP TABLE IF EXISTS `{TableName}`;
+            CREATE TABLE `{TableName}` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Name` longtext NOT NULL,
+                `Payload` longtext COLLATE utf8mb4_bin NOT NULL CHECK (JSON_VALID(`Payload`)),
+                `VirtualKind` varchar(64) GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.kind'))) VIRTUAL,
+                `StoredCount` int GENERATED ALWAYS AS (JSON_LENGTH(`Payload`)) STORED,
+                CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
+            ) CHARACTER SET utf8mb4;
+            """;
 
         await command
             .ExecuteNonQueryAsync(cancellationToken)

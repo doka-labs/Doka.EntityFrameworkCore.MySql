@@ -18,25 +18,21 @@ public sealed partial class MySqlScopedMigrationOperationIntegrationTests
     private static readonly bool[] s_connectionResetModes = [false, true];
 
     /// <summary>Identifies each selected supported engine.</summary>
-    public static IEnumerable<object[]> TargetCases =>
-        SelectedTargets()
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> TargetCases => SelectedTargets()
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies independent successful and failed command executions.</summary>
-    public static IEnumerable<object[]> ExecutionCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> ExecutionCases => from target in SelectedTargets()
         from scenario in s_executionScenarios
         select new object[] { target.ToString(), scenario.ToString() };
 
     /// <summary>Identifies the first and later setup failure boundaries independently.</summary>
-    public static IEnumerable<object[]> SetupFailureCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> SetupFailureCases => from target in SelectedTargets()
         from scenario in s_setupScenarios
         select new object[] { target.ToString(), scenario.ToString() };
 
     /// <summary>Identifies pooled-session reuse with and without connector reset.</summary>
-    public static IEnumerable<object[]> PoolReuseCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> PoolReuseCases => from target in SelectedTargets()
         from reset in s_connectionResetModes
         select new object[] { target.ToString(), reset };
 

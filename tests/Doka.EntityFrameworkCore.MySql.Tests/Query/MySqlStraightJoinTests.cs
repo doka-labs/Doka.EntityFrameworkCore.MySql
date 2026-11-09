@@ -466,10 +466,9 @@ public sealed partial class MySqlStraightJoinTests
         Expression<Func<TInner, TKey>> innerKey,
         Expression<Func<TOuter, TInner, TResult>> result,
         bool directed
-    )
-        => directed
-            ? outer.StraightJoin(inner, outerKey, innerKey, result)
-            : outer.Join(inner, outerKey, innerKey, result);
+    ) => directed
+        ? outer.StraightJoin(inner, outerKey, innerKey, result)
+        : outer.Join(inner, outerKey, innerKey, result);
 
     /// <summary>Compares parameterized SQL structure independently of values and the explicitly selected edge grammar.</summary>
     private static string Normalize(

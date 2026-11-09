@@ -171,106 +171,106 @@ public sealed partial class MySqlScaffoldingRoundTripTests
 
         var sequenceExistsSql = IsMariaDb(target)
             ? $"""
-               SELECT COUNT(*)
-               FROM information_schema.TABLES
-               WHERE TABLE_SCHEMA = DATABASE()
-                 AND TABLE_NAME = '{IndexStoreSequence}'
-                 AND TABLE_TYPE = 'SEQUENCE';
-               """
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = '{IndexStoreSequence}'
+              AND TABLE_TYPE = 'SEQUENCE';
+            """
             : $"""
-               SELECT COUNT(*)
-               FROM information_schema.TABLES
-               WHERE TABLE_SCHEMA = DATABASE()
-                 AND TABLE_NAME = '{EmulatedSequenceTable}'
-                 AND TABLE_TYPE = 'BASE TABLE';
-               """;
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = '{EmulatedSequenceTable}'
+              AND TABLE_TYPE = 'BASE TABLE';
+            """;
 
         // Act
         var tableCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(*)
-                 FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME IN ('{ParentTable}', '{ChildTable}', '{IndexStoreTable}')
-                   AND TABLE_TYPE = 'BASE TABLE';
-                 """,
+                SELECT COUNT(*)
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME IN ('{ParentTable}', '{ChildTable}', '{IndexStoreTable}')
+                  AND TABLE_TYPE = 'BASE TABLE';
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var foreignKeyCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(*)
-                 FROM information_schema.REFERENTIAL_CONSTRAINTS
-                 WHERE CONSTRAINT_SCHEMA = DATABASE()
-                   AND CONSTRAINT_NAME = '{ForeignKey}';
-                 """,
+                SELECT COUNT(*)
+                FROM information_schema.REFERENTIAL_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND CONSTRAINT_NAME = '{ForeignKey}';
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var checkCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(*)
-                 FROM information_schema.TABLE_CONSTRAINTS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '{ParentTable}'
-                   AND CONSTRAINT_TYPE = 'CHECK'
-                   AND CONSTRAINT_NAME = '{CheckConstraint}';
-                 """,
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = '{ParentTable}'
+                  AND CONSTRAINT_TYPE = 'CHECK'
+                  AND CONSTRAINT_NAME = '{CheckConstraint}';
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var foreignKeyIndexCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(DISTINCT INDEX_NAME)
-                 FROM information_schema.STATISTICS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '{ChildTable}'
-                   AND COLUMN_NAME = 'ParentId'
-                   AND SEQ_IN_INDEX = 1;
-                 """,
+                SELECT COUNT(DISTINCT INDEX_NAME)
+                FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = '{ChildTable}'
+                  AND COLUMN_NAME = 'ParentId'
+                  AND SEQ_IN_INDEX = 1;
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var jsonConstraintCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(*)
-                 FROM information_schema.TABLE_CONSTRAINTS AS constraints
-                 INNER JOIN information_schema.CHECK_CONSTRAINTS AS checks
-                     ON checks.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
-                     AND checks.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
-                 WHERE constraints.TABLE_SCHEMA = DATABASE()
-                   AND constraints.TABLE_NAME = '{IndexStoreTable}'
-                   AND constraints.CONSTRAINT_TYPE = 'CHECK'
-                   AND LOWER(checks.CHECK_CLAUSE) LIKE '%json_valid%';
-                 """,
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS AS constraints
+                INNER JOIN information_schema.CHECK_CONSTRAINTS AS checks
+                    ON checks.CONSTRAINT_SCHEMA = constraints.CONSTRAINT_SCHEMA
+                    AND checks.CONSTRAINT_NAME = constraints.CONSTRAINT_NAME
+                WHERE constraints.TABLE_SCHEMA = DATABASE()
+                  AND constraints.TABLE_NAME = '{IndexStoreTable}'
+                  AND constraints.CONSTRAINT_TYPE = 'CHECK'
+                  AND LOWER(checks.CHECK_CLAUSE) LIKE '%json_valid%';
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var backfilledRowCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(*)
-                 FROM `{ParentTable}`
-                 WHERE `OptionalCount` = 9
-                   AND `ComputedCount` = 10;
-                 """,
+                SELECT COUNT(*)
+                FROM `{ParentTable}`
+                WHERE `OptionalCount` = 9
+                  AND `ComputedCount` = 10;
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 
         var providerIndexCount = await ExecuteScalarInt64Async(
                 connection,
                 $"""
-                 SELECT COUNT(DISTINCT INDEX_NAME)
-                 FROM information_schema.STATISTICS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '{IndexStoreTable}'
-                   AND INDEX_NAME IN ('{PrefixIndex}', '{FullTextIndex}', '{SpatialIndex}', '{UniqueIndex}');
-                 """,
+                SELECT COUNT(DISTINCT INDEX_NAME)
+                FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = '{IndexStoreTable}'
+                  AND INDEX_NAME IN ('{PrefixIndex}', '{FullTextIndex}', '{SpatialIndex}', '{UniqueIndex}');
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 

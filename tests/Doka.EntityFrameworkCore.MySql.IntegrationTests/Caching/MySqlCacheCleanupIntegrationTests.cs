@@ -533,21 +533,21 @@ public sealed class MySqlCacheCleanupIntegrationTests
         // Arrange
         var lockProbe = target is IntegrationDatabaseTarget.MySql84 or IntegrationDatabaseTarget.MySql97
             ? """
-              SELECT COUNT(DISTINCT waits.REQUESTING_THREAD_ID)
-              FROM performance_schema.data_lock_waits AS waits
-              JOIN performance_schema.data_locks AS locks
-                  ON locks.ENGINE = waits.ENGINE
-                  AND locks.ENGINE_LOCK_ID = waits.REQUESTING_ENGINE_LOCK_ID
-              WHERE locks.OBJECT_SCHEMA = DATABASE()
-                  AND locks.OBJECT_NAME = @tableName
-                  AND locks.LOCK_TYPE = 'RECORD';
-              """
+            SELECT COUNT(DISTINCT waits.REQUESTING_THREAD_ID)
+            FROM performance_schema.data_lock_waits AS waits
+            JOIN performance_schema.data_locks AS locks
+                ON locks.ENGINE = waits.ENGINE
+                AND locks.ENGINE_LOCK_ID = waits.REQUESTING_ENGINE_LOCK_ID
+            WHERE locks.OBJECT_SCHEMA = DATABASE()
+                AND locks.OBJECT_NAME = @tableName
+                AND locks.LOCK_TYPE = 'RECORD';
+            """
             : """
-              SELECT COUNT(*) FROM information_schema.INNODB_TRX
-              WHERE TRX_STATE = 'LOCK WAIT'
-                  AND LOCATE(@tableName, COALESCE(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1), '')) > 0
-                  AND UPPER(LTRIM(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1))) LIKE 'DELETE %';
-              """;
+            SELECT COUNT(*) FROM information_schema.INNODB_TRX
+            WHERE TRX_STATE = 'LOCK WAIT'
+                AND LOCATE(@tableName, COALESCE(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1), '')) > 0
+                AND UPPER(LTRIM(CONVERT(CAST(TRX_QUERY AS BINARY) USING latin1))) LIKE 'DELETE %';
+            """;
 
         await using var command = new MySqlCommand(
             lockProbe,
@@ -583,14 +583,14 @@ public sealed class MySqlCacheCleanupIntegrationTests
         }
 
         command.CommandText = """
-                              SELECT GROUP_CONCAT(CONCAT_WS(' | ', p.ID, p.STATE, t.TRX_STATE, t.TRX_OPERATION_STATE,
-                                  CONVERT(CAST(p.INFO AS BINARY) USING latin1))
-                                  SEPARATOR '\n')
-                              FROM information_schema.PROCESSLIST AS p
-                              LEFT JOIN information_schema.INNODB_TRX AS t ON t.TRX_MYSQL_THREAD_ID = p.ID
-                              WHERE p.ID <> CONNECTION_ID()
-                                  AND LOCATE(@tableName, COALESCE(CONVERT(CAST(p.INFO AS BINARY) USING latin1), '')) > 0;
-                              """;
+        SELECT GROUP_CONCAT(CONCAT_WS(' | ', p.ID, p.STATE, t.TRX_STATE, t.TRX_OPERATION_STATE,
+            CONVERT(CAST(p.INFO AS BINARY) USING latin1))
+            SEPARATOR '\n')
+        FROM information_schema.PROCESSLIST AS p
+        LEFT JOIN information_schema.INNODB_TRX AS t ON t.TRX_MYSQL_THREAD_ID = p.ID
+        WHERE p.ID <> CONNECTION_ID()
+            AND LOCATE(@tableName, COALESCE(CONVERT(CAST(p.INFO AS BINARY) USING latin1), '')) > 0;
+        """;
 
         // Act
         var diagnostics = await command

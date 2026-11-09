@@ -24,40 +24,39 @@ public sealed class StoreGeneratedFixupMySqlTest
     /// leaking its deterministic test value into subsequent specification runs.
     /// </summary>
     [Fact]
-    public Task Temp_values_can_be_made_permanent() =>
-        ExecuteWithStrategyInTransactionAsync(async context =>
-        {
-            await context
-                .Set<TestTemp>()
-                .ExecuteDeleteAsync();
+    public Task Temp_values_can_be_made_permanent() => ExecuteWithStrategyInTransactionAsync(async context =>
+    {
+        await context
+            .Set<TestTemp>()
+            .ExecuteDeleteAsync();
 
-            var entry = context.Add(new TestTemp());
+        var entry = context.Add(new TestTemp());
 
-            Assert.True(
-                entry.Property(e => e.Id)
-                    .IsTemporary);
-
-            Assert.False(
-                entry.Property(e => e.NotId)
-                    .IsTemporary);
-
-            var temporaryValue = entry.Property(e => e.Id)
-                .CurrentValue;
-
+        Assert.True(
             entry.Property(e => e.Id)
-                .IsTemporary = false;
+                .IsTemporary);
 
-            await context.SaveChangesAsync();
+        Assert.False(
+            entry.Property(e => e.NotId)
+                .IsTemporary);
 
-            Assert.False(
-                entry.Property(e => e.Id)
-                    .IsTemporary);
+        var temporaryValue = entry.Property(e => e.Id)
+            .CurrentValue;
 
-            Assert.Equal(
-                temporaryValue,
-                entry.Property(e => e.Id)
-                    .CurrentValue);
-        });
+        entry.Property(e => e.Id)
+            .IsTemporary = false;
+
+        await context.SaveChangesAsync();
+
+        Assert.False(
+            entry.Property(e => e.Id)
+                .IsTemporary);
+
+        Assert.Equal(
+            temporaryValue,
+            entry.Property(e => e.Id)
+                .CurrentValue);
+    });
 
     protected override void UseTransaction(
         DatabaseFacade facade,
@@ -71,7 +70,6 @@ public sealed class StoreGeneratedFixupMySqlTest
     public sealed class StoreGeneratedFixupMySqlFixture :
         StoreGeneratedFixupRelationalFixtureBase
     {
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
     }
 }

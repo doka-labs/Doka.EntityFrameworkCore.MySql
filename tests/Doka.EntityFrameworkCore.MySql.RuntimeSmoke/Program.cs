@@ -666,12 +666,12 @@ public static class Program
                 "The NativeAOT basic smoke path could not resolve the compiled Name column name.");
 
         var createTableSql = $"""
-                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
-                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
-                                  {DelimitIdentifier(nameColumnName)} longtext NOT NULL,
-                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
-                              ) CHARACTER SET utf8mb4;
-                              """;
+            CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
+                {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
+                {DelimitIdentifier(nameColumnName)} longtext NOT NULL,
+                PRIMARY KEY ({DelimitIdentifier(idColumnName)})
+            ) CHARACTER SET utf8mb4;
+            """;
 
         await context
             .Database
@@ -714,12 +714,12 @@ public static class Program
                 "The NativeAOT spatial smoke path could not resolve the compiled Location column name.");
 
         var createTableSql = $"""
-                              CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
-                                  {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
-                                  {DelimitIdentifier(locationColumnName)} point NOT NULL /*!80003 SRID 4326 */,
-                                  PRIMARY KEY ({DelimitIdentifier(idColumnName)})
-                              ) CHARACTER SET utf8mb4;
-                              """;
+            CREATE TABLE {DelimitIdentifier(storeObject.Name)} (
+                {DelimitIdentifier(idColumnName)} int NOT NULL AUTO_INCREMENT,
+                {DelimitIdentifier(locationColumnName)} point NOT NULL /*!80003 SRID 4326 */,
+                PRIMARY KEY ({DelimitIdentifier(idColumnName)})
+            ) CHARACTER SET utf8mb4;
+            """;
 
         await context
             .Database

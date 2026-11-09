@@ -9,16 +9,16 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 public sealed partial class AdHocNavigationsQueryMySqlTest
 {
     [SpecEngineLimitationFact("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
-    public override Task Let_multiple_references_with_reference_to_outer() =>
-        base.Let_multiple_references_with_reference_to_outer();
+    public override Task Let_multiple_references_with_reference_to_outer()
+        => base.Let_multiple_references_with_reference_to_outer();
 
     [SpecEngineLimitationFact("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
-    public override Task Projection_with_multiple_includes_and_subquery_with_set_operation() =>
-        base.Projection_with_multiple_includes_and_subquery_with_set_operation();
+    public override Task Projection_with_multiple_includes_and_subquery_with_set_operation()
+        => base.Projection_with_multiple_includes_and_subquery_with_set_operation();
 
     [SpecEngineLimitationFact("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
-    public override Task SelectMany_and_collection_in_projection_in_FirstOrDefault() =>
-        base.SelectMany_and_collection_in_projection_in_FirstOrDefault();
+    public override Task SelectMany_and_collection_in_projection_in_FirstOrDefault()
+        => base.SelectMany_and_collection_in_projection_in_FirstOrDefault();
 }
 
 public sealed partial class AdHocQueryFiltersQueryMySqlTest

@@ -11,24 +11,22 @@ public sealed class MySqlSequenceValueGeneratorTests
     /// <summary>
     /// Supplies the scalar representations returned by connector sequence commands.
     /// </summary>
-    public static TheoryData<object, long> ConnectorScalarRepresentations =>
-        new()
-        {
-            { 42L, 42L },
-            { 42, 42L },
-            { 42m, 42L },
-            { 42UL, 42L },
-            { "42", 42L },
-        };
+    public static TheoryData<object, long> ConnectorScalarRepresentations => new()
+    {
+        { 42L, 42L },
+        { 42, 42L },
+        { 42m, 42L },
+        { 42UL, 42L },
+        { "42", 42L },
+    };
 
     /// <summary>
     /// Supplies the database null scalar separately from a CLR null reference.
     /// </summary>
-    public static TheoryData<object> DbNullScalarRepresentation =>
-        new()
-        {
-            DBNull.Value,
-        };
+    public static TheoryData<object> DbNullScalarRepresentation => new()
+    {
+        DBNull.Value,
+    };
 
     /// <summary>
     /// Verifies native sequence SQL escapes the configured sequence name.

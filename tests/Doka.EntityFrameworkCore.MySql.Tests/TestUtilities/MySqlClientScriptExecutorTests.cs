@@ -14,17 +14,17 @@ public sealed class MySqlClientScriptExecutorTests
     {
         // Arrange
         const string script = """
-                              DROP PROCEDURE IF EXISTS `apply_migration`;
-                              DELIMITER //
-                              CREATE PROCEDURE `apply_migration`()
-                              BEGIN
-                                  SELECT 'literal;value';
-                                  SELECT `semi;colon`;
-                              END //
-                              DELIMITER ;
-                              CALL `apply_migration`();
-                              DROP PROCEDURE IF EXISTS `apply_migration`;
-                              """;
+            DROP PROCEDURE IF EXISTS `apply_migration`;
+            DELIMITER //
+            CREATE PROCEDURE `apply_migration`()
+            BEGIN
+                SELECT 'literal;value';
+                SELECT `semi;colon`;
+            END //
+            DELIMITER ;
+            CALL `apply_migration`();
+            DROP PROCEDURE IF EXISTS `apply_migration`;
+            """;
 
         // Act
         var statements = MySqlClientScriptExecutor.ParseStatements(script);
@@ -54,17 +54,17 @@ public sealed class MySqlClientScriptExecutorTests
     {
         // Arrange
         const string script = """
-                              DELIMITER //
-                              CREATE PROCEDURE `quoted``name`()
-                              BEGIN
-                                  SELECT 'not // split', 'escaped \' // value';
-                                  -- not // split
-                                  /* not // split */
-                                  SELECT 1;
-                              END //
-                              DELIMITER ;
-                              SELECT 2;
-                              """;
+            DELIMITER //
+            CREATE PROCEDURE `quoted``name`()
+            BEGIN
+                SELECT 'not // split', 'escaped \' // value';
+                -- not // split
+                /* not // split */
+                SELECT 1;
+            END //
+            DELIMITER ;
+            SELECT 2;
+            """;
 
         // Act
         var statements = MySqlClientScriptExecutor.ParseStatements(script);

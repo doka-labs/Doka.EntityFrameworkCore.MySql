@@ -21,10 +21,9 @@ public sealed partial class MySqlGuidTextIntegrationTests
         "ConvertedTextToken",
     ];
 
-    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment
-            .GetSupportedTargets()
-            .Where(IntegrationTestEnvironment.IsTargetSelected);
+    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() => IntegrationTestEnvironment
+        .GetSupportedTargets()
+        .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>
     /// Lazily owns one immutable GUID dataset per requested engine and default format.
