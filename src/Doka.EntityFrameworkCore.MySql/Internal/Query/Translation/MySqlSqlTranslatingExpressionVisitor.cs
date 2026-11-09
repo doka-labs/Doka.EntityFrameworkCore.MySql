@@ -57,8 +57,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
 
     private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
         .GetRuntimeMethods()
-        .Single(method => method.Name == nameof(Enumerable.ElementAt)
-            && method.IsGenericMethodDefinition
+        .Single(method => method is { Name: nameof(Enumerable.ElementAt), IsGenericMethodDefinition: true }
             && method.GetParameters() is
             [
                 _,

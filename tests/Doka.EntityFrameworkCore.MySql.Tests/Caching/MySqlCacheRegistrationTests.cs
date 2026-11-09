@@ -159,7 +159,7 @@ public sealed partial class MySqlCacheRegistrationTests
         Assert.NotSame(previous, cache);
         Assert.Same(cache, bufferCache);
         Assert.Equal(new[] { previous, cache }, caches);
-        Assert.Equal(new[] { previous, cache }, bufferCaches);
+        Assert.Equal<IBufferDistributedCache>([previous, bufferCache], bufferCaches);
     }
 
     /// <summary>

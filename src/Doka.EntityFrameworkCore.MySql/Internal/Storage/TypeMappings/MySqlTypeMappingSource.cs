@@ -524,7 +524,7 @@ internal sealed class MySqlTypeMappingSource : RelationalTypeMappingSource
             .Trim()
             .ToLowerInvariant();
 
-        return normalizedStoreType == "tinyint(1)" || normalizedStoreType == "tinyint(1) unsigned";
+        return normalizedStoreType is "tinyint(1)" or "tinyint(1) unsigned";
     }
 
     private static RelationalTypeMapping AdjustMappingForFacets(

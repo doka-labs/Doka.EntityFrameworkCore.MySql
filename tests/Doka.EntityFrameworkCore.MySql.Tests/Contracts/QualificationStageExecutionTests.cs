@@ -970,7 +970,7 @@ public sealed partial class QualificationStageExecutionTests
             Assert.DoesNotContain("spec-discovery", repository.Events);
         }
 
-        var command = calls[calls.Length - 1];
+        var command = calls[^1];
         Assert.Equal(results, ArgumentAfter(command, "--results-directory"));
         if (runner == "VSTest")
         {

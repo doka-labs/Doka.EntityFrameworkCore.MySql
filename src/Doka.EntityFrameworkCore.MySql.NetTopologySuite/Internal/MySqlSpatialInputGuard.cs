@@ -174,20 +174,17 @@ internal static class MySqlSpatialInputGuard
                 ? 1
                 : 0);
 
-        if (geometryType >= 3000
-            && geometryType < 4000)
+        if (geometryType is >= 3000 and < 4000)
         {
             geometryType -= 3000;
             coordinateDimension = 4;
         }
-        else if (geometryType >= 2000
-            && geometryType < 3000)
+        else if (geometryType is >= 2000 and < 3000)
         {
             geometryType -= 2000;
             coordinateDimension = 3;
         }
-        else if (geometryType >= 1000
-            && geometryType < 2000)
+        else if (geometryType is >= 1000 and < 2000)
         {
             geometryType -= 1000;
             coordinateDimension = 3;

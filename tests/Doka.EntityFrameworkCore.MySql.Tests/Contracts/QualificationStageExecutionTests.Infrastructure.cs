@@ -477,7 +477,7 @@ public sealed partial class QualificationStageExecutionTests
                 {
                     Assert.StartsWith("argument|", line, StringComparison.Ordinal);
                     Assert.NotEmpty(calls);
-                    calls[calls.Count - 1]
+                    calls[^1]
                         .Add(line["argument|".Length..]);
                 }
             }

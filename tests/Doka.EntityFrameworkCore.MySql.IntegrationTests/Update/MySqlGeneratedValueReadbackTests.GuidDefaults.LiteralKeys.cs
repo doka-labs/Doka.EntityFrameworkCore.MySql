@@ -91,7 +91,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
             Assert.True(whereOffset >= 0, command);
 
-            var predicate = command.Substring(whereOffset);
+            var predicate = command[whereOffset..];
 
             Assert.Contains($"`Flag` = {flagLiteral}", predicate, StringComparison.Ordinal);
             Assert.Contains("`Id` = @", predicate, StringComparison.Ordinal);

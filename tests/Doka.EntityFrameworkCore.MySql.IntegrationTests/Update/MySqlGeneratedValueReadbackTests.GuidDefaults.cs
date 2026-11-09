@@ -49,7 +49,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 });
         }
 
-        context.AddRange(rows);
+        context.Set<GuidDefaultPrincipal>().AddRange(rows);
         var temporaryKeys = rows
             .Select(row => context
                 .Entry(row)
@@ -204,7 +204,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             .Reverse()
             .ToArray();
 
-        context.AddRange(rows);
+        context.Set<GuidDefaultPrincipal>().AddRange(rows);
         var temporaryKeys = rows
             .Select(row => context
                 .Entry(row)
@@ -270,7 +270,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             ConvertedNullableValue = CreateGuid(104),
         };
 
-        context.AddRange(rows);
+        context.Set<GuidDefaultValueRow>().AddRange(rows);
         context.Add(supplied);
         capture.Enabled = true;
 
