@@ -16,7 +16,7 @@ dotnet package add Doka.Caching.MySql
 ```
 
 This package is available from 10.1.0; it is not part of the 10.0.0 release.
-Use `--version 10.6.4` to pin this coordinated release. The cache API and schema
+Use `--version 10.6.5` to pin this coordinated release. The cache API and schema
 are unchanged. MySqlConnector 2.6.1 or later, below 3.0.0, is required to address
 [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
 

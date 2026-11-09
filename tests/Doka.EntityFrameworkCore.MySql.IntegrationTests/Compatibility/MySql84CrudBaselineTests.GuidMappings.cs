@@ -22,18 +22,18 @@ public sealed partial class MySql84CrudBaselineTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{BinaryGuidTableName}` (
-                         `Id` binary(16) NOT NULL,
-                         `Name` longtext NOT NULL,
-                         CONSTRAINT `PK_{BinaryGuidTableName}` PRIMARY KEY (`Id`)
-                     ) CHARACTER SET utf8mb4;
+                    CREATE TABLE `{BinaryGuidTableName}` (
+                        `Id` binary(16) NOT NULL,
+                        `Name` longtext NOT NULL,
+                        CONSTRAINT `PK_{BinaryGuidTableName}` PRIMARY KEY (`Id`)
+                    ) CHARACTER SET utf8mb4;
 
-                     CREATE TABLE `{CharGuidTableName}` (
-                         `Id` char(36) NOT NULL,
-                         `Name` longtext NOT NULL,
-                         CONSTRAINT `PK_{CharGuidTableName}` PRIMARY KEY (`Id`)
-                     ) CHARACTER SET utf8mb4;
-                     """,
+                    CREATE TABLE `{CharGuidTableName}` (
+                        `Id` char(36) NOT NULL,
+                        `Name` longtext NOT NULL,
+                        CONSTRAINT `PK_{CharGuidTableName}` PRIMARY KEY (`Id`)
+                    ) CHARACTER SET utf8mb4;
+                    """,
                     CancellationToken.None)
                 .ConfigureAwait(false);
 

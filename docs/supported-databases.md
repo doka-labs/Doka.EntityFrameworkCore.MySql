@@ -22,8 +22,9 @@ first 12.3 GA release. The support-series matrix was reconciled against the
 primary sources on 2026-08-12; the MariaDB 10.11 qualified patch was updated
 against the release history on 2026-09-05.
 
-The current patch and multi-platform manifest pins were refreshed against
-the official image catalogs on 2026-10-29, preserving the supported LTS series.
+The current patch pins were refreshed against the official image catalogs on
+2026-10-29. The MySQL 8.4 and 9.7 multi-platform manifest digests were refreshed
+on 2026-11-09, preserving the qualified patches and supported LTS series.
 
 The horizon column preserves the vendors' distinct terminology. Oracle's
 published chart gives month-level Premier and Extended Support dates for 8.4;

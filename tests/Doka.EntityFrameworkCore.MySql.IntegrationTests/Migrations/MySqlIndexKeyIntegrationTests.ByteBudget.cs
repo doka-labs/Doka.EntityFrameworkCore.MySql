@@ -14,55 +14,56 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// index and persist maximum-width utf8mb4 values without truncation.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_implicit_composite_indexes_share_the_physical_byte_budget() =>
-        WithBudgetDatabaseAsync(
-            IntegrationDatabaseTarget.MySql84,
-            AssertImplicitCompositeBudgetAsync,
-            CancellationToken.None);
+    public Task MySql84_implicit_composite_indexes_share_the_physical_byte_budget() => WithBudgetDatabaseAsync(
+        IntegrationDatabaseTarget.MySql84,
+        AssertImplicitCompositeBudgetAsync,
+        CancellationToken.None);
 
     /// <summary>
     /// The same implicit allocation preserves full native index semantics on
     /// MariaDB's supported long-term maintenance line.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_implicit_composite_indexes_share_the_physical_byte_budget() =>
-        WithBudgetDatabaseAsync(
-            IntegrationDatabaseTarget.MariaDb118,
-            AssertImplicitCompositeBudgetAsync,
-            CancellationToken.None);
+    public Task MariaDb118_implicit_composite_indexes_share_the_physical_byte_budget() => WithBudgetDatabaseAsync(
+        IntegrationDatabaseTarget.MariaDb118,
+        AssertImplicitCompositeBudgetAsync,
+        CancellationToken.None);
 
     /// <summary>
     /// An owned MySQL index honors the owner's actual shared-table charset and
     /// persists complete maximum-width values without an implicit prefix.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_owned_indexes_use_the_owner_physical_table_character_set() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertOwnedTableBudgetAsync, CancellationToken.None);
+    public Task MySql84_owned_indexes_use_the_owner_physical_table_character_set() => WithBudgetDatabaseAsync(
+        IntegrationDatabaseTarget.MySql84,
+        AssertOwnedTableBudgetAsync,
+        CancellationToken.None);
 
     /// <summary>
     /// MariaDB uses the same physical owner-table default for owned key parts.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_owned_indexes_use_the_owner_physical_table_character_set() =>
-        WithBudgetDatabaseAsync(
-            IntegrationDatabaseTarget.MariaDb118,
-            AssertOwnedTableBudgetAsync,
-            CancellationToken.None);
+    public Task MariaDb118_owned_indexes_use_the_owner_physical_table_character_set() => WithBudgetDatabaseAsync(
+        IntegrationDatabaseTarget.MariaDb118,
+        AssertOwnedTableBudgetAsync,
+        CancellationToken.None);
 
     /// <summary>
     /// MySQL accepts the complete index when the default DECIMAL consumes its
     /// actual nine bytes and the remaining implicit string has one character.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_decimal_index_uses_the_native_packed_width() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertDecimalBudgetAsync, CancellationToken.None);
+    public Task MySql84_decimal_index_uses_the_native_packed_width()
+        => WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MySql84, AssertDecimalBudgetAsync, CancellationToken.None);
 
     /// <summary>
     /// MariaDB accepts the same complete key without a hidden index prefix.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_decimal_index_uses_the_native_packed_width() =>
-        WithBudgetDatabaseAsync(IntegrationDatabaseTarget.MariaDb118, AssertDecimalBudgetAsync, CancellationToken.None);
+    public Task MariaDb118_decimal_index_uses_the_native_packed_width() => WithBudgetDatabaseAsync(
+        IntegrationDatabaseTarget.MariaDb118,
+        AssertDecimalBudgetAsync,
+        CancellationToken.None);
 
     /// <summary>
     /// Verifies implicit composite budget for the integration contract.

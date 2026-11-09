@@ -39,40 +39,40 @@ public sealed class CommonTableExpressionIntegrationTests
         """;
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Cte_contract_executes_on_mysql84() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Cte_contract_executes_on_mysql84()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Cte_contract_executes_on_mysql97() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task Cte_contract_executes_on_mysql97()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task Cte_contract_executes_on_mariadb1011() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task Cte_contract_executes_on_mariadb1011()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Cte_contract_executes_on_mariadb114() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task Cte_contract_executes_on_mariadb114()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Cte_contract_executes_on_mariadb118() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Cte_contract_executes_on_mariadb118()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Cte_contract_executes_on_mariadb123() =>
-        RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Cte_contract_executes_on_mariadb123()
+        => RunQueryContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Cte_update_executes_on_mysql84() =>
-        RunUpdateContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Cte_update_executes_on_mysql84()
+        => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Cte_update_executes_on_mysql97() =>
-        RunUpdateContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task Cte_update_executes_on_mysql97()
+        => RunUpdateContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Cte_update_executes_on_mariadb123() =>
-        RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Cte_update_executes_on_mariadb123()
+        => RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the update contract integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
@@ -238,14 +238,14 @@ public sealed class CommonTableExpressionIntegrationTests
 
         await context.Database.ExecuteSqlRawAsync(
             $"""
-             CREATE TABLE `{TableName}` (
-                 `Id` int NOT NULL AUTO_INCREMENT,
-                 `Name` varchar(64) NOT NULL,
-                 `Score` int NOT NULL,
-                 `Category` varchar(32) NOT NULL,
-                 CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
-             ) CHARACTER SET utf8mb4;
-             """,
+            CREATE TABLE `{TableName}` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Name` varchar(64) NOT NULL,
+                `Score` int NOT NULL,
+                `Category` varchar(32) NOT NULL,
+                CONSTRAINT `PK_{TableName}` PRIMARY KEY (`Id`)
+            ) CHARACTER SET utf8mb4;
+            """,
             cancellationToken: cancellationToken);
     }
 

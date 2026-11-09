@@ -352,13 +352,13 @@ public sealed partial class MySqlQueryTranslationExtendedTests
             .Items
             .FromSqlInterpolated(
                 $"""
-                 WITH `FilteredItems` AS (
-                     SELECT *
-                     FROM `TranslationTestItems`
-                     WHERE `Value` > {minimumValue}
-                 )
-                 SELECT * FROM `FilteredItems`
-                 """)
+                WITH `FilteredItems` AS (
+                    SELECT *
+                    FROM `TranslationTestItems`
+                    WHERE `Value` > {minimumValue}
+                )
+                SELECT * FROM `FilteredItems`
+                """)
             .Where(item => item.Name.StartsWith('A'))
             .OrderBy(item => item.Id)
             .ToQueryString();

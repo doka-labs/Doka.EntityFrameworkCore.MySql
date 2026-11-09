@@ -30,6 +30,5 @@ public class JsonElementMaterializationBenchmark
     }
 
     [Benchmark]
-    public JsonElement ConvertFromProvider() =>
-        (JsonElement)s_converter.ConvertFromProvider(_payload)!;
+    public JsonElement ConvertFromProvider() => (JsonElement)s_converter.ConvertFromProvider(_payload)!;
 }

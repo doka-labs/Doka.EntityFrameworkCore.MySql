@@ -14,26 +14,26 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
             .Database
             .ExecuteSqlRawAsync(
                 $"""
-                 CREATE TABLE `{MaterializationTable}` (
-                     `Id` int NOT NULL,
-                     `Point` point NOT NULL,
-                     `LineString` linestring NOT NULL,
-                     `Polygon` polygon NOT NULL,
-                     `MultiPoint` multipoint NOT NULL,
-                     `MultiLineString` multilinestring NOT NULL,
-                     `MultiPolygon` multipolygon NOT NULL,
-                     `GeometryCollection` geometrycollection NOT NULL,
-                     `Geometry` geometry NOT NULL,
-                     CONSTRAINT `PK_{MaterializationTable}` PRIMARY KEY (`Id`)
-                 );
-                 CREATE TABLE `{MaterializationChildTable}` (
-                     `Id` int NOT NULL,
-                     `ParentId` int NOT NULL,
-                     CONSTRAINT `PK_{MaterializationChildTable}` PRIMARY KEY (`Id`),
-                     CONSTRAINT `FK_{MaterializationChildTable}` FOREIGN KEY (`ParentId`)
-                         REFERENCES `{MaterializationTable}` (`Id`) ON DELETE CASCADE
-                 );
-                 """,
+                CREATE TABLE `{MaterializationTable}` (
+                    `Id` int NOT NULL,
+                    `Point` point NOT NULL,
+                    `LineString` linestring NOT NULL,
+                    `Polygon` polygon NOT NULL,
+                    `MultiPoint` multipoint NOT NULL,
+                    `MultiLineString` multilinestring NOT NULL,
+                    `MultiPolygon` multipolygon NOT NULL,
+                    `GeometryCollection` geometrycollection NOT NULL,
+                    `Geometry` geometry NOT NULL,
+                    CONSTRAINT `PK_{MaterializationTable}` PRIMARY KEY (`Id`)
+                );
+                CREATE TABLE `{MaterializationChildTable}` (
+                    `Id` int NOT NULL,
+                    `ParentId` int NOT NULL,
+                    CONSTRAINT `PK_{MaterializationChildTable}` PRIMARY KEY (`Id`),
+                    CONSTRAINT `FK_{MaterializationChildTable}` FOREIGN KEY (`ParentId`)
+                        REFERENCES `{MaterializationTable}` (`Id`) ON DELETE CASCADE
+                );
+                """,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
@@ -64,13 +64,13 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
         CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"""
-         CREATE TABLE `{CrossesTable}` (
-             `Id` int NOT NULL,
-             `LeftGeometry` geometry {(nullable ? "NULL" : "NOT NULL")},
-             `RightGeometry` geometry {(nullable ? "NULL" : "NOT NULL")},
-             CONSTRAINT `PK_{CrossesTable}` PRIMARY KEY (`Id`)
-         );
-         """,
+        CREATE TABLE `{CrossesTable}` (
+            `Id` int NOT NULL,
+            `LeftGeometry` geometry {(nullable ? "NULL" : "NOT NULL")},
+            `RightGeometry` geometry {(nullable ? "NULL" : "NOT NULL")},
+            CONSTRAINT `PK_{CrossesTable}` PRIMARY KEY (`Id`)
+        );
+        """,
         cancellationToken: cancellationToken);
 
     private enum SpatialDataSet

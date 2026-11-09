@@ -315,8 +315,7 @@ public sealed class MySqlOptionsExtensionInfoTests
 
     private static MySqlOptionsExtension WithVersion(
         MySqlOptionsExtension extension
-    ) =>
-        extension.WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
+    ) => extension.WithServerVersion(MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
     private static DbContextOptionsExtensionInfo InfoFor(
         MySqlOptionsExtension extension

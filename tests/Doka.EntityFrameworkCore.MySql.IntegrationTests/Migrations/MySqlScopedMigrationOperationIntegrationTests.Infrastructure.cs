@@ -2,10 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlScopedMigrationOperationIntegrationTests
 {
-    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment
-            .GetSupportedTargets()
-            .Where(IntegrationTestEnvironment.IsTargetSelected);
+    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() => IntegrationTestEnvironment
+        .GetSupportedTargets()
+        .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>Builds the single scoped command required by the runtime fixture.</summary>
     private static GeneratedCommand GenerateCommand(

@@ -395,9 +395,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
 
         using var context = CreateContext();
         FormattableString command = $"""
-                                     SELECT COUNT(*) FROM `Customers`
-                                     WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
-                                     """;
+            SELECT COUNT(*) FROM `Customers`
+            WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
+            """;
 
         var actual = async
             ? await context.Database.ExecuteSqlInterpolatedAsync(command)
@@ -415,9 +415,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
 
         using var context = CreateContext();
         FormattableString command = $"""
-                                     SELECT COUNT(*) FROM `Customers`
-                                     WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
-                                     """;
+            SELECT COUNT(*) FROM `Customers`
+            WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
+            """;
 
         var actual = async
             ? await context.Database.ExecuteSqlInterpolatedAsync(command)
@@ -435,9 +435,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
 
         using var context = CreateContext();
         FormattableString command = $"""
-                                     SELECT COUNT(*) FROM `Customers`
-                                     WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
-                                     """;
+            SELECT COUNT(*) FROM `Customers`
+            WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
+            """;
 
         var actual = async
             ? await context.Database.ExecuteSqlAsync(command)
@@ -455,9 +455,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
 
         using var context = CreateContext();
         FormattableString command = $"""
-                                     SELECT COUNT(*) FROM `Customers`
-                                     WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
-                                     """;
+            SELECT COUNT(*) FROM `Customers`
+            WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
+            """;
 
         var actual = async
             ? await context.Database.ExecuteSqlAsync(command)
@@ -479,9 +479,9 @@ public sealed class SqlExecutorMySqlTest : SqlExecutorTestBase<NorthwindQueryMyS
 
         using var context = CreateContext();
         FormattableString command = $"""
-                                     SELECT COUNT(*) FROM `Customers`
-                                     WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
-                                     """;
+            SELECT COUNT(*) FROM `Customers`
+            WHERE `City` = {city} AND `ContactTitle` = {contactTitle}
+            """;
 
         var actual = async
             ? await context.Database.ExecuteSqlAsync(command)

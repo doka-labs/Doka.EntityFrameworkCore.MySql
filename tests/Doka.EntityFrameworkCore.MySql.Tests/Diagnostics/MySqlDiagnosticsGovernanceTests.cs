@@ -51,8 +51,8 @@ public sealed class MySqlDiagnosticsGovernanceTests
     };
 
     /// <summary>Returns every governed event and subsystem boundary as an independent case.</summary>
-    public static IEnumerable<object[]> EventRangeCases =>
-        s_eventRanges.Select(item => new object[] { item.Key, item.Value.Start, item.Value.End });
+    public static IEnumerable<object[]> EventRangeCases
+        => s_eventRanges.Select(item => new object[] { item.Key, item.Value.Start, item.Value.End });
 
     /// <summary>
     /// Verifies that the stable provider logging categories match the documented taxonomy.

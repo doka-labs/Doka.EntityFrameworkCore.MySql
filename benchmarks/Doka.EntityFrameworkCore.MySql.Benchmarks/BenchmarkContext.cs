@@ -17,8 +17,8 @@ public sealed class BenchmarkContext : DbContext
     /// <summary>
     /// Gets the indexed corpus used by parameterized-collection benchmarks.
     /// </summary>
-    public DbSet<ParameterizedCollectionBenchmarkEntity> ParameterizedCollectionEntities =>
-        Set<ParameterizedCollectionBenchmarkEntity>();
+    public DbSet<ParameterizedCollectionBenchmarkEntity> ParameterizedCollectionEntities
+        => Set<ParameterizedCollectionBenchmarkEntity>();
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder

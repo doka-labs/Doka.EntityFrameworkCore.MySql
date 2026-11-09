@@ -11,43 +11,43 @@ public sealed class ConnectionStringOverrideTests
     /// Verifies the EF tooling connection override contract on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Database_creator_honors_connection_override_on_mysql84() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mysql84()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Database_creator_honors_connection_override_on_mysql97() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mysql97()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task Database_creator_honors_connection_override_on_mariadb1011() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mariadb1011()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Database_creator_honors_connection_override_on_mariadb114() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mariadb114()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Database_creator_honors_connection_override_on_mariadb118() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mariadb118()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies the EF tooling connection override contract on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Database_creator_honors_connection_override_on_mariadb123() =>
-        VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Database_creator_honors_connection_override_on_mariadb123()
+        => VerifyConnectionOverrideAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     private static async Task VerifyConnectionOverrideAsync(
         IntegrationDatabaseTarget target,

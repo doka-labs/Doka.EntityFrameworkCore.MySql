@@ -6,39 +6,35 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 {
     /// <summary>Reads all generated outputs for a normal bounded MySQL group.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task KnownIntegerKeysReadBack64Rows() =>
-        AssertGeneratedValuesAsync<int, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => value,
-            CancellationToken.None);
+    public Task KnownIntegerKeysReadBack64Rows() => AssertGeneratedValuesAsync<int, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => value,
+        CancellationToken.None);
 
     /// <summary>Treats zero as a stable key when the column is not auto-incrementing.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task NonGeneratedZeroKeyRemainsEligible() =>
-        AssertGeneratedValuesAsync<int, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => value - 1,
-            CancellationToken.None);
+    public Task NonGeneratedZeroKeyRemainsEligible() => AssertGeneratedValuesAsync<int, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => value - 1,
+        CancellationToken.None);
 
     /// <summary>Exercises MySQL's largest supported insert group.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task KnownIntegerKeysReadBack1000Rows() =>
-        AssertGeneratedValuesAsync<int, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            1000,
-            value => value,
-            CancellationToken.None);
+    public Task KnownIntegerKeysReadBack1000Rows() => AssertGeneratedValuesAsync<int, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        1000,
+        value => value,
+        CancellationToken.None);
 
     /// <summary>Resets relative result ordinals at the next insert batch.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task KnownIntegerKeysReadBackAcross1001Rows() =>
-        AssertGeneratedValuesAsync<int, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            1001,
-            value => value,
-            CancellationToken.None);
+    public Task KnownIntegerKeysReadBackAcross1001Rows() => AssertGeneratedValuesAsync<int, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        1001,
+        value => value,
+        CancellationToken.None);
 
     /// <summary>Exercises the separate synchronous native generated-result consumer.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
@@ -66,66 +62,59 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
     /// <summary>Preserves MariaDB's existing INSERT RETURNING path.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDbGeneratedValuesKeepReturning() =>
-        AssertGeneratedValuesAsync<int, StandardMode>(
-            IntegrationDatabaseTarget.MariaDb118,
-            64,
-            value => value,
-            CancellationToken.None);
+    public Task MariaDbGeneratedValuesKeepReturning() => AssertGeneratedValuesAsync<int, StandardMode>(
+        IntegrationDatabaseTarget.MariaDb118,
+        64,
+        value => value,
+        CancellationToken.None);
 
     /// <summary>Correlates signed 64-bit keys without narrowing them to integers.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task SignedLongKeysKeepTheirFullWidth() =>
-        AssertGeneratedValuesAsync<long, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => long.MaxValue - value,
-            CancellationToken.None);
+    public Task SignedLongKeysKeepTheirFullWidth() => AssertGeneratedValuesAsync<long, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => long.MaxValue - value,
+        CancellationToken.None);
 
     /// <summary>Correlates unsigned keys above the signed 64-bit range.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task UnsignedLongKeysKeepTheirFullWidth() =>
-        AssertGeneratedValuesAsync<ulong, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => ulong.MaxValue - (ulong)value,
-            CancellationToken.None);
+    public Task UnsignedLongKeysKeepTheirFullWidth() => AssertGeneratedValuesAsync<ulong, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => ulong.MaxValue - (ulong)value,
+        CancellationToken.None);
 
     /// <summary>Correlates supplied binary GUID keys through the installed type mapping.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task SuppliedBinaryGuidKeysRemainCorrelated() =>
-        AssertGeneratedValuesAsync<Guid, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            CreateGuid,
-            CancellationToken.None);
+    public Task SuppliedBinaryGuidKeysRemainCorrelated() => AssertGeneratedValuesAsync<Guid, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        CreateGuid,
+        CancellationToken.None);
 
     /// <summary>Correlates supplied character GUID keys through their value converter.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task SuppliedCharacterGuidKeysRemainCorrelated() =>
-        AssertGeneratedValuesAsync<Guid, CharacterGuidMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            CreateGuid,
-            CancellationToken.None);
+    public Task SuppliedCharacterGuidKeysRemainCorrelated() => AssertGeneratedValuesAsync<Guid, CharacterGuidMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        CreateGuid,
+        CancellationToken.None);
 
     /// <summary>Uses provider values when a key has a custom CLR value converter.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task ConvertedKeysRemainCorrelated() =>
-        AssertGeneratedValuesAsync<StoredKey, StandardMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => new StoredKey(value),
-            CancellationToken.None);
+    public Task ConvertedKeysRemainCorrelated() => AssertGeneratedValuesAsync<StoredKey, StandardMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => new StoredKey(value),
+        CancellationToken.None);
 
     /// <summary>Reads composite shadow keys with the column's native comparison rules.</summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task CompositeShadowKeysUseNativeCollation() =>
-        AssertGeneratedValuesAsync<long, ShadowCompositeMode>(
-            IntegrationDatabaseTarget.MySql84,
-            64,
-            value => value,
-            CancellationToken.None);
+    public Task CompositeShadowKeysUseNativeCollation() => AssertGeneratedValuesAsync<long, ShadowCompositeMode>(
+        IntegrationDatabaseTarget.MySql84,
+        64,
+        value => value,
+        CancellationToken.None);
 
     /// <summary>Observes one save and its persisted readback without mixing assertions into either step.</summary>
     /// <typeparam name="TKey">The supplied key representation.</typeparam>

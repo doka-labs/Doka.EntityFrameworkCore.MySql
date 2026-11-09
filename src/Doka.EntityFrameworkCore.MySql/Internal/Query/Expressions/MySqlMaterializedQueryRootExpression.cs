@@ -17,8 +17,8 @@ internal sealed class MySqlMaterializedQueryRootExpression(
     public int BindingId { get; } = bindingId;
 
     /// <inheritdoc />
-    public override Expression DetachQueryProvider() =>
-        new MySqlMaterializedQueryRootExpression(ElementType, BindingId);
+    public override Expression DetachQueryProvider()
+        => new MySqlMaterializedQueryRootExpression(ElementType, BindingId);
 
     protected override void Print(
         ExpressionPrinter expressionPrinter
@@ -49,8 +49,8 @@ internal sealed class MySqlMaterializedEntityQueryRootExpression(
     public int BindingId { get; } = bindingId;
 
     /// <inheritdoc />
-    public override Expression DetachQueryProvider() =>
-        new MySqlMaterializedEntityQueryRootExpression(SourceOrigin, BindingId);
+    public override Expression DetachQueryProvider()
+        => new MySqlMaterializedEntityQueryRootExpression(SourceOrigin, BindingId);
 
     /// <inheritdoc />
     public override EntityQueryRootExpression UpdateEntityType(

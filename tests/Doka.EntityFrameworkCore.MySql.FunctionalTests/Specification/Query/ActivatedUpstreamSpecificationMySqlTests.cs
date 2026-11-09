@@ -9,8 +9,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 public sealed partial class AdHocMiscellaneousQueryMySqlTest
 {
     [Fact]
-    public override Task SaveChangesAsync_accepts_changes_with_ConfigureAwait_true() =>
-        base.SaveChangesAsync_accepts_changes_with_ConfigureAwait_true();
+    public override Task SaveChangesAsync_accepts_changes_with_ConfigureAwait_true()
+        => base.SaveChangesAsync_accepts_changes_with_ConfigureAwait_true();
 }
 
 /// <summary>

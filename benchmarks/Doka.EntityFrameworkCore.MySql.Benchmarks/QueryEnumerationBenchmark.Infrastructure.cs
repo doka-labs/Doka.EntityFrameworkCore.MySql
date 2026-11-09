@@ -299,8 +299,7 @@ public partial class QueryEnumerationBenchmark
     private static ColumnExpression Column(
         string name,
         string alias
-    )
-        => new(name, alias, typeof(int), IntTypeMapping.Default, nullable: false);
+    ) => new(name, alias, typeof(int), IntTypeMapping.Default, nullable: false);
 
     private static SelectExpression Select(
         IReadOnlyList<ProjectionExpression> projections,

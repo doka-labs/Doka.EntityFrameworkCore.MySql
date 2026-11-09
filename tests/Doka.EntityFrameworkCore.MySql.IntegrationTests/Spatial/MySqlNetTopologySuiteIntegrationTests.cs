@@ -13,15 +13,15 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// Verifies that the MySQL 8.4 runtime can persist, query, and materialize the spatial baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_spatial_queries_and_materialization_succeed()
+        => RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MySQL 9.7 runtime can persist, query, and materialize the spatial baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_spatial_queries_and_materialization_succeed() =>
-        RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_spatial_queries_and_materialization_succeed()
+        => RunMySqlSpatialQueriesAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>Verifies MySQL spatial query translation and geometry materialization.</summary>
     /// <param name="target">The database target used for this operation.</param>
@@ -44,12 +44,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{PointTableName}` (
-                         `Id` int NOT NULL,
-                         `Location` point NOT NULL,
-                         CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
-                     );
-                     """,
+                    CREATE TABLE `{PointTableName}` (
+                        `Id` int NOT NULL,
+                        `Location` point NOT NULL,
+                        CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
+                    );
+                    """,
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
@@ -98,29 +98,29 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
     /// Verifies that the MariaDB 11.8 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_spatial_helpers_succeed()
+        => RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 10.11 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_spatial_helpers_succeed()
+        => RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 11.4 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task MariaDb114_spatial_helpers_succeed()
+        => RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies that the MariaDB 12.3 runtime executes the approved spatial helper baseline.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_spatial_helpers_succeed() =>
-        RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_spatial_helpers_succeed()
+        => RunMariaDbSpatialHelpersAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Verifies the supported MariaDB spatial query helpers.</summary>
     /// <param name="target">The database target used for this operation.</param>
@@ -143,12 +143,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{PolygonTableName}` (
-                         `Id` int NOT NULL,
-                         `Region` polygon NOT NULL,
-                         CONSTRAINT `PK_{PolygonTableName}` PRIMARY KEY (`Id`)
-                     );
-                     """,
+                    CREATE TABLE `{PolygonTableName}` (
+                        `Id` int NOT NULL,
+                        `Region` polygon NOT NULL,
+                        CONSTRAINT `PK_{PolygonTableName}` PRIMARY KEY (`Id`)
+                    );
+                    """,
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
@@ -217,12 +217,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{PointTableName}` (
-                         `Id` int NOT NULL,
-                         `Location` point NOT NULL,
-                         CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
-                     );
-                     """)
+                    CREATE TABLE `{PointTableName}` (
+                        `Id` int NOT NULL,
+                        `Location` point NOT NULL,
+                        CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
+                    );
+                    """)
                 .ConfigureAwait(false);
 
             var berlin = CreatePoint(13.4050, 52.5200);
@@ -281,12 +281,12 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
                 .Database
                 .ExecuteSqlRawAsync(
                     $"""
-                     CREATE TABLE `{PointTableName}` (
-                         `Id` int NOT NULL,
-                         `Location` point NOT NULL,
-                         CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
-                     );
-                     """)
+                    CREATE TABLE `{PointTableName}` (
+                        `Id` int NOT NULL,
+                        `Location` point NOT NULL,
+                        CONSTRAINT `PK_{PointTableName}` PRIMARY KEY (`Id`)
+                    );
+                    """)
                 .ConfigureAwait(false);
 
             var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -428,9 +428,9 @@ public sealed class MySqlNetTopologySuiteIntegrationTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS `{PointTableName}`;
-                               DROP TABLE IF EXISTS `{PolygonTableName}`;
-                               """;
+            DROP TABLE IF EXISTS `{PointTableName}`;
+            DROP TABLE IF EXISTS `{PolygonTableName}`;
+            """;
 
         await command
             .ExecuteNonQueryAsync(cancellationToken: cancellationToken)

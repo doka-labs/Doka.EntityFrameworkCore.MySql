@@ -4,10 +4,9 @@ public sealed partial class MySqlLikeIntegrationTests
 {
     private static readonly LikeCase[] s_scalarCases = CreateScalarCases();
 
-    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() =>
-        IntegrationTestEnvironment
-            .GetSupportedTargets()
-            .Where(IntegrationTestEnvironment.IsTargetSelected);
+    private static IEnumerable<IntegrationDatabaseTarget> SelectedTargets() => IntegrationTestEnvironment
+        .GetSupportedTargets()
+        .Where(IntegrationTestEnvironment.IsTargetSelected);
 
     /// <summary>
     /// Expands scalar and null/escaping boundaries into separately selectable rows.

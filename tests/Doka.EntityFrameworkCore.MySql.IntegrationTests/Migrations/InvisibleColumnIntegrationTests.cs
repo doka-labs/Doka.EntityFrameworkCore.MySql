@@ -12,15 +12,15 @@ public sealed class InvisibleColumnIntegrationTests
     /// Verifies my sql84 invisible column roundtrips through add and alter operations.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_invisible_column_roundtrips_through_add_and_alter_operations() =>
-        RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_invisible_column_roundtrips_through_add_and_alter_operations()
+        => RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 invisible column roundtrips through add and alter operations.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_invisible_column_roundtrips_through_add_and_alter_operations() =>
-        RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_invisible_column_roundtrips_through_add_and_alter_operations()
+        => RunInvisibleColumnRoundTrip(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Runs invisible column round trip for the integration contract.

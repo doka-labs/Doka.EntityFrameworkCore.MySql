@@ -35,7 +35,7 @@ The operator keeps the existing release actions:
 
 1. Merge the release-preparation PR into its protected, authorized line.
 2. Open `release-candidate.yml`, select that branch and enter its unused
-   canonical version, for example `10.6.4` or `11.0.0-rc.1`.
+   canonical version, for example `10.6.5` or `11.0.0-rc.1`.
 3. Leave `qualification_only=false`. Review the qualified source SHA, version,
    tag and evidence in the run summary.
 4. Create and push the personally signed annotated tag on that qualified SHA.

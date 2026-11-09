@@ -22,7 +22,7 @@ public class MigrationOperationHandlerGenerationBenchmark
     private ServiceProvider _mariaDbServices = null!;
     private DbContextOptions<HandlerGenerationContext> _mySqlOptions = null!;
     private ServiceProvider _mySqlServices = null!;
-    private IReadOnlyList<MigrationOperation>[] _operationPopulations = null!;
+    private MigrationOperation[][] _operationPopulations = null!;
     private IReadOnlyList<MigrationOperation> _sqlModeScopeOperations = null!;
 
     /// <summary>

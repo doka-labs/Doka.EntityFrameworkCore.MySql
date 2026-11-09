@@ -61,8 +61,7 @@ public abstract class CommandInterceptionMySqlTestBase
     {
         protected override string StoreName => "CommandInterception";
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,
@@ -153,8 +152,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
     {
         protected override string StoreName => "ConnectionInterception";
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,
@@ -174,8 +172,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
 
         public override string DataSource => "DataSource";
 
-        public override string ServerVersion =>
-            throw new NotImplementedException();
+        public override string ServerVersion => throw new NotImplementedException();
 
         public override ConnectionState State => ConnectionState.Closed;
 
@@ -191,8 +188,7 @@ public abstract class ConnectionInterceptionMySqlTestBase
             IsolationLevel isolationLevel
         ) => throw new NotImplementedException();
 
-        protected override DbCommand CreateDbCommand() =>
-            throw new NotImplementedException();
+        protected override DbCommand CreateDbCommand() => throw new NotImplementedException();
     }
 
     /// <summary>
@@ -251,8 +247,7 @@ public abstract class SaveChangesInterceptionMySqlTestBase
     {
         protected override string StoreName => "SaveChangesInterception";
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,
@@ -316,8 +311,7 @@ public abstract class TransactionInterceptionMySqlTestBase
     {
         protected override string StoreName => "TransactionInterception";
 
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         protected override IServiceCollection InjectInterceptors(
             IServiceCollection serviceCollection,

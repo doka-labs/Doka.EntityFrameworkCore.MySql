@@ -16,8 +16,7 @@ public sealed class NonSharedModelUpdatesMySqlTest : NonSharedModelUpdatesTestBa
         NonSharedFixture fixture
     ) : base(fixture) { }
 
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     /// <inheritdoc />
     public override async Task DbUpdateException_Entries_is_correct_with_multiple_inserts(
@@ -89,57 +88,56 @@ public sealed class JsonUpdateMySqlTest : JsonUpdateTestBase<JsonUpdateMySqlFixt
     // limitation as a MySQL-family engine limitation.
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_bool() =>
-        Assert.ThrowsAsync<NotEqualException>(
+    public override Task Edit_single_property_collection_of_collection_of_bool()
+        => Assert.ThrowsAsync<NotEqualException>(
             base.Edit_single_property_collection_of_collection_of_bool);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_char() =>
-        Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+    public override Task Edit_single_property_collection_of_collection_of_char()
+        => Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             base.Edit_single_property_collection_of_collection_of_char);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_double() =>
-        Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+    public override Task Edit_single_property_collection_of_collection_of_double()
+        => Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             base.Edit_single_property_collection_of_collection_of_double);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_int16() =>
-        Assert.ThrowsAsync<NullReferenceException>(
+    public override Task Edit_single_property_collection_of_collection_of_int16()
+        => Assert.ThrowsAsync<NullReferenceException>(
             base.Edit_single_property_collection_of_collection_of_int16);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_int32() =>
-        Assert.ThrowsAsync<IndexOutOfRangeException>(
+    public override Task Edit_single_property_collection_of_collection_of_int32()
+        => Assert.ThrowsAsync<IndexOutOfRangeException>(
             base.Edit_single_property_collection_of_collection_of_int32);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_nullable_enum_set_to_null() =>
-        Assert.ThrowsAsync<NullException>(
+    public override Task Edit_single_property_collection_of_collection_of_nullable_enum_set_to_null()
+        => Assert.ThrowsAsync<NullException>(
             base.Edit_single_property_collection_of_collection_of_nullable_enum_set_to_null);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_nullable_enum_with_int_converter() =>
-        Assert.ThrowsAsync<IndexOutOfRangeException>(
+    public override Task Edit_single_property_collection_of_collection_of_nullable_enum_with_int_converter()
+        => Assert.ThrowsAsync<IndexOutOfRangeException>(
             base.Edit_single_property_collection_of_collection_of_nullable_enum_with_int_converter);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_nullable_int32() =>
-        Assert.ThrowsAsync<EqualException>(
+    public override Task Edit_single_property_collection_of_collection_of_nullable_int32()
+        => Assert.ThrowsAsync<EqualException>(
             base.Edit_single_property_collection_of_collection_of_nullable_int32);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_nullable_int32_set_to_null() =>
-        Assert.ThrowsAsync<NullException>(
+    public override Task Edit_single_property_collection_of_collection_of_nullable_int32_set_to_null()
+        => Assert.ThrowsAsync<NullException>(
             base.Edit_single_property_collection_of_collection_of_nullable_int32_set_to_null);
 
     /// <inheritdoc />
-    public override Task Edit_single_property_collection_of_collection_of_single() =>
-        Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+    public override Task Edit_single_property_collection_of_collection_of_single()
+        => Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             base.Edit_single_property_collection_of_collection_of_single);
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 }
 
 /// <summary>
@@ -163,8 +161,7 @@ public sealed class JsonUpdateMySqlFixture : JsonUpdateFixtureBase
         nameof(JsonEntityAllTypes.TestNullableEnumCollectionCollection),
     ];
 
-    protected override ITestStoreFactory TestStoreFactory =>
-        MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder,
@@ -202,8 +199,7 @@ public sealed class ComplexCollectionJsonUpdateMySqlTest
         ComplexCollectionJsonUpdateMySqlFixture fixture
     ) : base(fixture) { }
 
-    protected override void ClearLog() =>
-        Fixture.TestSqlLoggerFactory.Clear();
+    protected override void ClearLog() => Fixture.TestSqlLoggerFactory.Clear();
 
     /// <summary>
     /// MySQL fixture for complex collections stored as JSON.
@@ -211,8 +207,7 @@ public sealed class ComplexCollectionJsonUpdateMySqlTest
     public sealed class ComplexCollectionJsonUpdateMySqlFixture
         : ComplexCollectionJsonUpdateFixtureBase
     {
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         protected override bool RecreateStore => true;
     }

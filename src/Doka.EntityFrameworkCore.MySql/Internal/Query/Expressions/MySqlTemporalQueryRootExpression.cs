@@ -46,8 +46,8 @@ internal sealed class MySqlTemporalQueryRootExpression : EntityQueryRootExpressi
 
     public DateTime? To { get; }
 
-    public override Expression DetachQueryProvider() =>
-        new MySqlTemporalQueryRootExpression(EntityType, Operation, PointInTime, From, To);
+    public override Expression DetachQueryProvider()
+        => new MySqlTemporalQueryRootExpression(EntityType, Operation, PointInTime, From, To);
 
     public override EntityQueryRootExpression UpdateEntityType(
         IEntityType entityType

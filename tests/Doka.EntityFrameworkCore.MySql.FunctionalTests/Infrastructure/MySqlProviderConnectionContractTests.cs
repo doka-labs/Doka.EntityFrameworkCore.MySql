@@ -555,8 +555,8 @@ public sealed class MySqlProviderConnectionContractTests
         return item;
     }
 
-    private static Func<GuidContext, Guid, IAsyncEnumerable<GuidItem>> CreateCompiledGuidQuery() =>
-        EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) => queryContext
+    private static Func<GuidContext, Guid, IAsyncEnumerable<GuidItem>> CreateCompiledGuidQuery()
+        => EF.CompileAsyncQuery((GuidContext queryContext, Guid queryId) => queryContext
             .Items
             .Include(item => item.Children)
             .Where(item => item.Id == queryId));

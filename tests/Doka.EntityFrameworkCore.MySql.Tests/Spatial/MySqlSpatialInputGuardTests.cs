@@ -520,6 +520,6 @@ public sealed class MySqlSpatialInputGuardTests
         offset += sizeof(uint);
     }
 
-    private static string ExpectedLimitMessage() =>
-        $"The spatial value exceeds the provider nesting limit of {MySqlSpatialInputGuard.MaximumNestingDepth}.";
+    private static string ExpectedLimitMessage()
+        => $"The spatial value exceeds the provider nesting limit of {MySqlSpatialInputGuard.MaximumNestingDepth}.";
 }

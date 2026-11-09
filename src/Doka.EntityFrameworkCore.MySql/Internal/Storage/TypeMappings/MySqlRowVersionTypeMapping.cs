@@ -34,8 +34,7 @@ public sealed class MySqlRowVersionTypeMapping : DateTimeTypeMapping, IMySqlProv
     /// </summary>
     public static new MySqlRowVersionTypeMapping Default { get; } = new();
 
-    Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType =>
-        Converter?.ProviderClrType
+    Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType => Converter?.ProviderClrType
         ?? throw new InvalidOperationException("The row-version mapping does not expose its required value converter.");
 
     object IMySqlProviderOwnedModelTypeMapping.ConvertToModelValue(

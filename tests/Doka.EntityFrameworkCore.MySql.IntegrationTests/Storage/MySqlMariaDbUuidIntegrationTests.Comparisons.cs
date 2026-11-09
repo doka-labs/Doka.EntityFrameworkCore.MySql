@@ -3,10 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMariaDbUuidIntegrationTests
 {
     /// <summary>Identifies each native, binary, or character ordering/range boundary.</summary>
-    public static IEnumerable<object[]> VersionedOrderCases =>
-        from target in s_mariaDbTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
-        from testCase in s_versionedOrderCases
-        select new object[] { target.ToString(), testCase.Name };
+    public static IEnumerable<object[]> VersionedOrderCases
+        => from target in s_mariaDbTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+            from testCase in s_versionedOrderCases
+            select new object[] { target.ToString(), testCase.Name };
 
     /// <summary>Verifies ordered v7 UUID materialization independently of comparisons.</summary>
     [RequiresDatabaseTargetsTheory(

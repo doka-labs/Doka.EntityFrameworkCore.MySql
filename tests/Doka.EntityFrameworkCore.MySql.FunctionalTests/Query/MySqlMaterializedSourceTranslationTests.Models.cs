@@ -47,10 +47,9 @@ public sealed partial class MySqlMaterializedSourceTranslationTests
     /// <summary>Gets the explicitly configured family used by both translation contexts.</summary>
     private static MySqlServerVersion CreateServerVersion(
         bool mariaDb
-    )
-        => mariaDb
-            ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-            : MySqlServerVersion.MySql(new Version(8, 4, 0));
+    ) => mariaDb
+        ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+        : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
     /// <summary>
     /// Separates the automatic Include model from the ordinary context's cached model identity.

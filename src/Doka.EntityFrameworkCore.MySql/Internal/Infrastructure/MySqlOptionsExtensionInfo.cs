@@ -13,8 +13,7 @@ public sealed partial class MySqlOptionsExtension
             _extension = extension ?? throw new ArgumentNullException(nameof(extension));
         }
 
-        public override string LogFragment =>
-            base.LogFragment
+        public override string LogFragment => base.LogFragment
             + (_extension.ServerVersion is null
                 ? "using Doka MySql "
                 : FormattableString.Invariant($"using Doka MySql ({_extension.ServerVersion}) "));

@@ -167,8 +167,7 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     /// <summary>Counts emitted definition constructors rather than local variables or reference accessors.</summary>
     private static int CountDefinitionConstructions(
         string code
-    )
-        => Regex.Count(code, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\(");
+    ) => Regex.Count(code, @"new\s+(?:[\w.]+\.)?MySqlMaterializedSourceDefinition\s*\(");
 
     /// <summary>Builds a DAG whose two aliases at each level reuse the same completed child definition.</summary>
     private static MySqlMaterializedSourceExpression CreateGraph(

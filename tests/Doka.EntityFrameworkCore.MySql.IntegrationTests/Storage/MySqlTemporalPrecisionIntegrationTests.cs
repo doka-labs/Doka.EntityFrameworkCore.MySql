@@ -13,15 +13,15 @@ public sealed class MySqlTemporalPrecisionIntegrationTests
     /// Verifies precision-six temporal round trips on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_round_trips_supported_temporal_precision() =>
-        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_round_trips_supported_temporal_precision()
+        => AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies precision-six temporal round trips on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_round_trips_supported_temporal_precision() =>
-        AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_round_trips_supported_temporal_precision()
+        => AssertTemporalPrecisionAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Verifies supported temporal fractions survive a database round trip.</summary>
     /// <param name="target">The database target used for this operation.</param>

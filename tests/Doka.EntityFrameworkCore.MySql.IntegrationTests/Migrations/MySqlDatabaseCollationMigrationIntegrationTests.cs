@@ -12,43 +12,43 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     /// Verifies my sql84 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task MariaDb114_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 preserves database collation migration contract.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_database_collation_migration_contract() =>
-        AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_preserves_database_collation_migration_contract()
+        => AssertDatabaseCollationMigrationAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies database collation migration for the integration contract.
@@ -331,16 +331,16 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     )
     {
         var sql = $"""
-                   CREATE TABLE `{DatabaseCollationMigrationContract.IncompatibleTable}` (
-                       `Id` int NOT NULL,
-                       `PrincipalId` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-                       PRIMARY KEY (`Id`),
-                       CONSTRAINT `FK_DokaCollationIncompatible_Principal`
-                           FOREIGN KEY (`PrincipalId`)
-                           REFERENCES `{DatabaseCollationMigrationContract.PrincipalTable}` (`Id`)
-                   ) ENGINE = InnoDB;
+            CREATE TABLE `{DatabaseCollationMigrationContract.IncompatibleTable}` (
+                `Id` int NOT NULL,
+                `PrincipalId` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                PRIMARY KEY (`Id`),
+                CONSTRAINT `FK_DokaCollationIncompatible_Principal`
+                    FOREIGN KEY (`PrincipalId`)
+                    REFERENCES `{DatabaseCollationMigrationContract.PrincipalTable}` (`Id`)
+            ) ENGINE = InnoDB;
 
-                   """;
+            """;
 
         var exception = await Assert
             .ThrowsAsync<MySqlException>(() => ExecuteNonQueryAsync(connection, sql, cancellationToken))
@@ -360,12 +360,12 @@ public sealed class MySqlDatabaseCollationMigrationIntegrationTests
     )
     {
         var sql = $"""
-                   CREATE TABLE `{DatabaseCollationMigrationContract.PrincipalTable}` (
-                       `Id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-                       PRIMARY KEY (`Id`)
-                   ) ENGINE = InnoDB;
+            CREATE TABLE `{DatabaseCollationMigrationContract.PrincipalTable}` (
+                `Id` char(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+                PRIMARY KEY (`Id`)
+            ) ENGINE = InnoDB;
 
-                   """;
+            """;
 
         await ExecuteNonQueryAsync(connection, sql, cancellationToken)
             .ConfigureAwait(false);

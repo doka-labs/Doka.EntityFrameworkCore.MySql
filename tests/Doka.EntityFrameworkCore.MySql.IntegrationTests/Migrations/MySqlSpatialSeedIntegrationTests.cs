@@ -13,43 +13,43 @@ public sealed class MySqlSpatialSeedIntegrationTests
     /// Verifies my sql84 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task MariaDb114_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 executes spatial seeds.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_executes_spatial_seeds() =>
-        AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_executes_spatial_seeds()
+        => AssertSpatialSeedAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies spatial seed for the integration contract.

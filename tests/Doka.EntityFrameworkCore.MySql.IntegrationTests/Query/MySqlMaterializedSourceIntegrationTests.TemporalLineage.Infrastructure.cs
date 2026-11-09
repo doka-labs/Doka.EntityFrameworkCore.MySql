@@ -147,10 +147,10 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         CancellationToken cancellationToken
     ) => context.Database.ExecuteSqlRawAsync(
         $"""
-         DROP TABLE IF EXISTS `{TemporalParentTable}`;
-         DROP TABLE IF EXISTS `{TemporalChildTable}`;
-         DROP TABLE IF EXISTS `{TemporalParentHistoryTable}`, `{TemporalChildHistoryTable}`;
-         """,
+        DROP TABLE IF EXISTS `{TemporalParentTable}`;
+        DROP TABLE IF EXISTS `{TemporalChildTable}`;
+        DROP TABLE IF EXISTS `{TemporalParentHistoryTable}`, `{TemporalChildHistoryTable}`;
+        """,
         cancellationToken);
 
     private sealed class TemporalLineageFixture(

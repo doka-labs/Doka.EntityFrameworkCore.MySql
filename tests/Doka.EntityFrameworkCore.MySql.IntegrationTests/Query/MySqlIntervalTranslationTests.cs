@@ -17,32 +17,32 @@ public sealed class MySqlIntervalTranslationTests
     private const string TableName = "IntervalQueryItems";
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Parametrized_AddDays_filters_server_side_on_mysql84() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Parametrized_AddDays_filters_server_side_on_mysql84()
+        => await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public async Task Parametrized_AddDays_filters_server_side_on_mysql97() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public async Task Parametrized_AddDays_filters_server_side_on_mysql97()
+        => await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public async Task Parametrized_AddDays_filters_server_side_on_mariadb1011() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public async Task Parametrized_AddDays_filters_server_side_on_mariadb1011()
+        => await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public async Task Parametrized_AddDays_filters_server_side_on_mariadb118() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public async Task Parametrized_AddDays_filters_server_side_on_mariadb118()
+        => await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public async Task Parametrized_AddDays_filters_server_side_on_mariadb123() =>
-        await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public async Task Parametrized_AddDays_filters_server_side_on_mariadb123()
+        => await RunParametrizedAddDaysAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Parametrized_AddHours_filters_server_side_on_mysql84() =>
-        await RunParametrizedAddHoursAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Parametrized_AddHours_filters_server_side_on_mysql84()
+        => await RunParametrizedAddHoursAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public async Task Constant_AddDays_still_filters_server_side_on_mysql84() =>
-        await RunConstantAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public async Task Constant_AddDays_still_filters_server_side_on_mysql84()
+        => await RunConstantAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Runs the parametrized add days integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

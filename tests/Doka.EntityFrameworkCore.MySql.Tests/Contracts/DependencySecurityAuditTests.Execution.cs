@@ -3,71 +3,71 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed partial class DependencySecurityAuditTests
 {
     private const string FakeDotnet = """
-                                      #!/usr/bin/env bash
-                                      set -euo pipefail
-                                      if [[ "$1" == "--version" ]]; then
-                                          if [[ "${DOKA_FIXTURE_FAILURE}" == "sdk" ]]; then
-                                              echo "0.0.0"
-                                              exit 0
-                                          fi
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [[ "$1" == "--version" ]]; then
+            if [[ "${DOKA_FIXTURE_FAILURE}" == "sdk" ]]; then
+                echo "0.0.0"
+                exit 0
+            fi
 
-                                          jq -r '.sdk.version' "${DOKA_FIXTURE_ROOT}/global.json"
-                                          exit 0
-                                      fi
+            jq -r '.sdk.version' "${DOKA_FIXTURE_ROOT}/global.json"
+            exit 0
+        fi
 
-                                      # WHY: Real NuGet HTTP-cache paths include a colon that artifact upload rejects.
-                                      cache_entry='670c1461c29885f9aa22c281d8b7da90845b38e4$ps:_api.nuget.org_v3_index.json'
-                                      mkdir -p "${NUGET_HTTP_CACHE_PATH}/${cache_entry}"
-                                      printf '%s\n' 'Cached repository signatures.' \
-                                          > "${NUGET_HTTP_CACHE_PATH}/${cache_entry}/repository_signatures_5.0.0.dat"
+        # WHY: Real NuGet HTTP-cache paths include a colon that artifact upload rejects.
+        cache_entry='670c1461c29885f9aa22c281d8b7da90845b38e4$ps:_api.nuget.org_v3_index.json'
+        mkdir -p "${NUGET_HTTP_CACHE_PATH}/${cache_entry}"
+        printf '%s\n' 'Cached repository signatures.' \
+            > "${NUGET_HTTP_CACHE_PATH}/${cache_entry}/repository_signatures_5.0.0.dat"
 
-                                      jq -cn --arg httpCache "${NUGET_HTTP_CACHE_PATH:-}" --args \
-                                          '{arguments:$ARGS.positional,httpCache:$httpCache}' -- "$@" \
-                                          >> "${DOKA_FIXTURE_ROOT}/commands.jsonl"
-                                      project=""
-                                      if [[ "$1" == "restore" ]]; then
-                                          project="$2"
-                                          if [[ "${DOKA_FIXTURE_FAILURE}" == "restore" && "${project}" == */src/Alpha/Alpha.csproj ]]; then
-                                              echo "NU1900: advisory source unavailable" >&2
-                                              exit 42
-                                          fi
-                                          exit 0
-                                      fi
+        jq -cn --arg httpCache "${NUGET_HTTP_CACHE_PATH:-}" --args \
+            '{arguments:$ARGS.positional,httpCache:$httpCache}' -- "$@" \
+            >> "${DOKA_FIXTURE_ROOT}/commands.jsonl"
+        project=""
+        if [[ "$1" == "restore" ]]; then
+            project="$2"
+            if [[ "${DOKA_FIXTURE_FAILURE}" == "restore" && "${project}" == */src/Alpha/Alpha.csproj ]]; then
+                echo "NU1900: advisory source unavailable" >&2
+                exit 42
+            fi
+            exit 0
+        fi
 
-                                      if [[ "$1" != "package" || "$2" != "list" ]]; then
-                                          echo "Unexpected dotnet command" >&2
-                                          exit 40
-                                      fi
+        if [[ "$1" != "package" || "$2" != "list" ]]; then
+            echo "Unexpected dotnet command" >&2
+            exit 40
+        fi
 
-                                      while (( $# > 0 )); do
-                                          if [[ "$1" == "--project" ]]; then
-                                              project="$2"
-                                              break
-                                          fi
-                                          shift
-                                      done
+        while (( $# > 0 )); do
+            if [[ "$1" == "--project" ]]; then
+                project="$2"
+                break
+            fi
+            shift
+        done
 
-                                      failure=""
-                                      if [[ "${project}" == */src/Alpha/Alpha.csproj ]]; then
-                                          failure="${DOKA_FIXTURE_FAILURE}"
-                                      fi
+        failure=""
+        if [[ "${project}" == */src/Alpha/Alpha.csproj ]]; then
+            failure="${DOKA_FIXTURE_FAILURE}"
+        fi
 
-                                      case "${failure}" in
-                                          command) echo "package audit command failed" >&2; exit 43 ;;
-                                          malformed) echo '{'; exit 0 ;;
-                                          wrong-project) project="${project}.other" ;;
-                                      esac
+        case "${failure}" in
+            command) echo "package audit command failed" >&2; exit 43 ;;
+            malformed) echo '{'; exit 0 ;;
+            wrong-project) project="${project}.other" ;;
+        esac
 
-                                      jq -n --arg project "${project}" --arg failure "${failure}" \
-                                          '{version:1,parameters:"--vulnerable --include-transitive",sources:["https://api.nuget.org/v3/index.json"],
-                                            projects:[{path:$project}]}
-                                           | if $failure == "warning" then .problems=[{level:"warning",text:"No vulnerability database"}]
-                                             elif $failure == "vulnerable" then
-                                               .projects[0].frameworks=[{framework:"net10.0",transitivePackages:[
-                                                 {id:"Example",resolvedVersion:"1.0.0",
-                                                 vulnerabilities:[{severity:"High",advisoryurl:"https://example.invalid/a"}]}]}]
-                                             else . end'
-                                      """;
+        jq -n --arg project "${project}" --arg failure "${failure}" \
+            '{version:1,parameters:"--vulnerable --include-transitive",sources:["https://api.nuget.org/v3/index.json"],
+              projects:[{path:$project}]}
+             | if $failure == "warning" then .problems=[{level:"warning",text:"No vulnerability database"}]
+               elif $failure == "vulnerable" then
+                 .projects[0].frameworks=[{framework:"net10.0",transitivePackages:[
+                   {id:"Example",resolvedVersion:"1.0.0",
+                   vulnerabilities:[{severity:"High",advisoryurl:"https://example.invalid/a"}]}]}]
+               else . end'
+        """;
 
     /// <summary>Checks every source project and preserves an independent explicit audit source.</summary>
     [Fact]

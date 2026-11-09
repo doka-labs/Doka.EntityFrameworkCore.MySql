@@ -528,19 +528,19 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Database
             .ExecuteSqlRawAsync(
                 $"""
-                 CREATE TABLE `{StringTableName}` (
-                     `Id` int NOT NULL,
-                     `Discriminator` varchar(64) NOT NULL,
-                     `Name` varchar(100) NOT NULL,
-                     `KnownValue` varchar(100) NULL,
-                     CONSTRAINT `PK_{StringTableName}` PRIMARY KEY (`Id`)
-                 ) CHARACTER SET utf8mb4;
+                CREATE TABLE `{StringTableName}` (
+                    `Id` int NOT NULL,
+                    `Discriminator` varchar(64) NOT NULL,
+                    `Name` varchar(100) NOT NULL,
+                    `KnownValue` varchar(100) NULL,
+                    CONSTRAINT `PK_{StringTableName}` PRIMARY KEY (`Id`)
+                ) CHARACTER SET utf8mb4;
 
-                 INSERT INTO `{StringTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
-                 VALUES
-                     (1, 'Known', 'known', 'mapped'),
-                     (2, 'Future', 'future', NULL);
-                 """,
+                INSERT INTO `{StringTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
+                VALUES
+                    (1, 'Known', 'known', 'mapped'),
+                    (2, 'Future', 'future', NULL);
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -562,19 +562,19 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Database
             .ExecuteSqlRawAsync(
                 $"""
-                 CREATE TABLE `{IntTableName}` (
-                     `Id` int NOT NULL,
-                     `Discriminator` int NOT NULL,
-                     `Name` varchar(100) NOT NULL,
-                     `KnownValue` varchar(100) NULL,
-                     CONSTRAINT `PK_{IntTableName}` PRIMARY KEY (`Id`)
-                 ) CHARACTER SET utf8mb4;
+                CREATE TABLE `{IntTableName}` (
+                    `Id` int NOT NULL,
+                    `Discriminator` int NOT NULL,
+                    `Name` varchar(100) NOT NULL,
+                    `KnownValue` varchar(100) NULL,
+                    CONSTRAINT `PK_{IntTableName}` PRIMARY KEY (`Id`)
+                ) CHARACTER SET utf8mb4;
 
-                 INSERT INTO `{IntTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
-                 VALUES
-                     (1, 1, 'known', 'mapped'),
-                     (2, 2, 'future', NULL);
-                 """,
+                INSERT INTO `{IntTableName}` (`Id`, `Discriminator`, `Name`, `KnownValue`)
+                VALUES
+                    (1, 1, 'known', 'mapped'),
+                    (2, 2, 'future', NULL);
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -596,14 +596,14 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .Database
             .ExecuteSqlRawAsync(
                 $"""
-                 CREATE TABLE `{ConvertedTableName}` (
-                     `Id` int NOT NULL,
-                     `Discriminator` char(16) NOT NULL,
-                     `Name` varchar(100) NOT NULL,
-                     `KnownValue` varchar(100) NULL,
-                     CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
-                 ) CHARACTER SET utf8mb4;
-                 """,
+                CREATE TABLE `{ConvertedTableName}` (
+                    `Id` int NOT NULL,
+                    `Discriminator` char(16) NOT NULL,
+                    `Name` varchar(100) NOT NULL,
+                    `KnownValue` varchar(100) NULL,
+                    CONSTRAINT `PK_{ConvertedTableName}` PRIMARY KEY (`Id`)
+                ) CHARACTER SET utf8mb4;
+                """,
                 cancellationToken)
             .ConfigureAwait(false);
 

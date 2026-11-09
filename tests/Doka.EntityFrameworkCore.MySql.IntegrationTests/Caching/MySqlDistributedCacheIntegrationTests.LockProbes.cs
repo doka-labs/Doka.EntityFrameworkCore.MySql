@@ -108,7 +108,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // WHY: RemoveAsync and cleanup both issue DELETE statements. The cleanup-only predicate requires the
         // cleanup command's primary-index clause so cancellation never interrupts foreground removal instead.
         // Unique-key locking reads can wait in optimization before INNODB_TRX exposes the wait.
-        command.CommandText = GetLockingStatementProbeSql("information_schema.PROCESSLIST");
+        command.CommandText = GetLockingStatementProbeSql(GetNativeProcessListSource(observer));
 
         command.Parameters.AddWithValue("@tableName", tableName);
         command.Parameters.AddWithValue("@cleanupOnly", cleanupOnly);
@@ -138,24 +138,37 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Fail("The cache operation did not reach the database row lock within the test deadline.");
     }
 
-    // WHY: PROCESSLIST.INFO can expose command bytes that are not valid in its
-    // metadata charset. Interpret the bytes without loss before searching for
-    // ASCII SQL tokens, so an unrelated request cannot break the lock probe.
+    /// <summary>Chooses native process metadata without introducing a MariaDB instrumentation dependency.</summary>
+    /// <param name="connection">The open connection whose server owns the process metadata.</param>
+    private static string GetNativeProcessListSource(
+        MySqlConnection connection
+    )
+    {
+        // WHY: MySQL converts INFORMATION_SCHEMA.INFO while constructing its rows, before any outer CAST can
+        // protect binary command bytes. Performance Schema avoids that conversion. MariaDB normally disables
+        // Performance Schema, so its existing native process metadata remains the supported observation source.
+        return connection.ServerVersion.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
+            ? "information_schema.PROCESSLIST"
+            : "performance_schema.processlist";
+    }
+
+    // WHY: Native process metadata can expose arbitrary command bytes. Normalize them without loss before
+    // searching ASCII SQL tokens; this is separate from selecting a source that can construct its rows safely.
     private static string GetLockingStatementProbeSql(
         string processSource
     ) => $"""
-          SELECT COUNT(*) FROM (
-              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
-              FROM {processSource}
-          ) AS observed
-          WHERE ID <> CONNECTION_ID()
-              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-              AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
-                  OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
-                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
-              AND (@cleanupOnly = FALSE
-                  OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
-          """;
+        SELECT COUNT(*) FROM (
+            SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText
+            FROM {processSource}
+        ) AS observed
+        WHERE ID <> CONNECTION_ID()
+            AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+            AND (UPPER(StatementText) LIKE '%FOR UPDATE%'
+                OR UPPER(LTRIM(StatementText)) LIKE 'UPDATE %'
+                OR UPPER(LTRIM(StatementText)) LIKE 'DELETE %')
+            AND (@cleanupOnly = FALSE
+                OR UPPER(LTRIM(StatementText)) LIKE 'DELETE % FROM % FORCE INDEX (PRIMARY)%');
+        """;
 
     /// <summary>Waits for the selected cache command to block on a table lock.</summary>
     /// <param name="observer">The observer used by this operation.</param>
@@ -170,7 +183,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         await using var command = observer.CreateCommand();
-        command.CommandText = GetWaitingForTableLockProbeSql("information_schema.PROCESSLIST");
+        command.CommandText = GetWaitingForTableLockProbeSql(GetNativeProcessListSource(observer));
 
         command.Parameters.AddWithValue("@tableName", tableName);
 
@@ -204,12 +217,12 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     private static string GetWaitingForTableLockProbeSql(
         string processSource
     ) => $"""
-          SELECT COUNT(*) FROM (
-              SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
-              FROM {processSource}
-          ) AS observed
-          WHERE ID <> CONNECTION_ID()
-              AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
-              AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
-          """;
+        SELECT COUNT(*) FROM (
+            SELECT ID, CONVERT(CAST(INFO AS BINARY) USING latin1) AS StatementText, STATE
+            FROM {processSource}
+        ) AS observed
+        WHERE ID <> CONNECTION_ID()
+            AND LOCATE(@tableName, COALESCE(StatementText, '')) > 0
+            AND LOWER(COALESCE(STATE, '')) LIKE '%lock%';
+        """;
 }

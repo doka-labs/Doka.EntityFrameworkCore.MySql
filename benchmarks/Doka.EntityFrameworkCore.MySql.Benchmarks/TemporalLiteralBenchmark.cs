@@ -29,10 +29,10 @@ public class TemporalLiteralBenchmark
     public string GenerateTimeOnlyPrecision6Literal() => _timeOnlyPrecision6.GenerateSqlLiteral(_timeOnly);
 
     [Benchmark]
-    public string GeneratePositiveTimeSpanPrecision6Literal() =>
-        _timeSpanPrecision6.GenerateSqlLiteral(_positiveTimeSpan);
+    public string GeneratePositiveTimeSpanPrecision6Literal()
+        => _timeSpanPrecision6.GenerateSqlLiteral(_positiveTimeSpan);
 
     [Benchmark]
-    public string GenerateNegativeBoundaryTimeSpanPrecision6Literal() =>
-        _timeSpanPrecision6.GenerateSqlLiteral(_negativeBoundary);
+    public string GenerateNegativeBoundaryTimeSpanPrecision6Literal()
+        => _timeSpanPrecision6.GenerateSqlLiteral(_negativeBoundary);
 }

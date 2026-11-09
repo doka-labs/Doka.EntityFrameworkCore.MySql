@@ -41,10 +41,9 @@ internal sealed class MySqlDistributedCache : IBufferDistributedCache, IDisposab
         _lastCleanupTimestamp = _timeProvider.GetTimestamp();
     }
 
-    public ValueTask DisposeAsync() =>
-        Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsDataSource
-            ? _dataSource.DisposeAsync()
-            : ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsDataSource
+        ? _dataSource.DisposeAsync()
+        : ValueTask.CompletedTask;
 
     public byte[]? Get(
         string key

@@ -157,11 +157,11 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS `{MaterializationChildTable}`;
-                               DROP TABLE IF EXISTS `{MaterializationTable}`;
-                               DROP TABLE IF EXISTS `{CrossesTable}`;
-                               DROP TABLE IF EXISTS `{SridTable}`;
-                               """;
+            DROP TABLE IF EXISTS `{MaterializationChildTable}`;
+            DROP TABLE IF EXISTS `{MaterializationTable}`;
+            DROP TABLE IF EXISTS `{CrossesTable}`;
+            DROP TABLE IF EXISTS `{SridTable}`;
+            """;
 
         await command
             .ExecuteNonQueryAsync(cancellationToken: cancellationToken)

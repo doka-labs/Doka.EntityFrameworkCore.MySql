@@ -6,18 +6,16 @@ public sealed partial class MySqlDatabaseFacadeExtensionsTests
     private static DbContextOptionsBuilder<FamilyContext> Options(
         bool mariaDb,
         NoIoBoundary boundary
-    )
-        => new DbContextOptionsBuilder<FamilyContext>()
-            .UseMySql(ConnectionString, TargetVersion(mariaDb))
-            .AddInterceptors(boundary, boundary.Commands);
+    ) => new DbContextOptionsBuilder<FamilyContext>()
+        .UseMySql(ConnectionString, TargetVersion(mariaDb))
+        .AddInterceptors(boundary, boundary.Commands);
 
     /// <summary>Uses existing supported descriptors rather than detecting an actual server.</summary>
     private static MySqlServerVersion TargetVersion(
         bool mariaDb
-    )
-        => mariaDb
-            ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
-            : MySqlServerVersion.MySql(new Version(8, 4, 0));
+    ) => mariaDb
+        ? MySqlServerVersion.MariaDb(new Version(11, 8, 0))
+        : MySqlServerVersion.MySql(new Version(8, 4, 0));
 
     /// <summary>Owns the configured service graph instead of fragmenting EF's global internal provider cache.</summary>
     private static ServiceProvider CreateServices(

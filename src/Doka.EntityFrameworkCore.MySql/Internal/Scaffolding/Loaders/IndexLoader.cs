@@ -141,35 +141,35 @@ internal static class IndexLoader
     ) => new(
         includesExpressionMetadata
             ? """
-              SELECT
-                  TABLE_NAME,
-                  INDEX_NAME,
-                  COLUMN_NAME,
-                  NON_UNIQUE,
-                  COLLATION,
-                  SEQ_IN_INDEX,
-                  INDEX_TYPE,
-                  SUB_PART,
-                  EXPRESSION
-              FROM information_schema.STATISTICS
-              WHERE TABLE_SCHEMA = DATABASE()
-                AND INDEX_NAME <> 'PRIMARY'
-              """
+            SELECT
+                TABLE_NAME,
+                INDEX_NAME,
+                COLUMN_NAME,
+                NON_UNIQUE,
+                COLLATION,
+                SEQ_IN_INDEX,
+                INDEX_TYPE,
+                SUB_PART,
+                EXPRESSION
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND INDEX_NAME <> 'PRIMARY'
+            """
             : """
-              SELECT
-                  TABLE_NAME,
-                  INDEX_NAME,
-                  COLUMN_NAME,
-                  NON_UNIQUE,
-                  COLLATION,
-                  SEQ_IN_INDEX,
-                  INDEX_TYPE,
-                  SUB_PART,
-                  NULL AS EXPRESSION
-              FROM information_schema.STATISTICS
-              WHERE TABLE_SCHEMA = DATABASE()
-                AND INDEX_NAME <> 'PRIMARY'
-              """);
+            SELECT
+                TABLE_NAME,
+                INDEX_NAME,
+                COLUMN_NAME,
+                NON_UNIQUE,
+                COLLATION,
+                SEQ_IN_INDEX,
+                INDEX_TYPE,
+                SUB_PART,
+                NULL AS EXPRESSION
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND INDEX_NAME <> 'PRIMARY'
+            """);
 }
 
 internal sealed record MySqlScaffoldedIndexPart(

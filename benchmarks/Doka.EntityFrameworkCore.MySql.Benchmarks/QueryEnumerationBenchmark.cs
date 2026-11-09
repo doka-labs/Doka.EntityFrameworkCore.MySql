@@ -250,12 +250,11 @@ public partial class QueryEnumerationBenchmark : IDisposable
 
     private SqlFunctionExpression Least(
         IReadOnlyList<SqlExpression> arguments
-    )
-        => (SqlFunctionExpression)_sql.Function(
-            "LEAST",
-            arguments,
-            nullable: false,
-            argumentsPropagateNullability: arguments.Select(_ => false),
-            typeof(int),
-            IntTypeMapping.Default);
+    ) => (SqlFunctionExpression)_sql.Function(
+        "LEAST",
+        arguments,
+        nullable: false,
+        argumentsPropagateNullability: arguments.Select(_ => false),
+        typeof(int),
+        IntTypeMapping.Default);
 }

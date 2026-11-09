@@ -19,22 +19,22 @@ public sealed class MySqlTransactionOperabilityTests
     /// Verifies every reusable transaction-operability contract against MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_satisfies_the_transaction_operability_contract()
+        => AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies every reusable transaction-operability contract against MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_satisfies_the_transaction_operability_contract()
+        => AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies every reusable transaction-operability contract against MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_satisfies_the_transaction_operability_contract() =>
-        AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_satisfies_the_transaction_operability_contract()
+        => AssertTransactionOperabilityContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies that rolling back to a savepoint preserves the pre-savepoint state.
@@ -548,13 +548,13 @@ public sealed class MySqlTransactionOperabilityTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-                               DROP TABLE IF EXISTS `{TransactionTableName}`;
-                               CREATE TABLE `{TransactionTableName}` (
-                                   `Id` int NOT NULL AUTO_INCREMENT,
-                                   `Name` longtext NOT NULL,
-                                   CONSTRAINT `PK_{TransactionTableName}` PRIMARY KEY (`Id`)
-                               ) CHARACTER SET utf8mb4;
-                               """;
+            DROP TABLE IF EXISTS `{TransactionTableName}`;
+            CREATE TABLE `{TransactionTableName}` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Name` longtext NOT NULL,
+                CONSTRAINT `PK_{TransactionTableName}` PRIMARY KEY (`Id`)
+            ) CHARACTER SET utf8mb4;
+            """;
 
         await command
             .ExecuteNonQueryAsync(cancellationToken)

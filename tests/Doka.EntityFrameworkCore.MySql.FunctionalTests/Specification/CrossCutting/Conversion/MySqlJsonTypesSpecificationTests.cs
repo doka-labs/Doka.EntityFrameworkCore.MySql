@@ -74,8 +74,8 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
             : (EnumU64)value,
         json);
 
-    public override Task Can_read_write_collection_of_ulong_enum_JSON_values() =>
-        Can_read_and_write_JSON_value<EnumU64CollectionType, List<EnumU64>>(
+    public override Task Can_read_write_collection_of_ulong_enum_JSON_values()
+        => Can_read_and_write_JSON_value<EnumU64CollectionType, List<EnumU64>>(
             nameof(EnumU64CollectionType.EnumU64),
             [
                 EnumU64.Min,
@@ -87,8 +87,8 @@ public sealed class JsonTypesMySqlTest : JsonTypesRelationalTestBase
             """{"Prop":[0,18446744073709551615,0,1,8]}""",
             mappedCollection: true);
 
-    public override Task Can_read_write_collection_of_nullable_ulong_enum_JSON_values() =>
-        Can_read_and_write_JSON_value<NullableEnumU64CollectionType, List<EnumU64?>>(
+    public override Task Can_read_write_collection_of_nullable_ulong_enum_JSON_values()
+        => Can_read_and_write_JSON_value<NullableEnumU64CollectionType, List<EnumU64?>>(
             nameof(NullableEnumU64CollectionType.EnumU64),
             [
                 EnumU64.Min,

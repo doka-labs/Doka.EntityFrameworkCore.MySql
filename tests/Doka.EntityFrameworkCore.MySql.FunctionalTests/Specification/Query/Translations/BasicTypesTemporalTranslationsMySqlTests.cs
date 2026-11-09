@@ -42,16 +42,14 @@ public sealed class BasicTypesDateTimeTranslationsMySqlTest
     ) : base(fixture) { }
 
     /// <inheritdoc />
-    public override Task Parse_with_constant()
-        => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_constant(),
-            cancellationToken: CancellationToken.None);
+    public override Task Parse_with_constant() => ExecuteWithUsEnglishCulture(
+        () => base.Parse_with_constant(),
+        cancellationToken: CancellationToken.None);
 
     /// <inheritdoc />
-    public override Task Parse_with_parameter()
-        => ExecuteWithUsEnglishCulture(
-            () => base.Parse_with_parameter(),
-            cancellationToken: CancellationToken.None);
+    public override Task Parse_with_parameter() => ExecuteWithUsEnglishCulture(
+        () => base.Parse_with_parameter(),
+        cancellationToken: CancellationToken.None);
 
     /// <summary>
     /// Runs the upstream temporal assertion under a stable English culture.
@@ -106,10 +104,9 @@ public sealed class BasicTypesTimeOnlyTranslationsMySqlTest
     /// Verifies that engine-stored <see cref="TimeOnly" /> values expose zero
     /// nanoseconds beyond their preserved microsecond component.
     /// </summary>
-    public override Task Nanosecond()
-        => AssertQuery(source => source
-            .Set<BasicTypesEntity>()
-            .Where(entity => entity.TimeOnly.Nanosecond == 0));
+    public override Task Nanosecond() => AssertQuery(source => source
+        .Set<BasicTypesEntity>()
+        .Where(entity => entity.TimeOnly.Nanosecond == 0));
 }
 
 /// <summary>
@@ -137,10 +134,9 @@ public sealed class BasicTypesTimeSpanTranslationsMySqlTest
     /// Verifies that engine-stored <see cref="TimeSpan" /> values expose zero
     /// nanoseconds beyond their preserved microsecond component.
     /// </summary>
-    public override Task Nanoseconds()
-        => AssertQuery(source => source
-            .Set<BasicTypesEntity>()
-            .Where(entity => entity.TimeSpan.Nanoseconds == 0));
+    public override Task Nanoseconds() => AssertQuery(source => source
+        .Set<BasicTypesEntity>()
+        .Where(entity => entity.TimeSpan.Nanoseconds == 0));
 
     /// <summary>
     /// Verifies that adding two stored-duration expressions executes through

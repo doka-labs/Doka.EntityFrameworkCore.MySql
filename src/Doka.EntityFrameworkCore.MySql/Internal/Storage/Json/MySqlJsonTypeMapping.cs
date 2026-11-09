@@ -25,8 +25,7 @@ internal sealed class MySqlJsonTypeMapping : RelationalTypeMapping, IMySqlProvid
         RelationalTypeMappingParameters parameters
     ) : base(parameters) { }
 
-    Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType =>
-        Converter?.ProviderClrType
+    Type IMySqlProviderOwnedModelTypeMapping.ProviderClrType => Converter?.ProviderClrType
         ?? throw new InvalidOperationException("The JSON mapping does not expose its required value converter.");
 
     object IMySqlProviderOwnedModelTypeMapping.ConvertToModelValue(

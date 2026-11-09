@@ -270,8 +270,8 @@ public sealed class TcpFaultProxy : IAsyncDisposable
         }
     }
 
-    private CommitFaultMode ConsumeCommitFault() =>
-        (CommitFaultMode)Interlocked.Exchange(ref _armedCommitFault, (int)CommitFaultMode.None);
+    private CommitFaultMode ConsumeCommitFault()
+        => (CommitFaultMode)Interlocked.Exchange(ref _armedCommitFault, (int)CommitFaultMode.None);
 
     private void SignalFault(
         CommitFaultMode mode
@@ -297,11 +297,11 @@ public sealed class TcpFaultProxy : IAsyncDisposable
 
     private void SignalQueryResponseFault() => _queryFaultObserved.TrySetResult(true);
 
-    private static TaskCompletionSource<CommitFaultMode> CreateFaultSignal() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource<CommitFaultMode> CreateFaultSignal()
+        => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private static TaskCompletionSource<bool> CreateQueryFaultSignal() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource<bool> CreateQueryFaultSignal()
+        => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private static string? ReadQuery(
         byte[] payload

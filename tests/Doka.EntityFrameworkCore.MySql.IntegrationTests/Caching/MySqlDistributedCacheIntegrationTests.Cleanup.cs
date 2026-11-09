@@ -200,11 +200,38 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     /// <param name="time">The time used by this operation.</param>
     /// <param name="initiator">The initiator used by this operation.</param>
     /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static Task<byte[]?> CancelCleanupWhileBlockedAsync(
+        CacheIntegrationStore store,
+        MySqlDistributedCache cache,
+        CacheManualTimeProvider time,
+        string initiator,
+        CancellationToken cancellationToken
+    ) => CancelCleanupWhileBlockedAsync(
+        store,
+        cache,
+        time,
+        initiator,
+        (observer, pending, observationCancellationToken) => AssertLockingStatementStartedAsync(
+            observer,
+            store.TableName,
+            pending,
+            observationCancellationToken,
+            cleanupOnly: true),
+        cancellationToken);
+
+    /// <summary>Runs the real cleanup lifecycle with a replaceable observation boundary for failure tests.</summary>
+    /// <param name="store">The isolated cache deployment and lock owner.</param>
+    /// <param name="cache">The cache whose cleanup and recovery state are exercised.</param>
+    /// <param name="time">The cache clock used to advance the cleanup interval.</param>
+    /// <param name="initiator">The public foreground operation that triggers cleanup.</param>
+    /// <param name="observeCleanup">The observation boundary that confirms progress or reports a failure.</param>
+    /// <param name="cancellationToken">The token observed while arranging and observing the operation.</param>
     private static async Task<byte[]?> CancelCleanupWhileBlockedAsync(
         CacheIntegrationStore store,
         MySqlDistributedCache cache,
         CacheManualTimeProvider time,
         string initiator,
+        Func<MySqlConnection, Task, CancellationToken, Task> observeCleanup,
         CancellationToken cancellationToken
     )
     {
@@ -240,15 +267,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         using var cancellation = new CancellationTokenSource();
         time.Advance(TimeSpan.FromMinutes(5));
         var pending = InvokeCleanupInitiatorAsync(cache, initiator, cancellation.Token);
+        Exception? primaryFailure = null;
 
         try
         {
-            await AssertLockingStatementStartedAsync(
-                    observer,
-                    store.TableName,
-                    pending,
-                    cancellationToken,
-                    cleanupOnly: true)
+            await observeCleanup(observer, pending, cancellationToken)
                 .ConfigureAwait(false);
 
             if (initiator == "get")
@@ -271,27 +294,43 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ConfigureAwait(false);
 
             return await pending
-                .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+
+            throw;
         }
         finally
         {
-            await cancellation
-                .CancelAsync()
+            // WHY: Observation may fail before foreground work finishes. Cancel and unlock before
+            // draining it, retaining the observer failure instead of replacing it with induced cancellation.
+            await CompleteLockProbeAsync(
+                    cancellation,
+                    () => transaction.RollbackAsync(CancellationToken.None),
+                    pending,
+                    primaryFailure)
                 .ConfigureAwait(false);
-
-            await transaction
-                .RollbackAsync(CancellationToken.None)
-                .ConfigureAwait(false);
-
-            if (!pending.IsCompleted)
-            {
-                await pending
-                    .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
         }
     }
+
+    /// <summary>Completes the cache probe through the shared protected database-lock cleanup boundary.</summary>
+    /// <param name="cancellation">The optional foreground cancellation source.</param>
+    /// <param name="releaseLock">The protected release of the test-owned lock.</param>
+    /// <param name="pending">The work that must be observed before resources are reused.</param>
+    /// <param name="primaryFailure">The failure that remains authoritative over cleanup failures.</param>
+    private static Task CompleteLockProbeAsync(
+        CancellationTokenSource? cancellation,
+        Func<Task> releaseLock,
+        Task pending,
+        Exception? primaryFailure
+    ) => DatabaseLockProbeCleanup.CompleteLockProbeAsync(
+        cancellation,
+        releaseLock,
+        pending,
+        primaryFailure,
+        afterDrain: null);
 
     /// <summary>Starts the selected foreground operation that initiates opportunistic cleanup.</summary>
     private static async Task<byte[]?> InvokeCleanupInitiatorAsync(

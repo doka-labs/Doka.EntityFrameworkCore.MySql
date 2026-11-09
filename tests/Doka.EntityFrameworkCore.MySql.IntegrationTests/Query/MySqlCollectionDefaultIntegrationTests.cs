@@ -14,50 +14,54 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies the default query shape and split include on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb1011,
+            CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task MariaDb114_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb114,
+            CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb118,
+            CancellationToken.None);
 
     /// <summary>
     /// Verifies the default query shape and split include on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_preserves_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(IntegrationDatabaseTarget.MariaDb123,
+            CancellationToken.None);
 
     /// <summary>
     /// Verifies that explicit JSON translation preserves the same result on MySQL 8.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MySql84_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MySql84,
             CancellationToken.None,
             useJsonParameter: true);
@@ -66,8 +70,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies that explicit JSON translation preserves the same result on MySQL 9.7.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MySql97_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MySql97,
             CancellationToken.None,
             useJsonParameter: true);
@@ -76,8 +80,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 10.11.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MariaDb1011_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MariaDb1011,
             CancellationToken.None,
             useJsonParameter: true);
@@ -86,8 +90,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 11.4.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MariaDb114_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MariaDb114,
             CancellationToken.None,
             useJsonParameter: true);
@@ -96,8 +100,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 11.8.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MariaDb118_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MariaDb118,
             CancellationToken.None,
             useJsonParameter: true);
@@ -106,8 +110,8 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     /// Verifies that explicit JSON translation preserves the same result on MariaDB 12.3.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_preserves_json_collection_membership_with_split_include() =>
-        AssertCollectionMembershipWithSplitIncludeAsync(
+    public Task MariaDb123_preserves_json_collection_membership_with_split_include()
+        => AssertCollectionMembershipWithSplitIncludeAsync(
             IntegrationDatabaseTarget.MariaDb123,
             CancellationToken.None,
             useJsonParameter: true);

@@ -24,31 +24,27 @@ public sealed partial class MySqlLikeIntegrationTests : IClassFixture<MySqlLikeI
     /// <summary>
     /// Identifies each selected engine, scalar property, and matching scenario.
     /// </summary>
-    public static IEnumerable<object[]> ScalarLikeCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> ScalarLikeCases => from target in SelectedTargets()
         from testCase in s_scalarCases
         select new object[] { target.ToString(), testCase.PropertyName, testCase.Name };
 
     /// <summary>
     /// Identifies the selected supported engines.
     /// </summary>
-    public static IEnumerable<object[]> TargetCases =>
-        SelectedTargets()
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> TargetCases => SelectedTargets()
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// Identifies nullable and non-nullable GUID parameters independently.
     /// </summary>
-    public static IEnumerable<object[]> GuidParameterCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> GuidParameterCases => from target in SelectedTargets()
         from scenario in s_guidParameterScenarios
         select new object[] { target.ToString(), scenario };
 
     /// <summary>
     /// Identifies string overloads whose escape semantics are executed.
     /// </summary>
-    public static IEnumerable<object[]> StringEscapeCases =>
-        from target in SelectedTargets()
+    public static IEnumerable<object[]> StringEscapeCases => from target in SelectedTargets()
         from overload in s_stringEscapeOverloads
         select new object[] { target.ToString(), overload };
 

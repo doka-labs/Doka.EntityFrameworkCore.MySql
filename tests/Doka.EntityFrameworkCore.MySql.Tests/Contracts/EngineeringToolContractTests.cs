@@ -39,30 +39,30 @@ public sealed class EngineeringToolContractTests
         WriteExecutable(
             Path.Combine(directory.Path, "dotnet"),
             $$"""
-              #!/usr/bin/env bash
-              set -euo pipefail
-              tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-              case "$*" in
-                  "run --project "*) exit 0 ;;
-                  "tool restore")
-                      echo restore >> "${tool_root}/events"
-                      exit {{restoreExitCode}}
-                      ;;
-                  "tool run reportgenerator "*)
-                      echo manifest-generator >> "${tool_root}/events"
-                      if [[ "{{generatorExitCode}}" != "0" ]]; then
-                          exit {{generatorExitCode}}
-                      fi
+            #!/usr/bin/env bash
+            set -euo pipefail
+            tool_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            case "$*" in
+                "run --project "*) exit 0 ;;
+                "tool restore")
+                    echo restore >> "${tool_root}/events"
+                    exit {{restoreExitCode}}
+                    ;;
+                "tool run reportgenerator "*)
+                    echo manifest-generator >> "${tool_root}/events"
+                    if [[ "{{generatorExitCode}}" != "0" ]]; then
+                        exit {{generatorExitCode}}
+                    fi
 
-                      for argument in "$@"; do
-                          if [[ "${argument}" == -targetdir:* ]]; then
-                              printf '<coverage />' > "${argument#-targetdir:}/Cobertura.xml"
-                          fi
-                      done
-                      ;;
-                  *) exit 42 ;;
-              esac
-              """);
+                    for argument in "$@"; do
+                        if [[ "${argument}" == -targetdir:* ]]; then
+                            printf '<coverage />' > "${argument#-targetdir:}/Cobertura.xml"
+                        fi
+                    done
+                    ;;
+                *) exit 42 ;;
+            esac
+            """);
 
         WriteExecutable(
             Path.Combine(directory.Path, "reportgenerator"),

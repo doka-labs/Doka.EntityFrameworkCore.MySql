@@ -148,13 +148,13 @@ internal static class Program
         await using var command = connection.CreateCommand();
         command.CommandText =
             $"""
-             DELETE FROM `{DatabaseName}`.`{TableName}`;
-             INSERT INTO `{DatabaseName}`.`{TableName}`
-                 (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
-             VALUES
-                 ('runtime-clock-renewed', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 1),
-                 ('runtime-clock-expired', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 2);
-             """;
+            DELETE FROM `{DatabaseName}`.`{TableName}`;
+            INSERT INTO `{DatabaseName}`.`{TableName}`
+                (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
+            VALUES
+                ('runtime-clock-renewed', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 1),
+                ('runtime-clock-expired', X'01', TIMESTAMPADD(SECOND, -1, UTC_TIMESTAMP(6)), NULL, NULL, 2);
+            """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
 

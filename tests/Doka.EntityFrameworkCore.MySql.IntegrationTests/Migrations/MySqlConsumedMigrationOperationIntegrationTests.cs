@@ -15,43 +15,43 @@ public sealed class MySqlConsumedMigrationOperationIntegrationTests
     /// Verifies my sql84 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task MySql84_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task MySql84_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>
     /// Verifies my sql97 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task MySql97_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task MySql97_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db1011 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task MariaDb1011_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task MariaDb1011_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db114 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task MariaDb114_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task MariaDb114_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db118 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies maria db123 records consumed only migration history.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task MariaDb123_records_consumed_only_migration_history() =>
-        AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task MariaDb123_records_consumed_only_migration_history()
+        => AssertConsumedOnlyMigrationHistoryAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>
     /// Verifies consumed only migration history for the integration contract.

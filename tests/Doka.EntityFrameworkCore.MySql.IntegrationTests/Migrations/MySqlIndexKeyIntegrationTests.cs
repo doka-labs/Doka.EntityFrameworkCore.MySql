@@ -91,8 +91,8 @@ public sealed partial class MySqlIndexKeyIntegrationTests
     /// Verifies maria db118 sync migration rejects silent index shortening.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task MariaDb118_sync_migration_rejects_silent_index_shortening() =>
-        AssertSyncWarningContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task MariaDb118_sync_migration_rejects_silent_index_shortening()
+        => AssertSyncWarningContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>
     /// Verifies index key contract for the integration contract.

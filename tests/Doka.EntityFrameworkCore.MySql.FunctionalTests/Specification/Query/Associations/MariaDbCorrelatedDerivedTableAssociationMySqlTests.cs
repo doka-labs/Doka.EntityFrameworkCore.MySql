@@ -12,8 +12,8 @@ public sealed partial class ComplexJsonCollectionMySqlTest
     public override Task Distinct() => base.Distinct();
 
     [SpecEngineLimitationFact("MDB-CORRELATED-DERIVED-TABLE", "mariadb114", "mariadb118")]
-    public override Task Distinct_over_projected_nested_collection() =>
-        base.Distinct_over_projected_nested_collection();
+    public override Task Distinct_over_projected_nested_collection()
+        => base.Distinct_over_projected_nested_collection();
 }
 
 public sealed partial class ComplexJsonProjectionMySqlTest

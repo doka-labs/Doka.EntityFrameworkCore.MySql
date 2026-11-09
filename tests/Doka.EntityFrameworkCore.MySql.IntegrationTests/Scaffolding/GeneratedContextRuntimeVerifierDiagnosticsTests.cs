@@ -72,18 +72,18 @@ public sealed class GeneratedContextRuntimeVerifierDiagnosticsTests
         var geometryIdentity = JsonSerializer.Serialize(typeof(Geometry).Assembly.FullName);
         var model = CreateModel(
             $$"""
-              if (typeof(Microsoft.EntityFrameworkCore.DbContext).Assembly.FullName != {{efIdentity}}
-                  || typeof(Doka.EntityFrameworkCore.MySql.MySqlServerVersion).Assembly.FullName != {{providerIdentity}}
-                  || typeof(Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbContextOptionsBuilderExtensions)
-                      .Assembly.FullName != {{spatialIdentity}}
-                  || typeof(NetTopologySuite.Geometries.Geometry).Assembly.FullName != {{geometryIdentity}})
-              {
-                  throw new InvalidOperationException("The child loaded a different dependency identity.");
-              }
+            if (typeof(Microsoft.EntityFrameworkCore.DbContext).Assembly.FullName != {{efIdentity}}
+                || typeof(Doka.EntityFrameworkCore.MySql.MySqlServerVersion).Assembly.FullName != {{providerIdentity}}
+                || typeof(Doka.EntityFrameworkCore.MySql.MySqlNetTopologySuiteDbContextOptionsBuilderExtensions)
+                    .Assembly.FullName != {{spatialIdentity}}
+                || typeof(NetTopologySuite.Geometries.Geometry).Assembly.FullName != {{geometryIdentity}})
+            {
+                throw new InvalidOperationException("The child loaded a different dependency identity.");
+            }
 
-              Console.WriteLine("DOKA_GENERATED_CONTEXT_OK");
-              Environment.Exit(0);
-              """);
+            Console.WriteLine("DOKA_GENERATED_CONTEXT_OK");
+            Environment.Exit(0);
+            """);
 
         // WHY: This probe exits before database access to isolate SDK compilation and binary
         // binding. The six-engine roundtrip tests separately exercise schema reconstruction and CRUD.
@@ -197,11 +197,11 @@ public sealed class GeneratedContextRuntimeVerifierDiagnosticsTests
         // Arrange
         var model = CreateModel(
             $$"""
-              Console.WriteLine("credential marker: " + {{JsonSerializer.Serialize(Password)}});
-              Console.WriteLine(new string('x', 40000));
-              Console.Error.WriteLine("large-output failure");
-              throw new InvalidOperationException("intentional large-output failure");
-              """);
+            Console.WriteLine("credential marker: " + {{JsonSerializer.Serialize(Password)}});
+            Console.WriteLine(new string('x', 40000));
+            Console.Error.WriteLine("large-output failure");
+            throw new InvalidOperationException("intentional large-output failure");
+            """);
 
         // Act
         var exception = await Record.ExceptionAsync(() =>
@@ -230,23 +230,23 @@ public sealed class GeneratedContextRuntimeVerifierDiagnosticsTests
         ContextFile = new ScaffoldedFile(
             "RuntimeSchemaContext.cs",
             $$"""
-              using System;
-              using Microsoft.EntityFrameworkCore;
+            using System;
+            using Microsoft.EntityFrameworkCore;
 
-              namespace Doka.Scaffolding;
+            namespace Doka.Scaffolding;
 
-              /// <summary>Provides a controlled generated context for dependency and diagnostic probes.</summary>
-              public sealed class RuntimeSchemaContext : DbContext
-              {
-                  /// <summary>Runs the test-owned probe before any database operation.</summary>
-                  /// <param name="options">The options supplied by the generated program.</param>
-                  public RuntimeSchemaContext(
-                      DbContextOptions<RuntimeSchemaContext> options
-                  ) : base(options)
-                  {
-                      {{constructorBody}}
-                  }
-              }
-              """),
+            /// <summary>Provides a controlled generated context for dependency and diagnostic probes.</summary>
+            public sealed class RuntimeSchemaContext : DbContext
+            {
+                /// <summary>Runs the test-owned probe before any database operation.</summary>
+                /// <param name="options">The options supplied by the generated program.</param>
+                public RuntimeSchemaContext(
+                    DbContextOptions<RuntimeSchemaContext> options
+                ) : base(options)
+                {
+                    {{constructorBody}}
+                }
+            }
+            """),
     };
 }

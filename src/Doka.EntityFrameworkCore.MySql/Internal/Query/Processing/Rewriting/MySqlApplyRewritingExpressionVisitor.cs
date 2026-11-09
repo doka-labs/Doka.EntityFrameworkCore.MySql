@@ -64,8 +64,7 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
         var table = outer.Tables[tableIndex];
         var inner = MySqlTableExpressionHelper.GetApplySelect(table);
 
-        if (inner is null
-            || inner.Alias is null
+        if (inner is not { Alias: not null }
             || inner.Tables.Count != 1
             || (_flattenJsonTablesOnly && inner.Tables[0] is not MySqlJsonTableExpression)
             || inner.IsDistinct

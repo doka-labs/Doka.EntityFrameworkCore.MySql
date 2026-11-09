@@ -237,8 +237,8 @@ csharp_style_implicit_object_creation_when_type_is_apparent = true:suggestion
 csharp_style_prefer_primary_constructors = false
 
 # --- Conservative compact syntax ---------------------------------------------
-csharp_style_prefer_index_operator = false:none
-csharp_style_prefer_range_operator = false:none
+csharp_style_prefer_index_operator = true:suggestion
+csharp_style_prefer_range_operator = true:suggestion
 
 # --- Expression-bodied members -----------------------------------------------
 csharp_style_expression_bodied_methods = when_on_single_line:suggestion
@@ -247,7 +247,7 @@ csharp_style_expression_bodied_accessors = when_on_single_line:suggestion
 csharp_style_expression_bodied_indexers = when_on_single_line:suggestion
 csharp_style_expression_bodied_lambdas = true:suggestion
 csharp_style_expression_bodied_constructors = false:suggestion
-csharp_style_expression_bodied_operators = false:suggestion
+csharp_style_expression_bodied_operators = true:suggestion
 csharp_style_expression_bodied_local_functions = true:suggestion
 
 # --- Formatting --------------------------------------------------------------
@@ -296,10 +296,10 @@ csharp_preserve_single_line_blocks = true
 csharp_preserve_single_line_statements = true
 
 # --- Rider / ReSharper Bridges -----------------------------------------------
-# Keep Rider/ReSharper aligned with the Roslyn expression-bodied layout when
-# both tools touch the same file.
-resharper_csharp_wrap_before_arrow_with_expressions = false
-resharper_csharp_keep_existing_expr_member_arrangement = true
+# Keep the expression beside its arrow; wrap before the arrow when width requires it.
+# Apply these rules instead of preserving legacy breaks after the arrow.
+resharper_csharp_wrap_before_arrow_with_expressions = true
+resharper_csharp_keep_existing_expr_member_arrangement = false
 
 # -----------------------------------------------------------------------------
 # C# (Rider / ReSharper Overlay)
@@ -389,6 +389,7 @@ resharper_csharp_wrap_chained_binary_patterns = chop_if_long
 resharper_csharp_align_multiline_binary_expressions_chain = false
 resharper_csharp_outdent_binary_ops = false
 resharper_csharp_continuous_indent_multiplier = 1
+resharper_csharp_indent_raw_literal_string = indent
 
 # --- Ternary Expressions -----------------------------------------------------
 resharper_csharp_wrap_before_ternary_opsigns = true
@@ -431,8 +432,8 @@ resharper_csharp_anonymous_method_declaration_braces = next_line
 resharper_csharp_indent_anonymous_method_block = false
 
 resharper_csharp_place_expr_method_on_single_line = always
-resharper_csharp_place_expr_property_on_single_line = if_owner_is_single_line
-resharper_csharp_place_expr_accessor_on_single_line = if_owner_is_single_line
+resharper_csharp_place_expr_property_on_single_line = always
+resharper_csharp_place_expr_accessor_on_single_line = always
 
 # Empty bodies remain compact, including constructors that only call base.
 resharper_csharp_empty_block_style = together_same_line

@@ -8,13 +8,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed class IntegrationTestSchedulingContractTests
 {
     /// <summary>Supplies only the supported engines selected for this test run.</summary>
-    public static IEnumerable<object[]> SelectedSupportedTargets =>
-        IntegrationTestEnvironment
-            .GetSelectedTargets()
-            .Where(
-                IntegrationTestEnvironment.GetSupportedTargets()
-                    .Contains)
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> SelectedSupportedTargets => IntegrationTestEnvironment
+        .GetSelectedTargets()
+        .Where(
+            IntegrationTestEnvironment.GetSupportedTargets()
+                .Contains)
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// Guards the selected-target theory discovery used by the split live tests.

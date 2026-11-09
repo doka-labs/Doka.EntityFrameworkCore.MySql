@@ -200,37 +200,37 @@ public sealed class GeneratedContextRuntimeVerifierCancellationTests
         ContextFile = new ScaffoldedFile(
             "RuntimeSchemaContext.cs",
             $$"""
-              using System;
-              using System.Net;
-              using System.Net.Sockets;
-              using Microsoft.EntityFrameworkCore;
+            using System;
+            using System.Net;
+            using System.Net.Sockets;
+            using Microsoft.EntityFrameworkCore;
 
-              namespace Doka.Scaffolding;
+            namespace Doka.Scaffolding;
 
-              /// <summary>Blocks before model initialization to exercise operating-system termination.</summary>
-              public sealed class RuntimeSchemaContext : DbContext
-              {
-                  /// <summary>Identifies this owned child before waiting for its parent to terminate it.</summary>
-                  /// <param name="options">The options supplied by the generated program.</param>
-                  public RuntimeSchemaContext(
-                      DbContextOptions<RuntimeSchemaContext> options
-                  ) : base(options)
-                  {
-                      using var client = new TcpClient();
-                      client.Connect(IPAddress.Loopback, {{port.ToString(CultureInfo.InvariantCulture)}});
-                      using var stream = client.GetStream();
-                      Console.WriteLine("DOKA_CANCELLATION_CHILD_READY "
-                          + Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_CONNECTION"));
-                      Console.Error.WriteLine("DOKA_CANCELLATION_CHILD_STDERR deadline-test-secret");
-                      stream.Write(Convert.FromHexString("{{nonce}}"));
+            /// <summary>Blocks before model initialization to exercise operating-system termination.</summary>
+            public sealed class RuntimeSchemaContext : DbContext
+            {
+                /// <summary>Identifies this owned child before waiting for its parent to terminate it.</summary>
+                /// <param name="options">The options supplied by the generated program.</param>
+                public RuntimeSchemaContext(
+                    DbContextOptions<RuntimeSchemaContext> options
+                ) : base(options)
+                {
+                    using var client = new TcpClient();
+                    client.Connect(IPAddress.Loopback, {{port.ToString(CultureInfo.InvariantCulture)}});
+                    using var stream = client.GetStream();
+                    Console.WriteLine("DOKA_CANCELLATION_CHILD_READY "
+                        + Environment.GetEnvironmentVariable("DOKA_GENERATED_CONTEXT_CONNECTION"));
+                    Console.Error.WriteLine("DOKA_CANCELLATION_CHILD_STDERR deadline-test-secret");
+                    stream.Write(Convert.FromHexString("{{nonce}}"));
 
-                      // WHY: Caller cancellation cannot end this blocking read. The parent
-                      // sends no data and keeps its endpoint open until termination is observed.
-                      _ = stream.ReadByte();
+                    // WHY: Caller cancellation cannot end this blocking read. The parent
+                    // sends no data and keeps its endpoint open until termination is observed.
+                    _ = stream.ReadByte();
 
-                      Environment.Exit(0);
-                  }
-              }
-              """),
+                    Environment.Exit(0);
+                }
+            }
+            """),
     };
 }

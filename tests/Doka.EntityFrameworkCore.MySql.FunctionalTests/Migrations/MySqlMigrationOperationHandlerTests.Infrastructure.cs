@@ -44,8 +44,9 @@ public sealed partial class MySqlMigrationOperationHandlerTests
     private static void AddPlugin<THandler>(
         DbContextOptionsBuilder builder
     )
-        where THandler : class, IMySqlMigrationOperationHandler =>
-        ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(new HandlerOptionsExtension<THandler>());
+        where THandler : class, IMySqlMigrationOperationHandler
+        => ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(
+            new HandlerOptionsExtension<THandler>());
 
     /// <summary>
     /// Creates the context with a caller-owned internal service provider.

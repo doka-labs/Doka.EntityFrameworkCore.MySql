@@ -519,7 +519,6 @@ public sealed class MySqlLoggerMessagesTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter
-        ) =>
-            Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), state, exception));
+        ) => Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception), state, exception));
     }
 }

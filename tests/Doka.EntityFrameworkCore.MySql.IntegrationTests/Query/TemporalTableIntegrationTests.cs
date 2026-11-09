@@ -17,28 +17,28 @@ public sealed class TemporalTableIntegrationTests
     private const string TestDatabaseName = "doka_provider";
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
-    public Task Temporal_contract_executes_on_mysql84() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mysql84()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql97)]
-    public Task Temporal_contract_executes_on_mysql97() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mysql97()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MySql97, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb1011)]
-    public Task Temporal_contract_executes_on_mariadb1011() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mariadb1011()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb1011, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb114)]
-    public Task Temporal_contract_executes_on_mariadb114() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mariadb114()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb114, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb118)]
-    public Task Temporal_contract_executes_on_mariadb118() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mariadb118()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MariaDb123)]
-    public Task Temporal_contract_executes_on_mariadb123() =>
-        RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
+    public Task Temporal_contract_executes_on_mariadb123()
+        => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the temporal contract integration scenario.</summary>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>

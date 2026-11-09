@@ -5,16 +5,15 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.4 patch release, see the [changelog](../CHANGELOG.md#1064---2026-11-05),
-[asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
-[shared qualification overview](operations/workflow-overview.md). The release
-corrects [fixed binary byte-array reads](provider-configuration.md#fixed-binary-byte-arrays),
-strengthens cancellation and lifecycle handling, and improves generated-context
-runtime qualification. Repository cleanup follows the reviewed Rider rules.
-Application configuration, the .NET 10 requirement, EF Core 10.0.8 minimum,
-supported engines and storage defaults remain unchanged. The stable API baseline
-adds mapping infrastructure for generated compiled models; regenerate existing
-compiled models after upgrading to adopt the corrected binary reader.
+For the 10.6.5 maintenance patch, see the [changelog](../CHANGELOG.md#1065---2026-11-09)
+and [shared qualification overview](operations/workflow-overview.md). The release
+hardens cache and SQL-mode integration probes, cancellation cleanup and
+deterministic test preparation. It refreshes workflow tooling and MySQL image
+digests and applies the reviewed Rider formatting and C# simplifications.
+Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
+minimum, supported engines and storage defaults remain unchanged.
+When upgrading from a version before 10.6.4, regenerate existing compiled models
+to adopt the corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
 remains `>= 2.6.1` and `< 3.0.0`.
 

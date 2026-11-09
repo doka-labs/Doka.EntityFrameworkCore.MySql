@@ -184,14 +184,12 @@ public sealed partial class MySqlGuidMigrationIntegrationTests
         }
     }
 
-    private static string CreateChar36ToBinaryBackfillSql() =>
-        $"UPDATE `{StorageTransitionTable}` SET "
+    private static string CreateChar36ToBinaryBackfillSql() => $"UPDATE `{StorageTransitionTable}` SET "
         + "`RequiredValueBinary` = UNHEX(REPLACE(TRIM(`RequiredValue`), '-', '')), "
         + "`OptionalValueBinary` = CASE WHEN `OptionalValue` IS NULL THEN NULL "
         + "ELSE UNHEX(REPLACE(TRIM(`OptionalValue`), '-', '')) END;";
 
-    private static string CreateBinaryToChar36BackfillSql() =>
-        $"UPDATE `{StorageTransitionTable}` SET "
+    private static string CreateBinaryToChar36BackfillSql() => $"UPDATE `{StorageTransitionTable}` SET "
         + $"`RequiredValueText` = {FormatBinaryGuid("`RequiredValue`")}, "
         + "`OptionalValueText` = CASE WHEN `OptionalValue` IS NULL THEN NULL "
         + $"ELSE {FormatBinaryGuid("`OptionalValue`")} END;";

@@ -41,34 +41,31 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     }
 
     /// <summary>Identifies MariaDB versions that enforce SRID through a check constraint.</summary>
-    public static IEnumerable<object[]> MariaDbCases =>
-        s_mariaDbTargets
-            .Where(IntegrationTestEnvironment.IsTargetSelected)
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> MariaDbCases => s_mariaDbTargets
+        .Where(IntegrationTestEnvironment.IsTargetSelected)
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies engines that exercise every geometry reader shape.</summary>
-    public static IEnumerable<object[]> MaterializationTargetCases =>
-        s_materializationTargets
-            .Where(IntegrationTestEnvironment.IsTargetSelected)
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> MaterializationTargetCases => s_materializationTargets
+        .Where(IntegrationTestEnvironment.IsTargetSelected)
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies the independent untracked/projection/include reader paths.</summary>
-    public static IEnumerable<object[]> MaterializationCases =>
-        from target in s_materializationTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
-        from shape in s_materializationShapes
-        select new object[] { target.ToString(), shape };
+    public static IEnumerable<object[]> MaterializationCases
+        => from target in s_materializationTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+            from shape in s_materializationShapes
+            select new object[] { target.ToString(), shape };
 
     /// <summary>Identifies engines that expose the tested scalar and aggregate functions.</summary>
-    public static IEnumerable<object[]> FunctionTargetCases =>
-        s_functionTargets
-            .Where(IntegrationTestEnvironment.IsTargetSelected)
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> FunctionTargetCases => s_functionTargets
+        .Where(IntegrationTestEnvironment.IsTargetSelected)
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>Identifies each independently executable geometry-returning function.</summary>
-    public static IEnumerable<object[]> GeometryFunctionCases =>
-        from target in s_functionTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
-        from function in s_geometryFunctions
-        select new object[] { target.ToString(), function };
+    public static IEnumerable<object[]> GeometryFunctionCases
+        => from target in s_functionTargets.Where(IntegrationTestEnvironment.IsTargetSelected)
+            from function in s_geometryFunctions
+            select new object[] { target.ToString(), function };
 
     /// <summary>Retains migration, enforcement, catalog recovery, and scaffolding as one SRID lifecycle.</summary>
     [RequiresDatabaseTargetsTheory(

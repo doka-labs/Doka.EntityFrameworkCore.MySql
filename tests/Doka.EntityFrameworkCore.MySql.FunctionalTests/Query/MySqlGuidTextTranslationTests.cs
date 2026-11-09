@@ -27,28 +27,24 @@ public sealed class MySqlGuidTextTranslationTests
     ];
 
     /// <summary>Identifies each storage mapping under both configured defaults.</summary>
-    public static IEnumerable<object[]> PropertyCases =>
-        from format in s_formats
+    public static IEnumerable<object[]> PropertyCases => from format in s_formats
         from property in s_properties
         select new object[] { format, property };
 
     /// <summary>Identifies required and escaped nullable LIKE operands independently.</summary>
-    public static IEnumerable<object[]> LikeCases =>
-        from format in s_formats
+    public static IEnumerable<object[]> LikeCases => from format in s_formats
         from property in s_properties
         from optional in s_optionalVariants
         select new object[] { format, property, optional };
 
     /// <summary>Identifies each unsupported layout and formatting operation.</summary>
-    public static IEnumerable<object[]> UnsupportedLayoutCases =>
-        from format in s_formats
+    public static IEnumerable<object[]> UnsupportedLayoutCases => from format in s_formats
         from property in s_unsupportedProperties
         from operation in s_translationOperations
         select new object[] { format, property, operation };
 
     /// <summary>Identifies GUID and string store-type lookups separately.</summary>
-    public static IEnumerable<object[]> StoreTypeCases =>
-        from format in s_formats
+    public static IEnumerable<object[]> StoreTypeCases => from format in s_formats
         from storeType in s_textStoreTypes
         from clrType in s_clrTypes
         select new object[] { format, storeType, clrType };

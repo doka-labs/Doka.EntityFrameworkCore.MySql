@@ -258,18 +258,17 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
     }
 
     /// <summary>Builds an immutable scalar schema with a native GUID and a typed nullable payload.</summary>
-    private static SelectExpression CreateLeafSource()
-        => CreateSource(
-            "leaf_seed",
-            [],
-            [
-                new ProjectionExpression(
-                    new SqlConstantExpression(Guid.Empty, MySqlGuidBinaryTypeMapping.Default),
-                    "Token"),
-                new ProjectionExpression(
-                    new SqlConstantExpression(null, typeof(string), MySqlStringTypeMapping.Default),
-                    "OptionalName"),
-            ]);
+    private static SelectExpression CreateLeafSource() => CreateSource(
+        "leaf_seed",
+        [],
+        [
+            new ProjectionExpression(
+                new SqlConstantExpression(Guid.Empty, MySqlGuidBinaryTypeMapping.Default),
+                "Token"),
+            new ProjectionExpression(
+                new SqlConstantExpression(null, typeof(string), MySqlStringTypeMapping.Default),
+                "OptionalName"),
+        ]);
 
     /// <summary>Constructs the exact immutable relational fixture required by the quotation contract.</summary>
     private static SelectExpression CreateSource(
@@ -319,10 +318,9 @@ public sealed partial class MySqlMaterializedSourceExpressionTests
         /// <inheritdoc />
         protected override Expression VisitParameter(
             ParameterExpression node
-        )
-            => node.Name == "relationalTypeMappingSource"
-                ? Expression.Constant(source, node.Type)
-                : base.VisitParameter(node);
+        ) => node.Name == "relationalTypeMappingSource"
+            ? Expression.Constant(source, node.Type)
+            : base.VisitParameter(node);
     }
 
     /// <summary>Hosts mapping services without executing queries.</summary>

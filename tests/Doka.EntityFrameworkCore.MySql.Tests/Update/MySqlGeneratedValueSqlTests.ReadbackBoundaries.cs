@@ -352,16 +352,16 @@ public sealed partial class MySqlGeneratedValueSqlTests
         string tableName,
         string firstKey
     ) => $$"""
-           INSERT INTO `{{tableName}}` (`Id`, `Payload`)
-           VALUES ({{firstKey}}, @p0_payload),
-           (@p1_0, @p1_payload);
-           SELECT `Generated`, 0
-           FROM `{{tableName}}`
-           WHERE ROW_COUNT() = 2 AND `Id` = {{firstKey}}
-           UNION ALL
-           SELECT `Generated`, 1
-           FROM `{{tableName}}`
-           WHERE ROW_COUNT() = 2 AND `Id` = @p1_0;
+        INSERT INTO `{{tableName}}` (`Id`, `Payload`)
+        VALUES ({{firstKey}}, @p0_payload),
+        (@p1_0, @p1_payload);
+        SELECT `Generated`, 0
+        FROM `{{tableName}}`
+        WHERE ROW_COUNT() = 2 AND `Id` = {{firstKey}}
+        UNION ALL
+        SELECT `Generated`, 1
+        FROM `{{tableName}}`
+        WHERE ROW_COUNT() = 2 AND `Id` = @p1_0;
 
-           """;
+        """;
 }

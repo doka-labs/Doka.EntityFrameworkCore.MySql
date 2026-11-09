@@ -25,7 +25,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             .Reverse()
             .ToArray();
 
-        context.AddRange(rows);
+        context.Set<GuidComputedValueRow>().AddRange(rows);
         capture.Enabled = true;
 
         // Act
@@ -83,7 +83,7 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             .Reverse()
             .ToArray();
 
-        context.AddRange(rows);
+        context.Set<GuidComputedValueRow>().AddRange(rows);
         await context.SaveChangesAsync(CancellationToken.None);
         var previous = rows.ToDictionary(row => row.Id, row => row.RequiredValue);
 

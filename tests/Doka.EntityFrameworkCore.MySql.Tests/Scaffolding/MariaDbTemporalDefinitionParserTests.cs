@@ -13,17 +13,17 @@ public sealed class MariaDbTemporalDefinitionParserTests
     {
         // Arrange
         const string input = """
-                             CREATE TABLE `IntProbe` (
-                               `Id` int(11) NOT NULL,
-                               `BusinessValidFrom` datetime(6) NOT NULL,
-                               `BusinessValidTo` datetime(6) NOT NULL,
-                               `SystemValidFrom` timestamp(6) GENERATED ALWAYS AS ROW START,
-                               `SystemValidTo` timestamp(6) GENERATED ALWAYS AS ROW END,
-                               PERIOD FOR `BusinessValidity` (`BusinessValidFrom`, `BusinessValidTo`),
-                               PRIMARY KEY (`Id`,`SystemValidTo`,`BusinessValidity` WITHOUT OVERLAPS),
-                               PERIOD FOR SYSTEM_TIME (`SystemValidFrom`, `SystemValidTo`)
-                             ) ENGINE=InnoDB WITH SYSTEM VERSIONING
-                             """;
+            CREATE TABLE `IntProbe` (
+              `Id` int(11) NOT NULL,
+              `BusinessValidFrom` datetime(6) NOT NULL,
+              `BusinessValidTo` datetime(6) NOT NULL,
+              `SystemValidFrom` timestamp(6) GENERATED ALWAYS AS ROW START,
+              `SystemValidTo` timestamp(6) GENERATED ALWAYS AS ROW END,
+              PERIOD FOR `BusinessValidity` (`BusinessValidFrom`, `BusinessValidTo`),
+              PRIMARY KEY (`Id`,`SystemValidTo`,`BusinessValidity` WITHOUT OVERLAPS),
+              PERIOD FOR SYSTEM_TIME (`SystemValidFrom`, `SystemValidTo`)
+            ) ENGINE=InnoDB WITH SYSTEM VERSIONING
+            """;
 
         // Act
         var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
@@ -45,13 +45,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
     {
         // Arrange
         const string input = """
-                             CREATE TABLE `quoted` (
-                               `start``value` datetime(6) NOT NULL,
-                               `end``value` datetime(6) NOT NULL,
-                               PERIOD FOR `business``period` (`start``value`, `end``value`),
-                               UNIQUE KEY `UX``Period` (`business``period` WITHOUT OVERLAPS)
-                             ) ENGINE=InnoDB
-                             """;
+            CREATE TABLE `quoted` (
+              `start``value` datetime(6) NOT NULL,
+              `end``value` datetime(6) NOT NULL,
+              PERIOD FOR `business``period` (`start``value`, `end``value`),
+              UNIQUE KEY `UX``Period` (`business``period` WITHOUT OVERLAPS)
+            ) ENGINE=InnoDB
+            """;
 
         // Act
         var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
@@ -73,13 +73,13 @@ public sealed class MariaDbTemporalDefinitionParserTests
     {
         // Arrange
         const string input = """
-                             CREATE TABLE `system_only` (
-                               `Payload` varchar(128) DEFAULT 'PERIOD FOR fake (a, b)',
-                               `RowStart` timestamp(6) GENERATED ALWAYS AS ROW START,
-                               `RowEnd` timestamp(6) GENERATED ALWAYS AS ROW END,
-                               PERIOD FOR SYSTEM_TIME (`RowStart`, `RowEnd`)
-                             ) COMMENT='WITHOUT OVERLAPS' WITH SYSTEM VERSIONING
-                             """;
+            CREATE TABLE `system_only` (
+              `Payload` varchar(128) DEFAULT 'PERIOD FOR fake (a, b)',
+              `RowStart` timestamp(6) GENERATED ALWAYS AS ROW START,
+              `RowEnd` timestamp(6) GENERATED ALWAYS AS ROW END,
+              PERIOD FOR SYSTEM_TIME (`RowStart`, `RowEnd`)
+            ) COMMENT='WITHOUT OVERLAPS' WITH SYSTEM VERSIONING
+            """;
 
         // Act
         var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
@@ -123,15 +123,15 @@ public sealed class MariaDbTemporalDefinitionParserTests
     {
         // Arrange
         const string input = """
-                             CREATE TABLE `nested` (
-                               `Code` varchar(32) NOT NULL,
-                               `Amount` decimal(10,2) NOT NULL,
-                               `ValidFrom` datetime(6) NOT NULL,
-                               `ValidTo` datetime(6) NOT NULL,
-                               PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
-                               UNIQUE KEY `UX_Nested` (`Code`(10),`BusinessValidity` WITHOUT OVERLAPS)
-                             ) ENGINE=InnoDB
-                             """;
+            CREATE TABLE `nested` (
+              `Code` varchar(32) NOT NULL,
+              `Amount` decimal(10,2) NOT NULL,
+              `ValidFrom` datetime(6) NOT NULL,
+              `ValidTo` datetime(6) NOT NULL,
+              PERIOD FOR `BusinessValidity` (`ValidFrom`, `ValidTo`),
+              UNIQUE KEY `UX_Nested` (`Code`(10),`BusinessValidity` WITHOUT OVERLAPS)
+            ) ENGINE=InnoDB
+            """;
 
         // Act
         var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(
@@ -202,11 +202,11 @@ public sealed class MariaDbTemporalDefinitionParserTests
     {
         // Arrange
         const string input = """
-                             CREATE TABLE `quoted_keywords` (
-                               `PERIOD` `FOR` (`start`, `end`),
-                               `WITHOUT` `OVERLAPS`
-                             ) ENGINE=InnoDB
-                             """;
+            CREATE TABLE `quoted_keywords` (
+              `PERIOD` `FOR` (`start`, `end`),
+              `WITHOUT` `OVERLAPS`
+            ) ENGINE=InnoDB
+            """;
 
         // Act
         var definition = MariaDbTemporalDefinitionParser.ParseApplicationTime(

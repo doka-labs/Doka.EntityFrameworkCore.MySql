@@ -39,8 +39,7 @@ public sealed class TransactionMySqlTest
     /// </summary>
     public sealed class TransactionMySqlFixture : TransactionFixtureBase
     {
-        protected override ITestStoreFactory TestStoreFactory =>
-            MySqlTestStoreFactory.Instance;
+        protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
 
         public override DbContextOptionsBuilder AddOptions(
             DbContextOptionsBuilder builder

@@ -68,6 +68,6 @@ internal static class BenchmarkProfiles
     /// <summary>
     /// Whether the active profile measures the complete workload matrix.
     /// </summary>
-    public static bool MeasuresCompleteMatrix() =>
-        s_completeMatrixProfiles.Contains(Current, StringComparer.OrdinalIgnoreCase);
+    public static bool MeasuresCompleteMatrix()
+        => s_completeMatrixProfiles.Contains(Current, StringComparer.OrdinalIgnoreCase);
 }

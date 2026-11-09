@@ -177,33 +177,34 @@ internal static class GeneratedContextRuntimeVerifier
                 .Distinct()
                 .Select(assembly =>
                 {
-                    var assemblyName = assembly.GetName().Name
+                    var assemblyName = assembly.GetName()
+                            .Name
                         ?? throw new InvalidOperationException("A required assembly has no name.");
 
                     return $"""
-                            <Reference Include="{EscapeXml(assemblyName)}">
-                              <HintPath>{EscapeXml(assembly.Location)}</HintPath>
-                              <Private>true</Private>
-                            </Reference>
-                            """;
+                        <Reference Include="{EscapeXml(assemblyName)}">
+                          <HintPath>{EscapeXml(assembly.Location)}</HintPath>
+                          <Private>true</Private>
+                        </Reference>
+                        """;
                 }));
 
         return $"""
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <OutputType>Exe</OutputType>
-                    <TargetFramework>net10.0</TargetFramework>
-                    <Nullable>enable</Nullable>
-                    <ImplicitUsings>disable</ImplicitUsings>
-                    <WarningsAsErrors>true</WarningsAsErrors>
-                    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
-                    <NuGetAudit>false</NuGetAudit>
-                  </PropertyGroup>
-                  <ItemGroup>
-                    {references}
-                  </ItemGroup>
-                </Project>
-                """;
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>disable</ImplicitUsings>
+                <WarningsAsErrors>true</WarningsAsErrors>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                <NuGetAudit>false</NuGetAudit>
+              </PropertyGroup>
+              <ItemGroup>
+                {references}
+              </ItemGroup>
+            </Project>
+            """;
     }
 
     /// <summary>
@@ -431,8 +432,7 @@ internal static class GeneratedContextRuntimeVerifier
             "Could not locate the repository root from the integration-test output path.");
     }
 
-    private static string CreateProgramCode() =>
-        """
+    private static string CreateProgramCode() => """
         using System;
         using System.Collections;
         using System.Linq;

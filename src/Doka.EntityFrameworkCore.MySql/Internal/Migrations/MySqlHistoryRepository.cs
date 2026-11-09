@@ -50,16 +50,16 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
                 .GenerateSqlLiteral(TableName);
 
             return $"""
-                    SELECT CASE
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM information_schema.tables
-                            WHERE table_schema = DATABASE()
-                              AND table_name = {tableLiteral}
-                        ) THEN 1
-                        ELSE 0
-                    END
-                    """;
+                SELECT CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = DATABASE()
+                          AND table_name = {tableLiteral}
+                    ) THEN 1
+                    ELSE 0
+                END
+                """;
         }
     }
 
@@ -116,12 +116,12 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         var terminator = SqlGenerationHelper.StatementTerminator;
 
         return $"""
-                {createClause} {tableName} (
-                    {idColumn} varchar(150) NOT NULL,
-                    {versionColumn} varchar(32) NOT NULL,
-                    CONSTRAINT {primaryKey} PRIMARY KEY ({idColumn})
-                ) CHARACTER SET utf8mb4{terminator}
-                """;
+            {createClause} {tableName} (
+                {idColumn} varchar(150) NOT NULL,
+                {versionColumn} varchar(32) NOT NULL,
+                CONSTRAINT {primaryKey} PRIMARY KEY ({idColumn})
+            ) CHARACTER SET utf8mb4{terminator}
+            """;
     }
 
     public override IMigrationsDatabaseLock AcquireDatabaseLock()
@@ -168,13 +168,13 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         var terminator = SqlGenerationHelper.StatementTerminator;
 
         return $"""
-                DROP PROCEDURE IF EXISTS {procedure}{terminator}
-                DELIMITER //
-                CREATE PROCEDURE {procedure}()
-                BEGIN
-                    IF {condition} (SELECT 1 FROM {tableName} WHERE {idColumn} = {migrationIdLiteral}) THEN
+            DROP PROCEDURE IF EXISTS {procedure}{terminator}
+            DELIMITER //
+            CREATE PROCEDURE {procedure}()
+            BEGIN
+                IF {condition} (SELECT 1 FROM {tableName} WHERE {idColumn} = {migrationIdLiteral}) THEN
 
-                """;
+            """;
     }
 
     public override string GetEndIfScript()
@@ -183,13 +183,13 @@ internal sealed class MySqlHistoryRepository : HistoryRepository
         var terminator = SqlGenerationHelper.StatementTerminator;
 
         return $"""
-                    END IF{terminator}
-                END //
-                DELIMITER {terminator}
-                CALL {procedure}(){terminator}
-                DROP PROCEDURE IF EXISTS {procedure}{terminator}
+                END IF{terminator}
+            END //
+            DELIMITER {terminator}
+            CALL {procedure}(){terminator}
+            DROP PROCEDURE IF EXISTS {procedure}{terminator}
 
-                """;
+            """;
     }
 
     internal sealed class MySqlMigrationsDatabaseLock : IMigrationsDatabaseLock

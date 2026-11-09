@@ -10,13 +10,13 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
 {
     protected override string ProviderName => "Doka.EntityFrameworkCore.MySql";
 
-    protected override string ProviderVersion =>
-        typeof(MySqlOptionsExtension).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+    protected override string ProviderVersion => typeof(MySqlOptionsExtension).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion
         ?? string.Empty;
 
-    protected override string DefaultOptions =>
-        $"ParameterizedCollectionTranslationMode=MultipleParameters using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
+    protected override string DefaultOptions
+        => $"ParameterizedCollectionTranslationMode=MultipleParameters using Doka MySql ({MySqlTestEnvironment.ServerVersion}) ";
 
     protected override DbContextOptionsBuilder CreateOptionsBuilder(
         IServiceCollection services,
@@ -31,6 +31,5 @@ public sealed class LoggingMySqlTest : LoggingRelationalTestBase<MySqlDbContextO
             MySqlTestEnvironment.ServerVersion,
             options => relationalAction?.Invoke(options));
 
-    protected override TestLogger CreateTestLogger() =>
-        new TestLogger<MySqlLoggingDefinitions>();
+    protected override TestLogger CreateTestLogger() => new TestLogger<MySqlLoggingDefinitions>();
 }

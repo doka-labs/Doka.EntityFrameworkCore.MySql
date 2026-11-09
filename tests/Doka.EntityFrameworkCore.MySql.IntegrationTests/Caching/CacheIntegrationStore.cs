@@ -199,9 +199,9 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     {
         await using var command = new MySqlCommand(
             $"""
-             SELECT `ExpiresAtUtc`, `AbsoluteExpirationUtc`, `SlidingExpirationMicroseconds`, `Revision`
-             FROM {QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY);
-             """,
+            SELECT `ExpiresAtUtc`, `AbsoluteExpirationUtc`, `SlidingExpirationMicroseconds`, `Revision`
+            FROM {QualifiedTableName} WHERE `Id` = CAST(@key AS BINARY);
+            """,
             _connection);
 
         command.Parameters.AddWithValue("@key", key);
@@ -309,10 +309,10 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
 
         return ExecuteAsync(
             $"""
-             INSERT INTO {QualifiedTableName}
-                 (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
-             VALUES {values};
-             """,
+            INSERT INTO {QualifiedTableName}
+                (`Id`, `Value`, `ExpiresAtUtc`, `SlidingExpirationMicroseconds`, `AbsoluteExpirationUtc`, `Revision`)
+            VALUES {values};
+            """,
             cancellationToken);
     }
 
@@ -322,9 +322,9 @@ internal sealed class CacheIntegrationStore : IAsyncDisposable
     {
         var command = new MySqlCommand(
             $"""
-             SELECT {selection} FROM information_schema.TABLES
-             WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table;
-             """,
+            SELECT {selection} FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table;
+            """,
             _connection);
 
         command.Parameters.AddWithValue("@schema", SchemaName);
@@ -355,10 +355,9 @@ internal class ExactBufferWriter : IBufferWriter<byte>
     public int WrittenCount { get; private set; }
     public int BufferRequests { get; private set; }
 
-    public byte[] WrittenBytes =>
-        _buffer
-            .AsSpan(0, WrittenCount)
-            .ToArray();
+    public byte[] WrittenBytes => _buffer
+        .AsSpan(0, WrittenCount)
+        .ToArray();
 
     public void Advance(
         int count

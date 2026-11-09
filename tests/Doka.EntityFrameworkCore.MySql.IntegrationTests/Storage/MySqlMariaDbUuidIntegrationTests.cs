@@ -87,10 +87,9 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     }
 
     /// <summary>Identifies selected MariaDB engines that support native UUID storage.</summary>
-    public static IEnumerable<object[]> NativeTargetCases =>
-        s_mariaDbTargets
-            .Where(IntegrationTestEnvironment.IsTargetSelected)
-            .Select(target => new object[] { target.ToString() });
+    public static IEnumerable<object[]> NativeTargetCases => s_mariaDbTargets
+        .Where(IntegrationTestEnvironment.IsTargetSelected)
+        .Select(target => new object[] { target.ToString() });
 
     /// <summary>
     /// The connector must expose a native UUID value as text or Guid, never as opaque bytes.
