@@ -32,6 +32,7 @@ internal sealed class MySqlExecutionStrategy : ExecutionStrategy
 
         _transientExceptionDetector = transientExceptionDetector
             ?? throw new ArgumentNullException(nameof(transientExceptionDetector));
+
         _engineFamily = engineFamily;
 
         _logger = dependencies

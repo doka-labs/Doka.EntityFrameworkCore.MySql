@@ -19,7 +19,9 @@ public sealed class SpecFrameworkLimitationTheoryAttribute : SpecDispositionAttr
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding framework disposition.
     /// </param>
-    public SpecFrameworkLimitationTheoryAttribute(string dispositionId)
+    public SpecFrameworkLimitationTheoryAttribute(
+        string dispositionId
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
         DispositionId = dispositionId;

@@ -168,8 +168,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             ? [" "]
             : ["SET @scope = NULL;"];
 
-        void act() =>
-            MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
+        void act() => MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -198,8 +197,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             ? [null!]
             : ["SET @scope = NULL;"];
 
-        void act() =>
-            MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
+        void act() => MySqlMigrationCommandSpec.CreateScoped(setup, "SELECT @scope;", cleanup);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -313,6 +311,7 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         var setup = Enumerable.Repeat("S", 127);
+
         void act() => MySqlMigrationCommandSpec.CreateScoped(setup, "B", ["C"]);
 
         // Act
@@ -334,8 +333,8 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         var cleanup = Enumerable.Repeat("C", 127);
-        void act() =>
-            MySqlMigrationCommandSpec.CreateScoped(["S"], "B", cleanup);
+
+        void act() => MySqlMigrationCommandSpec.CreateScoped(["S"], "B", cleanup);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -354,8 +353,8 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         var body = new string('B', 1_048_575);
-        void act() =>
-            MySqlMigrationCommandSpec.CreateScoped(["S"], body, ["C"]);
+
+        void act() => MySqlMigrationCommandSpec.CreateScoped(["S"], body, ["C"]);
 
         // Act
         var recordedException = Record.Exception(act);

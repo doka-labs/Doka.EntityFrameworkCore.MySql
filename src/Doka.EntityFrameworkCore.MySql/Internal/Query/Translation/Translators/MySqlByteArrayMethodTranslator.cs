@@ -23,7 +23,9 @@ internal sealed class MySqlByteArrayMethodTranslator : IMethodCallTranslator
     private static readonly MethodInfo s_anyMethod = typeof(Enumerable)
         .GetRuntimeMethods()
         .Single(method => method.Name == nameof(Enumerable.Any)
-            && method.GetParameters().Length == 1);
+            && method.GetParameters()
+                .Length
+            == 1);
 
     private static readonly MethodInfo s_firstMethod = typeof(Enumerable)
         .GetRuntimeMethods()

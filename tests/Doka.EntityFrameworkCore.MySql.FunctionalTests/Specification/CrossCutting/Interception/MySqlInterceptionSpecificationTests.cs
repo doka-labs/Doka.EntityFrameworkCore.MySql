@@ -87,7 +87,8 @@ public sealed class MaterializationInterceptionMySqlTest : MaterializationInterc
 
     protected override DbContextOptionsBuilder AddNonSharedOptions(
         DbContextOptionsBuilder builder
-    ) => base.AddNonSharedOptions(
+    ) => base
+        .AddNonSharedOptions(
             builder.UseTransientInternalServiceProvider())
         .ConfigureWarnings(warnings =>
             warnings.Ignore(RelationalEventId.OwnedEntityMappedToJsonCollectionWarning));

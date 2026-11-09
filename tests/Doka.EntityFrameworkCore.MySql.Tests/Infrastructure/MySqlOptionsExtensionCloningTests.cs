@@ -189,6 +189,7 @@ public sealed class MySqlOptionsExtensionCloningTests
     {
         // Arrange
         var extension = new MySqlOptionsExtension();
+
         void act() => extension.WithDefaultGuidFormat((MySqlGuidFormat)42);
 
         // Act

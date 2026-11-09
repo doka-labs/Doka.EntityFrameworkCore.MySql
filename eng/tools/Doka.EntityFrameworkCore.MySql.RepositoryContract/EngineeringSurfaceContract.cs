@@ -777,7 +777,8 @@ internal static partial class EngineeringSurfaceContract
             consumers.Add(Relative(root, project));
             if (references.Any(reference => (string?)reference.Attribute("Include") == runner))
             {
-                errors.Add($"{Relative(root, project)}: non-test specification consumers must not reference a test runner.");
+                errors.Add(
+                    $"{Relative(root, project)}: non-test specification consumers must not reference a test runner.");
             }
         }
 

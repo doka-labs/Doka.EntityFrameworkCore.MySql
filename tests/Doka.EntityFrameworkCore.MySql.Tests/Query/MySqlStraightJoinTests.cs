@@ -180,6 +180,7 @@ public sealed partial class MySqlStraightJoinTests
         // Arrange
         using var first = CreateContext();
         using var second = CreateContext();
+
         void act() => first.Nodes.StraightJoin(
             second.Nodes,
             value => value.Id,
@@ -219,6 +220,7 @@ public sealed partial class MySqlStraightJoinTests
             });
 
         var sql = query.ToQueryString();
+
         Task act() => query.ToArrayAsync(CancellationToken.None);
 
         // Act

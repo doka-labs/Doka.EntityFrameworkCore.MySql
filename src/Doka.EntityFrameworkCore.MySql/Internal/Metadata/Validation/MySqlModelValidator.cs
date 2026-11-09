@@ -111,7 +111,8 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         {
             foreach (var key in entityType.GetKeys())
             {
-                var scalarProperties = key.Properties
+                var scalarProperties = key
+                    .Properties
                     .SelectMany(GetIndexScalarProperties)
                     .ToArray();
 
@@ -136,7 +137,8 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
                     continue;
                 }
 
-                var scalarProperties = index.Properties
+                var scalarProperties = index
+                    .Properties
                     .SelectMany(GetIndexScalarProperties)
                     .ToArray();
 
@@ -254,57 +256,57 @@ internal sealed partial class MySqlModelValidator : RelationalModelValidator
         ref long knownBytes
     )
     {
-            if (prefixLength == 0
-                && MySqlIndexByteBudget.HasUnboundedStoreType(property))
-            {
-                var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[])
-                    ? "binary"
-                    : "text";
+        if (prefixLength == 0
+            && MySqlIndexByteBudget.HasUnboundedStoreType(property))
+        {
+            var propertyKind = property.ClrType.UnwrapNullableType() == typeof(byte[])
+                ? "binary"
+                : "text";
 
-                MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
-                    logger,
-                    entityType.DisplayName(),
-                    property.Name,
-                    propertyKind);
+            MySqlLoggerMessages.KeyOrIndexMaxLengthRequired(
+                logger,
+                entityType.DisplayName(),
+                property.Name,
+                propertyKind);
 
-                throw new InvalidOperationException(
-                    $"The keyed or indexed {propertyKind} property "
-                    + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
-            }
-
-            var fullLength = MySqlIndexByteBudget.GetStoreTypeLength(property);
-
-            if (prefixLength > 0
-                && prefixLength > fullLength)
-            {
-                throw new InvalidOperationException(
-                    $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
-                    + $"{prefixLength} for '{property.Name}', which exceeds its store length {fullLength}.");
-            }
-
-            var characterWidth = MySqlIndexByteBudget.GetBytesPerCharacter(entityType, property, table, tableDefaults);
-            var propertyBytes = MySqlIndexByteBudget.GetIndexedBytes(
-                property,
-                prefixLength,
-                fullLength,
-                characterWidth);
-
-            if (propertyBytes is null)
-            {
-            return;
-            }
-
-            knownBytes += propertyBytes.Value;
-            if (knownBytes > MySqlIndexByteBudget.MaximumBytes)
-            {
-                throw new InvalidOperationException(
-                    $"The {definition} on entity type '{entityType.DisplayName()}' requires at least "
-                    + $"{knownBytes} bytes and exceeds InnoDB's maximum supported "
-                    + $"{MySqlIndexByteBudget.MaximumBytes}-byte index-key length. Configure a deliberate prefix "
-                    + "or reduce the indexed column lengths; Doka does not invent a prefix because that "
-                    + "would change index and uniqueness semantics.");
-            }
+            throw new InvalidOperationException(
+                $"The keyed or indexed {propertyKind} property "
+                + $"'{entityType.DisplayName()}.{property.Name}' must map to a bounded store type.");
         }
+
+        var fullLength = MySqlIndexByteBudget.GetStoreTypeLength(property);
+
+        if (prefixLength > 0
+            && prefixLength > fullLength)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' declares prefix length "
+                + $"{prefixLength} for '{property.Name}', which exceeds its store length {fullLength}.");
+        }
+
+        var characterWidth = MySqlIndexByteBudget.GetBytesPerCharacter(entityType, property, table, tableDefaults);
+        var propertyBytes = MySqlIndexByteBudget.GetIndexedBytes(
+            property,
+            prefixLength,
+            fullLength,
+            characterWidth);
+
+        if (propertyBytes is null)
+        {
+            return;
+        }
+
+        knownBytes += propertyBytes.Value;
+        if (knownBytes > MySqlIndexByteBudget.MaximumBytes)
+        {
+            throw new InvalidOperationException(
+                $"The {definition} on entity type '{entityType.DisplayName()}' requires at least "
+                + $"{knownBytes} bytes and exceeds InnoDB's maximum supported "
+                + $"{MySqlIndexByteBudget.MaximumBytes}-byte index-key length. Configure a deliberate prefix "
+                + "or reduce the indexed column lengths; Doka does not invent a prefix because that "
+                + "would change index and uniqueness semantics.");
+        }
+    }
 
     private static void ValidateDecimalPrecision(
         IModel model,

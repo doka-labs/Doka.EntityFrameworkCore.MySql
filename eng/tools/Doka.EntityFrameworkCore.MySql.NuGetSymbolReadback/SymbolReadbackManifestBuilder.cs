@@ -56,7 +56,7 @@ internal static class SymbolReadbackManifestBuilder
         using var peReader = new PEReader(assemblyStream);
         var debugEntries = peReader.ReadDebugDirectory();
         var codeViewEntries = debugEntries
-            .Where(entry => entry.Type == DebugDirectoryEntryType.CodeView && entry.IsPortableCodeView)
+            .Where(entry => entry is { Type: DebugDirectoryEntryType.CodeView, IsPortableCodeView: true })
             .ToArray();
 
         var checksumEntries = debugEntries

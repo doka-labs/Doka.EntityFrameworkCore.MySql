@@ -103,16 +103,16 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             ActivitySource.AddActivityListener(_listener);
         }
 
-        private static ActivitySamplingResult SampleAllData(
-            ref ActivityCreationOptions<ActivityContext> _
-        ) => ActivitySamplingResult.AllData;
-
         // The source is process-wide, so callbacks can overlap with activities
         // emitted by parallel test collections. Concurrent capture keeps both
         // writes and assertion enumeration safe without disabling parallelism.
         public ConcurrentQueue<Activity> Activities { get; } = new();
 
         public void Dispose() => _listener.Dispose();
+
+        private static ActivitySamplingResult SampleAllData(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllData;
     }
 
     private sealed class CounterSink<T> : IDisposable

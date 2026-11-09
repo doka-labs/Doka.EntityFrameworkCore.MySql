@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Update;
+
 namespace Doka.EntityFrameworkCore.MySql.SpecificationContract;
 
 /// <summary>
@@ -413,7 +415,7 @@ internal static class SpecificationContractValidator
         // on the xUnit 4-compatible facade before this independent gate runs.
         protected override ICollection<Type> IgnoredTestBases { get; } =
         [
-            typeof(Microsoft.EntityFrameworkCore.Update.StoredProcedureUpdateTestBase),
+            typeof(StoredProcedureUpdateTestBase),
         ];
 
         protected override Assembly TargetAssembly => targetAssembly;

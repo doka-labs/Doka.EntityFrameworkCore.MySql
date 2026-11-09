@@ -108,7 +108,8 @@ public sealed class IntegrationTheorySelectionTests
         // Arrange
         const string sourceFilePath = "theory-source.cs";
         const int sourceLineNumber = 42;
-        var target = IntegrationTestEnvironment.GetSelectedTargets()[0];
+        var target = IntegrationTestEnvironment
+            .GetSelectedTargets()[0];
 
         // Act
         TheoryAttribute attribute = supportedOnly

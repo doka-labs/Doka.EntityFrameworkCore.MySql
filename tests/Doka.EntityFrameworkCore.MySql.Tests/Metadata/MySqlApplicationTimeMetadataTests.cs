@@ -247,6 +247,7 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mySql84);
+
         void act() => _ = context.Model;
 
         // Act
@@ -266,6 +267,7 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<ApplicationTimeConfiguration>(s_mariaDb1043);
+
         void act() => _ = context.Model;
 
         // Act
@@ -284,6 +286,7 @@ public sealed class MySqlApplicationTimeMetadataTests
     {
         // Arrange
         using var context = CreateContext<NonUniqueIndexConfiguration>(s_mariaDb114);
+
         void act() => _ = context.Model;
 
         // Act

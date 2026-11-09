@@ -7,6 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.SpecificationContract;
 internal static class DiscoveryContract
 {
     internal const int SchemaVersion = 1;
+
     private static readonly string[] s_specificationTestPrefixes =
     [
         "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.",

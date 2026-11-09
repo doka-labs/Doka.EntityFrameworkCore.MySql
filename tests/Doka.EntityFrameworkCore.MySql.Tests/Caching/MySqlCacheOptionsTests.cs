@@ -74,9 +74,8 @@ public sealed class MySqlCacheOptionsTests
         using var provider = MySqlCacheTestFactory.CreateProvider(options =>
             options.ConnectionString = connectionString!);
 
-        object? act() =>
-            provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
-                .Value;
+        object? act() => provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+            .Value;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -122,9 +121,9 @@ public sealed class MySqlCacheOptionsTests
             "Server=127.0.0.1;Password=private-source-password;AutoEnlist=false");
 
         await using var provider = MySqlCacheTestFactory.CreateProvider(options => options.DataSource = dataSource);
-        object? act() =>
-            provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
-                .Value;
+
+        object? act() => provider.GetRequiredService<IOptions<MySqlCacheOptions>>()
+            .Value;
 
         // Act
         var recordedException = Record.Exception(act);
@@ -153,10 +152,9 @@ public sealed class MySqlCacheOptionsTests
             options.DataSource = dataSource;
         });
 
-        Task act() =>
-            provider
-                .GetRequiredService<IAsyncStartupValidator>()
-                .ValidateAsync(TestContext.Current.CancellationToken);
+        Task act() => provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);

@@ -78,7 +78,7 @@ public sealed partial class MySqlTypeMappingBaselineTests
 
         // Assert
         Assert.True(
-            columnType == "varchar(2048)" || columnType == "longtext",
+            columnType is "varchar(2048)" or "longtext",
             $"Expected varchar(2048) or longtext but got '{columnType}'.");
     }
 

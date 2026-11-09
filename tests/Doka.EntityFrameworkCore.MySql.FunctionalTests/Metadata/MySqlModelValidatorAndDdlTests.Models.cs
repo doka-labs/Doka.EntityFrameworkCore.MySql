@@ -321,7 +321,7 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                 }
                 else if (typeof(TScenario) == typeof(JsonScalarPathScenario))
                 {
-                    entity.HasIndex(["Payload.Code"]);
+                    entity.HasIndex("Payload.Code");
                 }
                 else
                 {
@@ -331,9 +331,9 @@ public sealed partial class MySqlModelValidatorAndDdlTests
                         .HasComputedColumnSql(
                             "JSON_UNQUOTE(JSON_EXTRACT(`Payload`, '$.Code'))",
                             stored: false);
+
                     entity.HasIndex(item => item.PayloadCode);
                 }
-
             });
         }
     }

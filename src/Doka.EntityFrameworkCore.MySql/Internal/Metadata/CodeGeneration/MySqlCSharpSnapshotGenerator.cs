@@ -36,7 +36,9 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
             : "Property";
 
         var providerClrType = MakeNullable(
-            property.GetTypeMapping().Converter?.ProviderClrType ?? property.ClrType,
+            property.GetTypeMapping()
+                .Converter?.ProviderClrType
+            ?? property.ClrType,
             property.IsNullable);
 
         var modelClrType = MakeNullable(property.ClrType, property.IsNullable);
@@ -172,5 +174,4 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
         return typeMapping is IMySqlProviderOwnedModelTypeMapping providerOwnedMapping
             && providerOwnedMapping.ProviderClrType != property.ClrType;
     }
-
 }

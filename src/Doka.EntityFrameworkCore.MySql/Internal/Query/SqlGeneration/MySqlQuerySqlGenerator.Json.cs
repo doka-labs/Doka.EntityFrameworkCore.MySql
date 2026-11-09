@@ -158,7 +158,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Offset: var offset,
                 Projection:
                 [
-                { Expression: var valueProjection, },
+                    { Expression: var valueProjection },
                 ],
             }
             || !IsJsonTableValueProjection(valueProjection, jsonTable.Alias!))
@@ -278,12 +278,12 @@ internal sealed partial class MySqlQuerySqlGenerator
         string tableAlias
     ) => expression switch
     {
-        ColumnExpression { Name: "value", TableAlias: var projectionAlias, }
+        ColumnExpression { Name: "value", TableAlias: var projectionAlias }
             => projectionAlias == tableAlias,
         SqlFunctionExpression
         {
             Name: "JSON_UNQUOTE",
-            Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias, },],
+            Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias }],
         } => projectionAlias == tableAlias,
         SqlFunctionExpression
         {
@@ -293,7 +293,7 @@ internal sealed partial class MySqlQuerySqlGenerator
                 SqlFunctionExpression
                 {
                     Name: "JSON_QUOTE",
-                    Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias, },],
+                    Arguments: [ColumnExpression { Name: "value", TableAlias: var projectionAlias }],
                 },
             ],
         } => projectionAlias == tableAlias,
@@ -315,18 +315,18 @@ internal sealed partial class MySqlQuerySqlGenerator
             SqlFunctionExpression
             {
                 Name: "FROM_BASE64" or "UNHEX",
-                Arguments: [var value,],
+                Arguments: [var value],
             } => IsJsonTableValueProjection(value, tableAlias),
             SqlFunctionExpression
             {
                 Name: "REPLACE",
-                Arguments: [var value, SqlConstantExpression, SqlConstantExpression,],
+                Arguments: [var value, SqlConstantExpression, SqlConstantExpression],
             } => IsJsonTableValueProjection(value, tableAlias),
             SqlFunctionExpression
-            {
-                Name: var name,
-                Arguments: [var value,],
-            } when name == MySqlSentinelContract.GetName(MySqlSentinelKind.StringJsonDecode)
+                {
+                    Name: var name,
+                    Arguments: [var value],
+                } when name == MySqlSentinelContract.GetName(MySqlSentinelKind.StringJsonDecode)
                 || name == MySqlSentinelContract.GetName(MySqlSentinelKind.TimeSpanJsonDecode)
                 => IsJsonTableValueProjection(value, tableAlias),
             _ => false,

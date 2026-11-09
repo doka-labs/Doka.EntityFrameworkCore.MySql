@@ -140,7 +140,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Act
         var sql = context
             .Items
-            .Where(item => item.StringValues
+            .Where(item => item
+                .StringValues
                 .Where(value => value.Length > 1)
                 .Contains("alpha"))
             .ToQueryString();

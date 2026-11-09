@@ -297,5 +297,4 @@ internal sealed class MySqlRelationalDatabaseCreator : RelationalDatabaseCreator
 
         return exception.ErrorCode == MySqlErrorCode.DatabaseAccessDenied;
     }
-
 }

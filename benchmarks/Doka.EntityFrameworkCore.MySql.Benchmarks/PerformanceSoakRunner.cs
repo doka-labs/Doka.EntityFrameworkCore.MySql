@@ -262,7 +262,7 @@ internal static class PerformanceSoakRunner
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var heldLockCount = holder is null || holder is DBNull
+        var heldLockCount = holder is null or DBNull
             ? 0
             : 1;
 

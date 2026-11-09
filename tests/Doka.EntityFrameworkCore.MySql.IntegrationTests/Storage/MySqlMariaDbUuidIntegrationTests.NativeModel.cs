@@ -6,10 +6,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_seeded_graph_round_trips(
@@ -51,10 +51,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_runtime_insert_and_update_round_trip(
@@ -143,10 +143,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_missing_value_does_not_match(
@@ -174,10 +174,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_like_matches_seeded_value(
@@ -205,10 +205,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_projects_canonical_text(
@@ -238,10 +238,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_generated_value_is_nonempty(
@@ -268,10 +268,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_foreign_key_rejects_orphan(
@@ -312,10 +312,10 @@ public sealed partial class MySqlMariaDbUuidIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(NativeTargetCases))]
     public async Task Native_uuid_model_preserves_physical_column_types(

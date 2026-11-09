@@ -41,7 +41,13 @@ public sealed class BasicTypesDateTimeOffsetTranslationsMySqlTest
         return AssertQuery(source => source
             .Set<BasicTypesEntity>()
             .Where(entity => entity.DateTimeOffset.ToOffset(offset)
-                == new DateTimeOffset(1998, 5, 4, 17, 30, 10, offset)));
+                == new DateTimeOffset(1998,
+                    5,
+                    4,
+                    17,
+                    30,
+                    10,
+                    offset)));
     }
 
     /// <summary>
@@ -57,7 +63,13 @@ public sealed class BasicTypesDateTimeOffsetTranslationsMySqlTest
             .Set<BasicTypesEntity>()
             .Where(entity => entity.DateTime.Year > 1)
             .Where(entity => new DateTimeOffset(entity.DateTime, offset)
-                == new DateTimeOffset(1998, 5, 4, 15, 30, 10, offset)));
+                == new DateTimeOffset(1998,
+                    5,
+                    4,
+                    15,
+                    30,
+                    10,
+                    offset)));
     }
 
     /// <summary>
@@ -81,8 +93,8 @@ public sealed class BasicTypesDateTimeOffsetTranslationsMySqlTest
             .Set<BasicTypesEntity>()
             .Where(entity => entity.DateTimeOffset.ToOffset(offset) == entity.DateTimeOffset);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => query.ToListAsync(CancellationToken.None));
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToListAsync(CancellationToken.None));
 
         Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
     }

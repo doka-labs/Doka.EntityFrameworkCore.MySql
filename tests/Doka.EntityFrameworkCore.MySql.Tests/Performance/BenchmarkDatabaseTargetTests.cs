@@ -71,8 +71,7 @@ public sealed class BenchmarkDatabaseTargetTests
     )
     {
         // Arrange
-        void act() =>
-            BenchmarkDatabaseTarget.Resolve("mysql84", configuredPort, PerformanceContract.Load());
+        void act() => BenchmarkDatabaseTarget.Resolve("mysql84", configuredPort, PerformanceContract.Load());
 
         // Act
         var recordedException = Record.Exception(act);

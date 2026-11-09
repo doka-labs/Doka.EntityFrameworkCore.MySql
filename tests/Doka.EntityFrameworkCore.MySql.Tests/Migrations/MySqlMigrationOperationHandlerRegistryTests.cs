@@ -80,8 +80,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -100,8 +100,9 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handlerId = $"sample.{new string('a', 194)}";
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
+
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -133,8 +134,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry(handlers);
+        object? act() => new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -168,8 +168,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry(handlers);
+        object? act() => new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -189,8 +188,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handler = new CountingHandler("sample.first", typeof(FirstOperation));
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([handler, handler]);
+
+        object? act() => new MySqlMigrationOperationHandlerRegistry([handler, handler]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -211,8 +210,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     public void Null_handler_fails_registration()
     {
         // Arrange
-        static object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([null!]);
+        static object? act() => new MySqlMigrationOperationHandlerRegistry([null!]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -232,8 +230,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -308,8 +306,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         var secret = "server=private;password=do-not-log";
         var source = new InvalidOperationException(secret);
         var handler = new ThrowingMetadataHandler(source);
-        object? act() =>
-            new MySqlMigrationOperationHandlerRegistry([handler]);
+
+        object? act() => new MySqlMigrationOperationHandlerRegistry([handler]);
 
         // Act
         var recordedException = Record.Exception(act);

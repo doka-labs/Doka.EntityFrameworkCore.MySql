@@ -25,29 +25,31 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
 
         // Act
         var disposes = Task.Run(() =>
-        {
-            for (var i = 0; i < 1000; i++)
             {
-                lockInstance.Dispose();
-            }
-        }, cancellationToken);
+                for (var i = 0; i < 1000; i++)
+                {
+                    lockInstance.Dispose();
+                }
+            },
+            cancellationToken);
 
         var reacquires = Task.Run(() =>
-        {
-            for (var i = 0; i < 1000; i++)
             {
-                try
+                for (var i = 0; i < 1000; i++)
                 {
-                    lockInstance.ReacquireIfNeeded(connectionReopened: true, transactionRestarted: null);
+                    try
+                    {
+                        lockInstance.ReacquireIfNeeded(connectionReopened: true, transactionRestarted: null);
+                    }
+                    catch (Exception exception) when (exception is MySqlException or ObjectDisposedException)
+                    {
+                        // AcquireLock targets an unreachable port and fails on Open; the
+                        // expected exception proves the cleanup-on-failure path runs and
+                        // does not leave the connection slot in a half-broken state.
+                    }
                 }
-                catch (Exception exception) when (exception is MySqlException or ObjectDisposedException)
-                {
-                    // AcquireLock targets an unreachable port and fails on Open; the
-                    // expected exception proves the cleanup-on-failure path runs and
-                    // does not leave the connection slot in a half-broken state.
-                }
-            }
-        }, cancellationToken);
+            },
+            cancellationToken);
 
         await Task.WhenAll(disposes, reacquires);
 
@@ -119,7 +121,9 @@ public sealed class MySqlAdvisoryLockLifecycleStressTests
             if (reacquire)
             {
                 await lockInstance.ReacquireIfNeededAsync(
-                    connectionReopened: true, transactionRestarted: null, cancellationToken);
+                    connectionReopened: true,
+                    transactionRestarted: null,
+                    cancellationToken);
             }
             else
             {

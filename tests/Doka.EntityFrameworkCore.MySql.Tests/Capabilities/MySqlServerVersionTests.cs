@@ -173,6 +173,7 @@ public sealed class MySqlServerVersionTests
     {
         // Arrange
         using var connection = new StubDbConnection(string.Empty);
+
         void act() => MySqlServerVersion.AutoDetect(connection);
 
         // Act
@@ -198,6 +199,7 @@ public sealed class MySqlServerVersionTests
     {
         // Arrange
         await using var connection = new MySqlConnection();
+
         object? act1() => useExplicitCompatibilityMode
             ? MySqlServerVersion.AutoDetect(connection, MySqlServerVersionCompatibilityMode.AllowUnsupported)
             : MySqlServerVersion.AutoDetect(connection);
@@ -380,10 +382,9 @@ public sealed class MySqlServerVersionTests
     public void Factory_rejects_undefined_compatibility_mode()
     {
         // Arrange
-        static void act() =>
-            MySqlServerVersion.MySql(
-                new Version(8, 4, 0),
-                (MySqlServerVersionCompatibilityMode)int.MaxValue);
+        static void act() => MySqlServerVersion.MySql(
+            new Version(8, 4, 0),
+            (MySqlServerVersionCompatibilityMode)int.MaxValue);
 
         // Act
         var recordedException = Record.Exception(act);

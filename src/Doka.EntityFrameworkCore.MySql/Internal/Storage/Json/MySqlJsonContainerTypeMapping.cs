@@ -9,12 +9,12 @@ namespace Doka.EntityFrameworkCore.MySql;
 public sealed class MySqlJsonContainerTypeMapping : StructuralJsonTypeMapping
 {
     private static readonly MethodInfo s_createUtf8StreamMethod = typeof(MySqlJsonContainerTypeMapping)
-        .GetMethod(nameof(CreateUtf8Stream), [typeof(string)])
+            .GetMethod(nameof(CreateUtf8Stream), [typeof(string)])
         ?? throw new InvalidOperationException(
             "CreateUtf8Stream(string) method not found; the JSON container mapping needs it to wrap reads as MemoryStream.");
 
     private static readonly MethodInfo s_getStringMethod = typeof(DbDataReader)
-        .GetRuntimeMethod(nameof(DbDataReader.GetString), [typeof(int)])
+            .GetRuntimeMethod(nameof(DbDataReader.GetString), [typeof(int)])
         ?? throw new InvalidOperationException(
             "DbDataReader.GetString(int) method not found; the JSON container mapping needs it to read JSON text.");
 

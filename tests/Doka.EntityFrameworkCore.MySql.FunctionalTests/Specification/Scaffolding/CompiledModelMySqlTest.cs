@@ -106,20 +106,20 @@ public class CompiledModelMySqlTest : CompiledModelRelationalTestBase
     /// compiled, loaded, and structurally equivalent under the MySQL provider.
     /// </summary>
     [Fact]
-    public override Task ComplexTypes()
-        => Test(
-            BuildComplexTypesModel,
-            AssertComplexTypes,
-            options: new CompiledModelCodeGenerationOptions
-            {
-                UseNullableReferenceTypes = true,
-                ForNativeAot = true,
-            },
-            // EF Core's upstream model deliberately includes direct indexes on
-            // JSON complex members. MySQL and MariaDB require an extracted scalar
-            // generated column instead. Keep the full compiled-model contract but
-            // do not turn that deliberately invalid DDL shape into a database test.
-            skipValidation: true);
+    public override Task ComplexTypes() => Test(
+        BuildComplexTypesModel,
+        AssertComplexTypes,
+        options: new CompiledModelCodeGenerationOptions
+        {
+            UseNullableReferenceTypes = true,
+            ForNativeAot = true,
+        },
+
+        // EF Core's upstream model deliberately includes direct indexes on
+        // JSON complex members. MySQL and MariaDB require an extracted scalar
+        // generated column instead. Keep the full compiled-model contract but
+        // do not turn that deliberately invalid DDL shape into a database test.
+        skipValidation: true);
 
     protected override async Task UseBigModel(
         DbContext context,

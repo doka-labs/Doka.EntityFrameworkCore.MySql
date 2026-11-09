@@ -570,10 +570,6 @@ public sealed class MySqlNetworkFaultContractTests
             _meterListener.Start();
         }
 
-        private static ActivitySamplingResult SampleActivity(
-            ref ActivityCreationOptions<ActivityContext> _
-        ) => ActivitySamplingResult.AllDataAndRecorded;
-
         public ConcurrentQueue<Activity> Activities { get; } = new();
 
         public long CommitUnknownMeasurements => Interlocked.Read(ref _commitUnknownMeasurements);
@@ -585,5 +581,9 @@ public sealed class MySqlNetworkFaultContractTests
             _activityListener.Dispose();
             _meterListener.Dispose();
         }
+
+        private static ActivitySamplingResult SampleActivity(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllDataAndRecorded;
     }
 }

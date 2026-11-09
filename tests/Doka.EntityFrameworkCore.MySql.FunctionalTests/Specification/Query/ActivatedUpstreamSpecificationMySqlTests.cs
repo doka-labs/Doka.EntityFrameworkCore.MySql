@@ -24,18 +24,23 @@ public sealed partial class AdHocMiscellaneousQueryMySqlTest
         await using var context = contextFactory.CreateDbContext();
 
         var query = from status in context.Statuses
-                    from countInfo in context.Requests
-                        .Where(request => request.PickupStatusId == status.PickupStatusId)
-                        .GroupBy(
-                            request => request.PickupStatusId,
-                            (key, requests) => new
-                            {
-                                pickupStatusId = key,
-                                Count = requests.Count(),
-                            })
-                        .DefaultIfEmpty()
-                    orderby status.PickupStatusId
-                    select new { status.PickupStatusId, countInfo };
+            from countInfo in context
+                .Requests
+                .Where(request => request.PickupStatusId == status.PickupStatusId)
+                .GroupBy(
+                    request => request.PickupStatusId,
+                    (key, requests) => new
+                    {
+                        pickupStatusId = key,
+                        Count = requests.Count(),
+                    })
+                .DefaultIfEmpty()
+            orderby status.PickupStatusId
+            select new
+            {
+                status.PickupStatusId,
+                countInfo,
+            };
 
         var result = await query.ToListAsync(CancellationToken.None);
 

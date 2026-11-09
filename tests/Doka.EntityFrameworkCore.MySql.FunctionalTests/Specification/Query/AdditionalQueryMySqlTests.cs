@@ -44,7 +44,6 @@ public sealed class FunkyDataQueryMySqlTest : FunkyDataQueryTestBase<FunkyDataQu
         Fixture.TestSqlLoggerFactory.Clear();
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
-
 }
 
 public sealed class

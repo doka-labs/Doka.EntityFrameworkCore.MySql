@@ -389,6 +389,7 @@ public sealed partial class PerformanceGateTests
     {
         // Arrange
         using var fixture = PerformanceGateFixture.Create();
+
         void act() => BenchmarkPerformanceGate.Evaluate(
             fixture.ContractPath,
             fixture.ReportsPath,

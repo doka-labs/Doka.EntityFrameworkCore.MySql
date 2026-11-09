@@ -96,9 +96,7 @@ public sealed class NavigationsBulkUpdateMySqlTest
     public NavigationsBulkUpdateMySqlTest(
         NavigationsMySqlFixture fixture,
         ITestOutputHelper testOutputHelper
-    ) : base(fixture, testOutputHelper)
-    {
-    }
+    ) : base(fixture, testOutputHelper) { }
 
     public override Task Delete_entity_with_associations()
         => Assert.ThrowsAsync<MySqlException>(base.Delete_entity_with_associations);
@@ -161,7 +159,8 @@ public sealed class NavigationsBulkUpdateMySqlTest
         => Assert.ThrowsAsync<InvalidOperationException>(base.Update_inside_structural_collection);
 
     public override Task Update_multiple_properties_inside_associates_and_on_entity_type()
-        => Assert.ThrowsAsync<InvalidOperationException>(base.Update_multiple_properties_inside_associates_and_on_entity_type);
+        => Assert.ThrowsAsync<InvalidOperationException>(base
+            .Update_multiple_properties_inside_associates_and_on_entity_type);
 
     public override Task Update_multiple_projected_associates_via_anonymous_type()
         => Assert.ThrowsAsync<InvalidOperationException>(base.Update_multiple_projected_associates_via_anonymous_type);

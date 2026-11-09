@@ -298,11 +298,11 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 || !IsDefaultStringMapping(typeMapping)
                     ? expression
                     : expression switch
-            {
-                SqlConstantExpression constantExpression => constantExpression.ApplyTypeMapping(null),
-                SqlParameterExpression parameterExpression => parameterExpression.ApplyTypeMapping(null),
-                _ => expression,
-            };
+                    {
+                        SqlConstantExpression constantExpression => constantExpression.ApplyTypeMapping(null),
+                        SqlParameterExpression parameterExpression => parameterExpression.ApplyTypeMapping(null),
+                        _ => expression,
+                    };
         }
 
         private bool IsDefaultStringMapping(

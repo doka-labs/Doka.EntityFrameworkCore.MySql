@@ -185,9 +185,7 @@ public class SpecificationContractTests
 
     [Fact]
     public void Specification_facade_rejects_an_unrelated_contract_declaration()
-    {
-        Assert.False(SpecificationInventory.Implements(typeof(UnrelatedFacade), typeof(FacadeContract)));
-    }
+        => Assert.False(SpecificationInventory.Implements(typeof(UnrelatedFacade), typeof(FacadeContract)));
 
     [Fact]
     public void Publication_gate_rejects_nonzero_provider_debt()
@@ -721,9 +719,7 @@ public class SpecificationContractTests
         return $"<TestRun><Results>{body}</Results></TestRun>";
     }
 
-    public abstract class FacadeRootContract
-    {
-    }
+    public abstract class FacadeRootContract { }
 
     public abstract class FacadeContract : FacadeRootContract
     {
@@ -735,22 +731,16 @@ public class SpecificationContractTests
     public abstract class CompleteFacade
     {
         [Fact]
-        public void Required_contract()
-        {
-        }
+        public void Required_contract() { }
     }
 
     [SpecificationContractFacade(typeof(FacadeContract))]
-    public abstract class IncompleteFacade
-    {
-    }
+    public abstract class IncompleteFacade { }
 
     [SpecificationContractFacade(typeof(IDisposable))]
     public abstract class UnrelatedFacade
     {
         [Fact]
-        public void Required_contract()
-        {
-        }
+        public void Required_contract() { }
     }
 }

@@ -157,9 +157,11 @@ public partial class JsonQueryMySqlTest : JsonQueryRelationalTestBase<JsonQueryM
         "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
-    public override Task Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(
-        bool async
-    ) => base.Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(async);
+    public override Task
+        Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(
+            bool async
+        ) => base.Entity_including_collection_with_json_and_separate_json_projection_AsNoTrackingWithIdentityResolution(
+        async);
 
     [Theory]
     [SpecEngineLimitationTheory(

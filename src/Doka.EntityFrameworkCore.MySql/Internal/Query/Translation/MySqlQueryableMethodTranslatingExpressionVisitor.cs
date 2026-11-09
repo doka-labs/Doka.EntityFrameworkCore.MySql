@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Query.Internal;
+
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
@@ -111,7 +113,7 @@ internal sealed partial class
         leftBranch.ApplyUnion(rightBranch, distinct: false);
 
 #pragma warning disable EF1001 // Projection bindings must follow the cloned SelectExpression that owns the set operation.
-        var shaper = new Microsoft.EntityFrameworkCore.Query.Internal.QueryExpressionReplacingExpressionVisitor(
+        var shaper = new QueryExpressionReplacingExpressionVisitor(
                 selectExpression,
                 leftBranch)
             .Visit(translated.ShaperExpression);
@@ -137,7 +139,7 @@ internal sealed partial class
         }
 
 #pragma warning disable EF1001 // The provider must translate EF Core's relational FromSql query root.
-        if (extensionExpression is Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryRootExpression fromSqlQueryRoot
+        if (extensionExpression is FromSqlQueryRootExpression fromSqlQueryRoot
             && HasJsonComplexProperties(fromSqlQueryRoot.EntityType))
         {
             return TranslateFromSqlWithJsonComplexProperties(fromSqlQueryRoot);
@@ -190,7 +192,7 @@ internal sealed partial class
 
 #pragma warning disable EF1001 // The provider must translate EF Core's relational FromSql query root.
     private ShapedQueryExpression TranslateFromSqlWithJsonComplexProperties(
-        Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryRootExpression queryRoot
+        FromSqlQueryRootExpression queryRoot
     )
     {
         var selectExpression = CreateSelect(queryRoot.EntityType);
@@ -310,10 +312,13 @@ internal sealed partial class
 
         var entityClrType = setter.PropertySelector.Parameters[0].Type;
 
-        return RelationalDependencies.Model
+        return RelationalDependencies
+            .Model
             .GetEntityTypes()
             .Where(entityType => entityType.ClrType == entityClrType)
-            .Any(entityType => entityType.GetMappingFragments(StoreObjectType.Table).Any());
+            .Any(entityType => entityType
+                .GetMappingFragments(StoreObjectType.Table)
+                .Any());
     }
 
     private static bool ContainsIndexAccess(
@@ -321,8 +326,8 @@ internal sealed partial class
     ) => expression switch
     {
         IndexExpression => true,
-        MethodCallExpression { Method.Name: "get_Item" or nameof(Enumerable.ElementAt), } => true,
-        MemberExpression { Expression: { } instance, } => ContainsIndexAccess(instance),
+        MethodCallExpression { Method.Name: "get_Item" or nameof(Enumerable.ElementAt) } => true,
+        MemberExpression { Expression: { } instance } => ContainsIndexAccess(instance),
         UnaryExpression unary => ContainsIndexAccess(unary.Operand),
         _ => false,
     };

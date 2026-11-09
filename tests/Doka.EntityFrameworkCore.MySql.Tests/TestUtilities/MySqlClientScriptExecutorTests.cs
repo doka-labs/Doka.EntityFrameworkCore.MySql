@@ -89,8 +89,7 @@ public sealed class MySqlClientScriptExecutorTests
     )
     {
         // Arrange
-        void act() =>
-            MySqlClientScriptExecutor.ParseStatements(script);
+        void act() => MySqlClientScriptExecutor.ParseStatements(script);
 
         // Act
         var recordedException = Record.Exception(act);

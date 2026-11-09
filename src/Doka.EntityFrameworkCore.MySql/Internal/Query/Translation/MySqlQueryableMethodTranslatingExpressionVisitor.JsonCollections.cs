@@ -38,7 +38,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     Orderings: [{ IsAscending: true, Expression: ColumnExpression orderingColumn }],
                     Limit: null,
                     Offset: null,
-            }
+                }
                 when orderingColumn.TableAlias == jsonTable.Alias
                 && orderingColumn.Name == GetOrdinalityColumnName(jsonTable):
                 {
@@ -86,7 +86,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 {
                     var elementMapping = projection.TypeMapping ?? _typeMappingSource.FindMapping(projection.Type);
                     var collectionMapping = parameter.TypeMapping
-                        ?? _typeMappingSource.FindMapping(parameter.Type, _queryCompilationContext.Model, elementMapping);
+                        ?? _typeMappingSource.FindMapping(parameter.Type,
+                            _queryCompilationContext.Model,
+                            elementMapping);
 
                     var json = collectionMapping is null
                         ? parameter
@@ -273,7 +275,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             path: null,
             columnInfos: columns);
 
-        var isNullable = property?.GetElementType()?.IsNullable
+        var isNullable = property?.GetElementType()
+                ?.IsNullable
             ?? IsNullableType(sequenceType);
 
         var valueColumn = new ColumnExpression(
@@ -362,6 +365,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
             var typeMapping = element.StoreTypeMapping
                 ?? throw new UnreachableException("A JSON element must declare a relational type mapping.");
+
             var asJson = typeMapping.ElementTypeMapping is not null;
             var extractionTypeMapping = asJson
                 ? typeMapping
@@ -406,7 +410,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 new MySqlJsonTableExpression.ColumnInfo(
                     Name: name,
                     TypeMapping: jsonQueryExpression.JsonColumn.TypeMapping
-                        ?? throw new UnreachableException("A JSON query column must declare a relational type mapping."),
+                    ?? throw new UnreachableException("A JSON query column must declare a relational type mapping."),
                     Path: [new PathSegment(name)],
                     AsJson: true,
                     ForOrdinality: false));
