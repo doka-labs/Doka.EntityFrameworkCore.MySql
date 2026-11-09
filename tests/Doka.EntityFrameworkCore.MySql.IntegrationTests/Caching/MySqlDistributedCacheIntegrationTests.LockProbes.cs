@@ -108,7 +108,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // WHY: RemoveAsync and cleanup both issue DELETE statements. The cleanup-only predicate requires the
         // cleanup command's primary-index clause so cancellation never interrupts foreground removal instead.
         // Unique-key locking reads can wait in optimization before INNODB_TRX exposes the wait.
-        command.CommandText = GetLockingStatementProbeSql("information_schema.PROCESSLIST");
+        command.CommandText = GetLockingStatementProbeSql(GetNativeProcessListSource(observer));
 
         command.Parameters.AddWithValue("@tableName", tableName);
         command.Parameters.AddWithValue("@cleanupOnly", cleanupOnly);
@@ -138,9 +138,22 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.Fail("The cache operation did not reach the database row lock within the test deadline.");
     }
 
-    // WHY: PROCESSLIST.INFO can expose command bytes that are not valid in its
-    // metadata charset. Interpret the bytes without loss before searching for
-    // ASCII SQL tokens, so an unrelated request cannot break the lock probe.
+    /// <summary>Chooses native process metadata without introducing a MariaDB instrumentation dependency.</summary>
+    /// <param name="connection">The open connection whose server owns the process metadata.</param>
+    private static string GetNativeProcessListSource(
+        MySqlConnection connection
+    )
+    {
+        // WHY: MySQL converts INFORMATION_SCHEMA.INFO while constructing its rows, before any outer CAST can
+        // protect binary command bytes. Performance Schema avoids that conversion. MariaDB normally disables
+        // Performance Schema, so its existing native process metadata remains the supported observation source.
+        return connection.ServerVersion.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
+            ? "information_schema.PROCESSLIST"
+            : "performance_schema.processlist";
+    }
+
+    // WHY: Native process metadata can expose arbitrary command bytes. Normalize them without loss before
+    // searching ASCII SQL tokens; this is separate from selecting a source that can construct its rows safely.
     private static string GetLockingStatementProbeSql(
         string processSource
     ) => $"""
@@ -170,7 +183,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         await using var command = observer.CreateCommand();
-        command.CommandText = GetWaitingForTableLockProbeSql("information_schema.PROCESSLIST");
+        command.CommandText = GetWaitingForTableLockProbeSql(GetNativeProcessListSource(observer));
 
         command.Parameters.AddWithValue("@tableName", tableName);
 

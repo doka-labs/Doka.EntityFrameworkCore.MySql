@@ -200,11 +200,38 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     /// <param name="time">The time used by this operation.</param>
     /// <param name="initiator">The initiator used by this operation.</param>
     /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    private static Task<byte[]?> CancelCleanupWhileBlockedAsync(
+        CacheIntegrationStore store,
+        MySqlDistributedCache cache,
+        CacheManualTimeProvider time,
+        string initiator,
+        CancellationToken cancellationToken
+    ) => CancelCleanupWhileBlockedAsync(
+        store,
+        cache,
+        time,
+        initiator,
+        (observer, pending, observationCancellationToken) => AssertLockingStatementStartedAsync(
+            observer,
+            store.TableName,
+            pending,
+            observationCancellationToken,
+            cleanupOnly: true),
+        cancellationToken);
+
+    /// <summary>Runs the real cleanup lifecycle with a replaceable observation boundary for failure tests.</summary>
+    /// <param name="store">The isolated cache deployment and lock owner.</param>
+    /// <param name="cache">The cache whose cleanup and recovery state are exercised.</param>
+    /// <param name="time">The cache clock used to advance the cleanup interval.</param>
+    /// <param name="initiator">The public foreground operation that triggers cleanup.</param>
+    /// <param name="observeCleanup">The observation boundary that confirms progress or reports a failure.</param>
+    /// <param name="cancellationToken">The token observed while arranging and observing the operation.</param>
     private static async Task<byte[]?> CancelCleanupWhileBlockedAsync(
         CacheIntegrationStore store,
         MySqlDistributedCache cache,
         CacheManualTimeProvider time,
         string initiator,
+        Func<MySqlConnection, Task, CancellationToken, Task> observeCleanup,
         CancellationToken cancellationToken
     )
     {
@@ -240,15 +267,11 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         using var cancellation = new CancellationTokenSource();
         time.Advance(TimeSpan.FromMinutes(5));
         var pending = InvokeCleanupInitiatorAsync(cache, initiator, cancellation.Token);
+        Exception? primaryFailure = null;
 
         try
         {
-            await AssertLockingStatementStartedAsync(
-                    observer,
-                    store.TableName,
-                    pending,
-                    cancellationToken,
-                    cleanupOnly: true)
+            await observeCleanup(observer, pending, cancellationToken)
                 .ConfigureAwait(false);
 
             if (initiator == "get")
@@ -271,26 +294,96 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ConfigureAwait(false);
 
             return await pending
-                .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+
+            throw;
         }
         finally
         {
-            await cancellation
-                .CancelAsync()
+            // WHY: Observation may fail before foreground work finishes. Cancel and unlock before
+            // draining it, retaining the observer failure instead of replacing it with induced cancellation.
+            await CompleteLockProbeAsync(
+                    cancellation,
+                    () => transaction.RollbackAsync(CancellationToken.None),
+                    pending,
+                    primaryFailure)
                 .ConfigureAwait(false);
+        }
+    }
 
-            await transaction
-                .RollbackAsync(CancellationToken.None)
-                .ConfigureAwait(false);
+    /// <summary>Releases a probe's lock and observes all owned work without masking its primary failure.</summary>
+    /// <param name="cancellation">The cancellation source, or null when unlocking completes the work.</param>
+    /// <param name="releaseLock">The protected asynchronous release of the probe-owned database lock.</param>
+    /// <param name="pending">The operation that must finish before its resources can be disposed.</param>
+    /// <param name="primaryFailure">The existing failure that remains authoritative over teardown failures.</param>
+    private static async Task CompleteLockProbeAsync(
+        CancellationTokenSource? cancellation,
+        Func<Task> releaseLock,
+        Task pending,
+        Exception? primaryFailure
+    )
+    {
+        // WHY: Cancellation, lock release, and task drainage must all finish even if one fails.
+        // This ownership boundary deliberately has no cancellation token or abandonable timed wait.
+        List<Exception>? failures = null;
 
-            if (!pending.IsCompleted)
+        try
+        {
+            if (cancellation is not null)
             {
-                await pending
-                    .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
-                    .ConfigureAwait(false);
+                await cancellation.CancelAsync().ConfigureAwait(false);
             }
         }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
+        try
+        {
+            await releaseLock().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
+        try
+        {
+            // WHY: IsCompleted also includes faulted and canceled tasks, which still require observation.
+            await pending.ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            if (!ReferenceEquals(exception, primaryFailure))
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is null)
+        {
+            return;
+        }
+
+        if (primaryFailure is not null)
+        {
+            // WHY: Keep secondary failures available without changing the original exception identity or stack.
+            primaryFailure.Data[nameof(CompleteLockProbeAsync)] = new AggregateException(failures);
+
+            return;
+        }
+
+        if (failures.Count == 1)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        throw new AggregateException("Lock probe teardown failed.", failures);
     }
 
     /// <summary>Starts the selected foreground operation that initiates opportunistic cleanup.</summary>
