@@ -7,6 +7,46 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.6.5] - 2026-11-09
+
+Stable maintenance patch strengthening integration-test reliability and
+refreshing workflow tooling, MySQL image digests and repository C# style.
+All three packages use the same version. Public APIs, application configuration,
+the .NET 10 requirement, EF Core 10.0.8 minimum, MySqlConnector range,
+supported engines, GUID/collection defaults and cache schema remain unchanged.
+No database schema migration is required.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.5
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.5
+dotnet package add Doka.Caching.MySql --version 10.6.5
+```
+
+### Changed
+
+- Refresh setup-dotnet to 6.1.0, CodeQL to 4.39.3 and zizmor to 1.32.0 with
+  verified platform hashes. Synchronize the MySQL 8.4.13 and 9.7.4 image
+  digests across Compose, CI, tests and benchmarks without changing server
+  versions or the supported-engine policy.
+- Align Rider index/range, expression-body and raw-string preferences and
+  apply the reviewed C# cleanup. Simplify equivalent patterns and index/range
+  expressions and remove avoidable array covariance in tests and benchmark
+  setup. Preserve measured indexed hotpaths, defensive validation and existing
+  application behavior; no performance improvement is claimed for this cleanup.
+
+### Fixed
+
+- Use native MySQL process metadata in cache and SQL-mode integration probes
+  so binary statements cannot trigger character-conversion failures while
+  observing blocked commands. Retain the MariaDB-specific metadata path and
+  regression coverage for binary statements, false matches and observer failures.
+- Cancel and drain pending integration-test work before reusing connections
+  or dropping test databases. Share protected teardown, retain the primary
+  failure with secondary cleanup failures, and avoid masking the original error.
+- Make cache-cleanup lock-test seed ordering independent of setup duration so
+  the intended locked row stays inside the bounded cleanup batch. Preserve
+  positive and negative frozen-clock regression cases.
+
 ## [10.6.4] - 2026-11-05
 
 Stable patch release correcting fixed-binary byte-array reads, strengthening
@@ -1725,7 +1765,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.4...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.5...HEAD
+[10.6.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.5
 [10.6.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.4
 [10.6.3]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.3
 [10.6.2]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.2
