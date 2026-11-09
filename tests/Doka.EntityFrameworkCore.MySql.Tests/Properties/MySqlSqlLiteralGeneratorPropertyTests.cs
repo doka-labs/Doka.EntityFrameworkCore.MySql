@@ -163,6 +163,7 @@ public sealed class MySqlSqlLiteralGeneratorPropertyTests
     {
         // Arrange
         var invalid = new string(['\uD800']);
+
         void act() => MySqlSqlLiteralGenerator.Generate(invalid);
 
         // Act

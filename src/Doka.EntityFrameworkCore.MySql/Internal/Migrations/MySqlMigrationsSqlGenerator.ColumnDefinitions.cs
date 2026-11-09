@@ -101,7 +101,10 @@ internal sealed partial class MySqlMigrationsSqlGenerator
                 .Append(collation);
         }
 
-        builder.Append(operation.IsNullable ? " NULL" : " NOT NULL");
+        builder.Append(operation.IsNullable
+            ? " NULL"
+            : " NOT NULL");
+
         DefaultValue(operation.DefaultValue, operation.DefaultValueSql, columnType, builder);
     }
 
@@ -112,7 +115,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         if (!string.IsNullOrWhiteSpace(operation.ColumnType))
         {
             var storeType = operation
-                .ColumnType.AsSpan()
+                .ColumnType
+                .AsSpan()
                 .TrimStart();
 
             return storeType.StartsWith("timestamp", StringComparison.OrdinalIgnoreCase)
@@ -206,7 +210,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
         if (!operation.IsNullable
             && Profile.GetSupport(
-                ProviderCapability.GeneratedColumnNullabilityClause) == ProviderSupportStatus.Native)
+                ProviderCapability.GeneratedColumnNullabilityClause)
+            == ProviderSupportStatus.Native)
         {
             builder.Append(" NOT NULL");
         }
@@ -314,7 +319,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         MigrationCommandListBuilder builder
     )
     {
-        var isInvisible = operation.FindAnnotation(MySqlAnnotationNames.Invisible)?.Value is true;
+        var isInvisible = operation.FindAnnotation(MySqlAnnotationNames.Invisible)
+            ?.Value is true;
+
         var hasComment = operation.Comment is not null
             || operation is AlterColumnOperation { OldColumn.Comment: not null };
 
@@ -408,8 +415,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     {
         return Profile.Engine.Has(
             EngineCapability.StoredGeneratedColumnUsesPersistentKeyword)
-                ? "PERSISTENT"
-                : "STORED";
+            ? "PERSISTENT"
+            : "STORED";
     }
 
     private static void ValidateSpatialColumnSupport(

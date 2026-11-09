@@ -75,8 +75,8 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     {
         // Arrange
         const ParameterTranslationMode invalidMode = (ParameterTranslationMode)99;
-        static void act() =>
-            BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode));
+
+        static void act() => BuildExtension(options => options.UseParameterizedCollectionMode(invalidMode));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -149,7 +149,9 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     public void RequireUserVariables_stores_the_requirement()
     {
         // Arrange
-        static void configure(MySqlDbContextOptionsBuilder options) => options.RequireUserVariables();
+        static void configure(
+            MySqlDbContextOptionsBuilder options
+        ) => options.RequireUserVariables();
 
         // Act
         var extension = BuildExtension(configure);
@@ -249,10 +251,9 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         using var connection = new MySqlConnection(
             "Server=localhost;Database=doka;GuidFormat=Binary16;");
 
-        void act() =>
-            builder.UseMySql(
-                connection,
-                MySqlServerVersion.MySql(new Version(8, 4, 0)));
+        void act() => builder.UseMySql(
+            connection,
+            MySqlServerVersion.MySql(new Version(8, 4, 0)));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -301,6 +302,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         // Arrange
         var builder = new DbContextOptionsBuilder();
         var serverVersion = MySqlServerVersion.MySql(new Version(8, 4, 0));
+
         void act() => builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
             serverVersion,
@@ -341,8 +343,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        void act() =>
-            BuildExtension(options => options.CommandTimeout(commandTimeout));
+        void act() => BuildExtension(options => options.CommandTimeout(commandTimeout));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -379,8 +380,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        void act() =>
-            BuildExtension(options => options.MaxBatchSize(maxBatchSize));
+        void act() => BuildExtension(options => options.MaxBatchSize(maxBatchSize));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -417,8 +417,7 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     )
     {
         // Arrange
-        void act() =>
-            BuildExtension(options => options.MinBatchSize(minBatchSize));
+        void act() => BuildExtension(options => options.MinBatchSize(minBatchSize));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -515,8 +514,8 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
     {
         // Arrange
         const QuerySplittingBehavior invalidValue = (QuerySplittingBehavior)99;
-        static void act() =>
-            BuildExtension(options => options.UseQuerySplittingBehavior(invalidValue));
+
+        static void act() => BuildExtension(options => options.UseQuerySplittingBehavior(invalidValue));
 
         // Act
         var recordedException = Record.Exception(act);

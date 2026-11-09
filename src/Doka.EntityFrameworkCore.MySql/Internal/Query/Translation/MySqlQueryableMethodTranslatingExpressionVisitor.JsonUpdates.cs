@@ -128,7 +128,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     true,
                     false,
                     false,
-                    false
+                    false,
                 ],
                 typeof(string),
                 stringTypeMapping);
@@ -214,7 +214,7 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             argumentsPropagateNullability:
             [
                 true,
-                false
+                false,
             ],
             typeof(string),
             jsonTypeMapping);

@@ -11,7 +11,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// <c>DOKA_SPEC_TEST_TARGET</c>. This produces an actual skipped test case without adding a
 /// second theory attribute to the inherited EF Core test method.
 /// Data rows may be declared on the provider override or inherited from its nearest base
-/// declaration through <see cref="InheritedTheoryDataAttribute"/>.
+/// declaration through <see cref="InheritedTheoryDataAttribute" />.
 /// Setting <c>DOKA_SPEC_TEST_PROBE_ENGINE_LIMITS=true</c> deliberately disables these skips
 /// so the documented failure can be reproduced without editing test source.
 /// </remarks>

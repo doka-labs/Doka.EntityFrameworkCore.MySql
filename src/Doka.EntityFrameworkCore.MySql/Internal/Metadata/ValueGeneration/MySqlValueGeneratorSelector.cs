@@ -40,6 +40,7 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
         ArgumentNullException.ThrowIfNull(property);
 
         var strategy = property.GetMySqlValueGenerationStrategy();
+
         // EF 11 consumes property-owned factories rather than converter or mapping
         // hints. Delegate to its cache so an explicit factory retains its identity.
         if (property.GetValueGeneratorFactory() is not null)
@@ -184,5 +185,4 @@ internal sealed class MySqlValueGeneratorSelector : RelationalValueGeneratorSele
 
         return null;
     }
-
 }

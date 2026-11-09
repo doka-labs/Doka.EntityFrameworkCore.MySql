@@ -152,9 +152,11 @@ public sealed class MySqlGuidFormatTests
                 var seeded = await readContext.Entities.SingleAsync(
                     e => e.Id == s_seededGuid,
                     TestContext.Current.CancellationToken);
+
                 var inserted = await readContext.Entities.SingleAsync(
                     e => e.Id == s_insertedGuid,
                     TestContext.Current.CancellationToken);
+
                 var storageShape = await ReadRawIdStringsAsync(
                     connectionString,
                     dbName,
@@ -228,9 +230,11 @@ public sealed class MySqlGuidFormatTests
                 var seeded = await readContext.Entities.SingleAsync(
                     e => e.Id == s_seededGuid,
                     TestContext.Current.CancellationToken);
+
                 var inserted = await readContext.Entities.SingleAsync(
                     e => e.Id == s_insertedGuid,
                     TestContext.Current.CancellationToken);
+
                 var rawHex = await ReadRawIdHexAsync(
                     connectionString,
                     dbName,

@@ -184,6 +184,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<IdenticalPeriodsConfiguration>(s_mySql84);
+
         void act() => _ = context.Model;
 
         // Act
@@ -202,6 +203,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<InvalidPeriodTypeConfiguration>(s_mySql84);
+
         void act() => _ = context.Model;
 
         // Act
@@ -220,6 +222,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<UnsupportedEngineConfiguration>(s_mariaDb1033);
+
         void act() => _ = context.Model;
 
         // Act
@@ -238,6 +241,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<MyIsamConfiguration>(s_mySql84);
+
         void act() => _ = context.Model;
 
         // Act
@@ -257,6 +261,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<CascadeConfiguration>(s_mySql84);
+
         void act() => _ = context.Model;
 
         // Act
@@ -280,6 +285,7 @@ public sealed class MySqlTemporalMetadataTests
     {
         // Arrange
         using var context = CreateContext<NativeGeneratedColumnConfiguration>(s_mariaDb114);
+
         void act() => _ = context.Model;
 
         // Act

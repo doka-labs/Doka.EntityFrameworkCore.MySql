@@ -19,10 +19,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(MariaDbGuidDefaultKeyCases))]
     public async Task Guid_sql_default_keys_use_returning_and_propagate_correlated_foreign_keys(
@@ -52,7 +52,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
                 });
         }
 
-        context.Set<GuidDefaultPrincipal>().AddRange(rows);
+        context
+            .Set<GuidDefaultPrincipal>()
+            .AddRange(rows);
+
         var temporaryKeys = rows
             .Select(row => context
                 .Entry(row)
@@ -207,7 +210,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             .Reverse()
             .ToArray();
 
-        context.Set<GuidDefaultPrincipal>().AddRange(rows);
+        context
+            .Set<GuidDefaultPrincipal>()
+            .AddRange(rows);
+
         var temporaryKeys = rows
             .Select(row => context
                 .Entry(row)
@@ -273,7 +279,10 @@ public sealed partial class MySqlGeneratedValueReadbackTests
             ConvertedNullableValue = CreateGuid(104),
         };
 
-        context.Set<GuidDefaultValueRow>().AddRange(rows);
+        context
+            .Set<GuidDefaultValueRow>()
+            .AddRange(rows);
+
         context.Add(supplied);
         capture.Enabled = true;
 

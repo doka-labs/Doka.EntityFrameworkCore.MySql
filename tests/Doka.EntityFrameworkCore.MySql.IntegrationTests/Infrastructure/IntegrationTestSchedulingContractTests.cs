@@ -1,3 +1,5 @@
+using Xunit.v3;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -41,15 +43,17 @@ public sealed class IntegrationTestSchedulingContractTests
         var assembly = typeof(IntegrationTestSchedulingContractTests).Assembly;
 
         // Act
-        var behavior = assembly.GetCustomAttribute<Xunit.v3.ParallelizationAttribute>();
-        var fixture = assembly.GetCustomAttributes<AssemblyFixtureAttribute>()
+        var behavior = assembly.GetCustomAttribute<ParallelizationAttribute>();
+        var fixture = assembly
+            .GetCustomAttributes<AssemblyFixtureAttribute>()
             .Single();
+
         var ordinaryCollection = typeof(MySqlPoolAndFailoverContractTests)
             .GetCustomAttribute<CollectionAttribute>();
 
         // Assert
         Assert.NotNull(behavior);
-        Assert.Equal(Xunit.Sdk.ParallelMode.Collections, behavior.GetMode());
+        Assert.Equal(ParallelMode.Collections, behavior.GetMode());
         Assert.Equal(4, behavior.GetMaxThreads());
         Assert.Equal(typeof(IntegrationDatabaseFixture), fixture.AssemblyFixtureType);
         Assert.Null(ordinaryCollection);

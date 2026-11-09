@@ -11,8 +11,8 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 [SpecificationContractFacade(typeof(StoredProcedureUpdateTestBase))]
 public sealed class StoredProcedureUpdateMySqlTest
     : IClassFixture<NonSharedFixture>,
-      IAsyncLifetime,
-      IDisposable
+        IAsyncLifetime,
+        IDisposable
 {
     private readonly StoredProcedureUpdateMySqlExecutor _executor;
 
@@ -59,8 +59,7 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Insert_with_output_parameter_and_result_column(
         bool async
-    ) =>
-        _executor.Insert_with_output_parameter_and_result_column(async);
+    ) => _executor.Insert_with_output_parameter_and_result_column(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -78,15 +77,13 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Update_with_output_parameter_and_rows_affected_result_column(
         bool async
-    ) =>
-        _executor.Update_with_output_parameter_and_rows_affected_result_column(async);
+    ) => _executor.Update_with_output_parameter_and_rows_affected_result_column(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
     public Task Update_with_output_parameter_and_rows_affected_result_column_concurrency_failure(
         bool async
-    ) =>
-        _executor.Update_with_output_parameter_and_rows_affected_result_column_concurrency_failure(async);
+    ) => _executor.Update_with_output_parameter_and_rows_affected_result_column_concurrency_failure(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -110,8 +107,7 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Rows_affected_parameter_and_concurrency_failure(
         bool async
-    ) =>
-        _executor.Rows_affected_parameter_and_concurrency_failure(async);
+    ) => _executor.Rows_affected_parameter_and_concurrency_failure(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -123,8 +119,7 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Rows_affected_result_column_and_concurrency_failure(
         bool async
-    ) =>
-        _executor.Rows_affected_result_column_and_concurrency_failure(async);
+    ) => _executor.Rows_affected_result_column_and_concurrency_failure(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -136,22 +131,19 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Rows_affected_return_value_and_concurrency_failure(
         bool async
-    ) =>
-        _executor.Rows_affected_return_value_and_concurrency_failure(async);
+    ) => _executor.Rows_affected_return_value_and_concurrency_failure(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
     public Task Store_generated_concurrency_token_as_in_out_parameter(
         bool async
-    ) =>
-        _executor.Store_generated_concurrency_token_as_in_out_parameter(async);
+    ) => _executor.Store_generated_concurrency_token_as_in_out_parameter(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
     public Task Store_generated_concurrency_token_as_two_parameters(
         bool async
-    ) =>
-        _executor.Store_generated_concurrency_token_as_two_parameters(async);
+    ) => _executor.Store_generated_concurrency_token_as_two_parameters(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -163,22 +155,19 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Original_and_current_value_on_non_concurrency_token(
         bool async
-    ) =>
-        _executor.Original_and_current_value_on_non_concurrency_token(async);
+    ) => _executor.Original_and_current_value_on_non_concurrency_token(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
     public Task Input_or_output_parameter_with_input(
         bool async
-    ) =>
-        _executor.Input_or_output_parameter_with_input(async);
+    ) => _executor.Input_or_output_parameter_with_input(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
     public Task Input_or_output_parameter_with_output(
         bool async
-    ) =>
-        _executor.Input_or_output_parameter_with_output(async);
+    ) => _executor.Input_or_output_parameter_with_output(async);
 
     [Theory]
     [MemberData(nameof(IsAsyncData))]
@@ -208,13 +197,14 @@ public sealed class StoredProcedureUpdateMySqlTest
     [MemberData(nameof(IsAsyncData))]
     public Task Non_sproc_followed_by_sproc_commands_in_the_same_batch(
         bool async
-    ) =>
-        _executor.Non_sproc_followed_by_sproc_commands_in_the_same_batch(async);
+    ) => _executor.Non_sproc_followed_by_sproc_commands_in_the_same_batch(async);
 
     private sealed class StoredProcedureUpdateMySqlExecutor(
         NonSharedFixture fixture
     ) : StoredProcedureUpdateMySqlTestAdapter(fixture)
     {
+        protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
+
         protected override async Task CreateStoredProcedures(
             DbContext context,
             string createSprocSql
@@ -239,8 +229,5 @@ public sealed class StoredProcedureUpdateMySqlTest
         ) => entityTypeBuilder
             .Property<byte[]>(propertyName)
             .IsRowVersion();
-
-        protected override ITestStoreFactory NonSharedTestStoreFactory
-            => MySqlTestStoreFactory.Instance;
     }
 }

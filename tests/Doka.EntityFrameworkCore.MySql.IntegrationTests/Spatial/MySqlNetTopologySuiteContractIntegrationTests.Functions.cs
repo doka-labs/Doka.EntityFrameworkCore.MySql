@@ -9,9 +9,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(FunctionTargetCases))]
     public async Task Supported_validity_function_executes(
@@ -38,9 +38,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(GeometryFunctionCases))]
     public async Task Supported_geometry_function_executes(
@@ -87,10 +87,10 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(MariaDbCases))]
     public async Task MariaDb_crosses_matches_nts_for_every_dimension_order(

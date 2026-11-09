@@ -362,52 +362,6 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         return polygon;
     }
 
-    private sealed class SpatialTranslationContext : DbContext
-    {
-        public SpatialTranslationContext(
-            DbContextOptions<SpatialTranslationContext> options
-        ) : base(options) { }
-
-        public DbSet<SpatialEntity> Entities => Set<SpatialEntity>();
-
-        protected override void OnModelCreating(
-            ModelBuilder modelBuilder
-        )
-        {
-            modelBuilder.Entity<SpatialEntity>(entity =>
-            {
-                entity.ToTable("Phase3SpatialEntities");
-                entity.HasKey(item => item.Id);
-                entity.Property(item => item.Location);
-                entity.Property(item => item.Route);
-                entity.Property(item => item.Region);
-                entity.Property(item => item.ShapeCollection);
-                entity.Property(item => item.Shape);
-                entity.Property(item => item.OptionalShape);
-                entity.Property(item => item.OptionalRegion);
-            });
-        }
-    }
-
-    private sealed class SpatialEntity
-    {
-        public int Id { get; set; }
-
-        public Point Location { get; set; } = default!;
-
-        public LineString Route { get; set; } = default!;
-
-        public Polygon Region { get; set; } = default!;
-
-        public GeometryCollection ShapeCollection { get; set; } = default!;
-
-        public Geometry Shape { get; set; } = default!;
-
-        public Geometry? OptionalShape { get; set; }
-
-        public Geometry? OptionalRegion { get; set; }
-    }
-
     /// <summary>
     /// Preserves MySQL's native <c>ST_IsSimple</c> null propagation without an
     /// unnecessary provider guard.
@@ -460,5 +414,51 @@ public sealed class MySqlNetTopologySuiteTranslationTests
         Assert.Contains("`OptionalShape` IS NULL", sql, StringComparison.Ordinal);
         Assert.Contains("THEN NULL", sql, StringComparison.Ordinal);
         Assert.Contains("ST_IsSimple(", sql, StringComparison.Ordinal);
+    }
+
+    private sealed class SpatialTranslationContext : DbContext
+    {
+        public SpatialTranslationContext(
+            DbContextOptions<SpatialTranslationContext> options
+        ) : base(options) { }
+
+        public DbSet<SpatialEntity> Entities => Set<SpatialEntity>();
+
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        )
+        {
+            modelBuilder.Entity<SpatialEntity>(entity =>
+            {
+                entity.ToTable("Phase3SpatialEntities");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Location);
+                entity.Property(item => item.Route);
+                entity.Property(item => item.Region);
+                entity.Property(item => item.ShapeCollection);
+                entity.Property(item => item.Shape);
+                entity.Property(item => item.OptionalShape);
+                entity.Property(item => item.OptionalRegion);
+            });
+        }
+    }
+
+    private sealed class SpatialEntity
+    {
+        public int Id { get; set; }
+
+        public Point Location { get; set; } = default!;
+
+        public LineString Route { get; set; } = default!;
+
+        public Polygon Region { get; set; } = default!;
+
+        public GeometryCollection ShapeCollection { get; set; } = default!;
+
+        public Geometry Shape { get; set; } = default!;
+
+        public Geometry? OptionalShape { get; set; }
+
+        public Geometry? OptionalRegion { get; set; }
     }
 }

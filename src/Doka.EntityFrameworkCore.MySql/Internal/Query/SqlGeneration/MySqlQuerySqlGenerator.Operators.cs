@@ -53,6 +53,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             EmitJsonNullTest(
                 sqlUnaryExpression.Operand,
                 equalsNull: sqlUnaryExpression.OperatorType == ExpressionType.Equal);
+
             return sqlUnaryExpression;
         }
 

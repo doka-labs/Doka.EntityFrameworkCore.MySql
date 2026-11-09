@@ -33,7 +33,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
 
         var customerCount = await context.Customers
             .CountAsync(customer => EF.Functions.Like(
-                customer.CustomerID,
+                    customer.CustomerID,
                     "F%"),
                 TestContext.Current.CancellationToken);
 
@@ -69,7 +69,7 @@ public sealed class NorthwindBulkUpdatesMySqlTest
 
         var expectedCount = await context.Customers
             .CountAsync(customer => EF.Functions.Like(
-                customer.CustomerID,
+                    customer.CustomerID,
                     "F%"),
                 TestContext.Current.CancellationToken);
 

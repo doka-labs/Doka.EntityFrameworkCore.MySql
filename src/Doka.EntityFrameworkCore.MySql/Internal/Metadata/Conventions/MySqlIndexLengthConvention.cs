@@ -99,14 +99,17 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
         }
 
         var properties = new List<IConventionProperty>();
-        List<int>? scalarPrefixes = prefixes is null ? null : [];
+        List<int>? scalarPrefixes = prefixes is null
+            ? null
+            : [];
 
         for (var index = 0; index < indexProperties.Count; index++)
         {
             var property = indexProperties[index];
             var prefix = prefixes?[index] ?? 0;
 
-            if (property is IConventionComplexProperty && prefix > 0)
+            if (property is IConventionComplexProperty
+                && prefix > 0)
             {
                 // WHY: A prefix on a complex value has no single physical column.
                 // Leave the application error to the final model validator.

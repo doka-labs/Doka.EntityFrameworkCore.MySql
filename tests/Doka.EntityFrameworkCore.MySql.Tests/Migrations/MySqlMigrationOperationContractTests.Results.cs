@@ -117,6 +117,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         commands[nullIndex] = null!;
+
         void act() => MySqlMigrationOperationResult.Generated(commands, "generated");
 
         // Act

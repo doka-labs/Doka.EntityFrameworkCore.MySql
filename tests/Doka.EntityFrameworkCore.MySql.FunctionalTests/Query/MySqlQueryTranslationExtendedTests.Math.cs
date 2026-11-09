@@ -175,7 +175,8 @@ public sealed partial class MySqlQueryTranslationExtendedTests
         using var context = CreateContext();
 
         // Act
-        var sql = context.Items
+        var sql = context
+            .Items
             .Select(entity => int.Parse(entity.Name, CultureInfo.InvariantCulture))
             .ToQueryString();
 

@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlParseMethodTranslator : IMethodCallTranslator
 {
-    private static readonly FrozenSet<MethodInfo> s_supportedMethods = new MethodInfo[]
+    private static readonly FrozenSet<MethodInfo> s_supportedMethods = new[]
     {
         typeof(byte).GetRuntimeMethod(nameof(byte.Parse), [typeof(string)])!,
         typeof(decimal).GetRuntimeMethod(nameof(decimal.Parse), [typeof(string)])!,
@@ -45,6 +45,8 @@ internal sealed class MySqlParseMethodTranslator : IMethodCallTranslator
 
         var typeMapping = _typeMappingSource.FindMapping(method.ReturnType);
 
-        return typeMapping is null ? null : _sqlExpressionFactory.Convert(arguments[0], method.ReturnType, typeMapping);
+        return typeMapping is null
+            ? null
+            : _sqlExpressionFactory.Convert(arguments[0], method.ReturnType, typeMapping);
     }
 }

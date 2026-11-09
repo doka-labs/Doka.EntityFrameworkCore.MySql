@@ -253,11 +253,11 @@ public sealed class MySqlCrossLayerObservabilityTests
 
         public ConcurrentQueue<Activity> Activities { get; } = new();
 
+        public void Dispose() => _listener.Dispose();
+
         private static ActivitySamplingResult SampleActivity(
             ref ActivityCreationOptions<ActivityContext> _
         ) => ActivitySamplingResult.AllDataAndRecorded;
-
-        public void Dispose() => _listener.Dispose();
     }
 
     private sealed class CrossLayerMeterSink : IDisposable

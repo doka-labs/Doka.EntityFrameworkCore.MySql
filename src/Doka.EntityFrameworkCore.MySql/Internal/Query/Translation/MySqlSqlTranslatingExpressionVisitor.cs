@@ -27,7 +27,6 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// MySQL 8.4 JSON creation functions</see>. MariaDB exposes the same
 /// <c>JSON_ARRAY</c> and <c>JSON_OBJECT</c> function contract in its server JSON
 /// function reference. Sources retrieved 2026-08-18.
-///
 /// EF Core 11's relational <c>JsonPathExists</c> contract maps to
 /// <c>JSON_CONTAINS_PATH(json, 'one', path) = 1</c>. Both engine families define
 /// that function as a one-or-all path existence check. Sources retrieved
@@ -72,13 +71,14 @@ internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalS
             typeof(object[]),
         ])!;
 
-    private static readonly MethodInfo s_jsonPathExistsMethod = typeof(RelationalDbFunctionsExtensions).GetRuntimeMethod(
-        nameof(RelationalDbFunctionsExtensions.JsonPathExists),
-        [
-            typeof(DbFunctions),
-            typeof(object),
-            typeof(string),
-        ])!;
+    private static readonly MethodInfo s_jsonPathExistsMethod =
+        typeof(RelationalDbFunctionsExtensions).GetRuntimeMethod(
+            nameof(RelationalDbFunctionsExtensions.JsonPathExists),
+            [
+                typeof(DbFunctions),
+                typeof(object),
+                typeof(string),
+            ])!;
 
     private static readonly MethodInfo s_enumerableElementAtMethod = typeof(Enumerable)
         .GetRuntimeMethods()
@@ -493,7 +493,7 @@ internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalS
         MethodCallExpression methodCallExpression
     )
     {
-        if (Translate(methodCallExpression.Arguments[2]) is not SqlExpression translatedPath)
+        if (Translate(methodCallExpression.Arguments[2]) is not { } translatedPath)
         {
             return QueryCompilationContext.NotTranslatedExpression;
         }
@@ -504,7 +504,7 @@ internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalS
             SqlExpression scalar => scalar,
             RelationalStructuralTypeShaperExpression
             {
-                ValueBufferExpression: JsonQueryExpression { JsonColumn: var jsonColumn, },
+                ValueBufferExpression: JsonQueryExpression { JsonColumn: var jsonColumn },
             } => jsonColumn,
             _ => null,
         };
@@ -694,7 +694,7 @@ internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalS
 
         return offset switch
         {
-            SqlConstantExpression { Value: TimeSpan value, } => _sqlExpressionFactory.Constant(
+            SqlConstantExpression { Value: TimeSpan value } => _sqlExpressionFactory.Constant(
                 ValidateDateTimeOffset(value),
                 timeSpanMapping),
             SqlParameterExpression parameter => CreateDateTimeOffsetRuntimeParameter(parameter, timeSpanMapping),

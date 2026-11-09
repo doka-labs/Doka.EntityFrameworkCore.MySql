@@ -109,7 +109,7 @@ internal sealed class MySqlTypeMappingPostprocessor : RelationalTypeMappingPostp
 
         List<MySqlJsonTableExpression.ColumnInfo> columns = [];
         columns.EnsureCapacity((jsonTable.ColumnInfos?.Count ?? 0) + 1);
-        columns.Add(new(
+        columns.Add(new MySqlJsonTableExpression.ColumnInfo(
             Name: "value",
             TypeMapping: extractionTypeMapping,
             Path: [],

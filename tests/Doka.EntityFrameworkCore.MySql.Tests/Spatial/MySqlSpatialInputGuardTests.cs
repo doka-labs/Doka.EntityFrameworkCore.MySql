@@ -95,8 +95,8 @@ public sealed class MySqlSpatialInputGuardTests
         // Arrange
         var line = new WKTReader().Read("LINESTRING (0 0, 1 1)");
         var providerValue = MySqlGeometry.FromWkb(4326, new WKBWriter().Write(line));
-        void act() =>
-            InvokeReadSpatialColumn(typeof(Point), providerValue);
+
+        void act() => InvokeReadSpatialColumn(typeof(Point), providerValue);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -113,8 +113,7 @@ public sealed class MySqlSpatialInputGuardTests
     public void ReadSpatialColumn_rejects_an_unknown_driver_shape()
     {
         // Arrange
-        static void act() =>
-            InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)");
+        static void act() => InvokeReadSpatialColumn(typeof(Geometry), "POINT (1 2)");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -195,6 +194,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkt = CreateNestedWkt(MySqlSpatialInputGuard.MaximumNestingDepth);
+
         void act() => MySqlSpatialValueReader.ReadWkt(wkt);
 
         // Act
@@ -215,6 +215,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkt = CreateNestedWkt(depth: 50_000);
+
         void act() => MySqlSpatialValueReader.ReadWkt(wkt);
 
         // Act
@@ -259,6 +260,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkb = CreateNestedWkb(MySqlSpatialInputGuard.MaximumNestingDepth, littleEndian);
+
         void act() => MySqlSpatialValueReader.ReadWkb(wkb);
 
         // Act
@@ -278,6 +280,7 @@ public sealed class MySqlSpatialInputGuardTests
     {
         // Arrange
         var wkb = CreateNestedWkb(depth: 50_000, littleEndian: true);
+
         void act() => MySqlSpatialValueReader.ReadWkb(wkb);
 
         // Act
@@ -305,8 +308,7 @@ public sealed class MySqlSpatialInputGuardTests
             ? MySqlGeometry.FromWkb(0, wkb)
             : wkb;
 
-        void act() =>
-            InvokeReadSpatialColumn(typeof(Geometry), providerValue);
+        void act() => InvokeReadSpatialColumn(typeof(Geometry), providerValue);
 
         // Act
         var recordedException = Record.Exception(act);

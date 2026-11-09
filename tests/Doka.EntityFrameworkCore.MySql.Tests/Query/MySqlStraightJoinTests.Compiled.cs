@@ -158,6 +158,7 @@ public sealed partial class MySqlStraightJoinTests
                         })));
 
         var sql = query.ToQueryString();
+
         Task act() => query.ToArrayAsync(CancellationToken.None);
 
         // Act

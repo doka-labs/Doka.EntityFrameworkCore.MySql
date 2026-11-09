@@ -87,6 +87,7 @@ public sealed class MySqlSingletonOptionsConcurrencyTests
         var singletonOptions = new MySqlSingletonOptions();
         singletonOptions.Initialize(originalOptions);
         var mutatedOptions = BuildOptions(MySqlGuidFormat.Char36);
+
         void act() => singletonOptions.Validate(mutatedOptions);
 
         // Act

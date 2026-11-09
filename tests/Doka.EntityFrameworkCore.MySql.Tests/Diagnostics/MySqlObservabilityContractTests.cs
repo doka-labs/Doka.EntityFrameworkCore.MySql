@@ -556,10 +556,10 @@ public sealed partial class MySqlObservabilityContractTests
 
         public ConcurrentQueue<Activity> Activities { get; } = new();
 
+        public void Dispose() => _listener.Dispose();
+
         private static ActivitySamplingResult SampleAllDataAndRecorded(
             ref ActivityCreationOptions<ActivityContext> _
         ) => ActivitySamplingResult.AllDataAndRecorded;
-
-        public void Dispose() => _listener.Dispose();
     }
 }

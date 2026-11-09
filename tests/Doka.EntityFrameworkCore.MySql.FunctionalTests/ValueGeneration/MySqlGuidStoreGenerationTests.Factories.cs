@@ -72,7 +72,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         using var context = CreateStoreContext("ordinary");
         var modelBuilder = new ModelBuilder();
         var entity = modelBuilder.Entity<StoreRow>();
-        var property = entity.Property(row => row.Id)
+        var property = entity
+            .Property(row => row.Id)
             .ValueGeneratedOnAdd()
             .HasDefaultValueSql("UUID()");
 
@@ -94,7 +95,8 @@ public sealed partial class MySqlGuidStoreGenerationTests
         var selectedProperty = (IProperty)property.Metadata;
 
         // Act
-        var selected = context.GetService<IValueGeneratorSelector>()
+        var selected = context
+            .GetService<IValueGeneratorSelector>()
             .TrySelect(selectedProperty, selectedProperty.DeclaringType, out var generator);
 
         var value = generator?.Next(context.Entry(new StoreRow()));

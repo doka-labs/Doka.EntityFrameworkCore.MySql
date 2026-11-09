@@ -22,8 +22,7 @@ internal sealed class RequiresDatabaseTargetFactAttribute : FactAttribute
     ) : this(
         [firstTarget, secondTarget, thirdTarget, fourthTarget, fifthTarget, sixthTarget],
         sourceFilePath,
-        sourceLineNumber)
-    { }
+        sourceLineNumber) { }
 
     private RequiresDatabaseTargetFactAttribute(
         IntegrationDatabaseTarget[] targets,

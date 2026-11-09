@@ -71,10 +71,10 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(MariaDbCases))]
     public async Task MariaDb_srid_check_migrates_enforces_and_scaffolds(
@@ -131,8 +131,9 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
                     .ConfigureAwait(false);
             }
 
-            var (hasRow, createSql) = await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
-                .ConfigureAwait(false);
+            var (hasRow, createSql) =
+                await ReadShowCreateTableAsync(connectionString, SridTable, CancellationToken.None)
+                    .ConfigureAwait(false);
 
             var failure = await Record.ExceptionAsync(() => context.Database.ExecuteSqlRawAsync(
                 $"INSERT INTO `{SridTable}` (`Id`, `Location`) VALUES (1, ST_GeomFromText('POINT (1 2)', 0));"));

@@ -23,6 +23,7 @@ public sealed class RuntimeMigrationMySqlTest(
             + "WHERE TABLE_SCHEMA = DATABASE() "
             + "AND TABLE_TYPE = 'BASE TABLE' "
             + "AND TABLE_NAME != '__EFMigrationsHistory'";
+
         using var reader = command.ExecuteReader();
 
         while (reader.Read())

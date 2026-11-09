@@ -107,13 +107,14 @@ public sealed class MySqlExecutionStrategyTests
         using var context = new ExecutionStrategyContext(CreateOptions(enableRetry: true));
         var dependencies = context.GetService<ExecutionStrategyDependencies>();
         var retryOptions = Assert.IsType<MySqlRetryOptions>(
-            dependencies.Options.FindExtension<MySqlOptionsExtension>()?.RetryOptions);
+            dependencies.Options.FindExtension<MySqlOptionsExtension>()
+                ?.RetryOptions);
 
         // Act
         var exception = Record.Exception(() => new MySqlExecutionStrategy(
             dependencies,
-                retryOptions,
-                EngineFamily.MySql,
+            retryOptions,
+            EngineFamily.MySql,
             transientExceptionDetector: null!));
 
         // Assert

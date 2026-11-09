@@ -19,8 +19,8 @@ public sealed class AdHocAdvancedMappingsQueryMySqlTest : AdHocAdvancedMappingsQ
     {
         if (fractionalSeconds == 7)
         {
-            await AssertInvalidTemporalPrecision(
-                () => base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix));
+            await AssertInvalidTemporalPrecision(()
+                => base.Query_generates_correct_datetime2_parameter_definition(fractionalSeconds, postfix));
 
             return;
         }
@@ -35,8 +35,8 @@ public sealed class AdHocAdvancedMappingsQueryMySqlTest : AdHocAdvancedMappingsQ
     {
         if (fractionalSeconds == 7)
         {
-            await AssertInvalidTemporalPrecision(
-                () => base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix));
+            await AssertInvalidTemporalPrecision(()
+                => base.Query_generates_correct_timespan_parameter_definition(fractionalSeconds, postfix));
 
             return;
         }

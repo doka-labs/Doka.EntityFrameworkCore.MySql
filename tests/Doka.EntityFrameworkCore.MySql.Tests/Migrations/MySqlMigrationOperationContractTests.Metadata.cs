@@ -11,6 +11,7 @@ public sealed partial class MySqlMigrationOperationContractTests
     {
         // Arrange
         MigrationOperation operation = null!;
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -228,6 +229,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             : CreateColumnOperation();
 
         operation[annotationName] = "invalid";
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -246,6 +248,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var operation = CreateColumnOperation();
         operation[MySqlAnnotationNames.GuidFormat] = (MySqlGuidFormat)int.MaxValue;
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -273,6 +276,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         operation.ClrType = clrType;
         operation.ColumnType = columnType;
         operation[MySqlAnnotationNames.GuidFormat] = format;
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -342,6 +346,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         // Arrange
         var operation = new SqlOperation { Sql = "SELECT 1;" };
         operation[annotationName] = annotationValue ?? new[] { 0 };
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -366,6 +371,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { -1 };
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -390,6 +396,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act
@@ -414,6 +421,7 @@ public sealed partial class MySqlMigrationOperationContractTests
         };
 
         operation[MySqlAnnotationNames.IndexPrefixLength] = new[] { 16 };
+
         void act() => operation.GetMySqlMigrationMetadata();
 
         // Act

@@ -73,11 +73,10 @@ public sealed partial class MySqlMigrationOperationContractTests
     public void Provider_layout_rejects_an_empty_body()
     {
         // Arrange
-        static void act() =>
-            MySqlMigrationCommandLayout.CreateProviderScoped(
-                ["SET @scope = 1;\n"],
-                "   ",
-                ["SET @scope = NULL;\n"]);
+        static void act() => MySqlMigrationCommandLayout.CreateProviderScoped(
+            ["SET @scope = 1;\n"],
+            "   ",
+            ["SET @scope = NULL;\n"]);
 
         // Act
         var recordedException = Record.Exception(act);

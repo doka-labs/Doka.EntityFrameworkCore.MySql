@@ -39,6 +39,7 @@ public sealed class MySqlTemporalTopologyTests
     {
         // Arrange
         using var context = CreateContext<CurrentOwnedConfiguration>();
+
         void act() => _ = context.Model;
 
         // Act

@@ -92,10 +92,10 @@ public sealed partial class MySqlGuidSqlDefaultDdlIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb114,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb114,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(PopulatedAddColumnCases))]
     public async Task AddColumn_guid_sql_default_backfills_populated_table_and_generates_new_values(

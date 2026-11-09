@@ -41,11 +41,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(StringPredicateCases))]
     public async Task String_predicate_matches_expected_rows(
@@ -92,11 +92,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(StringProjectionCases))]
     public async Task String_projection_returns_expected_value(
@@ -164,11 +164,11 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     [RequiresDatabaseTargetsTheory(
         new[]
         {
-        IntegrationDatabaseTarget.MySql84,
-        IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb1011,
-        IntegrationDatabaseTarget.MariaDb118,
-            IntegrationDatabaseTarget.MariaDb123
+            IntegrationDatabaseTarget.MySql84,
+            IntegrationDatabaseTarget.MySql97,
+            IntegrationDatabaseTarget.MariaDb1011,
+            IntegrationDatabaseTarget.MariaDb118,
+            IntegrationDatabaseTarget.MariaDb123,
         })]
     [MemberData(nameof(StringNumericCases))]
     public async Task String_numeric_projection_returns_expected_value(

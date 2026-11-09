@@ -5,7 +5,6 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 public partial class JsonQueryMySqlTest
 {
-
     [Theory]
     [SpecEngineLimitationTheory(
         "MYSQL-MARIADB-JSON-DOCUMENT-VALIDATION",

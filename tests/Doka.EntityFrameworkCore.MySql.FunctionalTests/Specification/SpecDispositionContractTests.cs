@@ -1,3 +1,4 @@
+using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 using Xunit.v3;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
@@ -104,8 +105,8 @@ public class SpecDispositionContractTests
     [Fact]
     public void Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration()
     {
-        var method = typeof(Query.ComplexNavigationsQueryMySqlTest).GetMethod(
-            nameof(Query.ComplexNavigationsQueryMySqlTest.SelectMany_subquery_with_custom_projection))!;
+        var method = typeof(ComplexNavigationsQueryMySqlTest).GetMethod(
+            nameof(ComplexNavigationsQueryMySqlTest.SelectMany_subquery_with_custom_projection))!;
 
         var dataDeclaration = TheoryDataInheritance.FindNearestDataDeclaration(method);
 
@@ -114,6 +115,7 @@ public class SpecDispositionContractTests
             "ComplexNavigationsQueryTestBase`1",
             dataDeclaration.DeclaringType!.Name,
             StringComparison.Ordinal);
+
         Assert.NotEmpty(dataDeclaration.GetCustomAttributes<DataAttribute>(inherit: false));
     }
 
@@ -178,7 +180,9 @@ public class SpecDispositionContractTests
             .Select(method => new
             {
                 Method = method,
-                Attributes = method.GetCustomAttributes<FactAttribute>(inherit: true).ToArray(),
+                Attributes = method
+                    .GetCustomAttributes<FactAttribute>(inherit: true)
+                    .ToArray(),
             })
             .Where(item => item.Attributes.Length > 1)
             .OrderBy(item => item.Method.DeclaringType!.FullName, StringComparer.Ordinal)
@@ -193,7 +197,9 @@ public class SpecDispositionContractTests
                 Environment.NewLine,
                 duplicateTestAttributes.Select(item =>
                     $"{item.Method.DeclaringType!.FullName}.{item.Method.Name}: "
-                    + string.Join(", ", item.Attributes.Select(attribute => attribute.GetType().Name)))));
+                    + string.Join(", ",
+                        item.Attributes.Select(attribute => attribute.GetType()
+                            .Name)))));
     }
 
     /// <summary>

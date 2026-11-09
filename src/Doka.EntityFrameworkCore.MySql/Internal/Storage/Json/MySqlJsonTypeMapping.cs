@@ -16,7 +16,9 @@ internal static class MySqlJsonTypeMapping
     /// </summary>
     public static MySqlJsonTypeMapping<JsonDocument> CreateJsonDocumentMapping() => new(
         new ValueConverter<JsonDocument?, string>(
-            v => v != null ? v.RootElement.GetRawText() : "null",
+            v => v != null
+                ? v.RootElement.GetRawText()
+                : "null",
             v => JsonDocument.Parse(v, default)),
         MySqlJsonValueComparers.JsonDocumentComparer);
 
@@ -30,11 +32,14 @@ internal static class MySqlJsonTypeMapping
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping<JsonNode> CreateJsonNodeMapping() => new(
         new ValueConverter<JsonNode?, string>(
-            v => v != null ? v.ToJsonString() : "null",
-            v => JsonNode.Parse(v, default(JsonNodeOptions?))),
+            v => v != null
+                ? v.ToJsonString()
+                : "null",
+            v => JsonNode.Parse(v, default)),
         MySqlJsonValueComparers.JsonNodeComparer);
 
     /// <summary>
@@ -47,11 +52,14 @@ internal static class MySqlJsonTypeMapping
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping<JsonObject> CreateJsonObjectMapping() => new(
         new ValueConverter<JsonObject?, string>(
-            v => v != null ? v.ToJsonString() : "null",
-            v => (JsonObject?)JsonNode.Parse(v, default(JsonNodeOptions?))),
+            v => v != null
+                ? v.ToJsonString()
+                : "null",
+            v => (JsonObject?)JsonNode.Parse(v, default)),
         MySqlJsonValueComparers.JsonNodeComparer);
 
     /// <summary>
@@ -64,11 +72,14 @@ internal static class MySqlJsonTypeMapping
     [UnconditionalSuppressMessage(
         "AOT",
         "IL3050",
-        Justification = "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
+        Justification =
+            "JsonNode.Parse / ToJsonString do not trigger runtime code generation for the JSON primitives this mapping handles.")]
     public static MySqlJsonTypeMapping<JsonArray> CreateJsonArrayMapping() => new(
         new ValueConverter<JsonArray?, string>(
-            v => v != null ? v.ToJsonString() : "null",
-            v => (JsonArray?)JsonNode.Parse(v, default(JsonNodeOptions?))),
+            v => v != null
+                ? v.ToJsonString()
+                : "null",
+            v => (JsonArray?)JsonNode.Parse(v, default)),
         MySqlJsonValueComparers.JsonNodeComparer);
 }
 
@@ -80,7 +91,8 @@ internal static class MySqlJsonTypeMapping
 internal sealed class MySqlJsonTypeMapping<
     [DynamicallyAccessedMembers(
         DynamicallyAccessedMemberTypes.PublicMethods
-        | DynamicallyAccessedMemberTypes.PublicProperties)] T>
+        | DynamicallyAccessedMemberTypes.PublicProperties)]
+    T>
     : RelationalTypeMapping<T>, IMySqlProviderOwnedModelTypeMapping
 {
     private static readonly MethodInfo s_jsonElementParseMethod = typeof(JsonElement).GetRuntimeMethod(

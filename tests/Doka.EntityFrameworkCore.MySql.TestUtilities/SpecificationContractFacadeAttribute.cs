@@ -14,7 +14,7 @@ public sealed class SpecificationContractFacadeAttribute : Attribute
 {
     /// <summary>
     /// Initializes a new instance of the
-    /// <see cref="SpecificationContractFacadeAttribute"/> class.
+    /// <see cref="SpecificationContractFacadeAttribute" /> class.
     /// </summary>
     /// <param name="contractType">The upstream specification contract type.</param>
     public SpecificationContractFacadeAttribute(

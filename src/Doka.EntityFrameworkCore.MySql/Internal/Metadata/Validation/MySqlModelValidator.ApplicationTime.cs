@@ -145,7 +145,8 @@ internal sealed partial class MySqlModelValidator
     {
         var hasApplicationTimeConstraint = entityType
                 .GetKeys()
-                .Any(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)?.Value is true)
+                .Any(key => key.FindAnnotation(MySqlAnnotationNames.ApplicationTimeKeyWithoutOverlaps)
+                    ?.Value is true)
             || entityType
                 .GetIndexes()
                 .Any(index => index.GetMySqlApplicationTimeWithoutOverlaps());
@@ -213,7 +214,10 @@ internal sealed partial class MySqlModelValidator
 
             if (index.GetMySqlSpatialIndex()
                 || index.GetMySqlFullTextIndex()
-                || index.GetMySqlIndexPrefixLengths()?.Any(prefixLength => prefixLength > 0) == true)
+                || index
+                    .GetMySqlIndexPrefixLengths()
+                    ?.Any(prefixLength => prefixLength > 0)
+                == true)
             {
                 ThrowInvalidApplicationTime(
                     logger,

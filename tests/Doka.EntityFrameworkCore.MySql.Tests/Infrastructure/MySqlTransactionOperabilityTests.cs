@@ -93,6 +93,7 @@ public sealed class MySqlTransactionOperabilityTests
             .Single();
 
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
         Task act() => transaction.CommitAsync(cancellationToken);
 
         // Act

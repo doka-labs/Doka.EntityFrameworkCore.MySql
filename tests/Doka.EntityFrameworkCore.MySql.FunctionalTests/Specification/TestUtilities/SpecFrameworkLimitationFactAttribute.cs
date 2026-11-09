@@ -18,7 +18,9 @@ public sealed class SpecFrameworkLimitationFactAttribute : SpecDispositionAttrib
     /// <param name="dispositionId">
     /// Stable identifier of the corresponding framework disposition.
     /// </param>
-    public SpecFrameworkLimitationFactAttribute(string dispositionId)
+    public SpecFrameworkLimitationFactAttribute(
+        string dispositionId
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dispositionId);
         DispositionId = dispositionId;

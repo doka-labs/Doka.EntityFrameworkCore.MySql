@@ -6,8 +6,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     private readonly MySqlMigrationOperationHandlerRegistry _operationHandlerRegistry;
     private DdlCommentSqlModeCommands? _ddlCommentSqlModeCommands;
     private MySqlMigrationFeatureSet? _migrationFeatures;
-    private MySqlServerVersion? _serverVersion;
     private int _operationOrdinal = -1;
+    private MySqlServerVersion? _serverVersion;
 
     public MySqlMigrationsSqlGenerator(
         MigrationsSqlGeneratorDependencies dependencies,
@@ -43,11 +43,11 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     private ProviderProfile Profile => ServerVersion.Profile;
 
     private MySqlServerVersion ServerVersion => _serverVersion ??= Dependencies
-        .CurrentContext
-        .Context
-        .GetService<IDbContextOptions>()
-        .FindExtension<MySqlOptionsExtension>()
-        ?.ServerVersion
+            .CurrentContext
+            .Context
+            .GetService<IDbContextOptions>()
+            .FindExtension<MySqlOptionsExtension>()
+            ?.ServerVersion
         ?? throw new InvalidOperationException(
             "The server version must be configured before migration SQL generation.");
 

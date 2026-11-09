@@ -19,10 +19,10 @@ public sealed class EfCoreServiceDecoratorTests
     {
         // Arrange
         var services = new ServiceCollection();
-        void act() =>
-            EfCoreServiceDecorator.Decorate<IMigrationsModelDiffer, MySqlMigrationsModelDiffer>(
-                services,
-                (inner, _) => new MySqlMigrationsModelDiffer(inner));
+
+        void act() => EfCoreServiceDecorator.Decorate<IMigrationsModelDiffer, MySqlMigrationsModelDiffer>(
+            services,
+            (inner, _) => new MySqlMigrationsModelDiffer(inner));
 
         // Act
         var recordedException = Record.Exception(act);

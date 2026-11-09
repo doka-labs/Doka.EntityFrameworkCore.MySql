@@ -107,7 +107,6 @@ internal sealed partial class MySqlModelValidator
         {
             ValidateNativeTemporalGeneratedColumns(entityType, logger);
         }
-
     }
 
     private static void ValidateEmulatedTemporalStorageEngine(
@@ -247,11 +246,11 @@ internal sealed partial class MySqlModelValidator
     )
     {
         foreach (var tableGroup in model
-                     .GetEntityTypes()
-                     .Where(entityType => entityType.GetTableName() is not null)
-                     .GroupBy(
-                         entityType => (entityType.GetSchema(), entityType.GetTableName()),
-                         StringTupleComparer.OrdinalIgnoreCase))
+            .GetEntityTypes()
+            .Where(entityType => entityType.GetTableName() is not null)
+            .GroupBy(
+                entityType => (entityType.GetSchema(), entityType.GetTableName()),
+                StringTupleComparer.OrdinalIgnoreCase))
         {
             var entityTypes = tableGroup.ToArray();
 
