@@ -1388,6 +1388,21 @@ def readback(args: argparse.Namespace) -> None:
         symbol_manifest,
         str(receipt["releaseVersion"]),
     )
+
+    readback_payloads(args, receipt, symbol_entries)
+
+
+def readback_payloads(
+    args: argparse.Namespace,
+    receipt: dict[str, Any],
+    symbol_entries: list[dict[str, str]],
+) -> None:
+    """Retain exact public bytes after the caller authenticates its own run.
+
+    WHY: Normal publication and protected completion have different hosted
+    identities. Only public-byte polling is shared; their admission checks
+    remain at the respective entry points.
+    """
     deadline = time.monotonic() + args.timeout_seconds
     last_error = "package or symbols are not indexed"
     package_base_address: str | None = None

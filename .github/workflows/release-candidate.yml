@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      finalize_run_id:
+        description: Complete an admitted existing publication without rebuilding or pushing packages
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -30,7 +35,40 @@ env:
   DOKA_RELEASE_LINE_AUTHORITY: artifacts/release-lines/authority.json
 
 jobs:
+  route:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # WHY: Reject incompatible intent before any job can request the nuget environment.
+      - name: Validate candidate or completion intent
+        env:
+          ORIGINAL_RUN_ID: ${{ inputs.finalize_run_id }}
+          QUALIFICATION_ONLY: ${{ inputs.qualification_only }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${ORIGINAL_RUN_ID}" ]]; then
+            if [[ "${QUALIFICATION_ONLY}" == "true" ]]; then
+              echo "Completion cannot be combined with qualification_only." >&2
+              exit 1
+            fi
+
+            if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+              echo "Completion must use the current protected main control workflow." >&2
+              exit 1
+            fi
+
+            if [[ ! "${ORIGINAL_RUN_ID}" =~ ^[1-9][0-9]*$ ]]; then
+              echo "finalize_run_id must be a positive existing workflow run ID." >&2
+              exit 1
+            fi
+          fi
+
   preflight:
+    needs: route
+    if: ${{ inputs.finalize_run_id == '' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
 
@@ -120,6 +158,7 @@ jobs:
 
   qualification:
     needs: preflight
+    if: ${{ inputs.finalize_run_id == '' }}
     uses: $/.github/workflows/quality-gates.yml
     permissions:
       actions: read
@@ -129,6 +168,7 @@ jobs:
       authorization_artifact: ${{ needs.preflight.outputs.line_artifact_name }}
 
   assemble:
+    if: ${{ inputs.finalize_run_id == '' }}
     needs:
       - preflight
       - qualification
@@ -259,6 +299,7 @@ jobs:
           retention-days: 30
 
   attest:
+    if: ${{ inputs.finalize_run_id == '' }}
     needs:
       - preflight
       - assemble
@@ -380,9 +421,77 @@ jobs:
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  complete:
+    # WHY: Fresh protected-main controls may finish existing bytes, never execute the old source as code.
+    needs: route
+    if: ${{ inputs.finalize_run_id != '' && !inputs.qualification_only && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-26.04
+    # WHY: Leave room for the bounded one-hour public-byte readback plus evidence and GitHub verification.
+    timeout-minutes: 90
+    concurrency:
+      group: doka-publication
+      cancel-in-progress: false
+      queue: max
+    environment:
+      name: nuget
+    permissions:
+      actions: read
+      attestations: read
+      checks: read
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      ORIGINAL_RUN_ID: ${{ inputs.finalize_run_id }}
+      DOKA_PUBLICATION_LOCK_GROUP: doka-publication
+      DOKA_PUBLICATION_LOCK_HELD: "1"
+    steps:
+      - name: Checkout protected current control source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      # WHY: Signature readback uses dotnet nuget verify; completion never restores or builds old source.
+      - name: Setup pinned verification SDK
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Prepare authenticated existing publication completion
+        shell: bash
+        run: |
+          python3 -m eng.release.completion prepare \
+            --repository "${GITHUB_REPOSITORY}" \
+            --version "${RELEASE_VERSION}" \
+            --original-run-id "${ORIGINAL_RUN_ID}" \
+            --output-dir artifacts/release-completion
+
+      - name: Complete only the frozen existing release
+        shell: bash
+        run: |
+          receipt="artifacts/release-completion/prepared.json"
+          receipt_sha256="$(sha256sum "${receipt}")"
+          receipt_sha256="${receipt_sha256%% *}"
+          python3 -m eng.release.completion complete \
+            --receipt "${receipt}" \
+            --receipt-sha256 "${receipt_sha256}" \
+            --output-dir artifacts/release-completion
+
+      - name: Upload completion evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-completion-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/release-completion
+          if-no-files-found: warn
+          retention-days: 30
+
   publish:
     # WHY: Skip the environment-bearing job itself for qualification-only and prepared lines.
-    if: ${{ !inputs.qualification_only && needs.preflight.outputs.publish_allowed == 'true' }}
+    if: ${{ inputs.finalize_run_id == '' && !inputs.qualification_only && needs.preflight.outputs.publish_allowed == 'true' }}
     needs:
       - preflight
       - assemble

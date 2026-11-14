@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -52,6 +54,178 @@ def git(repo: Path, *arguments: str) -> None:
         capture_output=True,
         text=True,
     )
+
+
+class PreTagBranchScriptTests(unittest.TestCase):
+    """Execute the shipped shell entry against real branch and worktree state."""
+
+    def setUp(self) -> None:
+        """Isolate git locally and replace only remote trust dependencies."""
+        directory = tempfile.TemporaryDirectory(prefix="doka-pre-tag-")
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        self.script = self.repo / "eng/release/pre-tag-check.sh"
+        self.script.parent.mkdir(parents=True)
+        shutil.copyfile(REPOSITORY_ROOT / "eng/release/pre-tag-check.sh", self.script)
+        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        signers = self.repo / self.policy["trustedTagSigners"]["allowedSignersFile"]
+        signers.parent.mkdir(parents=True, exist_ok=True)
+        signers.write_text("fixture\n", encoding="ascii")
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        for name, body in {
+            "gh": "printf '%s\\n' doka-labs/Doka.EntityFrameworkCore.MySql\n",
+            "python3": (
+                "printf 'PRE-TAG\\tOK\\tfixture signer\\tregistered\\n'\n"
+                "printf 'PRE-TAG\\tOK\\tfixture receipt\\tverified\\n'\n"
+            ),
+        }.items():
+            executable = self.bin / name
+            executable.write_text("#!/usr/bin/env bash\n" + body, encoding="ascii")
+            executable.chmod(0o755)
+
+        git(self.repo, "init", "--initial-branch=main", "--quiet")
+        git(self.repo, "config", "user.name", "Test")
+        git(self.repo, "config", "user.email", "test@example.test")
+
+    def prepare_branch(self, branch: str) -> None:
+        """Commit a branch-local policy and its matching remote-tracking ref."""
+        for gate in self.policy["gates"]:
+            if gate["id"] in self.policy["requiredProtectedChecks"]:
+                gate["requiredBaseBranch"] = branch
+
+        (self.script.parent / "evidence-policy.json").write_text(
+            json.dumps(self.policy) + "\n", encoding="ascii"
+        )
+        git(self.repo, "branch", "-m", branch)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "--quiet", "-m", "fixture")
+        git(self.repo, "update-ref", f"refs/remotes/origin/{branch}", "HEAD")
+
+    def run_check(self, protected_ref: str | None = None) -> subprocess.CompletedProcess[str]:
+        """Run the actual script without inheriting an operator ref override."""
+        environment = dict(os.environ)
+        environment.pop("DOKA_RELEASE_PROTECTED_REF", None)
+        environment["PATH"] = str(self.bin) + os.pathsep + environment["PATH"]
+        if protected_ref is not None:
+            environment["DOKA_RELEASE_PROTECTED_REF"] = protected_ref
+
+        return subprocess.run(
+            ("bash", str(self.script)), cwd=self.repo, env=environment,
+            capture_output=True, text=True, check=False,
+        )
+
+    def test_main_policy_keeps_the_existing_release_path(self) -> None:
+        """Accept a clean main checkout reachable from its protected ref."""
+        # Arrange
+        self.prepare_branch("main")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refs/remotes/origin/main", result.stdout)
+
+    def test_maintenance_policy_selects_its_own_protected_ref(self) -> None:
+        """Resolve a line-local policy without silently looking at main."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("refs/remotes/origin/maintenance/10.x", result.stdout)
+
+    def test_matching_explicit_protected_ref_is_accepted(self) -> None:
+        """Retain the documented override when it agrees with branch policy."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+
+        # Act
+        result = self.run_check("refs/remotes/origin/maintenance/10.x")
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_main_override_cannot_substitute_for_maintenance_policy(self) -> None:
+        """Reject a reachable but unrelated ref instead of weakening line trust."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        # Act
+        result = self.run_check("refs/remotes/origin/main")
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("does not match", result.stderr)
+
+    def test_wrong_local_branch_is_rejected(self) -> None:
+        """Require the operator checkout and branch-local policy to agree."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+        git(self.repo, "checkout", "--quiet", "-b", "unrelated")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("current branch", result.stdout + result.stderr)
+
+    def test_missing_policy_branch_does_not_fall_back_to_main(self) -> None:
+        """Fail closed when the qualification policy has no exact branch."""
+        # Arrange
+        self.prepare_branch("main")
+        for gate in self.policy["gates"]:
+            gate.pop("requiredBaseBranch", None)
+
+        (self.script.parent / "evidence-policy.json").write_text(
+            json.dumps(self.policy) + "\n", encoding="ascii"
+        )
+        git(self.repo, "commit", "--quiet", "-am", "remove branch")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("protected branch policy", result.stderr)
+
+    def test_untracked_source_remains_a_release_blocker(self) -> None:
+        """Keep porcelain's untracked-file protection for every branch."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+        (self.repo / "untracked.txt").write_text("dirty\n", encoding="ascii")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("a tag would not describe the working tree", result.stdout)
+
+    def test_unpushed_source_remains_a_release_blocker(self) -> None:
+        """Reject a clean local commit absent from its line's remote history."""
+        # Arrange
+        self.prepare_branch("maintenance/10.x")
+        git(self.repo, "commit", "--quiet", "--allow-empty", "-m", "unpushed")
+
+        # Act
+        result = self.run_check()
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "push the commit to refs/remotes/origin/maintenance/10.x first",
+            result.stdout,
+        )
 
 
 class ApiVerificationTests(unittest.TestCase):

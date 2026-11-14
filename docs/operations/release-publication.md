@@ -7,7 +7,7 @@ authoritative in [Release Governance](../release-governance.md).
 The [release-line runbook](release-lines.md) extends this same entry to approved
 exact branch roles. All authorized lines use the existing `nuget` environment;
 `maintenance/10.x` and `preview/11.x` remain inactive. Do not apply the
-main-only examples below to an inactive branch by substituting a ref. Prepared
+examples below to an inactive branch by substituting a ref. Prepared
 qualification, current authorization and separately approved activation must
 be completed first. The single entry remains `release-candidate.yml`; its
 branch selector and version identify the candidate. No hosted change or
@@ -48,7 +48,7 @@ Before the first publication, verify these controls in the hosted repository:
   immutability** selected; the setting applies only to releases published after
   it is enabled;
 - the `nuget` environment accepts `main` and rejects other deployment refs;
-- the environment review is requested only for the `publish` job; and
+- the environment review is requested only for publication or explicit completion; and
 - the NuGet Trusted Publishing policy names the exact workflow and environment
   above.
 
@@ -88,29 +88,34 @@ There is no manual run/digest inventory, policy PR or new grant form per release
 Protected preparation uses `qualification_only=true` through the same entry
 and never requests a publisher environment, publication credentials or tag.
 
-### 1. Establish a release-ready main commit
+### 1. Establish a release-ready source commit
 
 Complete the dated `CHANGELOG.md` section, public API files, package metadata,
 and release notes. Prerelease candidates keep new declarations in
 `PublicAPI.Unshipped.txt`; each stable release moves accumulated additions to
 `PublicAPI.Shipped.txt` in this reviewed preparation commit before candidate
-dispatch. Merge through protected `main` only after the pull request's
-`repository-qualification` and required code scanning are green. The merge
-does not repeat those product lanes on `main`. Then update the local checkout:
+dispatch. Merge through the authorized protected release branch only after the
+pull request's `repository-qualification` and required code scanning are green. The merge
+does not repeat those product lanes on the source branch. Set `release_branch`
+once for this release; `main` is the currently active source. Only use another
+exact branch after its separately approved activation. Then update the local
+checkout:
 
 ```bash
-git fetch origin main --tags
-git switch main
-git merge --ff-only origin/main
-git status --short
+release_branch='main'
+git fetch origin "${release_branch}" --tags
+git switch "${release_branch}"
+git merge --ff-only "origin/${release_branch}"
+git status --porcelain --untracked-files=all
 
 release_commit="$(git rev-parse HEAD)"
-test "${release_commit}" = "$(git rev-parse origin/main)"
+test "${release_commit}" = "$(git rev-parse "origin/${release_branch}")"
 ```
 
-`git status --short` must print nothing. Candidate dispatch deliberately
-requires the exact current `main` commit. A later merge does not invalidate the
-candidate as long as the qualified commit remains on protected `main` history;
+The porcelain status command must print nothing, including no untracked files.
+Candidate dispatch deliberately requires the exact current source-branch
+commit. A later merge does not invalidate the candidate as long as the
+qualified commit remains on that protected branch's history;
 the workflow still publishes only the recorded candidate bytes and tag.
 
 Benchmarks are independent engineering evidence. They are not invoked or read
@@ -118,14 +123,19 @@ by release qualification and cannot block a release.
 
 ### 2. Verify the pre-tag branch trust root
 
-Run the read-only lookup after the candidate is current on protected `main` and
+Run the read-only lookup after the candidate is current on `release_branch` and
 its merged pull request was green:
 
 ```bash
 ./eng/pre-tag-check.sh
 ```
 
-It verifies the clean source, protected-main reachability, configured signing
+The lookup derives its protected ref from the checked-out branch's evidence
+policy and requires the current branch to match. An explicit
+`DOKA_RELEASE_PROTECTED_REF` must name that same remote-tracking ref; it cannot
+substitute another line's history. This local check does not activate a line.
+
+It verifies the clean source, protected-branch reachability, configured signing
 material, and the successful pull-request `repository-qualification` whose
 attempt-qualified artifact name records the merge-ref tree GitHub tested. That
 tree must exactly match the candidate commit's Git tree. The artifact ID is
@@ -141,7 +151,8 @@ gate starts.
 
 ### 3. Start one untagged candidate run
 
-In GitHub Actions, run `release-candidate` with the ref selector set to `main`
+In GitHub Actions, run `release-candidate` with the ref selector set to the
+exact value of `release_branch` (`main` for the currently active source)
 and provide:
 
 ```text
@@ -232,8 +243,9 @@ release_version="<release_version>"
 release_tag="v${release_version}"
 
 test "$(git rev-parse HEAD)" = "${release_commit}"
-git fetch origin main
-git merge-base --is-ancestor "${release_commit}" origin/main
+test "$(git branch --show-current)" = "${release_branch}"
+git fetch origin "${release_branch}"
+git merge-base --is-ancestor "${release_commit}" "origin/${release_branch}"
 git tag -s "${release_tag}" "${release_commit}" \
   -m "Doka.EntityFrameworkCore.MySql ${release_version}"
 git tag -v "${release_tag}"
@@ -294,6 +306,13 @@ inventory and matches the exact tag. GitHub's release-by-tag REST endpoint is
 documented for published releases and therefore cannot discover a draft.
 Draft creation and asset upload each use bounded readback polling before the
 workflow crosses the NuGet publication boundary.
+
+Draft staging retains six read attempts with two-second pauses. After
+publication, GitHub's published/immutable readback has a separate limit of
+30 attempts with ten seconds between attempts (at most 29 pauses). Request
+duration is additional; this is not an exact five-minute deadline. Pending
+visibility can retry, but conflicting metadata, bytes, tags or Latest state
+still fail immediately. NuGet's separate one-hour readback limit is unchanged.
 
 Post-publication observations are deliberately not GitHub release assets. They
 can contain retry-specific timestamps and remote-state transitions. Keeping
@@ -365,8 +384,10 @@ it.
   an unambiguously empty orphan under explicit operator control. The workflow
   never chooses or deletes a duplicate automatically.
 - If publication succeeded but final workflow readback was interrupted, rerun
-  the failed `publish` job. A matching immutable GitHub release is accepted
-  only after complete metadata and asset digest verification.
+  the failed `publish` job, or use the completion-only path below when all
+  public package/symbol bytes and existing release assets are already present.
+  A matching immutable GitHub release is accepted only after complete metadata
+  and asset digest verification.
 - Do not rerun the entire workflow after the tag exists. Candidate preparation
   intentionally refuses tagged source. Use `Re-run failed jobs` so
   the same qualified candidate reaches the resumable publication job.
@@ -374,13 +395,54 @@ it.
   initialization failure or cancellation that leaves no admission/publication
   markers remains blocked; a missing history is not proof that publication
   never started.
-- Any source, package, configuration, dependency, or release-tool change
-  requires a new reviewed `main` commit and a new unused release version.
+- Changes to the original release's source, packages, configuration or
+  dependencies require a new reviewed source commit and unused release version.
+  A reviewed completion-tool correction on current `main` may verify an older
+  immutable candidate through the separate path below; it cannot replace that
+  candidate's source, bytes or original evidence.
 
 Symbols can take time to become available. The workflow uses bounded polling
 and retains a red completion state when availability or signature verification
 does not complete. That state does not roll back already published packages;
 it forces the same-identity recovery path above.
+
+### Complete an existing publication from current main
+
+Use this path only after all three primary packages and their exact Portable
+PDBs are publicly available and the existing GitHub release has its complete
+candidate asset set. Partial uploads still require the ordinary same-run retry.
+
+1. Open `release-candidate.yml` on `main`.
+2. Enter the original release `version` and its workflow run ID in
+   `finalize_run_id`. Keep `qualification_only=false`.
+3. Review and approve the existing `nuget` environment request for completion.
+4. Check the new run's completion evidence and its link to the original run.
+
+The workflow rejects conflicting qualification/completion inputs before an
+environment request. The new run executes current protected-main controls,
+not code from the original candidate. `eng/release/completion.py` restores and
+freezes the original admission, candidate, checkpoint and provenance archives
+by their exact run attempts, artifact IDs and digests. It independently checks
+the successful original producers, frozen PR qualification, source ancestry,
+current active-line grants and current trusted tag signers. Original evidence
+is data to verify, never source to execute.
+
+Completion verifies the original cryptographic provenance and the canonical
+public package contents, NuGet repository signatures and exact Portable PDB
+bytes again. Immediately before writing it rechecks current authority, tag,
+evidence and the frozen positive GitHub Release ID. Its only release mutation
+is a numeric-ID PATCH publishing that existing complete draft with monotonic
+Latest handling. An already matching immutable release needs no mutation.
+If publication is already visible but immutable metadata is still pending,
+completion waits within the same bounded GitHub window without publishing again.
+It cannot create a release, upload/delete assets, build/repack packages,
+write tags, request OIDC credentials or log in to NuGet.
+
+Missing, expired, conflicting or replaced original evidence, missing public
+subjects, changed release IDs and revoked/reassigned release lines remain
+blocking. A completion run does not activate a line or modify hosted settings.
+It retains its own preparation/completion evidence in an Actions artifact; the
+original failed run stays failed and is linked rather than rewritten.
 
 ## Primary sources
 
@@ -418,7 +480,7 @@ it forces the same-identity recovery path above.
 - GitHub, [Re-running workflows and jobs](https://docs.github.com/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs),
   retrieved 2026-08-16.
 - GitHub, [REST API endpoints for releases](https://docs.github.com/en/rest/releases/releases),
-  retrieved 2026-08-17.
+  retrieved 2026-11-14; existing releases are updated by numeric release ID.
 - GitHub, [Workflow-run attempt REST API](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt),
   retrieved 2026-08-16.
 - Git, [`git-tag`](https://git-scm.com/docs/git-tag), retrieved 2026-08-16.

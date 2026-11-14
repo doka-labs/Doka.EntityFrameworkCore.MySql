@@ -159,6 +159,21 @@ that release before disabling or reassigning its line; there is no special
 allowlist mode. Never delete published packages, rewrite signed tags or replace
 frozen evidence to make a retry succeed.
 
+When publication is already complete at the package/symbol and release-asset
+boundaries, the same entry also accepts `finalize_run_id` on current `main`,
+with the original version and `qualification_only=false`. This runs current
+protected controls against the original exact attempts, artifact IDs, digests,
+admission, signed tag and frozen PR proof. Current active-line authority still
+applies; completion cannot revive a disabled or reassigned line. It verifies
+public primary signatures and exact Portable PDBs and can only publish the
+existing complete numeric Release ID or verify its immutable state. It never
+builds, repacks, uploads, rewrites tags or requests NuGet credentials.
+
+The original failed run remains unchanged; linked evidence belongs to the new
+completion run. Partial uploads require original-run retry, while missing or
+expired indispensable evidence blocks both paths. See the
+[completion procedure](release-publication.md#complete-an-existing-publication-from-current-main).
+
 The pre-existing `eng/release/check-publication-readiness.sh` remains the
 clean-build/finalizer gate used by ordinary qualification. It is unrelated to
 the withdrawn framework-transition inventory/report subsystem.

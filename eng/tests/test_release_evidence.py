@@ -653,6 +653,44 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             self._generate()
 
+    def test_generate_rejects_upstream_discovery_as_qualification(self) -> None:
+        """A successful discovery job cannot replace full patch qualification."""
+        # Arrange
+        path = (
+            self.root
+            / "efcore-patch-matrix"
+            / "latest-10-0"
+            / "efcore-contract-evidence.json"
+        )
+        path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "validationScope": "upstream-probe",
+                    "qualificationStatus": "not-qualified",
+                    "reason": "unreviewed-newer-patch",
+                    "requestedVersion": "10.0.*",
+                    "resolvedVersion": "10.0.15",
+                    "highestReviewedVersion": "10.0.14",
+                    "results": {"dependencies": "resolved-packages.json"},
+                    "specificationTargets": [],
+                    "integrationTargets": [],
+                }
+            ),
+            encoding="ascii",
+        )
+
+        # Act
+        error = None
+        try:
+            self._generate()
+        except release_evidence.EvidenceError as exception:
+            error = exception
+
+        # Assert
+        self.assertIsInstance(error, release_evidence.EvidenceError)
+        self.assertRegex(str(error), "invalid validationScope contract")
+
     def test_generate_rejects_a_different_requested_and_resolved_patch(self) -> None:
         """Bind the requested release patch to the exact resolved graph."""
         path = (

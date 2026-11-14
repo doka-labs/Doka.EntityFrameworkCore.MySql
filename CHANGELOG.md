@@ -7,6 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Make normal release instructions branch-consistent and reject conflicting
+  pre-tag protected refs. Give GitHub publication/immutability visibility a
+  separate bounded wait while preserving immediate identity/content failures.
+- Allow protected completion of an already uploaded release through
+  `finalize_run_id` on current main. Revalidate original evidence, current
+  authority, signed public packages and exact symbols before completing only
+  the existing GitHub Release ID; never rebuild, upload or rewrite its identity.
+- Separate scheduled EF Core patch discovery from qualification. A newer patch
+  without reviewed specification contracts is reported as not qualified instead
+  of failing CI solely because it exists. Registered patches still run the full
+  matrix; partial or invalid contracts and actual execution failures remain
+  fatal. PR/release qualification retains its exact reviewed versions and guards.
+
 ## [10.6.5] - 2026-11-09
 
 Stable maintenance patch strengthening integration-test reliability and

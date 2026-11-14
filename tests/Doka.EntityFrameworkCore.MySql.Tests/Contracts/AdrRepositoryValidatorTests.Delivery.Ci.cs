@@ -243,6 +243,36 @@ public sealed partial class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>Separates scheduled patch discovery from the strict floor without masking execution failures.</summary>
+    [Fact]
+    public void Scheduled_ef_discovery_preserves_strict_qualification_scopes()
+    {
+        // Arrange
+        var path = Path.Combine(FindRepositoryRoot(), ".github", "workflows", "ci.yml");
+
+        // Act
+        var workflow = File.ReadAllText(path);
+        var efMatrix = GetWorkflowJob(workflow, "efcore-patch-matrix");
+
+        // Assert
+        Assert.Contains(
+            "artifact-suffix: minimum-10-0-8\n            validation-scope: full",
+            efMatrix,
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "artifact-suffix: latest-10-0\n            validation-scope: upstream-probe",
+            efMatrix,
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "DOKA_EF_CORE_VALIDATION_SCOPE: ${{ matrix.validation-scope }}",
+            efMatrix,
+            StringComparison.Ordinal);
+
+        Assert.DoesNotContain("continue-on-error", efMatrix, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Keeps maintenance dispatch nonpublishing and branch-native without
     /// adding another required pull-request qualification gate.

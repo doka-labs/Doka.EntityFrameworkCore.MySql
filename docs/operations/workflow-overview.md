@@ -16,6 +16,8 @@ flowchart LR
     PREFLIGHT --> COMMON
     COMMON -->|"Release caller"| ASSEMBLE["Same-run candidate assembly and attestation"]
     ASSEMBLE --> PUBLISH["Signed tag and approved exact-byte publication"]
+    COMPLETE["Explicit finalize_run_id on current main"] --> PROOF["Restore original evidence; verify current authority and public bytes"]
+    PROOF --> EXISTING["Complete existing Release ID or verify immutable release"]
     MERGE -.->|"Bound evidence"| PREFLIGHT
 ```
 
@@ -126,8 +128,13 @@ remains non-publishing even when no preview release line is active.
 Normal manual CI calls the shared qualifier once. Standalone migration and
 floating dependency jobs run on schedules or an explicit `maintenance=true`
 dispatch, avoiding a second copy during normal qualification. Floating probes
-can expose a newly published upstream patch before its exact contracts have
-been admitted; ordinary qualification retains the reviewed dependency recipe.
+report an entirely new EF patch as **not qualified** when its exact contracts
+have not been admitted. The retained `upstream-discovery.json` and job summary
+identify the resolved patch and highest reviewed reference; this outcome claims
+no build/test success and cannot satisfy a release gate. An admitted patch
+still runs the complete matrix. Partial/corrupt contracts, an unregistered
+older patch, inconsistent dependency resolution and actual execution failures
+remain fatal. Ordinary qualification retains the reviewed dependency recipe.
 
 ### Benchmark Failures Versus Hardware Diagnostics
 
@@ -158,6 +165,16 @@ default qualifies once, then uses the shared
 after the existing personal signed tag and protected approval. Setting
 `qualification_only=true` retains preparation evidence without entering a
 publisher environment or requesting publication credentials.
+
+For an already uploaded publication, `finalize_run_id` selects a separate
+completion path on current `main`, with the original version and
+`qualification_only=false`. Invalid combinations fail before protected approval.
+This path skips qualification, assembly, attestation and ordinary publication;
+it verifies the original exact evidence and public packages/symbols under the
+existing environment and publication lock. It can only PATCH an existing
+complete numeric Release ID, or verify an already immutable release. It has
+no OIDC, NuGet login, package build/upload or tag-writing step. The original
+failed run stays failed and the new completion evidence links it.
 
 ```mermaid
 flowchart TD
@@ -203,6 +220,13 @@ Preparation, admission upload and publication run under the same existing job
 lock and protected approval. Their separate timeline steps let the ordinary retry
 distinguish an early download failure from a possibly frozen or published
 candidate. See [failed publication and retry](release-lines.md#failed-publication-and-retry).
+
+GitHub publication readback permits 30 attempts with ten-second pauses between
+attempts (at most 29 pauses), independently of draft staging's six attempts and
+two-second pauses. Only pending visibility waits; identity/content conflicts
+still fail immediately. NuGet readback retains its separate one-hour limit.
+See [completion-only recovery](release-publication.md#complete-an-existing-publication-from-current-main)
+for the original-evidence and public-readback prerequisites.
 
 ### Line Setup Is Separate From Ordinary Releases
 

@@ -121,7 +121,9 @@ The TRX totals and display IDs matched the discovery contracts regenerated
 through 2026-08-16. Every skip matched its ledger ID, method, and target; every other
 discovered test passed. The three newly admitted targets were also executed
 against the minimum EF Core 10.0.8 patch on the same date. The scheduled patch
-matrix continues to execute both supported dependency endpoints in full.
+matrix executes the supported floor and every already admitted latest patch
+in full. A newer patch awaiting contract review is explicitly reported as not
+qualified, as described below.
 Release qualification re-resolves and records the deterministic floor graph,
 then fully executes the highest exact patch already registered in the reviewed
 baseline. Scheduled CI alone resolves floating `10.0.*` to detect a newer
@@ -143,9 +145,17 @@ bash eng/testing/check-spec-contract.sh
 bash eng/testing/check-spec-discovery.sh
 ```
 
-The floor/latest patch runner invokes the exact-version preflight immediately
+The qualification patch runner invokes the exact-version preflight immediately
 after reading back NuGet's resolved graph and before starting the repository or
-live-engine suites.
+live-engine suites. Scheduled floating detection uses the explicit
+`upstream-probe` scope: it validates the highest reviewed same-line contract,
+then reports an entirely unregistered newer patch as `not-qualified` in
+`upstream-discovery.json` and the Actions job summary. This report is not an
+`efcore-contract-evidence.json` receipt and cannot qualify a release. No tests
+are claimed for that new patch until its contracts have been generated and
+reviewed. Known patches still execute the complete matrix. Missing known,
+partial or malformed contracts and real producer failures remain fatal; the
+default `full` and `dependency-graph` scopes never permit unregistered patches.
 
 After a live specification run, reconcile its TRX results with the exact
 discovery and disposition contracts:
