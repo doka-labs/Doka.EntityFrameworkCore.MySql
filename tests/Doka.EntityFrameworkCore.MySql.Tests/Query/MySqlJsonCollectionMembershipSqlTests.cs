@@ -24,19 +24,25 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
     )
     {
         // Arrange
-        using var context = new DbContext(new DbContextOptionsBuilder()
-            .EnableServiceProviderCaching(false)
-            .UseMySql(
-                "Server=localhost;Database=unused;User ID=root;Password=unused;",
-                mariaDb
-                    ? MySqlServerVersion.MariaDb(new Version(12, 3, 0))
-                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-            .Options);
+        using var context = new DbContext(
+            new DbContextOptionsBuilder()
+                .EnableServiceProviderCaching(false)
+                .UseMySql(
+                    "Server=localhost;Database=unused;User ID=root;Password=unused;",
+                    mariaDb
+                        ? MySqlServerVersion.MariaDb(new Version(12, 3, 0))
+                        : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+                .Options);
 
         var factory = context.GetService<ISqlExpressionFactory>();
-        var mapping = context.GetService<IRelationalTypeMappingSource>().FindMapping(typeof(int))!;
+        var mapping = context
+            .GetService<IRelationalTypeMappingSource>()
+            .FindMapping(typeof(int))!;
+
         var rowset = new MySqlJsonTableExpression(
-            "values_rows", new SqlConstantExpression("[1,2]", MySqlStringTypeMapping.Default), path: null,
+            "values_rows",
+            new SqlConstantExpression("[1,2]", MySqlStringTypeMapping.Default),
+            path: null,
             columnInfos:
             [
                 new MySqlJsonTableExpression.ColumnInfo("value", mapping),
@@ -48,24 +54,42 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
         var predicate = shape switch
         {
             "mixed-or" => factory.OrElse(factory.Equal(value, one), factory.GreaterThan(value, one)),
-            "and" => factory.AndAlso(factory.GreaterThan(value, factory.Constant(0, mapping)), factory.LessThan(value, factory.Constant(3, mapping))),
-            "nullable-or" => factory.OrElse(factory.IsNull(value), factory.GreaterThan(value, factory.Constant(0, mapping))),
+            "and" => factory.AndAlso(
+                factory.GreaterThan(value, factory.Constant(0, mapping)),
+                factory.LessThan(value, factory.Constant(3, mapping))),
+            "nullable-or" => factory.OrElse(
+                factory.IsNull(value),
+                factory.GreaterThan(value, factory.Constant(0, mapping))),
             "in" => factory.In(value, [one, factory.Constant(2, mapping)]),
             _ => throw new ArgumentOutOfRangeException(nameof(shape)),
         };
 
         var subquery = CreateSelect([rowset], predicate, value);
         var membership = factory.In(factory.Constant(3, mapping), subquery);
-        var expression = CreateSelect([], predicate: null, negated ? factory.Not(membership) : membership);
+        var expression = CreateSelect(
+            [],
+            predicate: null,
+            negated
+                ? factory.Not(membership)
+                : membership);
 
         // Act
-        var sql = context.GetService<IQuerySqlGeneratorFactory>().Create().GetCommand(expression).CommandText;
+        var sql = context
+            .GetService<IQuerySqlGeneratorFactory>()
+            .Create()
+            .GetCommand(expression)
+            .CommandText;
 
         // Assert
         Assert.Contains("SELECT COUNT(*)", sql, StringComparison.Ordinal);
         Assert.Contains("WHERE (", sql, StringComparison.Ordinal);
         Assert.Contains(") AND `values_rows`.`value` <=> 3", sql, StringComparison.Ordinal);
-        Assert.Contains(negated ? ") = 0" : ") > 0", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            negated
+                ? ") = 0"
+                : ") > 0",
+            sql,
+            StringComparison.Ordinal);
 
         if (shape == "in")
         {
@@ -86,9 +110,17 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
         // a SQL fragment would bypass the predicate visitor under regression.
 #pragma warning disable EF1001
         return new SelectExpression(
-            alias: null, tables, predicate, groupBy: [], having: null,
-            [new ProjectionExpression(projection, "value")], distinct: false, orderings: [],
-            offset: null, limit: null, new SqlAliasManager());
+            alias: null,
+            tables,
+            predicate,
+            groupBy: [],
+            having: null,
+            [new ProjectionExpression(projection, "value")],
+            distinct: false,
+            orderings: [],
+            offset: null,
+            limit: null,
+            new SqlAliasManager());
 #pragma warning restore EF1001
     }
 }

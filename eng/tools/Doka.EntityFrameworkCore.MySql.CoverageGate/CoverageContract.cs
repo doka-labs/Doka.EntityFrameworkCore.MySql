@@ -72,7 +72,9 @@ internal static class CoverageContract
 
             var threshold = ValidateThreshold(
                 $"assembly {assembly.Name}",
-                Metrics(Descendants(package, "class").SelectMany(ClassLines)),
+                Metrics(
+                    Descendants(package, "class")
+                        .SelectMany(ClassLines)),
                 assembly.MinimumLinePercent,
                 assembly.MinimumBranchPercent);
 

@@ -19,7 +19,9 @@ internal static class JsonAllocationProbe
         var json = "["
             + string.Join(
                 ",",
-                Enumerable.Range(0, 100).Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
+                Enumerable
+                    .Range(0, 100)
+                    .Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
             + "]";
 
         var left = JsonNode.Parse(json)!;
@@ -34,7 +36,7 @@ internal static class JsonAllocationProbe
             _ => throw new ArgumentException($"Unknown JSON allocation scenario '{scenario}'.", nameof(scenario)),
         };
 
-        Func<bool> workload = () => Execute(iteration, allocate);
+        var workload = () => Execute(iteration, allocate);
 
         // WHY: DOM materialization, comparer delegates and both measurement methods
         // must be initialized before the single retained steady-state window.
@@ -54,7 +56,8 @@ internal static class JsonAllocationProbe
             || measurement.Gen2Collections != 0
             || measurement.BackgroundGcBefore != measurement.BackgroundGcAfter)
         {
-            throw new InvalidOperationException("JSON allocation measurement overlapped GC or produced an invalid result.");
+            throw new InvalidOperationException(
+                "JSON allocation measurement overlapped GC or produced an invalid result.");
         }
 
         return new JsonAllocationProof(
@@ -109,7 +112,9 @@ internal static class JsonAllocationProbe
         var gen0 = GC.CollectionCount(0);
         var gen1 = GC.CollectionCount(1);
         var gen2 = GC.CollectionCount(2);
-        var backgroundBefore = GC.GetGCMemoryInfo(GCKind.Background).Index;
+        var backgroundBefore = GC.GetGCMemoryInfo(GCKind.Background)
+            .Index;
+
         var before = GC.GetAllocatedBytesForCurrentThread();
         var matches = workload();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -121,7 +126,8 @@ internal static class JsonAllocationProbe
             GC.CollectionCount(1) - gen1,
             GC.CollectionCount(2) - gen2,
             backgroundBefore,
-            GC.GetGCMemoryInfo(GCKind.Background).Index);
+            GC.GetGCMemoryInfo(GCKind.Background)
+                .Index);
     }
 
     private readonly record struct Measurement(
@@ -131,7 +137,8 @@ internal static class JsonAllocationProbe
         int Gen1Collections,
         int Gen2Collections,
         long BackgroundGcBefore,
-        long BackgroundGcAfter);
+        long BackgroundGcAfter
+    );
 }
 
 /// <summary>The complete evidence emitted after the allocation window has closed.</summary>
@@ -161,4 +168,5 @@ internal sealed record JsonAllocationProof(
     int Gen1Collections,
     int Gen2Collections,
     long BackgroundGcBefore,
-    long BackgroundGcAfter);
+    long BackgroundGcAfter
+);

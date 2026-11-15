@@ -189,8 +189,14 @@ public sealed class CoverageContractTests
     )
     {
         // Arrange
-        var secondHit = metric == "line" ? 0 : 1;
-        var canonicalBranches = metric == "branch" ? "50% (1/2)" : "100% (2/2)";
+        var secondHit = metric == "line"
+            ? 0
+            : 1;
+
+        var canonicalBranches = metric == "branch"
+            ? "50% (1/2)"
+            : "100% (2/2)";
+
         using var fixture = CoverageFixture.Create(
             classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\">"
             + "<methods><method><lines>"
@@ -212,10 +218,19 @@ public sealed class CoverageContractTests
         Assert.Collection(
             evaluation.Errors,
             error => Assert.StartsWith($"assembly Provider {metric} coverage", error, StringComparison.Ordinal),
-            error => Assert.StartsWith($"critical class Provider.Critical {metric} coverage", error, StringComparison.Ordinal));
+            error => Assert.StartsWith(
+                $"critical class Provider.Critical {metric} coverage",
+                error,
+                StringComparison.Ordinal));
+
         Assert.All(
             evaluation.Results,
-            result => Assert.Contains(metric == "line" ? "lines 1/2" : "branches 1/2", result, StringComparison.Ordinal));
+            result => Assert.Contains(
+                metric == "line"
+                    ? "lines 1/2"
+                    : "branches 1/2",
+                result,
+                StringComparison.Ordinal));
     }
 
     /// <summary>Accepts complete canonical coverage despite uncovered method-detail rows.</summary>
@@ -232,8 +247,14 @@ public sealed class CoverageContractTests
     )
     {
         // Arrange
-        var methodHit = metric == "line" ? 0 : 1;
-        var methodBranches = metric == "branch" ? " branch=\"true\" condition-coverage=\"0% (0/2)\"" : string.Empty;
+        var methodHit = metric == "line"
+            ? 0
+            : 1;
+
+        var methodBranches = metric == "branch"
+            ? " branch=\"true\" condition-coverage=\"0% (0/2)\""
+            : string.Empty;
+
         using var fixture = CoverageFixture.Create(
             classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\">"
             + "<methods><method><lines>"
@@ -275,7 +296,9 @@ public sealed class CoverageContractTests
             + "<methods><method><lines>"
             + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
             + "</lines></method></methods>"
-            + (emptyLines ? "<lines />" : string.Empty)
+            + (emptyLines
+                ? "<lines />"
+                : string.Empty)
             + "</class>",
             useNamespace: useNamespace);
 
@@ -314,6 +337,7 @@ public sealed class CoverageContractTests
             evaluation.Errors,
             error => Assert.StartsWith("assembly Provider line coverage", error, StringComparison.Ordinal),
             error => Assert.StartsWith("assembly Provider branch coverage", error, StringComparison.Ordinal));
+
         Assert.Contains("lines 1/2", evaluation.Results[0], StringComparison.Ordinal);
         Assert.Contains("branches 2/4", evaluation.Results[0], StringComparison.Ordinal);
         Assert.Contains("lines 1/1", evaluation.Results[1], StringComparison.Ordinal);
@@ -363,7 +387,9 @@ public sealed class CoverageContractTests
 
             File.WriteAllText(
                 fixture.ReportPath,
-                (useNamespace ? "<coverage xmlns=\"urn:coverage\" timestamp=\"1000\">" : "<coverage timestamp=\"1000\">")
+                (useNamespace
+                    ? "<coverage xmlns=\"urn:coverage\" timestamp=\"1000\">"
+                    : "<coverage timestamp=\"1000\">")
                 + "<packages>"
                 + $"<package name=\"{assemblyName}\"><classes>{classElements}</classes></package>"
                 + "</packages></coverage>");

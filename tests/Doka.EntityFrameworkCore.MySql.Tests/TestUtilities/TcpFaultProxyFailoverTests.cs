@@ -52,8 +52,13 @@ public sealed class TcpFaultProxyFailoverTests
         // Act
         await client.ConnectAsync(IPAddress.Loopback, proxy.Port, guard.Token);
         using var upstreamClient = await upstream.AcceptTcpClientAsync(guard.Token);
-        await client.GetStream().WriteAsync(packet, guard.Token);
-        await upstreamClient.GetStream().ReadExactlyAsync(received, guard.Token);
+        await client
+            .GetStream()
+            .WriteAsync(packet, guard.Token);
+
+        await upstreamClient
+            .GetStream()
+            .ReadExactlyAsync(received, guard.Token);
 
         // Assert
         Assert.Equal(packet, received);

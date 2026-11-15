@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
@@ -9,14 +10,16 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
     private const string TableName = "IntBoxedStringRows";
     private const string GuidText = "00112233-4455-6677-8899-aabbccddeeff";
 
-    private static readonly System.Reflection.MethodInfo s_convertToString = typeof(Convert).GetMethod(
+    private static readonly MethodInfo s_convertToString = typeof(Convert).GetMethod(
         nameof(Convert.ToString),
         [typeof(object)])!;
 
     /// <summary>Includes nullable scalars and each engine's supported GUID representations.</summary>
     public static IEnumerable<object[]> ConversionCases()
     {
-        foreach (var target in IntegrationTestEnvironment.GetSupportedTargets().Where(IntegrationTestEnvironment.IsTargetSelected))
+        foreach (var target in IntegrationTestEnvironment
+            .GetSupportedTargets()
+            .Where(IntegrationTestEnvironment.IsTargetSelected))
         {
             yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.StringRole), "Admin"];
             yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.NumericRole), "Admin"];
@@ -26,8 +29,10 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
             yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.Token), GuidText];
             yield return [target.ToString(), MySqlGuidFormat.Char36, nameof(ConversionRow.Token), GuidText];
 
-            if (target is IntegrationDatabaseTarget.MariaDb1011 or IntegrationDatabaseTarget.MariaDb114
-                or IntegrationDatabaseTarget.MariaDb118 or IntegrationDatabaseTarget.MariaDb123)
+            if (target is IntegrationDatabaseTarget.MariaDb1011
+                or IntegrationDatabaseTarget.MariaDb114
+                or IntegrationDatabaseTarget.MariaDb118
+                or IntegrationDatabaseTarget.MariaDb123)
             {
                 yield return [target.ToString(), MySqlGuidFormat.Uuid, nameof(ConversionRow.Token), GuidText];
             }
@@ -91,9 +96,14 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
                 Expression.Convert(Expression.Property(row, propertyName), typeof(object)));
 
             var projection = Expression.Lambda<Func<ConversionRow, string?>>(conversion, row);
+
             // WHY: Filtering the converted text also requires server translation;
             // a correct-looking client-only projection cannot satisfy this probe.
-            var query = context.Rows.AsNoTracking().OrderBy(value => value.Id).Select(projection)
+            var query = context
+                .Rows
+                .AsNoTracking()
+                .OrderBy(value => value.Id)
+                .Select(projection)
                 .Where(value => value == expected || value == string.Empty);
 
             // Act
@@ -145,7 +155,9 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
         {
             var entity = modelBuilder.Entity<ConversionRow>();
             entity.ToTable(TableName);
-            entity.Property(row => row.StringRole).HasConversion<string>();
+            entity
+                .Property(row => row.StringRole)
+                .HasConversion<string>();
         }
     }
 

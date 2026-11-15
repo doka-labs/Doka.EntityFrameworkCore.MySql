@@ -36,7 +36,8 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         var valuesAliases = aliasFinder.Find(expression);
         var jsonParameters = aliasFinder.JsonParameters;
 
-        if (valuesAliases.Count == 0 && jsonParameters is null)
+        if (valuesAliases.Count == 0
+            && jsonParameters is null)
         {
             return expression;
         }
@@ -49,6 +50,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 jsonParameters,
                 columnFinder.ConsumerAliases)
             .Find(expression);
+
         var aliasesToNormalize = contextualMappingsByAlias
             .Where(pair => pair.Value.Count == 1
                 && !pair.Value.Contains(defaultStringMapping.StoreType)
@@ -78,13 +80,28 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 expression);
     }
 
+    private static int FindValueColumnIndex(
+        IReadOnlyList<string> columnNames
+    )
+    {
+        for (var index = 0; index < columnNames.Count; index++)
+        {
+            if (columnNames[index] == "Value")
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     /// <summary>Tracks only converter-free string inference for one untyped parameter rowset.</summary>
     private sealed class JsonParameterMapping(RelationalTypeMapping fallbackMapping)
     {
         private RelationalTypeMapping? _contextMapping;
         private RelationalTypeMapping? _existingMapping;
-        private bool _hasFallback;
         private bool _hasConflict;
+        private bool _hasFallback;
 
         /// <summary>Whether every observation agrees with one converter-free consumer mapping.</summary>
         public bool CanNormalize => _hasFallback
@@ -94,7 +111,9 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             && (_existingMapping is null || Equivalent(_existingMapping, _contextMapping));
 
         /// <summary>Recognizes the unmodified fallback contract, including equivalent plain clones.</summary>
-        public bool IsFallback(RelationalTypeMapping mapping) => mapping.ClrType == typeof(string)
+        public bool IsFallback(
+            RelationalTypeMapping mapping
+        ) => mapping.ClrType == typeof(string)
             && mapping.Converter is null
             && mapping.ElementTypeMapping is null
             && Equivalent(mapping, fallbackMapping);
@@ -103,7 +122,9 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         public void RejectContext() => _hasConflict = true;
 
         /// <summary>Records raw rowset references without accepting a third incompatible mapping.</summary>
-        public void ObserveExisting(RelationalTypeMapping mapping)
+        public void ObserveExisting(
+            RelationalTypeMapping mapping
+        )
         {
             if (IsFallback(mapping))
             {
@@ -112,7 +133,8 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 return;
             }
 
-            if (_existingMapping is not null && !Equivalent(_existingMapping, mapping))
+            if (_existingMapping is not null
+                && !Equivalent(_existingMapping, mapping))
             {
                 _hasConflict = true;
             }
@@ -121,7 +143,9 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         }
 
         /// <summary>Records a typed consumer comparison and rejects ambiguous or converted semantics.</summary>
-        public void ObserveContext(RelationalTypeMapping mapping)
+        public void ObserveContext(
+            RelationalTypeMapping mapping
+        )
         {
             // WHY: Arbitrary converters do not commute with CLR string predicates.
             // A prefix converter, for example, changes Length before comparison.
@@ -136,7 +160,10 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             _contextMapping ??= mapping;
         }
 
-        private static bool Equivalent(RelationalTypeMapping left, RelationalTypeMapping right)
+        private static bool Equivalent(
+            RelationalTypeMapping left,
+            RelationalTypeMapping right
+        )
         {
             // WHY: Store-type equality alone would erase converters, comparers or
             // facets. Only plain-string clones with the same complete contract agree.
@@ -144,8 +171,10 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                 || (left.GetType() == right.GetType()
                     && left.ClrType == typeof(string)
                     && right.ClrType == typeof(string)
-                    && left.Converter is null && right.Converter is null
-                    && left.ElementTypeMapping is null && right.ElementTypeMapping is null
+                    && left.Converter is null
+                    && right.Converter is null
+                    && left.ElementTypeMapping is null
+                    && right.ElementTypeMapping is null
                     && left.StoreType == right.StoreType
                     && left.StoreTypePostfix == right.StoreTypePostfix
                     && left.DbType == right.DbType
@@ -160,30 +189,20 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
                     && ReferenceEquals(left.JsonValueReaderWriter, right.JsonValueReaderWriter));
         }
 
-        private static bool EquivalentComparer(ValueComparer left, ValueComparer right)
+        private static bool EquivalentComparer(
+            ValueComparer left,
+            ValueComparer right
+        )
         {
             // WHY: EF lazily creates distinct default comparers for mapping clones.
             // Its public predicate identifies that exact implementation; custom
             // comparers still require identity, even when their store types agree.
             return ReferenceEquals(left, right)
-                || (left.Type == typeof(string) && right.Type == typeof(string)
-                    && left.IsDefault() && right.IsDefault());
+                || (left.Type == typeof(string)
+                    && right.Type == typeof(string)
+                    && left.IsDefault()
+                    && right.IsDefault());
         }
-    }
-
-    private static int FindValueColumnIndex(
-        IReadOnlyList<string> columnNames
-    )
-    {
-        for (var index = 0; index < columnNames.Count; index++)
-        {
-            if (columnNames[index] == "Value")
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private abstract class ShapedQueryTraversingExpressionVisitor
@@ -334,8 +353,8 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
     private sealed class InContextMappingFindingVisitor : ShapedQueryTraversingExpressionVisitor
     {
         private readonly IReadOnlySet<string> _aliases;
-        private readonly IReadOnlyDictionary<string, JsonParameterMapping>? _jsonParameters;
         private readonly IReadOnlySet<string>? _consumerAliases;
+        private readonly IReadOnlyDictionary<string, JsonParameterMapping>? _jsonParameters;
         private readonly Dictionary<string, HashSet<string>> _storeTypesByAlias = new(StringComparer.Ordinal);
         private ConsumerExpressionEligibilityVisitor? _consumerEligibility;
 
@@ -411,7 +430,10 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             return base.VisitExtension(node);
         }
 
-        private void ObserveJsonContext(ColumnExpression value, SqlExpression consumer)
+        private void ObserveJsonContext(
+            ColumnExpression value,
+            SqlExpression consumer
+        )
         {
             if (_jsonParameters is not null
                 && value.Name == "value"
@@ -469,7 +491,9 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         private bool _eligible;
 
         /// <summary>Rejects hidden string conversions and unowned local-rowset references.</summary>
-        public bool IsEligible(SqlExpression expression)
+        public bool IsEligible(
+            SqlExpression expression
+        )
         {
             _eligible = true;
             Visit(expression);
@@ -477,7 +501,9 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             return _eligible;
         }
 
-        protected override Expression VisitExtension(Expression node)
+        protected override Expression VisitExtension(
+            Expression node
+        )
         {
             if (!_eligible)
             {

@@ -99,41 +99,94 @@ internal static class JsonAllocationProbeProcess
                 throw new InvalidDataException("JSON allocation proof must be an object.");
             }
 
-            var properties = root.EnumerateObject().Select(static property => property.Name).ToArray();
+            var properties = root
+                .EnumerateObject()
+                .Select(static property => property.Name)
+                .ToArray();
+
             if (properties.Length != s_properties.Length
-                || properties.Distinct(StringComparer.Ordinal).Count() != s_properties.Length
-                || properties.Except(s_properties, StringComparer.Ordinal).Any())
+                || properties
+                    .Distinct(StringComparer.Ordinal)
+                    .Count()
+                != s_properties.Length
+                || properties
+                    .Except(s_properties, StringComparer.Ordinal)
+                    .Any())
             {
-                throw new InvalidDataException("JSON allocation proof has an incomplete or duplicate property inventory.");
+                throw new InvalidDataException(
+                    "JSON allocation proof has an incomplete or duplicate property inventory.");
             }
 
-            if (root.GetProperty("SchemaVersion").GetInt32() != 1
-                || root.GetProperty("Scenario").GetString() != scenario
-                || root.GetProperty("Iterations").GetInt32() != 1000
+            if (root
+                    .GetProperty("SchemaVersion")
+                    .GetInt32()
+                != 1
+                || root
+                    .GetProperty("Scenario")
+                    .GetString()
+                != scenario
+                || root
+                    .GetProperty("Iterations")
+                    .GetInt32()
+                != 1000
                 || processId <= 0
-                || root.GetProperty("ProcessId").GetInt32() != processId
-                || root.GetProperty("ManagedThreadId").GetInt32() <= 0
-                || root.GetProperty("Runtime").GetString() != RuntimeInformation.FrameworkDescription
-                || !root.GetProperty("ResultMatches").GetBoolean())
+                || root
+                    .GetProperty("ProcessId")
+                    .GetInt32()
+                != processId
+                || root
+                    .GetProperty("ManagedThreadId")
+                    .GetInt32()
+                <= 0
+                || root
+                    .GetProperty("Runtime")
+                    .GetString()
+                != RuntimeInformation.FrameworkDescription
+                || !root
+                    .GetProperty("ResultMatches")
+                    .GetBoolean())
             {
-                throw new InvalidDataException("JSON allocation proof does not identify the requested workload and runtime.");
+                throw new InvalidDataException(
+                    "JSON allocation proof does not identify the requested workload and runtime.");
             }
 
-            var allocatedBytes = root.GetProperty("AllocatedBytes").GetInt64();
-            var backgroundBefore = root.GetProperty("BackgroundGcBefore").GetInt64();
+            var allocatedBytes = root
+                .GetProperty("AllocatedBytes")
+                .GetInt64();
+
+            var backgroundBefore = root
+                .GetProperty("BackgroundGcBefore")
+                .GetInt64();
+
             if (allocatedBytes < 0
-                || root.GetProperty("Gen0Collections").GetInt32() != 0
-                || root.GetProperty("Gen1Collections").GetInt32() != 0
-                || root.GetProperty("Gen2Collections").GetInt32() != 0
+                || root
+                    .GetProperty("Gen0Collections")
+                    .GetInt32()
+                != 0
+                || root
+                    .GetProperty("Gen1Collections")
+                    .GetInt32()
+                != 0
+                || root
+                    .GetProperty("Gen2Collections")
+                    .GetInt32()
+                != 0
                 || backgroundBefore < 0
-                || root.GetProperty("BackgroundGcAfter").GetInt64() != backgroundBefore)
+                || root
+                    .GetProperty("BackgroundGcAfter")
+                    .GetInt64()
+                != backgroundBefore)
             {
-                throw new InvalidDataException("JSON allocation window contains GC overlap or invalid allocation counters.");
+                throw new InvalidDataException(
+                    "JSON allocation window contains GC overlap or invalid allocation counters.");
             }
 
             return new JsonAllocationProbeResult(allocatedBytes, true);
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or OverflowException)
+        catch (Exception exception) when (exception is JsonException
+            or InvalidOperationException
+            or FormatException
+            or OverflowException)
         {
             throw new InvalidDataException("JSON allocation proof is malformed.", exception);
         }
@@ -145,4 +198,5 @@ internal static class JsonAllocationProbeProcess
 /// <param name="ResultMatches">Whether the actual comparer preserved its expected result.</param>
 internal readonly record struct JsonAllocationProbeResult(
     long AllocatedBytes,
-    bool ResultMatches);
+    bool ResultMatches
+);

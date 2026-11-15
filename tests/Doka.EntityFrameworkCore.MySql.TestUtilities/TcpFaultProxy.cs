@@ -14,6 +14,7 @@ public sealed class TcpFaultProxy : IAsyncDisposable
     /// Used as the first host in ordered failover verification; see
     /// <see href="https://www.rfc-editor.org/rfc/rfc1122#section-4.2.3.10">TCP destination requirements</see>.
     /// </remarks>
+
     // WHY: An unused loopback port can acquire a listener; a broadcast destination cannot become TCP unicast.
     public const string UnavailableTcpHost = "255.255.255.255";
 

@@ -36,7 +36,10 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
 
         // Assert
         Assert.NotSame(tree, normalized);
-        Assert.Null(Assert.IsType<ColumnExpression>(normalized.Expressions[2]).TypeMapping);
+        Assert.Null(
+            Assert.IsType<ColumnExpression>(normalized.Expressions[2])
+                .TypeMapping);
+
         Assert.Same(tree.Expressions[0], normalized.Expressions[0]);
     }
 
@@ -143,7 +146,8 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         string scenario
     )
     {
-        var fallback = (RelationalTypeMapping)context.GetService<IRelationalTypeMappingSource>()
+        var fallback = (RelationalTypeMapping)context
+            .GetService<IRelationalTypeMappingSource>()
             .FindMapping(typeof(string))!;
 
         var modelMapping = context.Model.FindEntityType(typeof(Item))!.FindProperty(nameof(Item.Name))!
@@ -160,7 +164,9 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         SqlExpression input = new SqlParameterExpression(
             "values",
             typeof(string[]),
-            scenario == "typed-parameter" ? fallback : null);
+            scenario == "typed-parameter"
+                ? fallback
+                : null);
 
         if (scenario == "document")
         {
@@ -180,7 +186,9 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         var rowset = new MySqlJsonTableExpression(
             "values_rows",
             input,
-            scenario == "path" ? [new PathSegment("items")] : null,
+            scenario == "path"
+                ? [new PathSegment("items")]
+                : null,
             scenario == "typed-value"
                 ? [new MySqlJsonTableExpression.ColumnInfo("value", fallback)]
                 : []);
@@ -193,30 +201,50 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
             modelMapping = (RelationalTypeMapping)modelMapping.WithComposedConverter(PrefixConverter());
         }
 
-        var modelTable = new TableExpression("model", context.Model.GetRelationalModel().Tables.Single());
+        var modelTable = new TableExpression(
+            "model",
+            context
+                .Model
+                .GetRelationalModel()
+                .Tables
+                .Single());
+
         Expression consumer = scenario switch
         {
             "derived-consumer" or "unmapped-derived-consumer" or "converted-derived-consumer"
                 => CreateDerivedConsumer(context, modelMapping),
-            "from-sql-consumer" => new FromSqlExpression("model", "SELECT Name FROM Items", Expression.Constant(Array.Empty<object>())),
+            "from-sql-consumer" => new FromSqlExpression(
+                "model",
+                "SELECT Name FROM Items",
+                Expression.Constant(Array.Empty<object>())),
             "function-consumer" => new TableValuedFunctionExpression("model", "MappedItems", []),
             "json-consumer" => new MySqlJsonTableExpression(
-                "model", new SqlConstantExpression("[]", fallback), path: null,
+                "model",
+                new SqlConstantExpression("[]", fallback),
+                path: null,
                 columnInfos: [new MySqlJsonTableExpression.ColumnInfo("Name", modelMapping)]),
             "values-consumer" => new ValuesExpression(
-                "model", [new RowValueExpression([new SqlConstantExpression("alpha", modelMapping)])], ["Name"]),
+                "model",
+                [new RowValueExpression([new SqlConstantExpression("alpha", modelMapping)])],
+                ["Name"]),
             "other-parameter-consumer" => new MySqlJsonTableExpression(
-                "model", new SqlParameterExpression("other", typeof(string[]), typeMapping: null),
-                path: null, columnInfos: []),
+                "model",
+                new SqlParameterExpression("other", typeof(string[]), typeMapping: null),
+                path: null,
+                columnInfos: []),
             "missing-consumer" or "typed-constant-consumer" or "typed-parameter-consumer" => Expression.Empty(),
             _ => modelTable,
         };
 
         var modelValue = new ColumnExpression(
-            scenario == "other-parameter-consumer" ? "value" : "Name",
+            scenario == "other-parameter-consumer"
+                ? "value"
+                : "Name",
             "model",
             typeof(string),
-            scenario == "unmapped-derived-consumer" ? null : modelMapping,
+            scenario == "unmapped-derived-consumer"
+                ? null
+                : modelMapping,
             false);
 
         var convertedMapping = (RelationalTypeMapping)modelMapping.WithComposedConverter(PrefixConverter());
@@ -224,25 +252,46 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         {
             "scalar-function-consumer" => WrapScalar(modelValue, modelMapping),
             "collated-consumer" => new CollateExpression(modelValue, "utf8mb4_bin"),
-            "nested-scalar-consumer" => WrapScalar(new CollateExpression(WrapScalar(modelValue, modelMapping), "utf8mb4_bin"), modelMapping),
+            "nested-scalar-consumer" => WrapScalar(
+                new CollateExpression(WrapScalar(modelValue, modelMapping), "utf8mb4_bin"),
+                modelMapping),
             "typed-constant-consumer" => new SqlConstantExpression("alpha", modelMapping),
             "typed-parameter-consumer" => new SqlParameterExpression("needle", typeof(string), modelMapping),
             "nested-unknown-alias" or "valid-before-unknown" or "unknown-before-valid"
-                => WrapScalar(new ColumnExpression("Name", "missing", typeof(string), modelMapping, false), modelMapping),
+                => WrapScalar(
+                    new ColumnExpression("Name", "missing", typeof(string), modelMapping, false),
+                    modelMapping),
             "mixed-json-reference" or "valid-before-local" or "local-before-valid" => new SqlFunctionExpression(
-                "CONCAT", [modelValue, rawValue], nullable: true, argumentsPropagateNullability: [true, true], typeof(string), modelMapping),
+                "CONCAT",
+                [modelValue, rawValue],
+                nullable: true,
+                argumentsPropagateNullability: [true, true],
+                typeof(string),
+                modelMapping),
             "hidden-converted-column" or "valid-before-hidden" or "hidden-before-valid"
-                => WrapScalar(new ColumnExpression("Name", "model", typeof(string), convertedMapping, false), modelMapping),
-            "hidden-converted-constant" => WrapScalar(new SqlConstantExpression("alpha", convertedMapping), modelMapping),
-            "hidden-converted-parameter" => WrapScalar(new SqlParameterExpression("needle", typeof(string), convertedMapping), modelMapping),
-            "hidden-element-mapping" => WrapScalar(new SqlConstantExpression("alpha", modelMapping.Clone(elementMapping: fallback)), modelMapping),
+                => WrapScalar(
+                    new ColumnExpression("Name", "model", typeof(string), convertedMapping, false),
+                    modelMapping),
+            "hidden-converted-constant" => WrapScalar(
+                new SqlConstantExpression("alpha", convertedMapping),
+                modelMapping),
+            "hidden-converted-parameter" => WrapScalar(
+                new SqlParameterExpression("needle", typeof(string), convertedMapping),
+                modelMapping),
+            "hidden-element-mapping" => WrapScalar(
+                new SqlConstantExpression("alpha", modelMapping.Clone(elementMapping: fallback)),
+                modelMapping),
             "null-with-model" => new SqlConstantExpression(null, typeof(string), fallback),
             "fallback-literal-with-model" => new SqlConstantExpression("alpha", fallback),
             "fallback-parameter-with-model" => new SqlParameterExpression("needle", typeof(string), fallback),
             "longtext-column-with-model" => new ColumnExpression("LongName", "model", typeof(string), fallback, false),
-            "longtext-function-with-model" => WrapScalar(new ColumnExpression("LongName", "model", typeof(string), fallback, false), fallback),
+            "longtext-function-with-model" => WrapScalar(
+                new ColumnExpression("LongName", "model", typeof(string), fallback, false),
+                fallback),
             "converted-null-with-model" => new SqlConstantExpression(null, typeof(string), convertedMapping),
-            "hidden-converted-null-with-model" => WrapScalar(new SqlConstantExpression(null, typeof(string), convertedMapping), modelMapping),
+            "hidden-converted-null-with-model" => WrapScalar(
+                new SqlConstantExpression(null, typeof(string), convertedMapping),
+                modelMapping),
             _ => modelValue,
         };
 
@@ -260,13 +309,26 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
 
         List<Expression> expressions = [rowset, consumer, rawValue, predicate];
 
-        if (scenario is "null-with-model" or "fallback-literal-with-model" or "fallback-parameter-with-model"
-            or "valid-before-hidden" or "hidden-before-valid" or "valid-before-unknown" or "unknown-before-valid"
-            or "valid-before-local" or "local-before-valid" or "longtext-column-with-model" or "longtext-function-with-model"
-            or "converted-null-with-model" or "hidden-converted-null-with-model")
+        if (scenario is "null-with-model"
+            or "fallback-literal-with-model"
+            or "fallback-parameter-with-model"
+            or "valid-before-hidden"
+            or "hidden-before-valid"
+            or "valid-before-unknown"
+            or "unknown-before-valid"
+            or "valid-before-local"
+            or "local-before-valid"
+            or "longtext-column-with-model"
+            or "longtext-function-with-model"
+            or "converted-null-with-model"
+            or "hidden-converted-null-with-model")
         {
             var valid = new SqlBinaryExpression(
-                ExpressionType.Equal, comparedValue, modelValue, typeof(bool), BoolTypeMapping.Default);
+                ExpressionType.Equal,
+                comparedValue,
+                modelValue,
+                typeof(bool),
+                BoolTypeMapping.Default);
 
             if (scenario.StartsWith("valid-before-", StringComparison.Ordinal))
             {
@@ -284,22 +346,31 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
             {
                 "different-model-size" => new MySqlStringTypeMapping("varchar(64)", DbType.String, size: 32),
                 "different-model-comparer" => new MySqlStringTypeMapping(
-                    "varchar(64)", DbType.String, size: 64, useKeyComparison: true),
+                    "varchar(64)",
+                    DbType.String,
+                    size: 64,
+                    useKeyComparison: true),
                 _ => modelMapping.Clone(),
             };
 
-            expressions.Add(new SqlBinaryExpression(
-                ExpressionType.Equal,
-                comparedValue,
-                new ColumnExpression("OtherName", "model", typeof(string), secondMapping, false),
-                typeof(bool),
-                BoolTypeMapping.Default));
+            expressions.Add(
+                new SqlBinaryExpression(
+                    ExpressionType.Equal,
+                    comparedValue,
+                    new ColumnExpression("OtherName", "model", typeof(string), secondMapping, false),
+                    typeof(bool),
+                    BoolTypeMapping.Default));
         }
 
         if (scenario == "third-mapping")
         {
-            expressions.Add(new ColumnExpression(
-                "value", "values_rows", typeof(string), new MySqlStringTypeMapping("varchar(32)", DbType.String, size: 32), true));
+            expressions.Add(
+                new ColumnExpression(
+                    "value",
+                    "values_rows",
+                    typeof(string),
+                    new MySqlStringTypeMapping("varchar(32)", DbType.String, size: 32),
+                    true));
         }
 
         return Expression.Block(expressions);
@@ -310,7 +381,12 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         SqlExpression operand,
         RelationalTypeMapping mapping
     ) => new(
-        "TRIM", [operand], nullable: true, argumentsPropagateNullability: [true], typeof(string), mapping);
+        "TRIM",
+        [operand],
+        nullable: true,
+        argumentsPropagateNullability: [true],
+        typeof(string),
+        mapping);
 
     /// <summary>Represents the actual typed column exposed when EF pushes pagination into a subquery.</summary>
     private static SelectExpression CreateDerivedConsumer(
@@ -318,16 +394,31 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         RelationalTypeMapping mapping
     )
     {
-        var table = new TableExpression("inner", context.Model.GetRelationalModel().Tables.Single());
+        var table = new TableExpression(
+            "inner",
+            context
+                .Model
+                .GetRelationalModel()
+                .Tables
+                .Single());
+
         var projected = new ColumnExpression("Name", "inner", typeof(string), mapping, false);
 
         // WHY: These are EF's real finalized SQL nodes. A SQL fragment would bypass
         // the derived-alias inference boundary this regression must exercise.
 #pragma warning disable EF1001
         return new SelectExpression(
-            "model", [table], predicate: null, groupBy: [], having: null,
-            [new ProjectionExpression(projected, "Name")], distinct: false, orderings: [],
-            offset: null, limit: new SqlConstantExpression(3, IntTypeMapping.Default), new SqlAliasManager());
+            "model",
+            [table],
+            predicate: null,
+            groupBy: [],
+            having: null,
+            [new ProjectionExpression(projected, "Name")],
+            distinct: false,
+            orderings: [],
+            offset: null,
+            limit: new SqlConstantExpression(3, IntTypeMapping.Default),
+            new SqlAliasManager());
 #pragma warning restore EF1001
     }
 
@@ -346,10 +437,12 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
 
     private sealed class NormalizationContext(DbContextOptions<NormalizationContext> options) : DbContext(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<Item>().Property(item => item.Name).HasMaxLength(64);
-        }
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder
+        ) => modelBuilder
+            .Entity<Item>()
+            .Property(item => item.Name)
+            .HasMaxLength(64);
     }
 
     private sealed class Item

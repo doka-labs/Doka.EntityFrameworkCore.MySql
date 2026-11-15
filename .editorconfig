@@ -25,6 +25,8 @@ trim_trailing_whitespace = false
 ij_markdown_format_tables = false
 ij_markdown_wrap_text_if_long = false
 ij_markdown_keep_line_breaks_inside_text_blocks = true
+# WHY: Preserve marker-based Markdown list indentation during cleanup.
+ij_markdown_use_fixed_indents_for_sublists = false
 
 [*.{json,yml,yaml}]
 indent_size = 2

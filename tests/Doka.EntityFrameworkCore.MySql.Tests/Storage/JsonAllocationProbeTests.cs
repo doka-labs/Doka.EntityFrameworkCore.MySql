@@ -148,7 +148,9 @@ public sealed class JsonAllocationProbeTests
 
         var json = mutation switch
         {
-            "duplicate" => proof.ToJsonString().Replace("\"AllocatedBytes\":0", "\"AllocatedBytes\":0,\"AllocatedBytes\":0", StringComparison.Ordinal),
+            "duplicate" => proof
+                .ToJsonString()
+                .Replace("\"AllocatedBytes\":0", "\"AllocatedBytes\":0,\"AllocatedBytes\":0", StringComparison.Ordinal),
             "malformed" => "not json",
             "array-root" => "[]",
             _ => proof.ToJsonString(),
@@ -185,7 +187,8 @@ public sealed class JsonAllocationProbeTests
         await cancellation.CancelAsync();
 
         // Act
-        var exception = await Record.ExceptionAsync(() => JsonAllocationProbeProcess.RunAsync("empty", cancellation.Token));
+        var exception =
+            await Record.ExceptionAsync(() => JsonAllocationProbeProcess.RunAsync("empty", cancellation.Token));
 
         // Assert
         var canceled = Assert.IsAssignableFrom<OperationCanceledException>(exception);

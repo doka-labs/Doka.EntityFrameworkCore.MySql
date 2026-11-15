@@ -27,12 +27,18 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         var needle = "alpha";
         var query = scenario switch
         {
-            "nullable" => context.Items.Where(item => EF.Parameter(nullable)
-                .Where(value => value == null || value.Length > 1).Contains(item.OptionalName)),
-            "literal" => context.Items.Where(item => EF.Parameter(values)
-                .Where(value => value == "alpha").Contains(item.Name)),
-            "parameter" => context.Items.Where(item => EF.Parameter(values)
-                .Where(value => value == needle).Contains(item.Name)),
+            "nullable" => context.Items.Where(item => EF
+                .Parameter(nullable)
+                .Where(value => value == null || value.Length > 1)
+                .Contains(item.OptionalName)),
+            "literal" => context.Items.Where(item => EF
+                .Parameter(values)
+                .Where(value => value == "alpha")
+                .Contains(item.Name)),
+            "parameter" => context.Items.Where(item => EF
+                .Parameter(values)
+                .Where(value => value == needle)
+                .Contains(item.Name)),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -72,11 +78,25 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         {
             "lower" => QueryUsingCaseFunction(context.Items, values, nameof(string.ToLower)),
             "upper" => QueryUsingCaseFunction(context.Items, values, nameof(string.ToUpper)),
-            "trim" => context.Items.Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.Name.Trim())),
-            "any-trim" => context.Items.Where(item => EF.Parameter(values).Any(value => value.Length > 1 && value == item.Name.Trim())),
-            "collate" => context.Items.Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(EF.Functions.Collate(item.Name, "utf8mb4_bin"))),
+            "trim" => context.Items.Where(item => EF
+                .Parameter(values)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name.Trim())),
+            "any-trim" => context.Items.Where(item => EF
+                .Parameter(values)
+                .Any(value => value.Length > 1 && value == item.Name.Trim())),
+            "collate" => context.Items.Where(item => EF
+                .Parameter(values)
+                .Where(value => value.Length > 1)
+                .Contains(EF.Functions.Collate(item.Name, "utf8mb4_bin"))),
             "nested" => QueryUsingCaseFunction(
-                context.Items.OrderBy(item => item.Id).Take(3), values, nameof(string.ToLower), trimFirst: true),
+                context
+                    .Items
+                    .OrderBy(item => item.Id)
+                    .Take(3),
+                values,
+                nameof(string.ToLower),
+                trimFirst: true),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -87,13 +107,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
         Assert.Contains("FROM_BASE64(", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varchar(64)", sql, StringComparison.Ordinal);
-        Assert.Contains(scenario switch
-        {
-            "lower" or "nested" => "LOWER(",
-            "upper" => "UPPER(",
-            "trim" or "any-trim" => "TRIM(",
-            _ => "COLLATE utf8mb4_bin",
-        }, sql, StringComparison.Ordinal);
+        Assert.Contains(
+            scenario switch
+            {
+                "lower" or "nested" => "LOWER(",
+                "upper" => "UPPER(",
+                "trim" or "any-trim" => "TRIM(",
+                _ => "COLLATE utf8mb4_bin",
+            },
+            sql,
+            StringComparison.Ordinal);
     }
 
     /// <summary>Builds the exact parameterless case-function overload for server translation.</summary>
@@ -116,11 +139,15 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // collation. Building its expression explicitly avoids a client-culture
         // call and does not substitute an unsupported invariant/culture overload.
         var transformed = Expression.Call(name, typeof(string).GetMethod(methodName, Type.EmptyTypes)!);
-        Expression<Func<string, bool>> membership = value => EF.Parameter(values)
-            .Where(candidate => candidate.Length > 1).Contains(value);
+        Expression<Func<string, bool>> membership = value => EF
+            .Parameter(values)
+            .Where(candidate => candidate.Length > 1)
+            .Contains(value);
 
-        var body = Microsoft.EntityFrameworkCore.Query.ReplacingExpressionVisitor.Replace(
-            membership.Parameters[0], transformed, membership.Body);
+        var body = ReplacingExpressionVisitor.Replace(
+            membership.Parameters[0],
+            transformed,
+            membership.Body);
 
         return source.Where(Expression.Lambda<Func<PrimitiveCollectionEntity, bool>>(body, item));
     }
@@ -147,14 +174,37 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         string[] values = ["alpha", "x", new('z', 80)];
         var query = scenario switch
         {
-            "take" => context.Items.OrderBy(item => item.Id).Take(3)
-                .Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.Name)),
-            "skip-take" => context.Items.OrderBy(item => item.Id).Skip(1).Take(2)
-                .Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.Name)),
-            "any" => context.Items.OrderBy(item => item.Id).Take(3)
-                .Where(item => EF.Parameter(values).Any(value => value.Length > 1 && value == item.Name)),
-            "from-sql" => context.Items.FromSqlRaw("SELECT * FROM `Items`")
-                .Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.Name)),
+            "take" => context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(3)
+                .Where(item => EF
+                    .Parameter(values)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)),
+            "skip-take" => context
+                .Items
+                .OrderBy(item => item.Id)
+                .Skip(1)
+                .Take(2)
+                .Where(item => EF
+                    .Parameter(values)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)),
+            "any" => context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(3)
+                .Where(item => EF
+                    .Parameter(values)
+                    .Any(value => value.Length > 1 && value == item.Name)),
+            "from-sql" => context
+                .Items
+                .FromSqlRaw("SELECT * FROM `Items`")
+                .Where(item => EF
+                    .Parameter(values)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -169,7 +219,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         if (scenario != "from-sql")
         {
             Assert.Contains("LIMIT", sql, StringComparison.Ordinal);
-            Assert.True(sql.IndexOf("LIMIT", StringComparison.Ordinal) < sql.IndexOf("JSON_TABLE", StringComparison.Ordinal));
+            Assert.True(
+                sql.IndexOf("LIMIT", StringComparison.Ordinal) < sql.IndexOf("JSON_TABLE", StringComparison.Ordinal));
         }
     }
 
@@ -186,8 +237,12 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         string[] values = ["alpha", "x", new('z', 80)];
 
         // Act
-        var sql = context.Items
-            .Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.Name))
+        var sql = context
+            .Items
+            .Where(item => EF
+                .Parameter(values)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name))
             .ToQueryString();
 
         // Assert
@@ -209,8 +264,12 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         string[] values = ["alpha", "x"];
 
         // Act
-        var sql = context.Items
-            .Where(item => EF.Parameter(values).Where(value => value != "x").Contains(item.Name))
+        var sql = context
+            .Items
+            .Where(item => EF
+                .Parameter(values)
+                .Where(value => value != "x")
+                .Contains(item.Name))
             .ToQueryString();
 
         // Assert
@@ -232,8 +291,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         string[] values = ["alpha", "x"];
 
         // Act
-        var sql = context.Items
-            .Where(item => EF.Parameter(values).Any(value => value.Length > 1 && value == item.Name))
+        var sql = context
+            .Items
+            .Where(item => EF
+                .Parameter(values)
+                .Any(value => value.Length > 1 && value == item.Name))
             .ToQueryString();
 
         // Assert
@@ -253,7 +315,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Arrange
         using var context = CreateContext(mariaDb: mariaDb);
         string[] values = ["alpha", "x"];
-        var query = context.Items.Where(item => EF.Parameter(values)
+        var query = context.Items.Where(item => EF
+            .Parameter(values)
             .Where(value => value.Length > 1)
             .Contains(item.ConvertedName));
 
@@ -276,8 +339,14 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         // Arrange
         using var context = CreateContext(mariaDb: mariaDb);
         string[] values = ["alpha", "x"];
-        var query = context.Items.OrderBy(item => item.Id).Take(3)
-            .Where(item => EF.Parameter(values).Where(value => value.Length > 1).Contains(item.ConvertedName));
+        var query = context
+            .Items
+            .OrderBy(item => item.Id)
+            .Take(3)
+            .Where(item => EF
+                .Parameter(values)
+                .Where(value => value.Length > 1)
+                .Contains(item.ConvertedName));
 
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());

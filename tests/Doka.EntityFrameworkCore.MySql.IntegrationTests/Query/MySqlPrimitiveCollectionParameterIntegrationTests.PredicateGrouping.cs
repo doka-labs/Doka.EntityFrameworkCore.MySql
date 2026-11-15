@@ -22,7 +22,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
     /// <summary>Reports every semantic boundary separately on every selected supported engine.</summary>
     public static IEnumerable<object[]> PredicateGroupingCases => SelectedTargets.SelectMany(target =>
-        s_predicateGroupingCases.Select(test => new object[] { target[0], test.Scenario, test.Expected }));
+        s_predicateGroupingCases.Select(test => new[] { target[0], test.Scenario, test.Expected }));
 
     /// <summary>Preserves the relationship between a filtered JSON value and its membership candidate.</summary>
     /// <param name="targetName">The selected database engine.</param>
@@ -65,32 +65,80 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // that passes OR but differs from the candidate exposes a missing group.
         return scenario switch
         {
-            "native-or-absent" => source.Where(item => item.Id == 3 && EF.Parameter(numbers)
-                .Where(value => value == 1 || value > 1).Contains(item.Id)),
-            "native-or-present" => source.Where(item => item.Id == 2 && EF.Parameter(numbers)
-                .Where(value => value == 1 || value > 1).Contains(item.Id)),
-            "native-or-negated-absent" => source.Where(item => item.Id == 3 && !EF.Parameter(numbers)
-                .Where(value => value == 1 || value > 1).Contains(item.Id)),
-            "native-or-negated-present" => source.Where(item => item.Id == 2 && !EF.Parameter(numbers)
-                .Where(value => value == 1 || value > 1).Contains(item.Id)),
-            "native-and-absent" => source.Where(item => item.Id == 3 && EF.Parameter(numbers)
-                .Where(value => value > 0 && value < 3).Contains(item.Id)),
-            "native-equality-or-absent" => source.Where(item => item.Id == 3 && EF.Parameter(numbers)
-                .Where(value => value == 1 || value == 2).Contains(item.Id)),
-            "native-null-match" => source.Where(item => item.Id == 2 && EF.Parameter(nullable)
-                .Where(value => value == null || value > 0).Contains(item.Id == 2 ? (int?)null : item.Id)),
-            "native-null-nonmatch" => source.Where(item => item.Id == 3 && EF.Parameter(nullable)
-                .Where(value => value == null || value > 0).Contains(item.Id == 2 ? (int?)null : item.Id)),
-            "native-null-negated-match" => source.Where(item => item.Id == 2 && !EF.Parameter(nullable)
-                .Where(value => value == null || value > 0).Contains(item.Id == 2 ? (int?)null : item.Id)),
-            "native-null-negated-nonmatch" => source.Where(item => item.Id == 3 && !EF.Parameter(nullable)
-                .Where(value => value == null || value > 0).Contains(item.Id == 2 ? (int?)null : item.Id)),
-            "decoded-inequality" => source.Where(item => EF.Parameter(names)
-                .Where(value => value != "alpha").Contains(item.Name)),
-            "decoded-or" => source.Where(item => EF.Parameter(names)
-                .Where(value => value == "alpha" || value.Length > 3).Contains(item.Name)),
-            "decoded-or-negated" => source.Where(item => !EF.Parameter(names)
-                .Where(value => value == "alpha" || value.Length > 3).Contains(item.Name)),
+            "native-or-absent" => source.Where(item => item.Id == 3
+                && EF
+                    .Parameter(numbers)
+                    .Where(value => value == 1 || value > 1)
+                    .Contains(item.Id)),
+            "native-or-present" => source.Where(item => item.Id == 2
+                && EF
+                    .Parameter(numbers)
+                    .Where(value => value == 1 || value > 1)
+                    .Contains(item.Id)),
+            "native-or-negated-absent" => source.Where(item => item.Id == 3
+                && !EF
+                    .Parameter(numbers)
+                    .Where(value => value == 1 || value > 1)
+                    .Contains(item.Id)),
+            "native-or-negated-present" => source.Where(item => item.Id == 2
+                && !EF
+                    .Parameter(numbers)
+                    .Where(value => value == 1 || value > 1)
+                    .Contains(item.Id)),
+            "native-and-absent" => source.Where(item => item.Id == 3
+                && EF
+                    .Parameter(numbers)
+                    .Where(value => value > 0 && value < 3)
+                    .Contains(item.Id)),
+            "native-equality-or-absent" => source.Where(item => item.Id == 3
+                && EF
+                    .Parameter(numbers)
+                    .Where(value => value == 1 || value == 2)
+                    .Contains(item.Id)),
+            "native-null-match" => source.Where(item => item.Id == 2
+                && EF
+                    .Parameter(nullable)
+                    .Where(value => value == null || value > 0)
+                    .Contains(
+                        item.Id == 2
+                            ? null
+                            : item.Id)),
+            "native-null-nonmatch" => source.Where(item => item.Id == 3
+                && EF
+                    .Parameter(nullable)
+                    .Where(value => value == null || value > 0)
+                    .Contains(
+                        item.Id == 2
+                            ? null
+                            : item.Id)),
+            "native-null-negated-match" => source.Where(item => item.Id == 2
+                && !EF
+                    .Parameter(nullable)
+                    .Where(value => value == null || value > 0)
+                    .Contains(
+                        item.Id == 2
+                            ? null
+                            : item.Id)),
+            "native-null-negated-nonmatch" => source.Where(item => item.Id == 3
+                && !EF
+                    .Parameter(nullable)
+                    .Where(value => value == null || value > 0)
+                    .Contains(
+                        item.Id == 2
+                            ? null
+                            : item.Id)),
+            "decoded-inequality" => source.Where(item => EF
+                .Parameter(names)
+                .Where(value => value != "alpha")
+                .Contains(item.Name)),
+            "decoded-or" => source.Where(item => EF
+                .Parameter(names)
+                .Where(value => value == "alpha" || value.Length > 3)
+                .Contains(item.Name)),
+            "decoded-or-negated" => source.Where(item => !EF
+                .Parameter(names)
+                .Where(value => value == "alpha" || value.Length > 3)
+                .Contains(item.Name)),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
     }

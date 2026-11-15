@@ -1,11 +1,12 @@
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Protects boxed scalar string conversions from losing their projected CLR type.</summary>
 public sealed class MySqlBoxedStringConversionTests
 {
-    private static readonly System.Reflection.MethodInfo s_convertToString = typeof(Convert).GetMethod(
+    private static readonly MethodInfo s_convertToString = typeof(Convert).GetMethod(
         nameof(Convert.ToString),
         [typeof(object)])!;
 
@@ -138,7 +139,8 @@ public sealed class MySqlBoxedStringConversionTests
     {
         // Arrange
         using var context = CreateContext(mariaDb);
-        var query = StringQuery(context.Rows, row => row.Custom).Where(value => value == "prefix:value");
+        var query = StringQuery(context.Rows, row => row.Custom)
+            .Where(value => value == "prefix:value");
 
         // Act
         var exception = Record.Exception(() => query.ToQueryString());
@@ -205,9 +207,17 @@ public sealed class MySqlBoxedStringConversionTests
         {
             var entity = modelBuilder.Entity<ConversionRow>();
             entity.ToTable("BoxedStringRows");
-            entity.Property(row => row.StringRole).HasConversion<string>();
-            entity.Property(row => row.NullableRole).HasConversion<string>();
-            entity.Property(row => row.Custom).HasConversion(value => value.Text, value => new CustomValue(value));
+            entity
+                .Property(row => row.StringRole)
+                .HasConversion<string>();
+
+            entity
+                .Property(row => row.NullableRole)
+                .HasConversion<string>();
+
+            entity
+                .Property(row => row.Custom)
+                .HasConversion(value => value.Text, value => new CustomValue(value));
         }
     }
 

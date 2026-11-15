@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
@@ -19,7 +20,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
     /// <summary>Reports every semantic boundary separately on every selected supported engine.</summary>
     public static IEnumerable<object[]> FilteredStringCases => SelectedTargets.SelectMany(target =>
-        s_filteredStringScenarios.Select(scenario => new object[] { target[0], scenario }));
+        s_filteredStringScenarios.Select(scenario => new[] { target[0], scenario }));
 
     /// <summary>Preserves decoded predicates, membership and lossless transport without modifying stored rows.</summary>
     /// <param name="targetName">The selected database engine.</param>
@@ -54,72 +55,183 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         var (query, expected) = scenario switch
         {
-            "length" => (context.Items.Where(item => EF.Parameter(ordinary)
-                .Where(value => value.Length > 1).Contains(item.Name)), new[] { 1 }),
-            "inequality" => (context.Items.Where(item => EF.Parameter(inequality)
-                .Where(value => value != "alpha").Contains(item.Name)), new[] { 2 }),
-            "any" => (context.Items.Where(item => EF.Parameter(ordinary)
+            "length" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), new[] { 1 }),
+            "inequality" => (context.Items.Where(item => EF
+                .Parameter(inequality)
+                .Where(value => value != "alpha")
+                .Contains(item.Name)), new[] { 2 }),
+            "any" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
                 .Any(value => value.Length > 1 && value == item.Name)), new[] { 1 }),
-            "nullable" => (context.Items.Where(item => EF.Parameter(nullable)
-                .Where(value => value == null || value.Length > 1).Contains(item.OptionalName)), new[] { 1, 2 }),
-            "negated" => (context.Items.Where(item => item.Id <= 3 && !EF.Parameter(ordinary)
-                .Where(value => value.Length > 1).Contains(item.Name)), new[] { 2, 3 }),
-            "empty" => (context.Items.Where(item => EF.Parameter(empty)
-                .Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "duplicates" => (context.Items.Where(item => EF.Parameter(duplicates)
-                .Where(value => value.Length > 1).Contains(item.Name)), new[] { 1 }),
-            "binary-collation" => (context.Items.Where(item => EF.Parameter(upperCase)
-                .Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "case-insensitive-collation" => (context.Items.Where(item => EF.Parameter(upperCase)
-                .Where(value => value.Length > 1).Contains(item.CaseInsensitiveName)), new[] { 1 }),
-            "escapes" => (context.Items.Where(item => EF.Parameter(escapes)
-                .Where(value => value.Length > 1).Contains(item.Name)), new[] { 3 }),
-            "unicode" => (context.Items.Where(item => EF.Parameter(unicode)
-                .Where(value => value.Length == 4).Contains(item.Name)), new[] { RowCount - 2 }),
-            "long-prefix" => (context.Items.Where(item => EF.Parameter(tooLong)
-                .Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "exact-64" => (context.Items.Where(item => EF.Parameter(exact)
-                .Where(value => value.Length > 1).Contains(item.Name)), new[] { RowCount - 1 }),
-            "decoded-length-64" => (context.Items.Where(item => EF.Parameter(exact)
-                .Where(value => value.Length == 64).Contains(item.Name)), new[] { RowCount - 1 }),
-            "not-truncated-length-48" => (context.Items.Where(item => EF.Parameter(exact)
-                .Where(value => value.Length == 48).Contains(item.Name)), Array.Empty<int>()),
-            "take-before-filter" => (context.Items.OrderBy(item => item.Id).Take(1)
-                .Where(item => EF.Parameter(quoted).Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "skip-take-before-filter" => (context.Items.OrderBy(item => item.Id).Skip(1).Take(1)
-                .Where(item => EF.Parameter(inequality).Where(value => value != "alpha").Contains(item.Name)), new[] { 2 }),
-            "take-before-any" => (context.Items.OrderBy(item => item.Id).Take(1)
-                .Where(item => EF.Parameter(quoted).Any(value => value.Length > 1 && value == item.Name)), Array.Empty<int>()),
-            "derived-nullable" => (context.Items.OrderBy(item => item.Id).Skip(1).Take(1)
-                .Where(item => EF.Parameter(nullable).Where(value => value == null || value.Length > 1).Contains(item.OptionalName)), new[] { 2 }),
-            "derived-negated" => (context.Items.OrderBy(item => item.Id).Take(2)
-                .Where(item => !EF.Parameter(ordinary).Where(value => value.Length > 1).Contains(item.Name)), new[] { 2 }),
-            "derived-long-prefix" => (context.Items.OrderByDescending(item => item.Id).Take(2)
-                .Where(item => EF.Parameter(tooLong).Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "derived-exact-64" => (context.Items.OrderByDescending(item => item.Id).Take(2)
-                .Where(item => EF.Parameter(exact).Where(value => value.Length == 64).Contains(item.Name)), new[] { RowCount - 1 }),
-            "derived-not-truncated-length" => (context.Items.OrderByDescending(item => item.Id).Take(2)
-                .Where(item => EF.Parameter(exact).Where(value => value.Length == 48).Contains(item.Name)), Array.Empty<int>()),
-            "from-sql" => (context.Items.FromSqlRaw(mappedSqlRoot)
-                .Where(item => EF.Parameter(ordinary).Where(value => value.Length > 1).Contains(item.Name)), new[] { 1 }),
-            "derived-binary-collation" => (context.Items.OrderBy(item => item.Id).Take(1)
-                .Where(item => EF.Parameter(upperCase).Where(value => value.Length > 1).Contains(item.Name)), Array.Empty<int>()),
-            "derived-case-insensitive-collation" => (context.Items.OrderBy(item => item.Id).Take(1)
-                .Where(item => EF.Parameter(upperCase).Where(value => value.Length > 1).Contains(item.CaseInsensitiveName)), new[] { 1 }),
+            "nullable" => (context.Items.Where(item => EF
+                .Parameter(nullable)
+                .Where(value => value == null || value.Length > 1)
+                .Contains(item.OptionalName)), new[] { 1, 2 }),
+            "negated" => (context.Items.Where(item => item.Id <= 3
+                && !EF
+                    .Parameter(ordinary)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), new[] { 2, 3 }),
+            "empty" => (context.Items.Where(item => EF
+                .Parameter(empty)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), Array.Empty<int>()),
+            "duplicates" => (context.Items.Where(item => EF
+                .Parameter(duplicates)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), new[] { 1 }),
+            "binary-collation" => (context.Items.Where(item => EF
+                .Parameter(upperCase)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), Array.Empty<int>()),
+            "case-insensitive-collation" => (context.Items.Where(item => EF
+                .Parameter(upperCase)
+                .Where(value => value.Length > 1)
+                .Contains(item.CaseInsensitiveName)), new[] { 1 }),
+            "escapes" => (context.Items.Where(item => EF
+                .Parameter(escapes)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), new[] { 3 }),
+            "unicode" => (context.Items.Where(item => EF
+                .Parameter(unicode)
+                .Where(value => value.Length == 4)
+                .Contains(item.Name)), new[] { RowCount - 2 }),
+            "long-prefix" => (context.Items.Where(item => EF
+                .Parameter(tooLong)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), Array.Empty<int>()),
+            "exact-64" => (context.Items.Where(item => EF
+                .Parameter(exact)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name)), new[] { RowCount - 1 }),
+            "decoded-length-64" => (context.Items.Where(item => EF
+                .Parameter(exact)
+                .Where(value => value.Length == 64)
+                .Contains(item.Name)), new[] { RowCount - 1 }),
+            "not-truncated-length-48" => (context.Items.Where(item => EF
+                .Parameter(exact)
+                .Where(value => value.Length == 48)
+                .Contains(item.Name)), Array.Empty<int>()),
+            "take-before-filter" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(quoted)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), Array.Empty<int>()),
+            "skip-take-before-filter" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Skip(1)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(inequality)
+                    .Where(value => value != "alpha")
+                    .Contains(item.Name)), new[] { 2 }),
+            "take-before-any" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(quoted)
+                    .Any(value => value.Length > 1 && value == item.Name)), Array.Empty<int>()),
+            "derived-nullable" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Skip(1)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(nullable)
+                    .Where(value => value == null || value.Length > 1)
+                    .Contains(item.OptionalName)), new[] { 2 }),
+            "derived-negated" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(2)
+                .Where(item => !EF
+                    .Parameter(ordinary)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), new[] { 2 }),
+            "derived-long-prefix" => (context
+                .Items
+                .OrderByDescending(item => item.Id)
+                .Take(2)
+                .Where(item => EF
+                    .Parameter(tooLong)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), Array.Empty<int>()),
+            "derived-exact-64" => (context
+                .Items
+                .OrderByDescending(item => item.Id)
+                .Take(2)
+                .Where(item => EF
+                    .Parameter(exact)
+                    .Where(value => value.Length == 64)
+                    .Contains(item.Name)), new[] { RowCount - 1 }),
+            "derived-not-truncated-length" => (context
+                .Items
+                .OrderByDescending(item => item.Id)
+                .Take(2)
+                .Where(item => EF
+                    .Parameter(exact)
+                    .Where(value => value.Length == 48)
+                    .Contains(item.Name)), Array.Empty<int>()),
+            "from-sql" => (context
+                .Items
+                .FromSqlRaw(mappedSqlRoot)
+                .Where(item => EF
+                    .Parameter(ordinary)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), new[] { 1 }),
+            "derived-binary-collation" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(upperCase)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.Name)), Array.Empty<int>()),
+            "derived-case-insensitive-collation" => (context
+                .Items
+                .OrderBy(item => item.Id)
+                .Take(1)
+                .Where(item => EF
+                    .Parameter(upperCase)
+                    .Where(value => value.Length > 1)
+                    .Contains(item.CaseInsensitiveName)), new[] { 1 }),
             "scalar-lower" => (QueryUsingCaseFunction(context.Items, ordinary, nameof(string.ToLower)), new[] { 1 }),
             "scalar-upper" => (QueryUsingCaseFunction(context.Items, allCaps, nameof(string.ToUpper)), new[] { 1 }),
-            "scalar-trim" => (context.Items.Where(item => EF.Parameter(ordinary)
-                .Where(value => value.Length > 1).Contains(item.Name.Trim())), new[] { 1 }),
-            "scalar-any-trim" => (context.Items.Where(item => EF.Parameter(ordinary)
+            "scalar-trim" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
+                .Where(value => value.Length > 1)
+                .Contains(item.Name.Trim())), new[] { 1 }),
+            "scalar-any-trim" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
                 .Any(value => value.Length > 1 && value == item.Name.Trim())), new[] { 1 }),
-            "scalar-collate" => (context.Items.Where(item => EF.Parameter(upperCase)
-                .Where(value => value.Length > 1).Contains(EF.Functions.Collate(item.Name, "utf8mb4_unicode_ci"))), new[] { 1 }),
+            "scalar-collate" => (context.Items.Where(item => EF
+                .Parameter(upperCase)
+                .Where(value => value.Length > 1)
+                .Contains(EF.Functions.Collate(item.Name, "utf8mb4_unicode_ci"))), new[] { 1 }),
             "scalar-nested" => (QueryUsingCaseFunction(
-                context.Items.OrderBy(item => item.Id).Take(1), ordinary, nameof(string.ToLower), trimFirst: true), new[] { 1 }),
-            "equality-literal" => (context.Items.Where(item => EF.Parameter(ordinary)
-                .Where(value => value == "alpha").Contains(item.Name)), new[] { 1 }),
-            "equality-parameter" => (context.Items.Where(item => EF.Parameter(ordinary)
-                .Where(value => value == needle).Contains(item.Name)), new[] { 1 }),
+                context
+                    .Items
+                    .OrderBy(item => item.Id)
+                    .Take(1),
+                ordinary,
+                nameof(string.ToLower),
+                trimFirst: true), new[] { 1 }),
+            "equality-literal" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
+                .Where(value => value == "alpha")
+                .Contains(item.Name)), new[] { 1 }),
+            "equality-parameter" => (context.Items.Where(item => EF
+                .Parameter(ordinary)
+                .Where(value => value == needle)
+                .Contains(item.Name)), new[] { 1 }),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
 
@@ -149,11 +261,15 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         // WHY: These parameterless calls are server expressions, not client-culture
         // operations. An invariant/culture overload would test a different API.
         var transformed = Expression.Call(name, typeof(string).GetMethod(methodName, Type.EmptyTypes)!);
-        Expression<Func<string, bool>> membership = value => EF.Parameter(values)
-            .Where(candidate => candidate.Length > 1).Contains(value);
+        Expression<Func<string, bool>> membership = value => EF
+            .Parameter(values)
+            .Where(candidate => candidate.Length > 1)
+            .Contains(value);
 
-        var body = Microsoft.EntityFrameworkCore.Query.ReplacingExpressionVisitor.Replace(
-            membership.Parameters[0], transformed, membership.Body);
+        var body = ReplacingExpressionVisitor.Replace(
+            membership.Parameters[0],
+            transformed,
+            membership.Body);
 
         return source.Where(Expression.Lambda<Func<PrimitiveCollectionEntity, bool>>(body, item));
     }
