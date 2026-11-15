@@ -7,6 +7,16 @@ namespace Doka.EntityFrameworkCore.MySql.TestUtilities;
 /// </summary>
 public sealed class TcpFaultProxy : IAsyncDisposable
 {
+    /// <summary>
+    /// Identifies a broadcast address that cannot be a TCP destination, independently of port availability.
+    /// </summary>
+    /// <remarks>
+    /// Used as the first host in ordered failover verification; see
+    /// <see href="https://www.rfc-editor.org/rfc/rfc1122#section-4.2.3.10">TCP destination requirements</see>.
+    /// </remarks>
+    // WHY: An unused loopback port can acquire a listener; a broadcast destination cannot become TCP unicast.
+    public const string UnavailableTcpHost = "255.255.255.255";
+
     private readonly Task _acceptLoop;
     private readonly TcpListener _listener;
     private readonly ConcurrentQueue<string> _observedQueries = new();

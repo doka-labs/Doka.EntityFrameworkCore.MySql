@@ -9,80 +9,38 @@ public sealed partial class MySqlJsonValueComparersTests
     /// Verifies repeated one-pass node equality allocates no memory after warmup.
     /// </summary>
     [Fact]
-    public void JsonNode_one_pass_equality_does_not_allocate_per_iteration()
+    public async Task JsonNode_one_pass_equality_does_not_allocate_per_iteration()
     {
         // Arrange
-        var json = "["
-            + string.Join(
-                ",",
-                Enumerable
-                    .Range(0, 100)
-                    .Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
-            + "]";
-
-        var left = JsonNode.Parse(json)!;
-        var right = JsonNode.Parse(json)!;
-        var comparer = MySqlJsonValueComparers.JsonNodeComparer;
-        var result = comparer.Equals(left, right);
-
-        // WHY: Warm up the comparer before measuring so initialization is outside the steady-state contract.
-        for (var index = 0; index < 1000; index++)
-        {
-            result &= comparer.Equals(left, right);
-        }
+        // WHY: An independent heap avoids shared-host background GC accounting
+        // while retaining the exact zero-byte contract for the actual comparer.
+        const string scenario = "equality";
 
         // Act
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 1000; index++)
-        {
-            result &= comparer.Equals(left, right);
-        }
-
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        GC.KeepAlive(result);
+        var result = await JsonAllocationProbeProcess.RunAsync(scenario, CancellationToken.None);
 
         // Assert
-        Assert.True(result);
-        Assert.Equal(0, allocated);
+        Assert.True(result.ResultMatches);
+        Assert.Equal(0, result.AllocatedBytes);
     }
 
     /// <summary>
     /// Verifies repeated object hashing allocates no memory after warmup.
     /// </summary>
     [Fact]
-    public void JsonNode_object_hashing_does_not_allocate_per_iteration()
+    public async Task JsonNode_object_hashing_does_not_allocate_per_iteration()
     {
         // Arrange
-        var json = "["
-            + string.Join(
-                ",",
-                Enumerable
-                    .Range(0, 100)
-                    .Select(index => $"{{\"id\":{index},\"value\":\"item-{index:D6}\"}}"))
-            + "]";
-
-        var node = JsonNode.Parse(json)!;
-        var comparer = MySqlJsonValueComparers.JsonNodeComparer;
-        var hash = comparer.GetHashCode(node);
-
-        // WHY: Warmup excludes one-time runtime initialization from the steady-state allocation assertion.
-        for (var index = 0; index < 1000; index++)
-        {
-            hash ^= comparer.GetHashCode(node);
-        }
+        // WHY: The child validates that no GC overlaps the measurement instead
+        // of accepting noise or subtracting allocations from the shared host.
+        const string scenario = "hash";
 
         // Act
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 1000; index++)
-        {
-            hash ^= comparer.GetHashCode(node);
-        }
-
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        GC.KeepAlive(hash);
+        var result = await JsonAllocationProbeProcess.RunAsync(scenario, CancellationToken.None);
 
         // Assert
-        Assert.Equal(0, allocated);
+        Assert.True(result.ResultMatches);
+        Assert.Equal(0, result.AllocatedBytes);
     }
 
     /// <summary>

@@ -72,7 +72,7 @@ internal static class CoverageContract
 
             var threshold = ValidateThreshold(
                 $"assembly {assembly.Name}",
-                Metrics(Descendants(package, "line")),
+                Metrics(Descendants(package, "class").SelectMany(ClassLines)),
                 assembly.MinimumLinePercent,
                 assembly.MinimumBranchPercent);
 
@@ -124,7 +124,7 @@ internal static class CoverageContract
 
             var threshold = ValidateThreshold(
                 $"critical class {criticalClass.Name}",
-                Metrics(matches.SelectMany(element => Descendants(element, "line"))),
+                Metrics(matches.SelectMany(ClassLines)),
                 criticalClass.MinimumLinePercent,
                 criticalClass.MinimumBranchPercent);
 
@@ -227,6 +227,20 @@ internal static class CoverageContract
         return age > maximumAge
             ? [$"Coverage report is {age} seconds old; maximum age is {maximumAge} seconds."]
             : [];
+    }
+
+    /// <summary>Reads the canonical line evidence for one Cobertura class fragment.</summary>
+    private static IEnumerable<XElement> ClassLines(
+        XElement classElement
+    )
+    {
+        // WHY: Optional method detail can repeat an uneven subset of these records;
+        // only direct class lines define totals. Local names also accept namespaced reports.
+        return classElement
+            .Elements()
+            .Where(element => element.Name.LocalName == "lines")
+            .SelectMany(element => element.Elements())
+            .Where(element => element.Name.LocalName == "line");
     }
 
     private static CoverageMetrics Metrics(

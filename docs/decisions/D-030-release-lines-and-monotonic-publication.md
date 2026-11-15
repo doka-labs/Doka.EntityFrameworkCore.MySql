@@ -202,6 +202,20 @@ hosted configuration or line-activation change.
 
 ### Consequences
 
+The 2026-11-15 preparation keeps main/10 active, changes maintenance/10.x to
+prepared and leaves preview inactive. Prepared maintenance gains qualification
+eligibility only; publication, schedules and Dependabot still require active
+authority. The separate GA 11.x source carries the future main/11 plus
+maintenance/10 active policy and rendered dependency targets. It is not the
+current protected-main authority until the separately approved cutover.
+
+Maintenance bootstrap applies one reviewed source-tree-bound Git patch setting
+its evidence policy's required PR base to maintenance/10.x. Its actual own-base
+PR and hosted qualification remain mandatory. Local source preparation is not
+renamed hosted qualification, and no new bootstrap controller or test framework
+is introduced. Complete the affected 10.x publication before changing main's
+major and coordinate the existing environment grant with policy activation.
+
 - Good, because ordinary releases keep the existing operator actions.
 - Good, because the current `nuget` environment and administrator access remain.
 - Good, because one implementation validates each branch's real graph.

@@ -28,10 +28,12 @@ remain immutable records of their original two-package set.
 ## Exact Release Lines and Current Authority
 
 [D-030](decisions/D-030-release-lines-and-monotonic-publication.md) extends the
-main-only baseline below with exact source roles. The initial policy keeps
-main/10 active through `release-candidate.yml` and `nuget`; the approved
-`maintenance/10.x` and `preview/11.x` routes remain inactive. No branch, hosted
-grant or platform RC is created by this repository change. The
+main-only baseline below with exact source roles. The current policy keeps
+main/10 active through `release-candidate.yml` and `nuget`, prepares
+`maintenance/10.x` for own-line qualification, and leaves `preview/11.x`
+inactive. Preparation does not create a branch, complete hosted qualification
+or grant publication rights. No hosted grant or platform RC is created by this
+repository change. The
 [release-line runbook](operations/release-lines.md) is authoritative for their
 preparation, current-authority checks, activation and maintenance.
 

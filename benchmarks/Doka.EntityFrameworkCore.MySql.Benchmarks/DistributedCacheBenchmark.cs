@@ -131,11 +131,19 @@ public class DistributedCacheBenchmark : IDisposable
     [Benchmark]
     public Task SetSmallAsync() => _cache.SetAsync("write-small", _smallValue, _expiration, CancellationToken.None);
 
+    /// <summary>Measures a warm large write from a single-segment sequence.</summary>
+    // WHY: Measure the warm per-write average over a fixed batch; timing calibration
+    // must not change how occasional cross-thread pool growth is amortized.
     [Benchmark]
+    [InvocationCount(128)]
     public ValueTask SetLargeAsync()
         => _cache.SetAsync("write-large", _largeSequence, _expiration, CancellationToken.None);
 
+    /// <summary>Measures a warm large write from a multi-segment sequence.</summary>
+    // WHY: Use the same fixed sample as the single-segment control, without
+    // changing the production pool, transport, GC behavior or allocation ceiling.
     [Benchmark]
+    [InvocationCount(128)]
     public ValueTask SetLargeMultiSegmentAsync()
         => _cache.SetAsync("write-large", _segmentedSequence, _expiration, CancellationToken.None);
 

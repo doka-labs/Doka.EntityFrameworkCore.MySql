@@ -174,6 +174,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                         0 => "alpha",
                         1 => "\"quoted\"",
                         2 => "\"\\q\"",
+                        // WHY: Unicode and exact/truncated Base64 boundaries distinguish
+                        // decoded character semantics from lossy extraction.
+                        RowCount - 3 => "gr\u00FCn",
+                        RowCount - 2 => new string('z', 64),
+                        RowCount - 1 => new string('z', 48),
                         _ => $"value-{index}",
                     },
                     OptionalName = index == 1

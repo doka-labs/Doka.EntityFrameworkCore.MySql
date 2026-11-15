@@ -70,6 +70,27 @@ possible. All produced raw reports and diagnostics are retained.
 - Do not turn allocation/resource regression gates into diagnostics to hide
   failures, or tighten local timing limits from incomparable hosted hardware.
 
+## Large Cache Write Allocation Samples
+
+The single- and multi-segment large-write benchmarks measure a warm average
+over 128 awaited writes per measurement window. The fixed invocation count
+prevents CPU/time calibration from changing the denominator of the allocation
+measurement. Their production methods, TLS, shared pools, GC sequence and
+1,114,112-byte-per-operation ceilings remain unchanged.
+
+This is not a per-request maximum or a cold-start guarantee. Shared pool
+capacity can grow when async continuations return buffers on different threads;
+those are real allocations and remain included in the raw measurement. Retain
+cold-capacity diagnostics separately rather than describing their cost as fixed
+or free. Do not adjust the invocation count after a failing result.
+
+A copy allocated on every write grows with the operation count and cannot be
+amortized away by the fixed batch. Review negative controls against the actual
+budget: one extra 1 MiB copy exceeds the ceiling on the observed TLS profile,
+but can fit on a lower-allocation transport. Two extra 1 MiB copies exceed the
+ceiling independently of that transport difference. Preserve both controls and
+the original failed samples when reviewing this measurement protocol.
+
 ## Primary Sources
 
 - [BenchmarkDotNet documentation](https://benchmarkdotnet.org/articles/overview.html)

@@ -71,9 +71,12 @@ gh api \
 
 ### Release-line activation uses the existing publisher
 
-The initial policy keeps main/10 active. `maintenance/10.x` and `preview/11.x`
-remain inactive until separately approved. All lines use `release-candidate.yml`
-and the existing `nuget` environment and Trusted Publishing identity.
+The current policy keeps main/10 active, marks `maintenance/10.x` prepared for
+own-line qualification and leaves `preview/11.x` inactive. Preparation does not
+create the branch or grant publication rights; real branch qualification and
+hosted authorization remain separately approved operations. All lines use
+`release-candidate.yml` and the existing `nuget` environment and Trusted
+Publishing identity.
 
 The owner retains the single-maintainer review/self-review arrangement and
 administrator bypass. Release-line tooling does not require a second maintainer,

@@ -5,11 +5,22 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.5 maintenance patch, see the [changelog](../CHANGELOG.md#1065---2026-11-09)
-and [shared qualification overview](operations/workflow-overview.md). The release
-hardens cache and SQL-mode integration probes, cancellation cleanup and
-deterministic test preparation. It refreshes workflow tooling and MySQL image
-digests and applies the reviewed Rider formatting and C# simplifications.
+For the 10.6.6 maintenance preparation, see the [changelog](../CHANGELOG.md#1066---2026-11-15)
+and [shared qualification overview](operations/workflow-overview.md). It updates
+release completion and branch instructions, separates upstream EF discovery from
+qualification, isolates exact-zero JSON comparer allocation checks and refreshes
+dependencies, tools and MariaDB image digests. It prepares maintenance/10.x
+without activating publication or asserting hosted qualification or NuGet availability.
+It also corrects supported boxed `Convert.ToString(object)` projections and
+filters, canonical coverage counting and fixed warm allocation samples for
+large cache writes; existing coverage floors and allocation ceilings remain.
+Filtered string parameter collections infer bounded mapped operands through
+scalar expressions and pagination while preserving lossless transport, decoded
+predicates, null semantics and explicit conflict guards. Ordered failover
+verification no longer assumes an unowned loopback port stays unavailable.
+Filtered native JSON membership groups disjunctions before its membership
+comparison; the missing grouping is confirmed in 10.6.5. Release-command
+cancellation also preserves signal verdicts and verifies process-group cleanup.
 Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
 minimum, supported engines and storage defaults remain unchanged.
 When upgrading from a version before 10.6.4, regenerate existing compiled models
@@ -66,7 +77,7 @@ remains `>= 2.6.1` and `< 3.0.0`.
   personal signed tagging, protected publication, and public readback; its
   concrete main/10 examples remain the currently active route.
 - [Release Lines](operations/release-lines.md) defines exact main/maintenance/
-  preview roles, initially inactive future routes, protected activation,
+  preview roles, prepared 10.x maintenance, inactive preview and protected activation,
   monotonic Latest, framework servicing and exact public RC consumption. It
   retains the existing single-maintainer/admin-bypass arrangement and `nuget`
   environment, with no publisher migration or transition-report subsystem.

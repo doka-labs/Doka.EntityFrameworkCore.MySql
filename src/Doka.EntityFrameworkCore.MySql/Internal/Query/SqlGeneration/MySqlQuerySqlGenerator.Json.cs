@@ -209,8 +209,11 @@ internal sealed partial class MySqlQuerySqlGenerator
 
             if (predicate is not null)
             {
+                // WHY: OR and null-compensation branches must remain grouped
+                // before the appended null-safe membership comparison.
+                Sql.Append("(");
                 Visit(predicate);
-                Sql.Append(" AND ");
+                Sql.Append(") AND ");
             }
 
             Visit(

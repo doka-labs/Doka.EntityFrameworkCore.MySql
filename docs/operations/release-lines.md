@@ -12,14 +12,14 @@ retains the existing evidence, signing and three-package requirements.
 The reviewed authority is
 [`eng/release/lines-policy.json`](../../eng/release/lines-policy.json):
 
-| Exact branch | Role | Package major | Initial state |
+| Exact branch | Role | Package major | Prepared source state |
 | --- | --- | --- | --- |
 | `main` | Main | 10 | `active` |
-| `maintenance/10.x` | Maintenance | 10 | `inactive` |
+| `maintenance/10.x` | Maintenance | 10 | `prepared` |
 | `preview/11.x` | Platform preview | 11 | `inactive` |
 
 The `x` is literal, not a wildcard. `feature/dotnet-11` remains a development
-branch; this implementation does not rename it or activate preview publication.
+branch; its GA preparation does not rename it or activate preview publication.
 Every authorized line uses the existing `release-candidate.yml` workflow and
 `nuget` environment. There is no new environment or credential migration.
 
@@ -29,13 +29,18 @@ requires bypass to be disabled. Branch rules, exact deployment grants and any
 later activation require separate approval; local tests do not prove hosted
 configuration. This document creates no branches, grants, tags or packages.
 
+The 10.6.6 source prepares maintenance qualification without enabling its
+publisher, schedules or Dependabot targets. The policy retains main/10 as the
+only active publication owner. A working-tree policy is not hosted authority;
+the protected main copy and real branch protections are checked independently.
+
 ## Normal release
 
 The operator keeps the existing release actions:
 
 1. Merge the release-preparation PR into its protected, authorized line.
 2. Open `release-candidate.yml`, select that branch and enter its unused
-   canonical version, for example `10.6.5` or `11.0.0-rc.1`.
+   canonical version, for example `10.6.6` or `11.0.0-rc.1`.
 3. Leave `qualification_only=false`. Review the qualified source SHA, version,
    tag and evidence in the run summary.
 4. Create and push the personally signed annotated tag on that qualified SHA.
@@ -128,6 +133,35 @@ and specification patch policy. Keep at most one active publication owner per
 package major. The same convention supports maintenance/10.x, maintenance/11.x
 and main/12. Real hosted dispatch/publication evidence remains separate from
 local source and scripted-boundary verification.
+
+### Prepared main/11 and maintenance/10 handoff
+
+Finish the 10.6.6 publication before adopting the GA 11.x source. Its prepared
+`feature/dotnet-11` copy carries the future main/11 and maintenance/10 active
+policy plus the eight rendered Dependabot targets. That copy is the reviewed
+target state, not permission to publish while protected main still owns 10.x.
+Keep preview inactive. The framework cutover, branch creation, protection and
+exact environment grant remain one separately approved operator transition.
+
+Maintenance starts from the final reviewed .NET 10 source. Its branch-specific
+source delta is the evidence policy's `requiredBaseBranch`: change `main` to
+`maintenance/10.x`. A retained plain Git patch binds that exact change to the
+reviewed source tree and is applied once during bootstrap; package versions,
+SDK and dependency floors remain those of the .NET 10 line. Check the patch
+against that tree before applying it. This needs no new repository tool or
+publisher route.
+
+Merge the own-base preparation PR and run `qualification_only=true` on the
+protected maintenance branch before enabling its publication grant. Select an
+unused canonical version such as `10.6.7-rc.1`; the already published `10.6.6`
+cannot pass the unchanged public-version absence check. The existing input
+overrides `PackageVersion` for all three builds and packs, so this qualification
+needs no additional `VersionPrefix` edit. Do not create a tag or approve
+publication for this qualification-only run. Existing
+source and policy tests cannot substitute for that real PR evidence. The
+prepared maintenance source and successful local patch checks are therefore
+reported separately from hosted maintenance qualification. The active policy
+and exact environment grants must agree before either line publishes again.
 
 ## Failed publication and retry
 

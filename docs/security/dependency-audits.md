@@ -6,6 +6,15 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
+The 10.6.6 preparation updates fixed .NET dependencies to 10.0.15 and the
+repository SDK to 10.0.404, retaining the provider/spatial EF Core range
+`>= 10.0.8` and `< 10.1.0` and the MySqlConnector security floor below. The
+standalone cache's Microsoft.Extensions dependencies are serviced independently
+of EF Core. SDK selection is a repository build contract, not a requirement
+that package consumers install that exact SDK. Changed pins and lock files
+still require their branch-owned audit and qualification; these version notes
+alone are not evidence that either has passed.
+
 ## MySqlConnector security floor
 
 Since 10.6.3, Doka requires MySqlConnector `>= 2.6.1` and `< 3.0.0` for

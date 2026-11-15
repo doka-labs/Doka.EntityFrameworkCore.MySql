@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "2026-10-22.1",
+  "revision": "2026-11-15.1",
   "repository": "doka-labs/Doka.EntityFrameworkCore.MySql",
   "authorityRef": "refs/heads/main",
   "lines": [
@@ -20,7 +20,7 @@
       "packageMajor": 10,
       "channel": "stable-and-prerelease",
       "upstreamStage": "ga",
-      "state": "inactive",
+      "state": "prepared",
       "workflowPath": ".github/workflows/release-candidate.yml",
       "publisherEnvironment": "nuget"
     },

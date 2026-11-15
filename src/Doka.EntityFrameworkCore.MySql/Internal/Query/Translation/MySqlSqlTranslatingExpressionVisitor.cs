@@ -41,6 +41,10 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         nameof(Convert.ToString),
         [typeof(object)])!;
 
+    private static readonly MethodInfo s_objectToStringMethod = typeof(object).GetRuntimeMethod(
+        nameof(ToString),
+        Type.EmptyTypes)!;
+
     private static readonly MethodInfo s_jsonArrayMethod = typeof(MySqlDbFunctionsExtensions).GetRuntimeMethod(
         nameof(MySqlDbFunctionsExtensions.JsonArray),
         [
@@ -326,7 +330,14 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
             } conversion
             && type == typeof(object))
         {
-            return Visit(conversion.Operand);
+            // WHY: Unboxing alone retains the operand's CLR type and converter,
+            // which cannot shape a string projection. Reuse scalar/enum ToString
+            // translation and preserve Convert.ToString(null)'s empty result.
+            var translated = Visit(Expression.Call(conversion.Operand, s_objectToStringMethod));
+
+            return translated is SqlExpression sqlExpression
+                ? _sqlExpressionFactory.Coalesce(sqlExpression, _sqlExpressionFactory.Constant(string.Empty))
+                : translated;
         }
 
         if (methodCallExpression.Method != s_stringJoinArrayMethod

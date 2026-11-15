@@ -6,8 +6,9 @@ authoritative in [Release Governance](../release-governance.md).
 
 The [release-line runbook](release-lines.md) extends this same entry to approved
 exact branch roles. All authorized lines use the existing `nuget` environment;
-`maintenance/10.x` and `preview/11.x` remain inactive. Do not apply the
-examples below to an inactive branch by substituting a ref. Prepared
+`maintenance/10.x` is prepared for qualification only and `preview/11.x`
+remains inactive. Do not apply the publication examples below to a prepared
+or inactive branch by substituting a ref. Prepared
 qualification, current authorization and separately approved activation must
 be completed first. The single entry remains `release-candidate.yml`; its
 branch selector and version identify the candidate. No hosted change or

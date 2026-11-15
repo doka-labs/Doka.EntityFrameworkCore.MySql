@@ -212,8 +212,9 @@ timing, CPU or working-set thresholds are not qualifier gates.
 All authorized lines use the existing `nuget` environment and the same workflow.
 The single-maintainer approval arrangement and administrator bypass remain
 unchanged; neither is replaced by a new publisher environment or migration. The approved
-`maintenance/10.x` and `preview/11.x` names are initially **inactive**;
-`feature/dotnet-11` remains unchanged. No branch, environment, NuGet binding or
+`maintenance/10.x` is **prepared** for qualification only; `preview/11.x`
+remains **inactive**. `feature/dotnet-11` holds the separate GA preparation.
+No branch, environment, NuGet binding or
 package publication is created by this documentation.
 
 Preparation, admission upload and publication run under the same existing job
