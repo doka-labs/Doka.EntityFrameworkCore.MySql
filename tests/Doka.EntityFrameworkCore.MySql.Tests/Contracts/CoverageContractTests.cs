@@ -175,6 +175,174 @@ public sealed class CoverageContractTests
         Assert.Contains(evaluation.Errors, error => error.Contains(expectedError, StringComparison.Ordinal));
     }
 
+    /// <summary>Rejects canonical coverage below its floor despite covered method-detail rows.</summary>
+    /// <param name="metric">The canonical metric that falls below the configured floor.</param>
+    /// <param name="useNamespace">Whether the Cobertura elements use a default XML namespace.</param>
+    [Theory]
+    [InlineData("line", false)]
+    [InlineData("line", true)]
+    [InlineData("branch", false)]
+    [InlineData("branch", true)]
+    public void Covered_method_detail_cannot_inflate_assembly_or_critical_coverage(
+        string metric,
+        bool useNamespace
+    )
+    {
+        // Arrange
+        var secondHit = metric == "line"
+            ? 0
+            : 1;
+
+        var canonicalBranches = metric == "branch"
+            ? "50% (1/2)"
+            : "100% (2/2)";
+
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\">"
+            + "<methods><method><lines>"
+            + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
+            + "<line number=\"2\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
+            + "</lines></method></methods><lines>"
+            + $"<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"{canonicalBranches}\" />"
+            + $"<line number=\"2\" hits=\"{secondHit}\" />"
+            + "</lines></class>",
+            criticalMinimumBranchPercent: 75,
+            minimumLinePercent: 75,
+            assemblyMinimumBranchPercent: 75,
+            useNamespace: useNamespace);
+
+        // Act
+        var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
+
+        // Assert
+        Assert.Collection(
+            evaluation.Errors,
+            error => Assert.StartsWith($"assembly Provider {metric} coverage", error, StringComparison.Ordinal),
+            error => Assert.StartsWith(
+                $"critical class Provider.Critical {metric} coverage",
+                error,
+                StringComparison.Ordinal));
+
+        Assert.All(
+            evaluation.Results,
+            result => Assert.Contains(
+                metric == "line"
+                    ? "lines 1/2"
+                    : "branches 1/2",
+                result,
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>Accepts complete canonical coverage despite uncovered method-detail rows.</summary>
+    /// <param name="metric">The metric whose redundant method detail is uncovered.</param>
+    /// <param name="useNamespace">Whether the Cobertura elements use a default XML namespace.</param>
+    [Theory]
+    [InlineData("line", false)]
+    [InlineData("line", true)]
+    [InlineData("branch", false)]
+    [InlineData("branch", true)]
+    public void Uncovered_method_detail_cannot_deflate_assembly_or_critical_coverage(
+        string metric,
+        bool useNamespace
+    )
+    {
+        // Arrange
+        var methodHit = metric == "line"
+            ? 0
+            : 1;
+
+        var methodBranches = metric == "branch"
+            ? " branch=\"true\" condition-coverage=\"0% (0/2)\""
+            : string.Empty;
+
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\">"
+            + "<methods><method><lines>"
+            + $"<line number=\"1\" hits=\"{methodHit}\"{methodBranches} />"
+            + $"<line number=\"2\" hits=\"{methodHit}\"{methodBranches} />"
+            + "</lines></method></methods><lines>"
+            + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
+            + "<line number=\"2\" hits=\"1\" />"
+            + "</lines></class>",
+            criticalMinimumBranchPercent: 100,
+            assemblyMinimumBranchPercent: 100,
+            useNamespace: useNamespace);
+
+        // Act
+        var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
+
+        // Assert
+        Assert.Empty(evaluation.Errors);
+        Assert.All(evaluation.Results, result => Assert.Contains("lines 2/2", result, StringComparison.Ordinal));
+        Assert.All(evaluation.Results, result => Assert.Contains("branches 2/2", result, StringComparison.Ordinal));
+    }
+
+    /// <summary>Rejects method-only evidence when canonical class lines are missing or empty.</summary>
+    /// <param name="emptyLines">Whether an empty canonical lines container is present.</param>
+    /// <param name="useNamespace">Whether the Cobertura elements use a default XML namespace.</param>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Method_detail_cannot_replace_missing_canonical_class_lines(
+        bool emptyLines,
+        bool useNamespace
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\">"
+            + "<methods><method><lines>"
+            + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
+            + "</lines></method></methods>"
+            + (emptyLines
+                ? "<lines />"
+                : string.Empty)
+            + "</class>",
+            useNamespace: useNamespace);
+
+        // Act
+        var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
+
+        // Assert
+        Assert.Collection(
+            evaluation.Errors,
+            error => Assert.Equal("assembly Provider has no instrumented lines.", error),
+            error => Assert.Equal("assembly Provider has no instrumented branches.", error),
+            error => Assert.Equal("critical class Provider.Critical has no instrumented lines.", error),
+            error => Assert.Equal("critical class Provider.Critical has no instrumented branches.", error));
+    }
+
+    /// <summary>Retains distinct class identities that share a physical file and line number.</summary>
+    [Fact]
+    public void Distinct_classes_on_one_physical_line_retain_their_canonical_evidence()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class name=\"Provider.Critical\" filename=\"Shared.cs\"><lines>"
+            + "<line number=\"1\" hits=\"1\" branch=\"true\" condition-coverage=\"100% (2/2)\" />"
+            + "</lines></class>"
+            + "<class name=\"Provider.Helper\" filename=\"Shared.cs\"><lines>"
+            + "<line number=\"1\" hits=\"0\" branch=\"true\" condition-coverage=\"0% (0/2)\" />"
+            + "</lines></class>",
+            minimumLinePercent: 75,
+            assemblyMinimumBranchPercent: 75);
+
+        // Act
+        var evaluation = CoverageContract.Evaluate(fixture.ReportPath, fixture.PolicyPath, nowTimestamp: 1001);
+
+        // Assert
+        Assert.Collection(
+            evaluation.Errors,
+            error => Assert.StartsWith("assembly Provider line coverage", error, StringComparison.Ordinal),
+            error => Assert.StartsWith("assembly Provider branch coverage", error, StringComparison.Ordinal));
+
+        Assert.Contains("lines 1/2", evaluation.Results[0], StringComparison.Ordinal);
+        Assert.Contains("branches 2/4", evaluation.Results[0], StringComparison.Ordinal);
+        Assert.Contains("lines 1/1", evaluation.Results[1], StringComparison.Ordinal);
+    }
+
     private sealed class CoverageFixture : IDisposable
     {
         private CoverageFixture(
@@ -198,7 +366,10 @@ public sealed class CoverageContractTests
             (int First, int Second)? lineHits = null,
             string branchFraction = "50% (1/2)",
             string? classElements = null,
-            double? criticalMinimumBranchPercent = 50
+            double? criticalMinimumBranchPercent = 50,
+            double minimumLinePercent = 100,
+            double assemblyMinimumBranchPercent = 50,
+            bool useNamespace = false
         )
         {
             var path = System.IO.Path.Combine(
@@ -216,7 +387,10 @@ public sealed class CoverageContractTests
 
             File.WriteAllText(
                 fixture.ReportPath,
-                "<coverage timestamp=\"1000\"><packages>"
+                (useNamespace
+                    ? "<coverage xmlns=\"urn:coverage\" timestamp=\"1000\">"
+                    : "<coverage timestamp=\"1000\">")
+                + "<packages>"
                 + $"<package name=\"{assemblyName}\"><classes>{classElements}</classes></package>"
                 + "</packages></coverage>");
 
@@ -232,8 +406,8 @@ public sealed class CoverageContractTests
                             new
                             {
                                 name = "Provider",
-                                minimumLinePercent = 100,
-                                minimumBranchPercent = 50,
+                                minimumLinePercent,
+                                minimumBranchPercent = assemblyMinimumBranchPercent,
                             },
                         },
                         criticalClasses = new[]
@@ -242,7 +416,7 @@ public sealed class CoverageContractTests
                             {
                                 assembly = "Provider",
                                 name = "Provider.Critical",
-                                minimumLinePercent = 100,
+                                minimumLinePercent,
                                 minimumBranchPercent = criticalMinimumBranchPercent,
                             },
                         },

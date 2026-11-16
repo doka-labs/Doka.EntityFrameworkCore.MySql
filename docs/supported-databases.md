@@ -25,6 +25,9 @@ against the release history on 2026-09-05.
 The current patch pins were refreshed against the official image catalogs on
 2026-10-29. The MySQL 8.4 and 9.7 multi-platform manifest digests were refreshed
 on 2026-11-09, preserving the qualified patches and supported LTS series.
+The four MariaDB multi-platform manifest digests were refreshed on 2026-11-15
+without changing those server patches or LTS series; replacement-image
+qualification remains required before publication.
 
 The horizon column preserves the vendors' distinct terminology. Oracle's
 published chart gives month-level Premier and Extended Support dates for 8.4;

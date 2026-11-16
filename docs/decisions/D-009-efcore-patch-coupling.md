@@ -60,14 +60,18 @@ current known-good floor (10.0.8, raised from the original 10.0.4
 baseline) and accepts a consumer-selected later patch without crossing
 into the next minor. A standalone repository restore remains
 deterministic at the lower bound; the matrix uses an explicit floating
-override only to discover and validate the latest patch.
+override only to discover the latest patch and validate it after contract review.
 
 The risk that `EF1001` patch-drift breaks the decorator is structurally
 mitigated by the `EfCorePatchMatrixCI` (foundation backbone 9). The weekly
-exhaustive CI lane and every manual full-verification run validate both the
-supported floor and the floating "latest 10.0.x" tag against non-live tests,
+exhaustive CI lane validates the supported floor and uses a floating
+"latest 10.0.x" probe. An already admitted latest patch runs non-live tests,
 two-engine specification and live tests, and a representative two-engine
-integration matrix. The fast lane validates the deterministic floor on every
+integration matrix. A wholly unregistered newer patch is reported as
+**not qualified**, not as a failed test or a successful compatibility check.
+Its contracts require review before full qualification. Missing known or
+partially registered contracts and real execution failures remain fatal.
+The fast lane validates the deterministic floor on every
 pull request and explicit manual CI run. The merge does not repeat that product
 lane on `main`. The provider's response to a detected break is either a
 minimum-version bump in the range or a hot-fix release.
@@ -123,6 +127,9 @@ missing, swapped, widened, or non-exact row.
 
 - Run the `efcore-patch-matrix` CI job for the floor and latest 10.0.x patch.
 - Retain the resolved package JSON for both matrix entries.
+- For a new unregistered patch, retain `upstream-discovery.json` with status
+  `not-qualified`, the resolved version and highest reviewed reference. Confirm
+  that this report cannot replace release qualification evidence.
 - Confirm that the fast lane restores and tests the deterministic floor on
   every pull request and explicit manual CI run, without a duplicate `main`
   push run.
@@ -153,8 +160,10 @@ missing, swapped, widened, or non-exact row.
   `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` runs the default floor in its
   fast lane. Its weekly and manually dispatched exhaustive lane overrides the
   property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and
-  runs non-live, specification, live, and integration coverage for both matrix
-  entries. Release qualification instead selects the numerically highest exact
+  runs full non-live, specification, live, and integration coverage for the
+  floor and for an admitted latest patch. Its floating row uses the explicit
+  `upstream-probe` scope for non-qualifying discovery of new patches.
+  Release qualification instead selects the numerically highest exact
   10.0.x patch already listed in `SpecSuiteBaseline.json`.
 
 ### Implementation Notes
@@ -168,12 +177,18 @@ missing, swapped, widened, or non-exact row.
   floating versions remain disabled by default and are enabled only inside
   this matrix job, as documented by [NuGet error NU1011][nuget-nu1011].
 - Every matrix restore is followed by a machine-readable `dotnet package list` readback. The job fails unless Design, Relational, and Relational.Specification.Tests resolve to one version matching the matrix contract. The JSON readback is retained as an artifact.
-- Each entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
+- Each admitted full entry runs `eng/test.sh`, specification plus live functional tests against MySQL 8.4 and MariaDB 11.8, and the representative MySQL 8.4 plus MariaDB 11.8 integration matrix. Test-owned containers make the live paths identical locally and in CI.
 - Before expensive tests begin, `check-spec-version-contract.sh` requires an
   exact version-bound inventory, baseline membership for every entry, and a
-  complete six-target discovery contract. Scheduled floating detection reports
-  a newly published patch during preflight rather than after a full matrix run;
-  release qualification never selects that patch before contract review.
+  complete six-target discovery contract. The scheduled `upstream-probe` first
+  validates the highest reviewed same-line contract. Only a newer version
+  absent from both baseline membership and all exact-version contract files
+  may return successful discovery with explicit `not-qualified` status.
+  Numeric patch ordering is required; missing older or partial registrations
+  are errors. A new-version report has its own filename and no qualification
+  receipt, build/test success or live targets. The job summary makes the
+  review requirement visible. Default `full` and `dependency-graph` remain
+  strict, and release qualification never selects an unreviewed patch.
 - Release qualification records the floor with
   `validationScope=dependency-graph` and
   `qualificationSource=repository-qualification`, while the highest registered
@@ -231,6 +246,10 @@ missing, swapped, widened, or non-exact row.
   patch already registered in the reviewed specification baseline. Scheduled
   verification retains floating `10.0.*` discovery so a newly published patch
   cannot alter a previously green release commit.
+- 2026-11-14: Separated successful discovery of a new, unregistered patch from
+  qualification. Retain explicit non-qualification evidence without failing
+  solely on publication; strict admission, producer failures and release
+  evidence requirements remain unchanged.
 
 ### Implementation References
 

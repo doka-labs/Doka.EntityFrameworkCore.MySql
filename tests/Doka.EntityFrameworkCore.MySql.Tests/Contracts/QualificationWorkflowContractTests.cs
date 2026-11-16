@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Protects complete reusable qualification and its read-only caller boundary.</summary>
@@ -517,6 +519,167 @@ public sealed class QualificationWorkflowContractTests
         }
 
         Assert.DoesNotContain("continue-on-error:", workflow, StringComparison.Ordinal);
+    }
+
+    /// <summary>Rejects incompatible completion intent before requesting a protected environment.</summary>
+    /// <param name="originalRunId">The optional original publication run.</param>
+    /// <param name="qualificationOnly">Whether the caller requested reversible qualification only.</param>
+    /// <param name="sourceRef">The actual dispatch ref.</param>
+    /// <param name="accepted">Whether the unprivileged route may continue.</param>
+    [Theory]
+    [InlineData("", "false", "refs/heads/main", true)]
+    [InlineData("", "true", "refs/heads/preview/11.x", true)]
+    [InlineData("123", "false", "refs/heads/main", true)]
+    [InlineData("123", "true", "refs/heads/main", false)]
+    [InlineData("123", "false", "refs/heads/maintenance/10.x", false)]
+    [InlineData("123", "false", "refs/tags/main", false)]
+    [InlineData("0", "false", "refs/heads/main", false)]
+    [InlineData("not-a-run", "false", "refs/heads/main", false)]
+    [InlineData(" 123", "false", "refs/heads/main", false)]
+    public async Task Completion_routing_executes_the_actual_unprivileged_input_guard(
+        string originalRunId,
+        string qualificationOnly,
+        string sourceRef,
+        bool accepted
+    )
+    {
+        // Arrange
+        var route = GetJob(ReadWorkflow("release-candidate.yml"), "route");
+        const string marker = "        run: |\n";
+        var start = route.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The routing job must contain an executable guard.");
+
+        // WHY: Execute the delivered YAML body rather than a second implementation of its safety decisions.
+        var script = string.Join(
+            "\n",
+            route[(start + marker.Length)..]
+                .Split('\n')
+                .Select(static line => line.StartsWith("          ", StringComparison.Ordinal) ? line[10..] : line));
+
+        var info = new ProcessStartInfo("bash")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        info.ArgumentList.Add("-c");
+        info.ArgumentList.Add(script);
+        info.Environment["ORIGINAL_RUN_ID"] = originalRunId;
+        info.Environment["QUALIFICATION_ONLY"] = qualificationOnly;
+        info.Environment["GITHUB_REF"] = sourceRef;
+
+        // Act
+        using var process = Process.Start(info)
+            ?? throw new InvalidOperationException("Could not start the workflow routing guard.");
+
+        var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var error = process.StandardError.ReadToEndAsync(CancellationToken.None);
+
+        await process.WaitForExitAsync(CancellationToken.None);
+
+        var details = await output + await error;
+
+        // Assert
+        Assert.Equal(accepted, process.ExitCode == 0);
+        Assert.True(accepted || details.Length > 0, "Rejected routing must explain the incompatible intent.");
+        Assert.DoesNotContain("environment:", route, StringComparison.Ordinal);
+        Assert.DoesNotContain("contents: write", route, StringComparison.Ordinal);
+    }
+
+    /// <summary>Prevents completion dispatch from entering any ordinary candidate producer or publisher.</summary>
+    /// <param name="jobName">The normal release job isolated from completion.</param>
+    [Theory]
+    [InlineData("preflight")]
+    [InlineData("qualification")]
+    [InlineData("assemble")]
+    [InlineData("attest")]
+    [InlineData("publish")]
+    public void Ordinary_release_jobs_explicitly_exclude_completion(
+        string jobName
+    )
+    {
+        // Arrange
+        var workflow = ReadWorkflow("release-candidate.yml");
+
+        // Act
+        var job = GetJob(workflow, jobName);
+
+        // Assert
+        Assert.Contains("inputs.finalize_run_id == ''", job, StringComparison.Ordinal);
+        if (jobName == "preflight")
+        {
+            Assert.Contains("needs: route", job, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Retains protected main controls, the existing lock and receipt-bound completion without credentials.</summary>
+    [Fact]
+    public void Completion_job_uses_protected_control_source_and_frozen_receipt()
+    {
+        // Arrange
+        var workflow = ReadWorkflow("release-candidate.yml");
+
+        // Act
+        var completion = GetJob(workflow, "complete");
+
+        // Assert
+        Assert.Contains("finalize_run_id:", workflow, StringComparison.Ordinal);
+        Assert.Contains("needs: route", completion, StringComparison.Ordinal);
+        Assert.Contains("github.ref == 'refs/heads/main'", completion, StringComparison.Ordinal);
+        Assert.Contains("!inputs.qualification_only", completion, StringComparison.Ordinal);
+        Assert.Contains("inputs.finalize_run_id != ''", completion, StringComparison.Ordinal);
+        Assert.Contains("timeout-minutes: 90", completion, StringComparison.Ordinal);
+        Assert.Contains("name: nuget", completion, StringComparison.Ordinal);
+        Assert.Contains("group: doka-publication", completion, StringComparison.Ordinal);
+        Assert.Contains("cancel-in-progress: false", completion, StringComparison.Ordinal);
+        Assert.Contains("queue: max", completion, StringComparison.Ordinal);
+        Assert.Contains("ref: ${{ github.sha }}", completion, StringComparison.Ordinal);
+        Assert.Contains("persist-credentials: false", completion, StringComparison.Ordinal);
+        Assert.Contains("global-json-file: global.json", completion, StringComparison.Ordinal);
+        Assert.Contains("actions: read", completion, StringComparison.Ordinal);
+        Assert.Contains("attestations: read", completion, StringComparison.Ordinal);
+        Assert.Contains("checks: read", completion, StringComparison.Ordinal);
+        Assert.Contains("pull-requests: read", completion, StringComparison.Ordinal);
+        Assert.Contains("contents: write", completion, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.completion prepare", completion, StringComparison.Ordinal);
+        Assert.Contains("--original-run-id \"${ORIGINAL_RUN_ID}\"", completion, StringComparison.Ordinal);
+        Assert.Contains("sha256sum \"${receipt}\"", completion, StringComparison.Ordinal);
+        Assert.Contains("python3 -m eng.release.completion complete", completion, StringComparison.Ordinal);
+        Assert.Contains("--receipt-sha256 \"${receipt_sha256}\"", completion, StringComparison.Ordinal);
+        Assert.Contains("if: always()", completion, StringComparison.Ordinal);
+        Assert.Contains("path: artifacts/release-completion", completion, StringComparison.Ordinal);
+        Assert.Contains("retention-days: 30", completion, StringComparison.Ordinal);
+    }
+
+    /// <summary>Excludes authority to rebuild, retag, push packages or mutate release assets from completion.</summary>
+    /// <param name="forbidden">The capability that cannot appear in the completion job.</param>
+    [Theory]
+    [InlineData("id-token:")]
+    [InlineData("NuGet/login")]
+    [InlineData("secrets.")]
+    [InlineData("dotnet run")]
+    [InlineData("dotnet build")]
+    [InlineData("dotnet pack")]
+    [InlineData("dotnet nuget push")]
+    [InlineData("git tag")]
+    [InlineData("git push")]
+    [InlineData("gh release create")]
+    [InlineData("gh release upload")]
+    [InlineData("gh release delete")]
+    [InlineData("uses: $/.github/actions/publish-release")]
+    public void Completion_job_excludes_new_publication_and_source_mutation_capabilities(
+        string forbidden
+    )
+    {
+        // Arrange
+        var workflow = ReadWorkflow("release-candidate.yml");
+
+        // Act
+        var completion = GetJob(workflow, "complete");
+
+        // Assert
+        Assert.DoesNotContain(forbidden, completion, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadWorkflow(

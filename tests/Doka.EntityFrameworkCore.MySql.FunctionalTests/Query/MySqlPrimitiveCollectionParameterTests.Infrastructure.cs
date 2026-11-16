@@ -8,10 +8,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Guid[] values
     ) => context.Items.Where(item => values.Contains(item.BinaryId));
 
+    /// <summary>Creates a context using the existing transient or cache-sensitive provider policy.</summary>
+    /// <param name="defaultGuidFormat">The default model collection GUID representation.</param>
+    /// <param name="parameterTranslationMode">The optional explicit collection strategy.</param>
+    /// <param name="cacheServiceProvider">Whether to verify the shared provider cache.</param>
+    /// <param name="mariaDb">Whether to translate for the supported MariaDB profile.</param>
     private static PrimitiveCollectionContext CreateContext(
         MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16,
         ParameterTranslationMode? parameterTranslationMode = null,
-        bool cacheServiceProvider = false
+        bool cacheServiceProvider = false,
+        bool mariaDb = false
     )
     {
         var builder = cacheServiceProvider
@@ -21,7 +27,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
 
         builder.UseMySql(
             "Server=localhost;Database=doka;User ID=root;Password=password;",
-            MySqlServerVersion.MySql(new Version(8, 4, 0)),
+            mariaDb
+                ? MySqlServerVersion.MariaDb(new Version(12, 3, 0))
+                : MySqlServerVersion.MySql(new Version(8, 4, 0)),
             options =>
             {
                 options.DefaultGuidFormat(defaultGuidFormat);

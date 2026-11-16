@@ -2,9 +2,10 @@
 
 ## Repository Security Contract
 
-This policy applies to the entire repository and both shipped packages:
-`Doka.EntityFrameworkCore.MySql` and
-`Doka.EntityFrameworkCore.MySql.NetTopologySuite`.
+This policy applies to the entire repository and all three shipped packages:
+`Doka.EntityFrameworkCore.MySql`,
+`Doka.EntityFrameworkCore.MySql.NetTopologySuite`, and the standalone
+`Doka.Caching.MySql` package. The cache does not depend on EF Core.
 
 Security-sensitive changes must preserve these properties:
 
@@ -15,6 +16,8 @@ Security-sensitive changes must preserve these properties:
 - Hostile database metadata cannot become executable SQL or generated source.
 - Provider-owned telemetry excludes credentials, SQL, raw database and object
   names, exception messages, stack traces, and exception objects.
+- Cache telemetry excludes cache keys, values and connection strings; cache
+  operations preserve expiration, cancellation and buffer-ownership boundaries.
 - Retry, cancellation, connection, transaction, and migration-lock behavior
   cannot silently duplicate unsafe operations or leak invalid state.
 - CI and release evidence remains bound to the source revision it represents.
@@ -32,13 +35,22 @@ identity through the [release verification procedure](docs/security/release-veri
 
 | Version | Supported | Notes |
 |---|---|---|
-| 10.0.x | Yes | Current; receives security patches under the 90-day coordinated-disclosure window described below. |
-| Earlier | No | No security backports. Consumers must upgrade to the supported line. |
+| Doka 10.x | Yes | Maintained .NET 10 package line; upgrade to its latest serviced release for security fixes. |
+| Other package majors | No | No published supported line is declared here; a development branch is not a support grant. |
 
-The supported line tracks the active major of
-`Microsoft.EntityFrameworkCore.Relational`. EF Core minor bumps such as 10.1.x
-or 10.2.x require a deliberate provider response per ADR D-009 and are
-evaluated case by case.
+Doka package versions and EF Core versions are separate identities. The Doka
+10.x provider and spatial extension accept EF Core `>= 10.0.8` and `< 10.1.0`;
+this is not a restriction to Doka package version 10.0.x. The standalone cache
+has no EF Core requirement. All three packages require MySqlConnector
+`>= 2.6.1` and `< 3.0.0`.
+
+Maintained majors are serviced independently under the
+[support policy](SUPPORT.md#framework-lines-and-servicing), including after a
+later framework line becomes main. Publication still requires current active
+release-line authority; preparing `maintenance/10.x` does not activate it, and
+.NET 11 development does not declare a published Doka 11.x line. EF Core minor
+or major upgrades require a deliberate provider response per
+[D-009](docs/decisions/D-009-efcore-patch-coupling.md).
 
 ## Reporting a Vulnerability
 

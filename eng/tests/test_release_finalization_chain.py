@@ -438,7 +438,10 @@ class ReleaseLineWorkflowSeamTests(unittest.TestCase):
                 # Arrange
                 workflow = WORKFLOW.read_text(encoding="ascii")
                 step = workflow.split("      - name: Summarize qualified candidate and existing operator actions\n", 1)[1]
-                script = textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n  publish:\n", 1)[0])
+                # WHY: A new sibling job is outside this shell body, regardless
+                # of its name or position before the ordinary publisher.
+                job_tail = re.split(r"\n  [A-Za-z0-9_-]+:\n", step, maxsplit=1)[0]
+                script = textwrap.dedent(job_tail.split("        run: |\n", 1)[1])
                 root = Path(directory)
                 manifest = root / "artifacts/release-candidate/github-123/release-candidate-evidence.json"
                 manifest.parent.mkdir(parents=True)

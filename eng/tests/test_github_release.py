@@ -45,6 +45,7 @@ class FakeReleaseClient:
         self.upload_calls: list[list[str]] = []
         self.delete_calls: list[tuple[str, int]] = []
         self.publish_calls = 0
+        self.publish_existing_calls: list[int] = []
         self.verified_tags: list[tuple[str, str, str]] = []
         self.latest = False
         self.latest_release: dict[str, object] | None = None
@@ -56,6 +57,10 @@ class FakeReleaseClient:
         self.tag_error_on_verification: int | None = None
         self.release_visibility_delay = 0
         self.asset_visibility_delay = 0
+        self.publication_visibility_delay = 0
+        self.publication_pending_state = "draft"
+        self.publication_readbacks = 0
+        self._pending_publication_reads = 0
         self._pending_release_reads = 0
         self._pending_asset_reads = 0
         self._assets_before_upload: list[dict[str, object]] = []
@@ -82,6 +87,17 @@ class FakeReleaseClient:
             return None
 
         release = copy.deepcopy(self.release)
+        if self.publish_calls > 0:
+            self.publication_readbacks += 1
+            if self._pending_publication_reads > 0:
+                self._pending_publication_reads -= 1
+                if self.publication_pending_state == "absent":
+                    return None
+
+                if release is not None:
+                    release["draft"] = self.publication_pending_state == "draft"
+                    release["immutable"] = False
+
         if release is not None and self._pending_asset_reads > 0:
             self._pending_asset_reads -= 1
             release["assets"] = copy.deepcopy(self._assets_before_upload)
@@ -146,6 +162,7 @@ class FakeReleaseClient:
             raise AssertionError("A draft must exist before publication.")
 
         self.publish_calls += 1
+        self._pending_publication_reads = self.publication_visibility_delay
         self.published_latest.append(bool(plan["latest"]))
         self.release["draft"] = False
         self.release["immutable"] = True
@@ -153,6 +170,14 @@ class FakeReleaseClient:
         if plan["latest"]:
             self.latest = True
             self.latest_release = copy.deepcopy(self.release)
+
+    def publish_existing_release(self, plan: dict[str, object], release_id: int) -> None:
+        """Publish only the exact existing numeric identity selected by completion."""
+        if self.release is None or self.release["id"] != release_id:
+            raise AssertionError("Completion must address the exact existing release.")
+
+        self.publish_existing_calls.append(release_id)
+        self.publish_release(plan)
 
     def delete_asset(self, repository: str, asset_id: int) -> None:
         """Remove one exact remote asset while retaining every unrelated payload."""
@@ -464,8 +489,8 @@ class MonotonicLatestTests(unittest.TestCase):
         self.assertIn("invalid", str(failure))
 
 
-class GitHubReleaseTests(unittest.TestCase):
-    """Exercise planning, recovery, publication, and remote conflict gates."""
+class GitHubReleaseFixture(unittest.TestCase):
+    """Build sealed candidate fixtures reusable across release classifications."""
 
     _REPOSITORY = "doka-labs/Doka.EntityFrameworkCore.MySql"
     _VERSION = "10.0.0-rc.1"
@@ -994,7 +1019,7 @@ class GitHubReleaseTests(unittest.TestCase):
         self.changelog.write_text(
             "# Changelog\n\n"
             "## [Unreleased]\n\n"
-            "## [10.0.0-rc.1] - 2026-08-03\n\n"
+            f"## [{self._VERSION}] - 2026-08-03\n\n"
             "### Added\n\n"
             "- Release notes.\n\n"
             "## [9.0.0] - 2025-01-01\n\n"
@@ -1188,6 +1213,453 @@ class GitHubReleaseTests(unittest.TestCase):
         github_release.write_json(self.publication / "authorization-observation.json", authority)
 
         return github_release.build_release_plan(self._REPOSITORY, self.candidate, self.publication, self.changelog)
+
+    def _completion_fixture(self) -> tuple[dict[str, object], FakeReleaseClient]:
+        """Seed an existing complete draft without counting fixture writes as completion."""
+        plan = self._enable_release_line_receipts()
+        client = FakeReleaseClient()
+        client.create_draft(plan)
+        client.upload_assets(
+            self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in plan["assets"]],
+        )
+        client.create_calls = 0
+        client.upload_calls.clear()
+        self.enterContext(mock.patch.dict(os.environ, {
+            "DOKA_PUBLICATION_LOCK_GROUP": "doka-publication",
+            "DOKA_PUBLICATION_LOCK_HELD": "1",
+        }))
+
+        return plan, client
+
+    def _set_attesting_attempt(self, attempt: int) -> None:
+        """Model a later original-run attester without changing frozen candidate bytes."""
+        path = self.publication / release_provenance.PORTABLE_PROVENANCE_NAME
+        bundle = github_release.read_json(path, "fixture provenance")
+        statement = json.loads(base64.b64decode(bundle["dsseEnvelope"]["payload"]))
+        statement["predicate"]["runDetails"]["metadata"]["invocationId"] = (
+            f"https://github.com/{self._REPOSITORY}/actions/runs/12345/attempts/{attempt}"
+        )
+        bundle["dsseEnvelope"]["payload"] = base64.b64encode(
+            json.dumps(statement, separators=(",", ":")).encode("ascii")
+        ).decode("ascii")
+        path.write_text(json.dumps(bundle, separators=(",", ":")) + "\n", encoding="ascii")
+
+class GitHubReleaseTests(GitHubReleaseFixture):
+    """Exercise planning, recovery, publication, and remote conflict gates."""
+
+    def test_completion_publishes_only_the_existing_complete_release_id(self) -> None:
+        """Completion cannot create a release or upload, remove or replace assets."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        before_assets = copy.deepcopy(client.release["assets"])
+
+        # Act
+        receipt = github_release.complete_existing_release(
+            plan, client, 42, authority=plan["publicationAuthority"], sleep=lambda _: None,
+        )
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual([42], client.publish_existing_calls)
+        self.assertEqual(1, client.publish_calls)
+        self.assertEqual(0, client.create_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+        self.assertEqual(before_assets, client.release["assets"])
+
+    def test_completion_verifies_an_immutable_release_without_mutation(self) -> None:
+        """A previously completed publication remains read-only and does not promote Latest."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        client.publish_release(plan)
+        client.publish_calls = 0
+        before = copy.deepcopy(client.release)
+
+        # Act
+        receipt = github_release.complete_existing_release(
+            plan, client, 42, authority=plan["publicationAuthority"], sleep=lambda _: None,
+        )
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual("historical-no-promotion", receipt["promotion"]["disposition"])
+        self.assertEqual(before, client.release)
+        self.assertEqual([], client.publish_existing_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(0, client.create_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+        self.assertEqual(0, client.latest_reads)
+
+    def test_completion_observes_initial_mutable_publication_without_writing(self) -> None:
+        """A publication awaiting immutable metadata needs observation, never another PATCH."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        pending = copy.deepcopy(client.release)
+        pending["draft"] = False
+        pending["published_at"] = "2026-08-04T12:00:00Z"
+        immutable = {**pending, "immutable": True}
+        sleeps: list[float] = []
+
+        # Act
+        with mock.patch.object(client, "get_release", side_effect=[pending] * 30 + [immutable]) as readback:
+            receipt = github_release.complete_existing_release(
+                plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+            )
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertEqual("historical-no-promotion", receipt["promotion"]["disposition"])
+        self.assertEqual(31, readback.call_count)
+        self.assertEqual([10.0] * 29, sleeps)
+        self.assertEqual([], client.publish_existing_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(0, client.create_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_initial_publication_that_never_becomes_immutable(self) -> None:
+        """Mutable published state cannot bypass immutable proof or outlive the deadline."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        client.release["draft"] = False
+        sleeps: list[float] = []
+
+        # Act
+        with mock.patch.object(client, "get_release", wraps=client.get_release) as readback:
+            failure = _record_exception(lambda: github_release.complete_existing_release(
+                plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+                publication_readback_attempts=2,
+            ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("within the readback window", str(failure))
+        self.assertEqual(3, readback.call_count)
+        self.assertEqual([10.0], sleeps)
+        self.assertEqual([], client.publish_existing_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(0, client.create_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_conflicts_while_observing_initial_publication(self) -> None:
+        """The no-write recovery path preserves identity and byte conflict checks."""
+        for conflict in ("id", "metadata", "asset", "missing-asset", "tag"):
+            with self.subTest(conflict=conflict):
+                # Arrange
+                plan, client = self._completion_fixture()
+                pending = copy.deepcopy(client.release)
+                pending["draft"] = False
+                pending["published_at"] = "2026-08-04T12:00:00Z"
+                changed = copy.deepcopy(pending)
+                if conflict == "id":
+                    changed["id"] = 43
+                elif conflict == "metadata":
+                    changed["name"] = "conflicting release"
+                elif conflict == "asset":
+                    changed["assets"][0]["size"] += 1
+                elif conflict == "missing-asset":
+                    changed["assets"].pop()
+                else:
+                    changed["immutable"] = True
+                    client.tag_error = github_release.GitHubReleaseError("remote tag moved")
+                    client.tag_error_on_verification = 2
+
+                sleeps: list[float] = []
+
+                # Act
+                with mock.patch.object(client, "get_release", side_effect=[pending, changed]) as readback:
+                    failure = _record_exception(lambda: github_release.complete_existing_release(
+                        plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+                    ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertEqual(2, readback.call_count)
+                self.assertEqual([], sleeps)
+                self.assertEqual([], client.publish_existing_calls)
+                self.assertEqual(0, client.publish_calls)
+                self.assertEqual([], client.upload_calls)
+                self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_preview_latest_after_initial_mutable_publication(self) -> None:
+        """Historical recovery never legitimizes a preview classified as Latest."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        pending = copy.deepcopy(client.release)
+        pending["draft"] = False
+        pending["published_at"] = "2026-08-04T12:00:00Z"
+        immutable = {**pending, "immutable": True}
+        client.latest = True
+        sleeps: list[float] = []
+
+        # Act
+        with mock.patch.object(client, "get_release", side_effect=[pending, immutable]):
+            failure = _record_exception(lambda: github_release.complete_existing_release(
+                plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+            ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("latest status conflicts", str(failure))
+        self.assertEqual([], sleeps)
+        self.assertEqual([], client.publish_existing_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_untrusted_or_incomplete_existing_state(self) -> None:
+        """Every unsafe existing state fails before any completion mutation."""
+        for conflict in (
+            "missing-release", "replaced-id", "missing-asset", "starter-asset",
+            "conflicting-asset", "unexpected-asset", "metadata", "tag", "legacy-plan",
+        ):
+            with self.subTest(conflict=conflict):
+                # Arrange
+                plan, client = self._completion_fixture()
+                if conflict == "missing-release":
+                    client.release = None
+                elif conflict == "replaced-id":
+                    client.release["id"] = 43
+                elif conflict == "missing-asset":
+                    client.release["assets"].pop()
+                elif conflict == "starter-asset":
+                    client.release["assets"][0]["state"] = "starter"
+                    client.release["assets"][0]["size"] = 0
+                elif conflict == "conflicting-asset":
+                    asset_id = next(iter(client.payloads))
+                    client.payloads[asset_id] = b"x" * len(client.payloads[asset_id])
+                elif conflict == "unexpected-asset":
+                    client.add_asset({"name": "unknown.txt"}, b"unexpected")
+                elif conflict == "metadata":
+                    client.release["name"] = "conflicting release"
+                elif conflict == "tag":
+                    client.tag_error = github_release.GitHubReleaseError("remote tag moved")
+                else:
+                    plan["schemaVersion"] = 3
+
+                # Act
+                failure = _record_exception(lambda: github_release.complete_existing_release(
+                    plan, client, 42, authority=plan["publicationAuthority"], sleep=lambda _: None,
+                ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertEqual([], client.publish_existing_calls)
+                self.assertEqual(0, client.publish_calls)
+                self.assertEqual(0, client.create_calls)
+                self.assertEqual([], client.upload_calls)
+                self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_invalid_numeric_release_identifiers(self) -> None:
+        """Booleans, strings and nonpositive identities cannot address release writes."""
+        for release_id in (True, "42", 0, -1):
+            with self.subTest(release_id=release_id):
+                # Arrange
+                plan, client = self._completion_fixture()
+
+                # Act
+                failure = _record_exception(lambda: github_release.complete_existing_release(
+                    plan, client, release_id, authority=plan["publicationAuthority"], sleep=lambda _: None,
+                ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertEqual([], client.publish_existing_calls)
+                self.assertEqual(0, client.create_calls)
+                self.assertEqual([], client.upload_calls)
+                self.assertEqual([], client.delete_calls)
+
+    def test_completion_requires_current_authority_and_the_publisher_lock(self) -> None:
+        """Frozen successful evidence alone never grants current write authority."""
+        for conflict in ("lock", "authority"):
+            with self.subTest(conflict=conflict):
+                # Arrange
+                plan, client = self._completion_fixture()
+                authority = plan["publicationAuthority"] if conflict == "lock" else {}
+                environment = {"DOKA_PUBLICATION_LOCK_HELD": "0"} if conflict == "lock" else {}
+
+                # Act
+                with mock.patch.dict(os.environ, environment):
+                    failure = _record_exception(lambda: github_release.complete_existing_release(
+                        plan, client, 42, authority=authority, sleep=lambda _: None,
+                    ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertEqual([], client.publish_existing_calls)
+                self.assertEqual(0, client.create_calls)
+                self.assertEqual([], client.upload_calls)
+                self.assertEqual([], client.delete_calls)
+
+    def test_completion_waits_for_immutable_readback_of_the_exact_release_id(self) -> None:
+        """The final allowed publication read may confirm the unchanged selected release."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        client.publication_visibility_delay = 29
+        client.publication_pending_state = "mutable"
+        sleeps: list[float] = []
+
+        # Act
+        receipt = github_release.complete_existing_release(
+            plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+        )
+
+        # Assert
+        self.assertEqual("published-and-verified", receipt["status"])
+        self.assertEqual([42], client.publish_existing_calls)
+        self.assertEqual(30, client.publication_readbacks)
+        self.assertEqual([10.0] * 29, sleeps)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_replacement_during_publication_readback(self) -> None:
+        """A changed remote numeric identity is a conflict rather than pending propagation."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        publish = client.publish_existing_release
+        sleeps: list[float] = []
+
+        def replace_after_publication(effective_plan: dict[str, object], release_id: int) -> None:
+            """Reproduce an external replacement after the exact-ID write."""
+            publish(effective_plan, release_id)
+            client.release["id"] = 43
+
+        # Act
+        with mock.patch.object(client, "publish_existing_release", side_effect=replace_after_publication):
+            failure = _record_exception(lambda: github_release.complete_existing_release(
+                plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+            ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertEqual([42], client.publish_existing_calls)
+        self.assertEqual([], sleeps)
+        self.assertEqual(1, client.publication_readbacks)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_completion_rejects_conflicts_during_publication_readback(self) -> None:
+        """Conflicting published bytes or identity must never spend the retry allowance."""
+        for conflict in ("metadata", "asset", "missing-asset", "latest", "tag"):
+            with self.subTest(conflict=conflict):
+                # Arrange
+                plan, client = self._completion_fixture()
+                publish = client.publish_existing_release
+                sleeps: list[float] = []
+
+                def corrupt_after_publication(effective_plan: dict[str, object], release_id: int) -> None:
+                    """Expose one external state conflict after the bounded write."""
+                    publish(effective_plan, release_id)
+                    if conflict == "metadata":
+                        client.release["name"] = "conflicting release"
+                    elif conflict == "asset":
+                        asset_id = next(iter(client.payloads))
+                        client.payloads[asset_id] = b"x" * len(client.payloads[asset_id])
+                    elif conflict == "missing-asset":
+                        client.release["assets"].pop()
+                    elif conflict == "latest":
+                        client.latest = not bool(effective_plan["latest"])
+                    else:
+                        client.tag_error = github_release.GitHubReleaseError("remote tag moved")
+
+                # Act
+                with mock.patch.object(client, "publish_existing_release", side_effect=corrupt_after_publication):
+                    failure = _record_exception(lambda: github_release.complete_existing_release(
+                        plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+                    ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertEqual([42], client.publish_existing_calls)
+                self.assertEqual([], sleeps)
+                self.assertEqual(1, client.publication_readbacks)
+                self.assertEqual([], client.upload_calls)
+                self.assertEqual([], client.delete_calls)
+
+    def test_completion_exhausts_the_bounded_publication_window_without_republishing(self) -> None:
+        """An unsettled publication cannot trigger another write or an unbounded wait."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        client.publication_visibility_delay = 2
+        sleeps: list[float] = []
+
+        # Act
+        failure = _record_exception(lambda: github_release.complete_existing_release(
+            plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+            publication_readback_attempts=2,
+        ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("within the readback window", str(failure))
+        self.assertEqual([42], client.publish_existing_calls)
+        self.assertEqual(1, client.publish_calls)
+        self.assertEqual(2, client.publication_readbacks)
+        self.assertEqual([10.0], sleeps)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
+
+    def test_restored_plan_accepts_exact_original_attester_and_publication_attempts(self) -> None:
+        """Current controls can reconstruct original assets without impersonating the old run."""
+        # Arrange
+        self._enable_release_line_receipts()
+        self._set_attesting_attempt(2)
+        environment = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "99999", "GITHUB_RUN_ATTEMPT": "1"}
+        self.enterContext(mock.patch.dict(os.environ, environment))
+
+        # Act
+        plan = github_release.build_restored_release_plan(
+            self._REPOSITORY, self.candidate, self.publication, self.changelog,
+            attesting_attempt=2, publication_attempt=3,
+        )
+
+        # Assert
+        self.assertEqual(4, plan["schemaVersion"])
+        receipt, _ = github_release.plan_publication_identity(plan)
+        self.assertEqual("12345", receipt["candidateRunId"])
+        self.assertEqual("1", receipt["candidateRunAttempt"])
+        self.assertEqual(self._COMMIT, plan["sourceCommit"])
+        self.assertEqual(environment, {name: os.environ[name] for name in environment})
+
+    def test_restored_plan_rejects_wrong_original_attester_or_publication_attempt(self) -> None:
+        """Restoration binds the exact attester and its admissible publication ordering."""
+        for attester, publisher in ((1, 3), (2, 1)):
+            with self.subTest(attester=attester, publisher=publisher):
+                # Arrange
+                self._enable_release_line_receipts()
+                self._set_attesting_attempt(2)
+
+                # Act
+                failure = _record_exception(lambda: github_release.build_restored_release_plan(
+                    self._REPOSITORY, self.candidate, self.publication, self.changelog,
+                    attesting_attempt=attester, publication_attempt=publisher,
+                ))
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                expected_error = (
+                    "exact attesting attempt" if attester == 1
+                    else "exceeds the current publication attempt"
+                )
+                self.assertIn(expected_error, str(failure))
+
+    def test_ordinary_plan_keeps_the_hosted_run_identity_guard(self) -> None:
+        """The completion-specific reconstruction path does not relax normal publication."""
+        # Arrange
+        self._enable_release_line_receipts()
+        environment = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "99999", "GITHUB_RUN_ATTEMPT": "1"}
+
+        # Act
+        with mock.patch.dict(os.environ, environment):
+            failure = _record_exception(lambda: github_release.build_release_plan(
+                self._REPOSITORY, self.candidate, self.publication, self.changelog,
+            ))
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("Portable release provenance is invalid", str(failure))
 
     def test_release_line_plan_and_receipt_keep_frozen_publication_identity(self) -> None:
         """The new schema publishes the exact candidate without promoting a prerelease."""
@@ -1466,6 +1938,81 @@ class GitHubReleaseTests(unittest.TestCase):
                 self.changelog,
             )
 
+    def test_completion_cli_patches_only_the_numeric_release_without_identity_fields(self) -> None:
+        """Keep the real remote adapter narrower than tag-based publication."""
+        for prerelease, latest in ((True, False), (False, True), (False, False)):
+            with self.subTest(prerelease=prerelease, latest=latest):
+                # Arrange
+                client = github_release.GitHubCliClient()
+                plan = {**self.plan, "prerelease": prerelease, "latest": latest}
+
+                # Act
+                with mock.patch.object(client, "_run_text", return_value="") as request:
+                    client.publish_existing_release(plan, 42)
+
+                # Assert
+                request.assert_called_once_with(
+                    "api", "--method", "PATCH",
+                    "-H", "Accept: application/vnd.github+json",
+                    "-H", f"X-GitHub-Api-Version: {github_release.GITHUB_API_VERSION}",
+                    f"/repos/{self._REPOSITORY}/releases/42",
+                    "-F", "draft=false",
+                    "-F", f"prerelease={str(prerelease).lower()}",
+                    "-f", f"make_latest={str(latest).lower()}",
+                )
+
+    def test_asset_readback_rejects_nonpositive_ids_before_download(self) -> None:
+        """Do not send malformed resource identities to the authenticated adapter."""
+        for asset_id in (0, -1):
+            with self.subTest(asset_id=asset_id):
+                # Arrange
+                client = FakeReleaseClient()
+                client.create_draft(self.plan)
+                client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in self.plan["assets"]])
+                client.release["assets"][0]["id"] = asset_id
+
+                # Act
+                with mock.patch.object(client, "download_asset") as download:
+                    error = _record_exception(lambda: github_release.verify_release_assets(client.release, self.plan, client))
+
+                # Assert
+                self.assertIsInstance(error, github_release.GitHubReleaseError)
+                download.assert_not_called()
+
+    def test_asset_readback_rejects_a_reused_id_before_downloading_it_again(self) -> None:
+        """Distinct asset names cannot share one numeric remote identity."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.create_draft(self.plan)
+        client.upload_assets(self._REPOSITORY, self._TAG, [Path(asset["path"]) for asset in self.plan["assets"]])
+        first = client.release["assets"][0]
+        client.release["assets"][1]["id"] = first["id"]
+        payload = client.payloads[first["id"]]
+
+        # Act
+        with mock.patch.object(client, "download_asset", return_value=payload) as download:
+            error = _record_exception(lambda: github_release.verify_release_assets(client.release, self.plan, client))
+
+        # Assert
+        self.assertIsInstance(error, github_release.GitHubReleaseError)
+        self.assertIn("metadata conflicts", str(error))
+        download.assert_called_once_with(self._REPOSITORY, first["id"])
+
+    def test_completion_cli_rejects_invalid_numeric_identity_without_remote_call(self) -> None:
+        """Never let interpolation turn a rejected resource into a remote mutation."""
+        for value in (False, True, 0, -1, "42", "42/assets"):
+            with self.subTest(value=value):
+                # Arrange
+                client = github_release.GitHubCliClient()
+
+                # Act
+                with mock.patch.object(client, "_run_text") as request:
+                    error = _record_exception(lambda: client.publish_existing_release(self.plan, value))
+
+                # Assert
+                self.assertIsInstance(error, github_release.GitHubReleaseError)
+                request.assert_not_called()
+
     def test_cli_applies_prerelease_and_stable_classification(self) -> None:
         """Pin GitHub draft and publication flags for both release classes."""
         stable_plan = copy.deepcopy(self.plan)
@@ -1720,7 +2267,7 @@ class GitHubReleaseTests(unittest.TestCase):
             set(client.upload_calls[0]),
         )
         self.assertEqual(
-            [(self._REPOSITORY, self._TAG, self._COMMIT)] * 3,
+            [(self._REPOSITORY, self._TAG, self._COMMIT)] * 4,
             client.verified_tags,
         )
 
@@ -1744,6 +2291,137 @@ class GitHubReleaseTests(unittest.TestCase):
             sleeps,
         )
         self.assertEqual(1, client.publish_calls)
+
+    def test_finalize_accepts_publication_at_the_last_readback_attempt(self) -> None:
+        """Allow bounded draft, absent and mutable publication propagation."""
+        for pending_state in ("absent", "draft", "mutable"):
+            with self.subTest(pending_state=pending_state):
+                # Arrange
+                client = FakeReleaseClient()
+                client.publication_visibility_delay = 29
+                client.publication_pending_state = pending_state
+                sleeps: list[float] = []
+
+                # Act
+                with mock.patch.object(client, "is_latest", wraps=client.is_latest) as latest_readback:
+                    receipt = github_release.finalize_release(
+                        self.plan, client, sleep=sleeps.append,
+                    )
+
+                # Assert
+                self.assertEqual("published-and-verified", receipt["status"])
+                self.assertEqual(30, client.publication_readbacks)
+                self.assertEqual([10.0] * 29, sleeps)
+                self.assertEqual(1, client.publish_calls)
+                self.assertEqual(33, len(client.verified_tags))
+                latest_readback.assert_called_once_with(self._REPOSITORY, 42)
+
+    def test_finalize_rejects_publication_beyond_the_readback_window(self) -> None:
+        """Keep the publication window bounded without sleeping after its last read."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.publication_visibility_delay = 30
+        sleeps: list[float] = []
+
+        # Act
+        failure = _record_exception(
+            lambda: github_release.finalize_release(self.plan, client, sleep=sleeps.append)
+        )
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("published and immutable within the readback window", str(failure))
+        self.assertEqual(30, client.publication_readbacks)
+        self.assertEqual([10.0] * 29, sleeps)
+        self.assertEqual(1, client.publish_calls)
+
+    def test_finalize_short_draft_window_does_not_shorten_publication_window(self) -> None:
+        """Keep independently bounded staging retries separate from publication."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.publication_visibility_delay = 2
+        sleeps: list[float] = []
+
+        # Act
+        receipt = github_release.finalize_release(
+            self.plan, client, sleep=sleeps.append, readback_attempts=1,
+        )
+
+        # Assert
+        self.assertEqual("published-and-verified", receipt["status"])
+        self.assertEqual(3, client.publication_readbacks)
+        self.assertEqual([10.0] * 2, sleeps)
+
+    def test_finalize_honors_an_explicit_publication_readback_limit(self) -> None:
+        """Allow deterministic callers to shorten only the publication readback."""
+        # Arrange
+        client = FakeReleaseClient()
+        client.publication_visibility_delay = 2
+        sleeps: list[float] = []
+
+        # Act
+        failure = _record_exception(
+            lambda: github_release.finalize_release(
+                self.plan, client, sleep=sleeps.append, publication_readback_attempts=2,
+            )
+        )
+
+        # Assert
+        self.assertIsInstance(failure, github_release.GitHubReleaseError)
+        self.assertIn("published and immutable within the readback window", str(failure))
+        self.assertEqual(2, client.publication_readbacks)
+        self.assertEqual([10.0], sleeps)
+
+    def test_finalize_rejects_publication_conflicts_without_retrying(self) -> None:
+        """Never treat conflicting metadata, assets, Latest or tags as propagation."""
+        for conflict in ("metadata", "asset", "missing-asset", "latest", "tag", "absent-tag"):
+            with self.subTest(conflict=conflict):
+                # Arrange
+                client = FakeReleaseClient()
+                sleeps: list[float] = []
+                publish = client.publish_release
+                expected_error = {
+                    "metadata": "metadata conflicts",
+                    "asset": "asset readback conflicts",
+                    "missing-asset": "missing planned assets",
+                    "latest": "latest status conflicts",
+                    "tag": "remote tag moved",
+                    "absent-tag": "remote tag moved",
+                }[conflict]
+
+                def publish_conflicting_state(plan: dict[str, object]) -> None:
+                    """Expose one deterministic conflict immediately after publication."""
+                    publish(plan)
+                    assert client.release is not None
+                    if conflict != "latest":
+                        client.publication_pending_state = "absent" if conflict == "absent-tag" else "mutable"
+                        client._pending_publication_reads = 1
+
+                    if conflict == "metadata":
+                        client.release["name"] = "conflicting name"
+                    elif conflict == "asset":
+                        asset_id = next(iter(client.payloads))
+                        payload = client.payloads[asset_id]
+                        client.payloads[asset_id] = b"x" * len(payload)
+                    elif conflict == "missing-asset":
+                        client.release["assets"].pop()
+                    elif conflict == "latest":
+                        client.latest = not bool(plan["latest"])
+                    else:
+                        client.tag_error = github_release.GitHubReleaseError("remote tag moved")
+
+                # Act
+                with mock.patch.object(client, "publish_release", side_effect=publish_conflicting_state):
+                    failure = _record_exception(
+                        lambda: github_release.finalize_release(self.plan, client, sleep=sleeps.append)
+                    )
+
+                # Assert
+                self.assertIsInstance(failure, github_release.GitHubReleaseError)
+                self.assertIn(expected_error, str(failure))
+                self.assertEqual(1, client.publication_readbacks)
+                self.assertEqual([], sleeps)
+                self.assertEqual(1, client.publish_calls)
 
     def test_stage_creates_a_verified_draft_without_publishing(self) -> None:
         """Create the public release identity before the first NuGet push."""
@@ -2114,6 +2792,42 @@ class GitHubReleaseTests(unittest.TestCase):
             ),
         ):
             client.verify_tag(self._REPOSITORY, self._TAG, self._COMMIT)
+
+
+class StableGitHubCompletionTests(GitHubReleaseFixture):
+    """Verify stable historical classification with genuinely sealed stable fixtures."""
+
+    _VERSION = "10.0.0"
+    _TAG = "v10.0.0"
+
+    def test_initial_mutable_stable_completion_does_not_require_latest(self) -> None:
+        """A historical stable release can settle after a newer stable became Latest."""
+        # Arrange
+        plan, client = self._completion_fixture()
+        pending = copy.deepcopy(client.release)
+        pending["draft"] = False
+        pending["published_at"] = "2026-08-04T12:00:00Z"
+        immutable = {**pending, "immutable": True}
+        client.latest = False
+        sleeps: list[float] = []
+
+        # Act
+        with mock.patch.object(client, "get_release", side_effect=[pending, immutable]):
+            receipt = github_release.complete_existing_release(
+                plan, client, 42, authority=plan["publicationAuthority"], sleep=sleeps.append,
+            )
+
+        # Assert
+        github_release.validate_release_receipt(receipt, plan)
+        self.assertFalse(plan["prerelease"])
+        self.assertEqual("historical-no-promotion", receipt["promotion"]["disposition"])
+        self.assertEqual([], sleeps)
+        self.assertEqual([], client.publish_existing_calls)
+        self.assertEqual(0, client.publish_calls)
+        self.assertEqual(0, client.latest_reads)
+        self.assertEqual(0, client.create_calls)
+        self.assertEqual([], client.upload_calls)
+        self.assertEqual([], client.delete_calls)
 
 
 if __name__ == "__main__":

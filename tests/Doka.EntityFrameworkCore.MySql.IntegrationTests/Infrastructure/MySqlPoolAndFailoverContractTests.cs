@@ -406,14 +406,13 @@ public sealed class MySqlPoolAndFailoverContractTests
             checked((int)directBuilder.Port),
             healthyHost);
 
-        var unavailableHost = IPAddress.Loopback;
+        var unavailableHost = IPAddress.Parse(TcpFaultProxy.UnavailableTcpHost);
 
         using (var unavailableClient = new TcpClient(AddressFamily.InterNetwork))
         {
-            // Use IP literals on the two platform-defined loopback endpoints.
-            // The first refuses immediately while the proxy listens on the
-            // second, so the test measures ordered host failover rather than
-            // DNS or an operating-system connect timeout.
+            // WHY: TCP rejects this broadcast destination before connecting.
+            // Unlike an unused loopback port, another parallel listener cannot
+            // make the first host available. Both hosts remain numeric literals.
             _ = await Assert
                 .ThrowsAsync<SocketException>(() => unavailableClient
                     .ConnectAsync(

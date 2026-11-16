@@ -41,14 +41,12 @@ def run_command(
     previous_handlers: dict[int, signal.Handlers] = {}
 
     def forward_signal(signum: int, _frame: object) -> None:
-        """Forward an operator or outer deadline signal to the owned group."""
+        """Record the first operator signal for normal process-group cleanup."""
         nonlocal forwarded_signal
-        forwarded_signal = signum
-
-        try:
-            os.killpg(process.pid, signum)
-        except ProcessLookupError:
-            pass
+        # WHY: Signalling here and again during cleanup races the owned zombie
+        # transition. The normal path forwards the original signal once.
+        if forwarded_signal is None:
+            forwarded_signal = signum
 
     for signum in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[signum] = signal.getsignal(signum)
@@ -59,7 +57,11 @@ def run_command(
     try:
         while True:
             if forwarded_signal is not None:
-                _terminate_process_group(process, termination_grace_seconds)
+                _terminate_process_group(
+                    process,
+                    termination_grace_seconds,
+                    termination_signal=forwarded_signal,
+                )
                 return 128 + forwarded_signal
 
             remaining = deadline - time.monotonic()
@@ -77,11 +79,13 @@ def run_command(
                 exit_code = process.wait(
                     timeout=min(SIGNAL_POLL_SECONDS, remaining)
                 )
-                if _process_group_exists(process.pid):
-                    _terminate_process_group(
-                        process,
-                        termination_grace_seconds,
-                    )
+                # WHY: Normal completion can leave descendants. Its first
+                # group probe must share the same bounded cleanup as signals.
+                _terminate_process_group(
+                    process,
+                    termination_grace_seconds,
+                    termination_signal=forwarded_signal or signal.SIGTERM,
+                )
                 return (
                     128 + forwarded_signal
                     if forwarded_signal is not None
@@ -97,40 +101,70 @@ def run_command(
 def _terminate_process_group(
     process: subprocess.Popen[bytes],
     termination_grace_seconds: float,
+    *,
+    termination_signal: int = signal.SIGTERM,
 ) -> None:
     """Terminate cooperatively first, then force-stop the owned group."""
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    deadline = time.monotonic() + termination_grace_seconds
+    if not _signal_process_group(process, termination_signal, cleanup_deadline=deadline):
         return
 
-    deadline = time.monotonic() + termination_grace_seconds
-    while _process_group_exists(process.pid):
+    while True:
+        if not _process_group_exists(process, cleanup_deadline=deadline):
+            return
+
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
 
         time.sleep(min(SIGNAL_POLL_SECONDS, remaining))
 
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except (PermissionError, ProcessLookupError):
-        pass
+    _signal_process_group(process, signal.SIGKILL, cleanup_deadline=deadline)
 
     if process.poll() is None:
         process.wait()
 
 
-def _process_group_exists(process_group_id: int) -> bool:
+def _process_group_exists(
+    process: subprocess.Popen[bytes], *, cleanup_deadline: float
+) -> bool:
     """Return whether any process still belongs to the owned process group."""
+    return _signal_process_group(process, 0, cleanup_deadline=cleanup_deadline)
+
+
+def _signal_process_group(
+    process: subprocess.Popen[bytes], signum: int, *, cleanup_deadline: float
+) -> bool:
+    """Signal or probe the group, distinguishing absence from denied access."""
+    # WHY: Darwin can deny a signal while the owned leader is an unreaped
+    # zombie. Reap it first, but never equate that leader's exit with group exit.
+    process.poll()
+
     try:
-        os.killpg(process_group_id, 0)
+        os.killpg(process.pid, signum)
     except ProcessLookupError:
         return False
-    except PermissionError:
-        # The helper creates the group itself, so an unsignalable group has no
-        # live owned process left; macOS can report EPERM briefly for zombies.
-        return False
+    except PermissionError as denied:
+        # WHY: A dying leader can briefly remain unreapable, and an ended
+        # leader can leave zombie descendants. Darwin EPERM cannot distinguish
+        # those transitions from a genuinely denied group.
+        # Only actual ESRCH within the original cleanup budget proves absence.
+        while True:
+            process.poll()
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                pass
+            else:
+                raise denied
+
+            remaining = cleanup_deadline - time.monotonic()
+            if remaining <= 0:
+                raise denied
+
+            time.sleep(min(SIGNAL_POLL_SECONDS, remaining))
 
     return True
 

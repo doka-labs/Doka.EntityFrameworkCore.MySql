@@ -28,7 +28,7 @@ amend an ADR.
 
 ## Current baseline
 
-EF Core 10.0.8, 10.0.10, 10.0.11, 10.0.12, 10.0.13, and 10.0.14 expose 327 official compliance
+EF Core 10.0.8, 10.0.10, 10.0.11, 10.0.12, 10.0.13, 10.0.14, and 10.0.15 expose 327 official compliance
 bases. The 10.0.8 inventory contains 9,031 unique xUnit method definitions and
 19,176 effective base-to-method assignments. The 10.0.10 inventory contains
 9,039 definitions and 19,191 assignments. The 10.0.11 and 10.0.12 inventories
@@ -44,7 +44,13 @@ provider suite debt `0/0` for every registered EF Core patch contract.
 The 10.0.14 inventory also contains 9,041 definitions and 19,193 assignments;
 the official method set is unchanged from 10.0.13.
 
-Discovery regenerated through 2026-10-29 records the complete concrete provider
+The 10.0.15 inventory contains 9,045 definitions and 19,199 assignments.
+The four added methods cover passive `ExecuteDelete`/`ExecuteUpdate` interception
+and `Contains` on `IReadOnlySet<int>` and a read-only collection with its own
+`Contains` method. The existing provider adapters inherit all four methods;
+no provider-debt or disposition allowance was added.
+
+Discovery regenerated through 2026-11-15 records the complete concrete provider
 surface:
 
 | EF Core | Target | Discovered |
@@ -85,6 +91,17 @@ surface:
 | 10.0.14 | MariaDB 11.4 | 29,420 |
 | 10.0.14 | MariaDB 11.8 | 29,421 |
 | 10.0.14 | MariaDB 12.3 | 29,427 |
+| 10.0.15 | MySQL 8.4 | 29,774 |
+| 10.0.15 | MySQL 9.7 | 29,774 |
+| 10.0.15 | MariaDB 10.11 | 29,440 |
+| 10.0.15 | MariaDB 11.4 | 29,438 |
+| 10.0.15 | MariaDB 11.8 | 29,439 |
+| 10.0.15 | MariaDB 12.3 | 29,445 |
+
+The 10.0.15 admission was generated from the exact restored package, with
+filtered/unfiltered discovery and zero-debt validation on 2026-11-15. These
+contracts establish the expected matrix; discovery alone does not assert that
+the full live matrix has passed.
 
 All 21 complex-collection JSON update tests, including the new 10.0.13 method,
 passed in targeted live runs on both MySQL 8.4 and MariaDB 11.8 on 2026-10-19.
@@ -121,7 +138,9 @@ The TRX totals and display IDs matched the discovery contracts regenerated
 through 2026-08-16. Every skip matched its ledger ID, method, and target; every other
 discovered test passed. The three newly admitted targets were also executed
 against the minimum EF Core 10.0.8 patch on the same date. The scheduled patch
-matrix continues to execute both supported dependency endpoints in full.
+matrix executes the supported floor and every already admitted latest patch
+in full. A newer patch awaiting contract review is explicitly reported as not
+qualified, as described below.
 Release qualification re-resolves and records the deterministic floor graph,
 then fully executes the highest exact patch already registered in the reviewed
 baseline. Scheduled CI alone resolves floating `10.0.*` to detect a newer
@@ -143,9 +162,17 @@ bash eng/testing/check-spec-contract.sh
 bash eng/testing/check-spec-discovery.sh
 ```
 
-The floor/latest patch runner invokes the exact-version preflight immediately
+The qualification patch runner invokes the exact-version preflight immediately
 after reading back NuGet's resolved graph and before starting the repository or
-live-engine suites.
+live-engine suites. Scheduled floating detection uses the explicit
+`upstream-probe` scope: it validates the highest reviewed same-line contract,
+then reports an entirely unregistered newer patch as `not-qualified` in
+`upstream-discovery.json` and the Actions job summary. This report is not an
+`efcore-contract-evidence.json` receipt and cannot qualify a release. No tests
+are claimed for that new patch until its contracts have been generated and
+reviewed. Known patches still execute the complete matrix. Missing known,
+partial or malformed contracts and real producer failures remain fatal; the
+default `full` and `dependency-graph` scopes never permit unregistered patches.
 
 After a live specification run, reconcile its TRX results with the exact
 discovery and disposition contracts:
@@ -168,6 +195,13 @@ use an explicit EF Core version and record the retrieval date. Review the JSON
 diff before accepting an upstream patch.
 
 ## Primary sources
+
+Retrieved on 2026-11-15:
+
+- EF Core 10.0.15 specification package source identity:
+  <https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational.specification.tests/10.0.15/microsoft.entityframeworkcore.relational.specification.tests.nuspec>
+- EF Core 10.0.15 package source tree:
+  <https://github.com/dotnet/dotnet/tree/8e0f8ed2312954727f8919d7d1c2f78b483b4ee7/src/efcore>
 
 Retrieved on 2026-10-29:
 

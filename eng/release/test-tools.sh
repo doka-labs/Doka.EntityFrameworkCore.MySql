@@ -19,6 +19,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
     eng.tests.test_publication_readiness \
     eng.tests.test_reconciliation_contract \
     eng.tests.test_release_artifact_resolver \
+    eng.tests.test_release_completion \
     eng.tests.test_release_evidence \
     eng.tests.test_release_finalization_chain \
     eng.tests.test_release_lines \

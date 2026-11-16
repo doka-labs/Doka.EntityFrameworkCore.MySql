@@ -33,6 +33,8 @@ SCHEMA_VERSION = 4
 LEGACY_SCHEMA_VERSION = 3
 GITHUB_API_VERSION = "2022-11-28"
 READBACK_DELAY_SECONDS = 2.0
+PUBLICATION_READBACK_ATTEMPTS = 30
+PUBLICATION_READBACK_DELAY_SECONDS = 10.0
 SHA1 = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
@@ -91,6 +93,9 @@ class ReleaseClient(Protocol):
 
     def publish_release(self, plan: dict[str, Any]) -> None:
         """Publish a complete draft using its planned release classification."""
+
+    def publish_existing_release(self, plan: dict[str, Any], release_id: int) -> None:
+        """Publish only the independently frozen numeric release identity."""
 
     def download_asset(
         self,
@@ -544,6 +549,36 @@ def validate_staged_evidence(
     package_map: dict[str, dict[str, Path]],
 ) -> list[Path]:
     """Validate the pre-publish evidence that authorizes draft staging."""
+    paths, subjects = validate_staged_documents(
+        publication_evidence, candidate_root, receipt, package_map
+    )
+    try:
+        release_provenance.verify_portable_bundle(
+            publication_evidence / release_provenance.PORTABLE_PROVENANCE_NAME,
+            subjects,
+            require_exact=False,
+            release_manifest=(
+                read_json(candidate_root / release_evidence.MANIFEST_NAME, "release manifest")
+                if "releaseLine" in receipt else None
+            ),
+        )
+    except release_provenance.ProvenanceError as exception:
+        raise GitHubReleaseError(
+            f"Portable release provenance is invalid: {exception}"
+        ) from exception
+
+    sha256_file(publication_evidence / release_provenance.PORTABLE_PROVENANCE_NAME)
+
+    return paths
+
+
+def validate_staged_documents(
+    publication_evidence: Path,
+    candidate_root: Path,
+    receipt: dict[str, Any],
+    package_map: dict[str, dict[str, Path]],
+) -> tuple[list[Path], list[Path]]:
+    """Validate immutable staged metadata independently of the executing run."""
     paths = {name: publication_evidence / name for name in STAGED_EVIDENCE_FILES}
     candidate_path = paths["candidate-receipt.json"]
     candidate = read_json(candidate_path, "candidate receipt")
@@ -636,24 +671,11 @@ def validate_staged_evidence(
         paths["candidate-publication-preflight.json"],
         paths["symbol-readback-manifest.json"],
     ]
-    try:
-        release_provenance.verify_portable_bundle(
-            paths[release_provenance.PORTABLE_PROVENANCE_NAME],
-            provenance_subjects,
-            require_exact=False,
-            release_manifest=(
-                read_json(candidate_root / release_evidence.MANIFEST_NAME, "release manifest")
-                if "releaseLine" in receipt else None
-            ),
-        )
-    except release_provenance.ProvenanceError as exception:
-        raise GitHubReleaseError(
-            f"Portable release provenance is invalid: {exception}"
-        ) from exception
-
     for path in paths.values():
-        sha256_file(path)
-    return list(paths.values())
+        if path.name != release_provenance.PORTABLE_PROVENANCE_NAME:
+            sha256_file(path)
+
+    return list(paths.values()), provenance_subjects
 
 
 def build_release_plan(
@@ -663,6 +685,65 @@ def build_release_plan(
     changelog: Path,
 ) -> dict[str, Any]:
     """Build the deterministic pre-publication release plan."""
+    return _build_release_plan(
+        repository, candidate_root, publication_evidence, changelog,
+        validate_staged_evidence,
+    )
+
+
+def build_restored_release_plan(
+    repository: str,
+    candidate_root: Path,
+    publication_evidence: Path,
+    changelog: Path,
+    *,
+    attesting_attempt: int,
+    publication_attempt: int,
+) -> dict[str, Any]:
+    """Reconstruct original release bytes using independently proven attempts.
+
+    WHY: Completion runs on current protected main. Its caller authenticates
+    both real runs and the original producer attempts instead of impersonating
+    the original run through changed environment variables.
+    """
+    def validate_restored(
+        evidence: Path,
+        candidate: Path,
+        receipt: dict[str, Any],
+        packages: dict[str, dict[str, Path]],
+    ) -> list[Path]:
+        paths, subjects = validate_staged_documents(evidence, candidate, receipt, packages)
+        try:
+            bundle = release_provenance.read_bundle(
+                evidence / release_provenance.PORTABLE_PROVENANCE_NAME, json_lines=True
+            )
+            release_provenance.validate_bundle(bundle, subjects, require_exact=False)
+            release_provenance.validate_workflow_identity(
+                bundle,
+                read_json(candidate / release_evidence.MANIFEST_NAME, "release manifest"),
+                signer_run_attempt=attesting_attempt,
+                publication_run_attempt=publication_attempt,
+            )
+        except release_provenance.ProvenanceError as exception:
+            raise GitHubReleaseError(f"Restored release provenance is invalid: {exception}") from exception
+
+        sha256_file(evidence / release_provenance.PORTABLE_PROVENANCE_NAME)
+
+        return paths
+
+    return _build_release_plan(
+        repository, candidate_root, publication_evidence, changelog, validate_restored,
+    )
+
+
+def _build_release_plan(
+    repository: str,
+    candidate_root: Path,
+    publication_evidence: Path,
+    changelog: Path,
+    validate_staged: Callable[[Path, Path, dict[str, Any], dict[str, dict[str, Path]]], list[Path]],
+) -> dict[str, Any]:
+    """Share deterministic asset assembly without sharing hosted-run authority."""
     if not REPOSITORY.fullmatch(repository):
         raise GitHubReleaseError(f"GitHub repository identity is invalid: {repository}")
 
@@ -764,7 +845,7 @@ def build_release_plan(
             )
         )
 
-    staged_paths = validate_staged_evidence(
+    staged_paths = validate_staged(
         publication_evidence,
         candidate_root,
         receipt,
@@ -1150,6 +1231,23 @@ class GitHubCliClient:
             f"--latest={str(bool(plan['latest'])).lower()}",
         )
 
+    def publish_existing_release(self, plan: dict[str, Any], release_id: int) -> None:
+        """PATCH only the verified positive release ID, never resolve a write by tag."""
+        if type(release_id) is not int or release_id <= 0:
+            raise GitHubReleaseError("Completion requires a positive release ID.")
+
+        # WHY: A tag-based edit could address a replacement release between
+        # inspection and mutation. The frozen numeric identity cannot be reused.
+        self._run_text(
+            "api", "--method", "PATCH",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", f"X-GitHub-Api-Version: {GITHUB_API_VERSION}",
+            f"/repos/{plan['repository']}/releases/{release_id}",
+            "-F", "draft=false",
+            "-F", f"prerelease={str(bool(plan['prerelease'])).lower()}",
+            "-f", f"make_latest={str(bool(plan['latest'])).lower()}",
+        )
+
     def download_asset(self, repository: str, asset_id: int) -> bytes:
         """Download an asset through the authenticated octet-stream endpoint."""
         result = subprocess.run(
@@ -1307,6 +1405,7 @@ def verify_release_assets(
         raise GitHubReleaseError("GitHub release has no readable asset inventory.")
 
     remote_names: set[str] = set()
+    remote_ids: set[int] = set()
     for asset in remote_assets:
         if not isinstance(asset, dict):
             raise GitHubReleaseError("GitHub release contains an invalid asset object.")
@@ -1317,14 +1416,19 @@ def verify_release_assets(
 
         asset_id = asset.get("id")
         planned = planned_assets[name]
+        # WHY: Payload readback addresses numeric IDs, so distinct names must
+        # not conceal one reused or malformed remote resource identity.
         if (
             asset.get("state") != "uploaded"
             or asset.get("size") != planned["sizeBytes"]
             or isinstance(asset_id, bool)
             or not isinstance(asset_id, int)
+            or asset_id <= 0
+            or asset_id in remote_ids
         ):
             raise GitHubReleaseError(f"GitHub release asset metadata conflicts: {name}")
 
+        remote_ids.add(asset_id)
         payload = client.download_asset(str(plan["repository"]), asset_id)
         if len(payload) != planned["sizeBytes"] or sha256_bytes(payload) != planned["sha256"]:
             raise GitHubReleaseError(f"GitHub release asset readback conflicts: {name}")
@@ -1505,13 +1609,16 @@ def finalize_release(
     readback_attempts: int = 6,
     *,
     authority: dict[str, Any] | None = None,
+    publication_readback_attempts: int = PUBLICATION_READBACK_ATTEMPTS,
 ) -> dict[str, Any]:
     """Finalize one immutable release without replacing remote state.
 
     The protocol validates the tag before mutation, reconciles an existing
     draft or published release, and uploads only missing assets. It verifies
     the tag and remote readback around publication so stale or conflicting
-    state cannot become release evidence.
+    state cannot become release evidence. Draft staging retains its short
+    readback window; publication receives a separate bounded window because
+    GitHub publication and immutable-state readbacks can propagate later.
     """
     validate_plan(plan)
     require_publisher_lock(plan)
@@ -1584,15 +1691,19 @@ def finalize_release(
     promotion = decide_latest(plan, client, authority)
     effective_plan = {**plan, "latest": promotion["disposition"] == "promoted"}
     client.publish_release(effective_plan)
-    for attempt in range(readback_attempts):
+    # WHY: Publication propagation is independent of draft and upload visibility;
+    # retain fail-fast identity checks while allowing only pending state to settle.
+    for attempt in range(publication_readback_attempts):
         release = client.get_release(repository, tag)
+        client.verify_tag(repository, tag, str(plan["sourceCommit"]))
         if release is not None:
             verify_release_metadata(release, plan)
+            if verify_release_assets(release, plan, client):
+                raise GitHubReleaseError(
+                    "Published GitHub release is missing planned assets."
+                )
+
             if release["draft"] is False and release.get("immutable") is True:
-                if verify_release_assets(release, plan, client):
-                    raise GitHubReleaseError(
-                        "Published GitHub release is missing planned assets."
-                    )
                 release_id = release.get("id")
                 if (
                     isinstance(release_id, bool)
@@ -1604,12 +1715,106 @@ def finalize_release(
                     )
                 client.verify_tag(repository, tag, str(plan["sourceCommit"]))
                 return build_receipt(release, plan, bool(effective_plan["latest"]), promotion=promotion)
-        if attempt + 1 < readback_attempts:
-            sleep(READBACK_DELAY_SECONDS)
+        if attempt + 1 < publication_readback_attempts:
+            sleep(PUBLICATION_READBACK_DELAY_SECONDS)
 
     raise GitHubReleaseError(
         "GitHub release did not become published and immutable within the readback window."
     )
+
+
+def complete_existing_release(
+    plan: dict[str, Any],
+    client: ReleaseClient,
+    release_id: int,
+    *,
+    authority: dict[str, Any],
+    sleep: Callable[[float], None] = time.sleep,
+    publication_readback_attempts: int = PUBLICATION_READBACK_ATTEMPTS,
+) -> dict[str, Any]:
+    """Complete one proven publication without create, upload or delete recovery.
+
+    The caller reauthenticates both real runs and original public package proof.
+    This boundary repeats byte, grant, tag and numeric identity checks directly
+    before the only permitted remote mutation.
+    """
+    validate_plan(plan)
+    require_publisher_lock(plan)
+    if plan["schemaVersion"] != SCHEMA_VERSION or type(release_id) is not int or release_id <= 0:
+        raise GitHubReleaseError("Completion requires a current plan and positive release ID.")
+
+    receipt, candidate_root = plan_publication_identity(plan)
+    try:
+        nuget_publication.validate_publication_authority(receipt, candidate_root, authority=authority)
+    except nuget_publication.PublicationError as exception:
+        raise GitHubReleaseError(f"Completion authority is invalid: {exception}") from exception
+
+    repository = str(plan["repository"])
+    tag = str(plan["releaseTag"])
+    commit = str(plan["sourceCommit"])
+    client.verify_tag(repository, tag, commit)
+    release = client.get_release(repository, tag)
+    if release is None or type(release.get("id")) is not int or release["id"] != release_id:
+        raise GitHubReleaseError("Completion release is missing or its numeric identity changed.")
+
+    verify_release_metadata(release, plan)
+    if verify_release_assets(release, plan, client):
+        raise GitHubReleaseError("Completion release is missing planned assets.")
+
+    if release["draft"] is False and release.get("immutable") is True:
+        verify_historical_classification(release, plan, client)
+        client.verify_tag(repository, tag, commit)
+
+        return build_receipt(release, plan, promotion={
+            "schemaVersion": 1, "observedLatest": None, "comparison": None,
+            "disposition": "historical-no-promotion", "authorization": authority,
+        })
+
+    if release.get("immutable") is not False:
+        raise GitHubReleaseError("Completion release immutable state is invalid.")
+
+    if release["draft"]:
+        promotion = decide_latest(plan, client, authority)
+        effective_plan = {**plan, "latest": promotion["disposition"] == "promoted"}
+        client.verify_tag(repository, tag, commit)
+        client.publish_existing_release(effective_plan, release_id)
+    else:
+        # WHY: Publication can be visible before immutable metadata propagates.
+        # Observe the same existing release without attempting a second write.
+        promotion = {
+            "schemaVersion": 1, "observedLatest": None, "comparison": None,
+            "disposition": "historical-no-promotion", "authorization": authority,
+        }
+        effective_plan = None
+
+    for attempt in range(publication_readback_attempts):
+        release = client.get_release(repository, tag)
+        client.verify_tag(repository, tag, commit)
+        if release is not None:
+            if type(release.get("id")) is not int or release["id"] != release_id:
+                raise GitHubReleaseError("Completion release numeric identity changed during readback.")
+
+            verify_release_metadata(release, plan)
+            if verify_release_assets(release, plan, client):
+                raise GitHubReleaseError("Completion release lost planned assets during readback.")
+
+            if release["draft"] is False and release.get("immutable") is True:
+                if effective_plan is not None and client.is_latest(repository, release_id) != effective_plan["latest"]:
+                    raise GitHubReleaseError("Completion release latest status conflicts.")
+
+                verify_historical_classification(release, plan, client)
+                client.verify_tag(repository, tag, commit)
+
+                return build_receipt(
+                    release, plan,
+                    bool(effective_plan["latest"]) if effective_plan is not None else None,
+                    promotion=promotion,
+                )
+
+        if attempt + 1 < publication_readback_attempts:
+            sleep(PUBLICATION_READBACK_DELAY_SECONDS)
+
+    raise GitHubReleaseError("Completion release did not become published and immutable within the readback window.")
 
 
 def stage_release(

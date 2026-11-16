@@ -71,6 +71,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Assert.Contains("`value` char(36) PATH '$'", sql, StringComparison.Ordinal);
         Assert.Contains("UNHEX(REPLACE(`v`.`value`, '-', ''))", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` binary(16) PATH '$'", sql, StringComparison.Ordinal);
+
+        // WHY: The independent parameter rowset must stay materializable once,
+        // rather than becoming a scalar COUNT correlated with every entity row.
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("SELECT COUNT(*)", sql, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -96,6 +101,10 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`v`.`value`))", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("UNHEX(", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` binary(16) PATH '$'", sql, StringComparison.Ordinal);
+
+        // WHY: Preserve the same independent membership plan for textual GUIDs.
+        Assert.Contains(" IN (", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("SELECT COUNT(*)", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

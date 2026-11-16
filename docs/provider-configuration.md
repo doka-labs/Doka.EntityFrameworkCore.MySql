@@ -4,6 +4,12 @@ This guide is the canonical map of application-facing provider configuration.
 It groups the public entry points by lifetime and links specialized contracts
 instead of duplicating them.
 
+This guide describes the Doka 10.x line. The provider and spatial extension
+accept EF Core `>= 10.0.8` and `< 10.1.0`; a newer repository build SDK does not
+raise the application's SDK minimum. The separately prepared .NET 11 branch
+does not change these package compatibility boundaries. See the
+[support policy](../SUPPORT.md#framework-lines-and-servicing).
+
 ## Connection and Server Configuration
 
 Configure the provider with exactly one of the `UseMySql(...)` inputs:
@@ -601,6 +607,17 @@ text. This keeps quote, backslash, empty-string, and non-ASCII values
 independent of MariaDB's `NO_BACKSLASH_ESCAPES` mode while leaving the property
 column authoritative for collation semantics, including columns with
 non-default collations on MariaDB 10.11.
+
+Filtered string parameters infer their mapping from the bounded operand used
+by `Contains` or `Any`, including mapped scalar functions, explicit collations
+and predicates pushed through pagination. This does not narrow the encoded
+transport: predicates evaluate decoded strings and retain null semantics.
+Incompatible explicit or converter mappings remain errors, including when the
+same collection also has a valid consumer.
+
+Filtered native and decoded collection predicates preserve `OR` grouping when
+composed with `Contains` or its negation. This includes disjunctions introduced
+for null semantics; the membership comparison applies to the complete filter.
 
 Nullable elements, `Guid.Empty`, duplicate keys, empty collections, and large
 single-parameter collections retain normal LINQ membership semantics. The same

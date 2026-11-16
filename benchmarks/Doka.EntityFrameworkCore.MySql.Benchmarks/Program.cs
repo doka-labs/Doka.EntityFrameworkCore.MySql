@@ -5,8 +5,8 @@ public static class Program
 {
     private const int InvalidEvidenceExitCode = 78;
 
-    /// <summary>Executes measurements, soak collection, or the selected evidence evaluation mode.</summary>
-    /// <param name="args">BenchmarkDotNet arguments or the explicit evaluation/soak command.</param>
+    /// <summary>Executes benchmarks, isolated allocation probes, soak collection, or evidence evaluation.</summary>
+    /// <param name="args">BenchmarkDotNet arguments or an explicit probe/evaluation/soak command.</param>
     /// <returns>Zero on success, one for a regression, or 78 for invalid evidence or execution.</returns>
     public static async Task<int> Main(
         string[] args
@@ -14,6 +14,19 @@ public static class Program
     {
         try
         {
+            if (args.Length > 0
+                && string.Equals(args[0], "--allocation-probe", StringComparison.Ordinal))
+            {
+                if (args.Length != 2)
+                {
+                    throw new ArgumentException("--allocation-probe requires exactly one scenario.");
+                }
+
+                Console.WriteLine(JsonSerializer.Serialize(JsonAllocationProbe.Run(args[1])));
+
+                return 0;
+            }
+
             if (args.Length is 5 or 6
                 && string.Equals(args[0], "--evaluate", StringComparison.Ordinal))
             {

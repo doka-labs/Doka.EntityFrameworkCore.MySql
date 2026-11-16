@@ -82,10 +82,12 @@ signed tags and publication remain separate. See the
 [workflow overview][workflow-overview] for the shared checks
 and the meaning of a green PR.
 
-The current stable line remains .NET 10. The prepared release-line contract
-reserves `maintenance/10.x` for later 10.x servicing and optional `preview/11.x`
-for independently qualified platform RCs; both routes are initially inactive.
-It does not activate .NET 11 publication or change application requirements.
+The maintained stable line remains .NET 10. The release-line contract prepares
+`maintenance/10.x` for later 10.x servicing; optional `preview/11.x` remains
+inactive for independently qualified platform RCs. Preparation does not create
+or activate the maintenance branch, authorize .NET 11 publication, or change
+application requirements. Those operations require the separately approved
+cutover and hosted qualification.
 The same release workflow selects an authorized branch and canonical version;
 personal signed tags, single-maintainer approval and administrator bypass stay
 unchanged, using the existing `nuget` environment. Ordinary releases need
@@ -119,13 +121,27 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Current Stable Release
+### Next Stable Release: 10.6.6
 
-`10.6.5` is a maintenance patch that hardens cache and SQL-mode integration
-probes, cancellation cleanup and deterministic test preparation. It refreshes
-workflow tooling and MySQL image digests and aligns repository formatting and
-equivalent C# expressions with the reviewed Rider rules. See the
-[changelog][changelog].
+`10.6.6` prepares a maintenance patch for branch-consistent release operations,
+bounded GitHub publication visibility, and safe completion of an already
+uploaded release. Scheduled discovery of an unreviewed EF patch is separated
+from qualification. Dependency/tool pins and MariaDB image digests are refreshed;
+exact-zero JSON comparer checks use an isolated allocation probe without
+relaxing budgets or changing production GC settings. See the [changelog][changelog].
+Supported boxed `Convert.ToString(object)` projections and filters preserve
+scalar, enum and GUID formatting, including empty-string results for boxed
+nulls. Coverage counts canonical class lines, and large-write allocation
+benchmarks use fixed warm samples without changing their allocation ceilings.
+Filtered string parameter collections also retain correct inference against
+bounded mapped operands, including scalar functions and pagination, with
+lossless values and preserved mapping-conflict guards. Ordered failover tests
+no longer depend on an unowned loopback port remaining unavailable.
+Grouped `OR` predicates also prevent filtered native JSON membership and its
+negation from including or excluding unrelated rows; this defect is confirmed
+in 10.6.5.
+These preparation notes do not assert NuGet availability or hosted release
+qualification; verify the published version on the package page before installing.
 
 The MySqlConnector requirement remains `>= 2.6.1` and `< 3.0.0`. Review direct
 driver pins against the [security upgrade guidance][dependency-security-upgrade].
@@ -138,14 +154,14 @@ When upgrading from a version before 10.6.4, regenerate existing compiled
 models to adopt the fixed-binary byte-array reader introduced in that release;
 see
 [fixed binary byte arrays][fixed-binary-byte-arrays].
-SDK 10.0.403 is required to build this repository, not to consume its packages.
+SDK 10.0.404 is required to build this repository, not to consume its packages.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.5 before upgrading the provider.
+its published dependency range includes 10.6.6 before upgrading the provider.
 
-Pin the current stable version explicitly when validating an application:
+After publication, pin the version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.5
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.6
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport

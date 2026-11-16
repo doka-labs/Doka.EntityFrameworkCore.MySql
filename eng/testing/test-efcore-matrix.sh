@@ -2,9 +2,8 @@
 
 # This gate validates dependency resolution and provider behavior for one EF
 # Core patch matrix row. Environment inputs are explicit so scheduled CI and
-# release qualification can exercise the supported floor and the latest
-# compatible patch through one implementation with identical contracts and
-# independently retained evidence.
+# release qualification can exercise reviewed versions while scheduled upstream
+# discovery reports a new patch without claiming it has passed qualification.
 
 set -euo pipefail
 
@@ -38,7 +37,7 @@ command -v jq >/dev/null 2>&1 || {
 }
 
 case "${validation_scope}" in
-    dependency-graph | full)
+    dependency-graph | full | upstream-probe)
         ;;
     *)
         echo "Unsupported EF Core validation scope: ${validation_scope}" >&2
@@ -98,6 +97,72 @@ jq -r --argjson required "${required_packages}" '
     | select(.id as $id | $required | index($id))
     | "\(.id) requested=\(.requestedVersion) resolved=\(.resolvedVersion)"
 ' "${resolved_packages_file}" | sort -u
+
+# WHY: Only scheduled discovery may report an entirely unregistered newer
+# patch. Existing contracts and every qualification caller still fail closed.
+if [[ "${validation_scope}" == "upstream-probe" ]]; then
+    contracts_root="${DOKA_SPEC_CONTRACTS_ROOT:-${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts}"
+    baseline="${contracts_root}/SpecSuiteBaseline.json"
+    reviewed_version="$(jq -er --arg version "${resolved_version}" '
+        .efCoreVersions
+        | map(select(test("^[0-9]+[.][0-9]+[.][0-9]+$")))
+        | map(select((split(".")[:2]) == ($version | split(".")[:2])))
+        | max_by(split(".") | map(tonumber))
+        // empty
+    ' "${baseline}")" || {
+        echo "No reviewed stable EF Core contract exists for the resolved patch line in ${baseline}." >&2
+        exit 1
+    }
+
+    bash "${repo_root}/eng/testing/check-spec-version-contract.sh" "${reviewed_version}"
+
+    if jq -e --arg version "${resolved_version}" --arg reviewed "${reviewed_version}" '
+        (.efCoreVersions | index($version)) == null
+        and (($version | split(".") | map(tonumber)) > ($reviewed | split(".") | map(tonumber)))
+    ' "${baseline}" >/dev/null; then
+        # A partially generated contract is a broken admission, not a newly
+        # discovered patch. Do not hide it behind the non-qualifying outcome.
+        if [[ -e "${contracts_root}/SpecSuiteInventory.${resolved_version}.json" \
+            || -L "${contracts_root}/SpecSuiteInventory.${resolved_version}.json" \
+            || -e "${contracts_root}/SpecDiscovery.${resolved_version}.json" \
+            || -L "${contracts_root}/SpecDiscovery.${resolved_version}.json" ]] \
+            || ! jq -e --arg version "${resolved_version}" '
+                all(.entries[]; (.efCoreVersions | index($version)) == null)
+            ' "${baseline}" >/dev/null; then
+            echo "EF Core ${resolved_version} has a partially registered specification contract." >&2
+            exit 1
+        fi
+
+        # This distinct report cannot substitute for efcore-contract-evidence.json.
+        jq -n \
+            --arg requestedVersion "${requested_version}" \
+            --arg resolvedVersion "${resolved_version}" \
+            --arg reviewedVersion "${reviewed_version}" \
+            '{schemaVersion: 1, validationScope: "upstream-probe",
+              qualificationStatus: "not-qualified", reason: "unreviewed-newer-patch",
+              requestedVersion: $requestedVersion, resolvedVersion: $resolvedVersion,
+              highestReviewedVersion: $reviewedVersion,
+              results: {dependencies: "resolved-packages.json"},
+              specificationTargets: [], integrationTargets: []}' \
+            > "${evidence_dir}/upstream-discovery.json"
+
+        message="EF Core ${resolved_version} discovered; not qualified. Highest reviewed patch: ${reviewed_version}."
+        echo "${message}"
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+                echo "### EF Core upstream discovery"
+                echo "${message}"
+                echo "No build or test result is claimed for the new patch."
+                echo "Review its specification contracts before qualification; PR/RC guards remain unchanged."
+            } >> "${GITHUB_STEP_SUMMARY}"
+        fi
+
+        exit 0
+    fi
+
+    # Admitted patches retain the complete matrix, including strict preflight.
+    validation_scope="full"
+fi
 
 bash "${repo_root}/eng/testing/check-spec-version-contract.sh" "${resolved_version}"
 

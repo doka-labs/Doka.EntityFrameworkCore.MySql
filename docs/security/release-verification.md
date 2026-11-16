@@ -44,6 +44,30 @@ attestation commands below. The selected ref must be exactly one authorized
 release source, not a feature branch or prefix. A frozen authorization snapshot
 documents qualification, not perpetual permission to publish from that ref.
 
+## Completion Authority Is Separate From Original Provenance
+
+The optional `finalize_run_id` path executes current protected-main controls
+under the existing `nuget` approval and publication lock. It authenticates the
+new control run separately from the original release run, retaining original
+producer attempts, archive IDs/digests, candidate and admission identity. It
+does not substitute today's workflow SHA or source ref into old provenance,
+or impersonate the original run through changed hosted identity variables.
+
+Original tag signatures are checked against current trusted signers; current
+active-line grants, source ancestry and the frozen original PR proof remain
+required. Completion repeats public package-content, repository-signature and
+exact Portable PDB verification. Its only possible release write targets the
+already verified positive numeric Release ID; it cannot create/upload/delete,
+rebuild packages, write tags or obtain NuGet publication credentials. A matching
+immutable release is verified without mutation.
+
+Missing or expired original proof, replaced release/artifact identities,
+conflicting public bytes and revoked or reassigned lines fail closed. The new
+completion receipt links both runs; the original failed run remains failed.
+This operational authority is stricter than read-only historical verification,
+which can still inspect a complete release after its line becomes inactive.
+See the [operator procedure](../operations/release-publication.md#complete-an-existing-publication-from-current-main).
+
 ## Prerequisites
 
 - Git with SSH signature verification support;

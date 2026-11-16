@@ -56,11 +56,14 @@ receive community guidance but are not maintained provider contracts.
 
 ## Framework Lines and Servicing
 
-The current stable provider targets .NET 10 / EF Core 10. The binding future
-maintenance branch is `maintenance/10.x`; optional platform prereleases use
-`preview/11.x`. These two routes remain inactive until separately approved
-bootstrap, protected qualification and hosted authorization. The development
-branch `feature/dotnet-11` is not a publication or support grant.
+The maintained Doka 10.x package line targets .NET 10. Its provider and spatial
+extension accept EF Core `>= 10.0.8` and `< 10.1.0`; the standalone cache has no
+EF Core dependency. The repository still prepares this line on `main`.
+`maintenance/10.x` is prepared for later servicing, while optional platform
+prereleases use the inactive `preview/11.x` route. Preparation alone neither
+creates the maintenance branch nor grants publication: own-base qualification
+and hosted authorization require the separately approved cutover. The development
+branch `feature/dotnet-11` is not a published Doka 11.x line or support grant.
 
 All activated lines use the same explicit release entry, existing `nuget`
 environment and their own exact toolchain. Personal signed tags, the existing
@@ -70,9 +73,11 @@ There is no new publisher-environment migration or transition-report procedure.
 The intended 10.x servicing window follows Microsoft's .NET 10 support through
 **2028-11-14**, on supported serviced patches, as verified against the
 [official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
-on 2026-10-22. This does not promise compatibility with obsolete or unserviced
-patches, or a commercial response SLA. Refresh upstream policy when activating
-or retiring the line; no unannounced .NET 11 GA lifecycle is assumed.
+on 2026-10-22. This is Doka's servicing policy, not a guarantee for obsolete or
+unserviced upstream patches or a commercial response SLA. A future .NET 11
+main does not by itself end 10.x servicing. Refresh upstream policy when
+activating or retiring a line; each published Doka major needs its own support
+declaration and applicable dependency qualification.
 
 Applicable correctness and security fixes are reviewed for each maintained
 major, linked through separate backport/forward-port PRs, and tested against

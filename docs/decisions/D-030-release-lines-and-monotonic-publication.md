@@ -161,7 +161,60 @@ maintenance dispatch. These review corrections preserve the existing graph,
 same-run receipts and publication controls. Local regression results alone do
 not establish hosted workflow execution.
 
+### 2026-11-14 Amendment: Branch Instructions and Existing-Publication Completion
+
+Normal release instructions define `release_branch` once and use it for
+checkout, source checks, dispatch and signed-tag ancestry. The pre-tag lookup
+derives the protected ref from that branch's evidence policy and rejects a
+conflicting explicit override. This does not activate another line or change
+personal signing, the existing environment or administrator bypass.
+
+Publication readback uses a separate 30-attempt window with ten-second pauses
+between reads; draft staging retains six attempts with two-second pauses.
+Conflicting identities or bytes fail immediately. NuGet retains its independent
+one-hour public-readback limit. These are bounded visibility checks, not
+hardware-dependent performance gates.
+
+The existing release entry accepts optional `finalize_run_id` only through
+current protected `main`, with the original version and
+`qualification_only=false`. A separate completion job uses the same `nuget`
+environment and shared publication lock without OIDC or NuGet login. It
+independently authenticates both real runs and restores original candidate,
+checkpoint, provenance and admission archives using frozen producer attempts,
+artifact IDs and digests. Original source is verified as data, never executed.
+Current trusted signers, original frozen PR qualification, source ancestry and
+active-line grants remain required; ordinary same-run identity guards remain.
+
+Completion requires all three signed public primary packages, exact Portable
+PDBs and complete existing GitHub release assets. It rechecks authority, tag,
+bytes and numeric Release ID immediately before the only permitted release
+mutation: publishing that existing complete draft by ID with monotonic Latest.
+An already immutable matching release needs no mutation. No create, upload,
+delete, build, repack or tag write is permitted. Partial uploads still use
+ordinary same-run recovery; missing, expired, replaced or conflicting proof
+remains blocking. The new completion receipt links the unchanged failed run.
+
+A reviewed correction to current-main completion controls may verify an older
+candidate without a new package version. Changing that candidate's source or
+payload still requires a new reviewed release and unused version. This adds
+neither a transition controller nor a new Python test framework, and makes no
+hosted configuration or line-activation change.
+
 ### Consequences
+
+The 2026-11-15 preparation keeps main/10 active, changes maintenance/10.x to
+prepared and leaves preview inactive. Prepared maintenance gains qualification
+eligibility only; publication, schedules and Dependabot still require active
+authority. The separate GA 11.x source carries the future main/11 plus
+maintenance/10 active policy and rendered dependency targets. It is not the
+current protected-main authority until the separately approved cutover.
+
+Maintenance bootstrap applies one reviewed source-tree-bound Git patch setting
+its evidence policy's required PR base to maintenance/10.x. Its actual own-base
+PR and hosted qualification remain mandatory. Local source preparation is not
+renamed hosted qualification, and no new bootstrap controller or test framework
+is introduced. Complete the affected 10.x publication before changing main's
+major and coordinate the existing environment grant with policy activation.
 
 - Good, because ordinary releases keep the existing operator actions.
 - Good, because the current `nuget` environment and administrator access remain.
@@ -189,6 +242,11 @@ not establish hosted workflow execution.
 - Test draft-only cleanup of planned empty `starter` upload residue after full
   inventory/payload validation, including ambiguous cleanup-response retry.
   Uploaded conflicts, immutable releases and missing admission history stay blocked.
+- Test completion routing and both real hosted identities; reject skipped or
+  failed original producers, altered attempts/archives/admission, expired proof,
+  conflicting public bytes, revoked lines and replaced numeric Release IDs.
+  Test complete-draft and immutable idempotent outcomes, no upload/build/tag/OIDC
+  capability, bounded injected polling and immediate conflict rejection.
 - Run public consumer offline contract tests and applicable repository/ADR tests.
 - Before claiming operational activation or public consumption, observe the
   separately approved real hosted path or published RC. Local tests are not it.
@@ -243,12 +301,16 @@ operations remain separately approved and observed.
 - 2026-11-03: Unify complete PR and candidate qualification in one read-only
   reusable workflow, preserving release-only authority, signing, attestation,
   same-run artifacts, exact-byte recovery and existing operator actions.
+- 2026-11-14: Make normal branch instructions explicit, separate GitHub
+  publication visibility waiting and add protected completion of original
+  fully uploaded publications without rebuilding or changing hosted settings.
 
 ### Implementation References
 
 - `eng/release/lines.py`
 - `eng/release/lines-policy.json`
 - `eng/release/publication.py`
+- `eng/release/completion.py`
 - `eng/release/schedules.py`
 - `eng/release/consumer.py`
 - `.github/workflows/release-candidate.yml`

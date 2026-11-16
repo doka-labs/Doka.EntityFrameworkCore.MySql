@@ -17,7 +17,6 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 policy_file="${repo_root}/eng/release/evidence-policy.json"
-protected_ref="${DOKA_RELEASE_PROTECTED_REF:-refs/remotes/origin/main}"
 
 usage() {
     cat >&2 <<'USAGE'
@@ -46,6 +45,36 @@ command -v jq >/dev/null 2>&1 || {
     exit 1
 }
 
+# WHY: Each release line carries its own qualification branch. Falling back to
+# main here could approve the wrong ancestry even while the receipt names a
+# maintenance branch. Require the same single protected-check policy as trust.
+release_branch="$(jq -er '
+    .requiredProtectedChecks as $required
+    | [.gates[] | select(.id == $required[0])] as $gates
+    | if ($required | type) == "array" and ($required | length) == 1
+        and ($gates | length) == 1 and $gates[0].kind == "protected-check"
+        and ($gates[0].requiredBaseBranch | type) == "string"
+        and ($gates[0].requiredBaseBranch | length) > 0
+      then $gates[0].requiredBaseBranch
+      else error("invalid protected branch policy")
+      end
+' "${policy_file}")" || {
+    echo "The evidence policy must define one exact protected branch policy." >&2
+    exit 1
+}
+
+if ! git check-ref-format "refs/heads/${release_branch}" >/dev/null 2>&1; then
+    echo "The evidence policy contains an invalid protected branch policy." >&2
+    exit 1
+fi
+
+expected_protected_ref="refs/remotes/origin/${release_branch}"
+protected_ref="${DOKA_RELEASE_PROTECTED_REF:-${expected_protected_ref}}"
+if [[ "${protected_ref}" != "${expected_protected_ref}" ]]; then
+    echo "DOKA_RELEASE_PROTECTED_REF does not match the protected branch policy: ${expected_protected_ref}." >&2
+    exit 1
+fi
+
 # The trust root performs this many remote checks. A run that prints fewer has
 # not answered the question, whatever its exit status says.
 remote_check_count=2
@@ -60,6 +89,13 @@ report() {
 
 echo "Release preparation check for ${commit}"
 echo
+
+current_branch="$(git -C "${repo_root}" symbolic-ref --quiet --short HEAD || true)"
+if [[ "${current_branch}" == "${release_branch}" ]]; then
+    report OK "current branch matches policy" "${release_branch}"
+else
+    report FAIL "current branch matches policy" "check out ${release_branch} before release preparation"
+fi
 
 # A tag can name any commit. Reachability is what ties the candidate back to the
 # branch whose protection produced the evidence qualification imports.

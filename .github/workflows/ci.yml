@@ -126,9 +126,11 @@ jobs:
           - ef-core-version: "10.0.8"
             resolved-version-pattern: '^10[.]0[.]8$'
             artifact-suffix: minimum-10-0-8
+            validation-scope: full
           - ef-core-version: "10.0.*"
             resolved-version-pattern: '^10[.]0[.][0-9]+$'
             artifact-suffix: latest-10-0
+            validation-scope: upstream-probe
 
     # WHY: D-009 tests floating patch resolution itself, so 10.0.* must remain
     # uncached here. The shared candidate graph tests the reviewed exact patch;
@@ -138,6 +140,7 @@ jobs:
       CentralPackageFloatingVersionsEnabled: true
       DOKA_EF_CORE_RESOLVED_PATTERN: ${{ matrix.resolved-version-pattern }}
       DOKA_EF_CORE_ARTIFACT_SUFFIX: ${{ matrix.artifact-suffix }}
+      DOKA_EF_CORE_VALIDATION_SCOPE: ${{ matrix.validation-scope }}
 
     steps:
       - name: Checkout
