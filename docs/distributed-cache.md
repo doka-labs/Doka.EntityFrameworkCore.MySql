@@ -16,11 +16,12 @@ Install the latest stable package:
 dotnet package add Doka.Caching.MySql
 ```
 
-Use `--version 10.6.6` after publication to pin the coordinated stable release. It requires
-MySqlConnector `>= 2.6.1` and `< 3.0.0`; the cache API and schema are unchanged.
+Use `--version 10.6.7` after publication to pin the coordinated stable release.
+It permits MySqlConnector `>= 2.6.1` and `< 4.0.0`; the cache API and schema are
+unchanged.
 See the [security upgrade guidance](security/dependency-audits.md#mysqlconnector-security-floor).
 
-The next release permits `>= 2.6.1` and `< 4.0.0`, adding the 3.x driver line
+Version 10.6.7 adds the 3.x driver line alongside 2.x
 while retaining 2.6.1 as the minimum and default. This does not change the
 already published 10.6.6 package. See the
 [driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)

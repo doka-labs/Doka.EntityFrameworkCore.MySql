@@ -6,8 +6,8 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
-The 10.6.6 preparation updates fixed .NET dependencies to 10.0.15 and the
-repository SDK to 10.0.404, retaining the provider/spatial EF Core range
+Version 10.6.7 retains the serviced .NET 10.0.15 dependencies and repository
+SDK 10.0.404 introduced in 10.6.6, with the provider/spatial EF Core range
 `>= 10.0.8` and `< 10.1.0` and the MySqlConnector security floor below. The
 standalone cache's Microsoft.Extensions dependencies are serviced independently
 of EF Core. SDK selection is a repository build contract, not a requirement
@@ -24,7 +24,7 @@ with `VerifyCA`/`VerifyFull`, no `SslCa` and a nonempty password. Update direct
 driver pins that conflict with the patched minimum. Doka preserves caller TLS
 configuration and connection ownership; no schema migration is required.
 
-The next release extends the upper boundary to `< 4.0.0`, admitting 3.x
+Starting with 10.6.7, the upper boundary is `< 4.0.0`, admitting 3.x
 alongside the existing patched 2.x line. The minimum and default resolution
 remain 2.6.1. Qualification covers the minimum, latest stable 2.x and latest
 stable 3.x independently, including restored package consumers. See the

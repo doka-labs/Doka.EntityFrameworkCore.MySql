@@ -130,7 +130,7 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - independent floating MySqlConnector drift probe:
     `mysqlconnector-patch-matrix`; ordinary qualification retains its reviewed
     floor/latest recipe
-  - next-release supported MySqlConnector range: `[2.6.1, 4.0.0)`;
+  - supported MySqlConnector range from 10.6.7: `[2.6.1, 4.0.0)`;
     qualification retains the 2.6.1 minimum and both latest-2-x/latest-3-x legs
   - driver evidence:
     - `artifacts/mysqlconnector-patch-matrix/<matrix-entry>/resolved-packages.json`
