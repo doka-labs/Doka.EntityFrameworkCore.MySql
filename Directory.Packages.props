@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Tests">
-    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.1" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.6.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />

@@ -34,6 +34,290 @@ class DependencyTargetTests(unittest.TestCase):
         self.assertEqual(expected, observed)
         self.assertTrue(inactive.isdisjoint(target for _, target in observed))
 
+    def test_framework_major_boundaries_survive_main_rollover(self) -> None:
+        """The same relative guards preserve main/10 and later main/11 with maintenance/10."""
+        for major in (10, 11):
+            with self.subTest(main_major=major):
+                # Arrange
+                policy = policy_fixture()
+                policy["lines"][0]["packageMajor"] = major
+                policy["lines"][1]["packageMajor"] = 10
+                policy["lines"][1]["state"] = "active"
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+
+                # Act
+                rendered = dependencies.render_configuration(policy, text)
+
+                # Assert
+                self.assertEqual(2, rendered.count('dependency-name: "Microsoft.Extensions.*"'))
+                self.assertEqual(2, rendered.count("dependency-name: System.IO.Hashing"))
+                self.assertEqual(2, rendered.count("open-pull-requests-limit: 2"))
+                self.assertNotIn("versions:", rendered)
+
+    def test_framework_major_boundary_cannot_be_removed(self) -> None:
+        """Both runtime-aligned families must keep their own-major exclusion."""
+        cases = (("Microsoft.Extensions.*", '"Microsoft.Extensions.*"'),
+                 ("System.IO.Hashing", "System.IO.Hashing"))
+        for family, scalar in cases:
+            with self.subTest(family=family):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                guard = (f"      - dependency-name: {scalar}\n"
+                         "        update-types:\n          - version-update:semver-major\n")
+                changed = text.replace(guard, "")
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn(f"relative major boundary for {family}", str(failure.exception))
+
+    def test_framework_guards_cannot_hide_minor_or_patch_updates(self) -> None:
+        """A family guard must neither freeze servicing nor hardcode the next main major."""
+        for extra in ("          - version-update:semver-minor\n",
+                      "          - version-update:semver-patch\n",
+                      '        versions: ["11.*"]\n'):
+            with self.subTest(extra=extra):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                guard = ('      - dependency-name: "Microsoft.Extensions.*"\n'
+                         "        update-types:\n          - version-update:semver-major\n")
+                changed = text.replace(guard, guard + extra)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("relative major boundary for Microsoft.Extensions.*", str(failure.exception))
+
+    def test_independently_versioned_microsoft_tools_cannot_be_suppressed(self) -> None:
+        """A broad Microsoft or wildcard major exclusion also hides unrelated tool releases."""
+        for pattern in ("Microsoft.*", "*", "Microsoft.NET.*", "Microsoft.CodeAnalysis.*", "microsoft.*"):
+            with self.subTest(pattern=pattern):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                guard = (f'      - dependency-name: "{pattern}"\n'
+                         "        update-types:\n          - version-update:semver-major\n")
+                before, header, nuget = text.partition("  - package-ecosystem: nuget\n")
+                changed = before + header + nuget.replace("    ignore:\n", "    ignore:\n" + guard, 1)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("independently versioned Microsoft tools", str(failure.exception))
+
+    def test_framework_rule_on_another_ecosystem_cannot_cover_nuget(self) -> None:
+        """An Actions rule must not satisfy a missing NuGet package boundary."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        guard = ('      - dependency-name: "Microsoft.Extensions.*"\n'
+                 "        update-types:\n          - version-update:semver-major\n")
+        changed = text.replace(guard, "").replace(
+            "  - package-ecosystem: github-actions\n",
+            "  - package-ecosystem: github-actions\n    ignore:\n" + guard)
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("relative major boundary for Microsoft.Extensions.*", str(failure.exception))
+
+    def test_additional_untyped_or_versioned_tool_exclusions_are_rejected(self) -> None:
+        """An omitted update-types or a versions filter still suppresses matching updates."""
+        guards = ('      - dependency-name: "Microsoft.*"\n',
+                  '      - dependency-name: "Microsoft.NET.Test.Sdk"\n'
+                  '        versions: ["18.*"]\n')
+        for guard in guards:
+            with self.subTest(guard=guard):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                before, header, nuget = text.partition("  - package-ecosystem: nuget\n")
+                changed = before + header + nuget.replace("    ignore:\n", "    ignore:\n" + guard, 1)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("independently versioned Microsoft tools", str(failure.exception))
+
+    def test_duplicate_rules_cannot_override_valid_boundaries(self) -> None:
+        """All matching rules participate; reject a conflicting second family or driver rule."""
+        cases = (("MySqlConnector", "major"), ('"Microsoft.Extensions.*"', "patch"))
+        for package, update_type in cases:
+            with self.subTest(package=package, update_type=update_type):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                before, header, nuget = text.partition("  - package-ecosystem: nuget\n")
+                guard = (f"      - dependency-name: {package}\n"
+                         f"        update-types:\n          - version-update:semver-{update_type}\n")
+                changed = before + header + nuget.replace("    ignore:\n", "    ignore:\n" + guard, 1)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("repeats a dependency ignore rule", str(failure.exception))
+
+    def test_unknown_ignore_rule_requires_deliberate_policy_review(self) -> None:
+        """A new exclusion cannot silently hide another independent major."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        before, header, nuget = text.partition("  - package-ecosystem: nuget\n")
+        guard = ("      - dependency-name: coverlet.collector\n"
+                 "        update-types:\n          - version-update:semver-major\n")
+        changed = before + header + nuget.replace("    ignore:\n", "    ignore:\n" + guard, 1)
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("unreviewed dependency ignore rule", str(failure.exception))
+
+    def test_duplicate_nuget_mappings_cannot_replace_reviewed_rules(self) -> None:
+        """A second groups/ignore/limit field must not change the mapping interpreted by YAML."""
+        for extra in ("    groups: {}\n", "    ignore: []\n", "    open-pull-requests-limit: 1\n",
+                      '    "groups": {}\n', '    "ignore": []\n',
+                      '    "open-pull-requests-limit": 1\n'):
+            with self.subTest(extra=extra):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                changed = text + extra
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("NuGet target", str(failure.exception))
+
+    def test_noncanonical_ignore_entry_cannot_hide_an_additional_exclusion(self) -> None:
+        """Quoted keys must not disappear from the bounded canonical reader."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        before, header, nuget = text.partition("  - package-ecosystem: nuget\n")
+        guard = '      - "dependency-name": "Microsoft.*"\n'
+        changed = before + header + nuget.replace("    ignore:\n", "    ignore:\n" + guard, 1)
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("one canonical ignore mapping", str(failure.exception))
+
+    def test_ef_version_filter_cannot_narrow_the_matrix_owned_exclusion(self) -> None:
+        """An EF version filter must not re-enable automatic framework transitions."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        guard = '      - dependency-name: "Microsoft.EntityFrameworkCore.*"\n'
+        changed = text.replace(guard, guard + '        versions: ["10.*"]\n')
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("EF target must preserve", str(failure.exception))
+
+    def test_malformed_package_quotes_cannot_satisfy_a_required_boundary(self) -> None:
+        """Quote removal must not turn a damaged scalar into a valid package family."""
+        for scalar in ('"Microsoft.Extensions.*', "'Microsoft.Extensions.*",
+                       'Microsoft.Extensions.*"', "Microsoft.Extensions.*'",
+                       '""Microsoft.Extensions.*""'):
+            with self.subTest(scalar=scalar):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                changed = text.replace('dependency-name: "Microsoft.Extensions.*"',
+                                       f"dependency-name: {scalar}")
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("one canonical ignore mapping", str(failure.exception))
+
+    def test_maintenance_guard_cannot_borrow_main_rule(self) -> None:
+        """Validate the secondary NuGet block even when main retains a valid guard."""
+        # Arrange
+        policy = policy_fixture()
+        policy["lines"][0]["packageMajor"] = 11
+        policy["lines"][1]["state"] = "active"
+        rendered = dependencies.render_configuration(policy, BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii"))
+        guard = ('      - dependency-name: "Microsoft.Extensions.*"\n'
+                 "        update-types:\n          - version-update:semver-major\n")
+        before, _, after = rendered.rpartition(guard)
+        changed = before + after
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy, changed)
+
+        # Assert
+        self.assertIn("NuGet target 'maintenance/10.x'", str(failure.exception))
+
+    def test_routine_group_cannot_accept_major_updates(self) -> None:
+        """An added major cannot hide beside the two permitted update types."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        changed = text.replace("          - patch\n", "          - patch\n          - major\n")
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("group only routine minor/patch", str(failure.exception))
+
+    def test_group_update_types_do_not_use_ignore_syntax(self) -> None:
+        """Dependabot groups use minor/patch names, not ignore-rule prefixes."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        changed = text.replace("          - minor\n", "          - version-update:semver-minor\n")
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("group only routine minor/patch", str(failure.exception))
+
+    def test_individual_major_proposals_leave_room_for_routine_group(self) -> None:
+        """One unreviewed driver major must not consume the sole allowed proposal slot."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        changed = text.replace("open-pull-requests-limit: 2", "open-pull-requests-limit: 1")
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("permit routine and independent major", str(failure.exception))
+
+    def test_driver_matrix_ownership_does_not_suppress_major_proposals(self) -> None:
+        """The 2.x patch matrix and deliberate future major decision remain separate."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        guard = ("      - dependency-name: MySqlConnector\n"
+                 "        update-types:\n")
+        changed = text.replace(guard, guard + "          - version-update:semver-major\n")
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy_fixture(), changed)
+
+        # Assert
+        self.assertIn("driver patch ownership and individual major", str(failure.exception))
+
     def test_activation_renders_all_four_additional_ecosystems(self) -> None:
         """One line transition must not leave SDK or Actions maintenance behind."""
         # Arrange

@@ -1,0 +1,2 @@
+# WHY: Keep multiline C# raw-string values stable across checkout platforms.
+*.cs text eol=lf

@@ -7,6 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep framework-aligned Microsoft dependencies on their release-line major
+  in Dependabot. Group routine NuGet minor/patch updates separately from
+  independent major proposals, preserving existing EF/driver qualification
+  and security audits on the .NET 10 and prepared .NET 11 lines.
+
+### Changed
+
+- Update the private Coverlet collector to 10.1.1. Verify fresh coverage
+  reports with unchanged thresholds; unreachable branches are no longer
+  included in Coverlet's branch totals.
+
 ## [10.6.6] - 2026-11-15
 
 Maintenance patch for query translation, release recovery, dependency

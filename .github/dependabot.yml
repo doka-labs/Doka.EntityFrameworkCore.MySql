@@ -103,10 +103,23 @@ updates:
       nuget-dependencies:
         patterns:
           - "*"
+        # WHY: Unreviewed major upgrades need individual compatibility decisions.
+        update-types:
+          - minor
+          - patch
     ignore:
-      # Microsoft.EntityFrameworkCore.* floats inside the [10.0.8, 10.1.0) range
-      # per ADR D-009. The scheduled floor/latest matrix owns patch validation,
-      # while a deliberate provider response is required for 10.1.0+.
+      # WHY: Framework-aligned packages stay on their own release-line major.
+      # Relative exclusions also protect 11.x from 12.x without hiding
+      # independently versioned Microsoft test tools and analyzers.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: System.IO.Hashing
+        update-types:
+          - version-update:semver-major
+      # WHY: Each line owns its reviewed EF range under ADR D-009. The scheduled
+      # floor/latest matrix validates patches; a new range needs deliberate
+      # provider qualification rather than an automatic dependency rewrite.
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
         update-types:
           - version-update:semver-major
@@ -121,7 +134,8 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
-    open-pull-requests-limit: 1
+    # WHY: Allow the routine group alongside an independent major proposal.
+    open-pull-requests-limit: 2
     commit-message:
       prefix: chore
       include: scope

@@ -9,6 +9,7 @@ dependency or a second set of update-policy constants.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
 import sys
@@ -29,6 +30,91 @@ SDK_MAJOR_BOUNDARY = (
     "        update-types:\n"
     "          - version-update:semver-major\n"
 )
+NUGET_ROUTINE_GROUP = (
+    "    groups:\n"
+    "      nuget-dependencies:\n"
+    "        patterns:\n"
+    '          - "*"\n'
+    "        update-types:\n"
+    "          - minor\n"
+    "          - patch\n"
+)
+FRAMEWORK_PACKAGE_FAMILIES = ("Microsoft.Extensions.*", "System.IO.Hashing")
+INDEPENDENT_MICROSOFT_TOOLS = (
+    "Microsoft.NET.Test.Sdk", "Microsoft.CodeAnalysis.PublicApiAnalyzers")
+# WHY: Match balanced scalar quotes before normalization, so damaged package
+# names cannot satisfy a required guard after their quotes are stripped.
+IGNORE_RULE = re.compile(
+    r'''^      - dependency-name: ("[^"\n]+"|'[^'\n]+'|[^'"\n]+)\n((?: {8,}[^\n]*\n)*)''', re.MULTILINE)
+
+
+def _validate_nuget_boundary(block: str, target: str) -> None:
+    """Keep each branch's routine proposals separate from platform transitions.
+
+    WHY: Target parity alone accepts Microsoft 11 dependencies on the 10.x
+    line. Relative SemVer guards also survive a later 11.x main rollover.
+    Only the existing canonical block shape is inspected, not arbitrary YAML.
+    """
+    normalized = "\n".join(row for row in block.splitlines()
+                           if row.strip() and not row.lstrip().startswith("#")) + "\n"
+    groups = re.search(r"^    groups:\n(?: {6,}[^\n]*\n)*", normalized, re.MULTILINE)
+    if (len(re.findall(r'''^    ["']?groups["']?\s*:''', normalized, re.MULTILINE)) != 1
+            or not groups or groups[0] != NUGET_ROUTINE_GROUP):
+        raise DependencyPolicyError(
+            f"NuGet target '{target}' must group only routine minor/patch updates.")
+
+    ignore = re.search(r"^    ignore:\n((?: {6,}[^\n]*\n|\n)*)", normalized, re.MULTILINE)
+    matches = IGNORE_RULE.findall(ignore[1] if ignore else "")
+    rules = [(name.strip().strip('\"\''), body)
+             for name, body in matches]
+    if (len(re.findall(r'''^    ["']?ignore["']?\s*:''', normalized, re.MULTILINE)) != 1
+            or not ignore
+            or "".join(f"      - dependency-name: {name}\n{body}" for name, body in matches) != ignore[1]
+            or len(rules) != len(re.findall(r"dependency-name\s*:", normalized))):
+        raise DependencyPolicyError(
+            f"NuGet target '{target}' must retain one canonical ignore mapping.")
+
+    # WHY: Dependabot combines exclusions. One valid rule cannot compensate
+    # for a second rule that silently freezes servicing or hides a tool major.
+    if len({name.casefold() for name, _ in rules}) != len(rules):
+        raise DependencyPolicyError(f"NuGet target '{target}' repeats a dependency ignore rule.")
+
+    for pattern, _ in rules:
+        if any(fnmatch.fnmatchcase(tool.casefold(), pattern.casefold())
+               for tool in INDEPENDENT_MICROSOFT_TOOLS):
+            raise DependencyPolicyError(
+                f"NuGet target '{target}' must not suppress independently versioned Microsoft tools.")
+
+    major_only = "        update-types:\n          - version-update:semver-major\n"
+    for family in FRAMEWORK_PACKAGE_FAMILIES:
+        if (family, major_only) not in rules:
+            raise DependencyPolicyError(
+                f"NuGet target '{target}' must retain the relative major boundary for {family}.")
+
+    driver_types = (
+        "        update-types:\n"
+        "          - version-update:semver-minor\n"
+        "          - version-update:semver-patch\n")
+    if ("MySqlConnector", driver_types) not in rules:
+        raise DependencyPolicyError(
+            f"NuGet target '{target}' must preserve driver patch ownership and individual major proposals.")
+
+    ef_types = (
+        "        update-types:\n"
+        "          - version-update:semver-major\n"
+        "          - version-update:semver-minor\n"
+        "          - version-update:semver-patch\n")
+    if ("Microsoft.EntityFrameworkCore.*", ef_types) not in rules:
+        raise DependencyPolicyError("Each EF target must preserve the deliberate floor/latest policy.")
+
+    expected_names = {*FRAMEWORK_PACKAGE_FAMILIES, "Microsoft.EntityFrameworkCore.*", "MySqlConnector"}
+    if {name for name, _ in rules} != expected_names:
+        raise DependencyPolicyError(f"NuGet target '{target}' contains an unreviewed dependency ignore rule.")
+
+    if (len(re.findall(r'''^    ["']?open-pull-requests-limit["']?\s*:''', normalized, re.MULTILINE)) != 1
+            or re.findall(r"^    open-pull-requests-limit: ([^\n]+)$", normalized, re.MULTILINE) != ["2"]):
+        raise DependencyPolicyError(
+            f"NuGet target '{target}' must permit routine and independent major proposals together.")
 
 
 class DependencyPolicyError(ValueError):
@@ -72,17 +158,12 @@ def validate_configuration(policy: dict, text: str) -> None:
     if len(set(observed)) != len(observed) or set(observed) != expected_targets(policy):
         raise DependencyPolicyError("Dependabot targets must match all active release lines exactly once.")
 
-    for ecosystem, _, block in entries:
+    for ecosystem, target, block in entries:
         if ecosystem == "dotnet-sdk" and SDK_MAJOR_BOUNDARY not in block:
             raise DependencyPolicyError("Each SDK target must reject implicit major-version upgrades.")
 
-        if ecosystem == "nuget" and not re.search(
-                r'dependency-name: "Microsoft\.EntityFrameworkCore\.\*"\n'
-                r"        update-types:\n"
-                r"          - version-update:semver-major\n"
-                r"          - version-update:semver-minor\n"
-                r"          - version-update:semver-patch", block):
-            raise DependencyPolicyError("Each EF target must preserve the deliberate floor/latest policy.")
+        if ecosystem == "nuget":
+            _validate_nuget_boundary(block, target)
 
         if ecosystem == "docker-compose" and any(
                 f"dependency-name: {engine}\n        update-types:\n"

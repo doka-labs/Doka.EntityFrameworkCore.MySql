@@ -228,8 +228,7 @@ public sealed partial class AdrRepositoryValidatorTests
             StringComparison.Ordinal);
 
         Assert.Contains(
-            "groups:\n      nuget-dependencies:\n        patterns:\n          - \"*\"\n"
-            + "    ignore:",
+            "groups:\n      nuget-dependencies:\n        patterns:\n          - \"*\"\n",
             dependabot,
             StringComparison.Ordinal);
 
@@ -238,7 +237,7 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.DoesNotContain("test-infrastructure:", dependabot, StringComparison.Ordinal);
         Assert.Contains("version-update:semver-patch", dependabot, StringComparison.Ordinal);
         Assert.Contains(
-            "version-update:semver-patch\n    open-pull-requests-limit: 1",
+            "        update-types:\n          - minor\n          - patch\n",
             dependabot,
             StringComparison.Ordinal);
     }
