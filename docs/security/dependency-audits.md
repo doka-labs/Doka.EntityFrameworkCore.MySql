@@ -6,8 +6,8 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
-The 10.6.6 preparation updates fixed .NET dependencies to 10.0.15 and the
-repository SDK to 10.0.404, retaining the provider/spatial EF Core range
+Version 10.6.7 retains the serviced .NET 10.0.15 dependencies and repository
+SDK 10.0.404 introduced in 10.6.6, with the provider/spatial EF Core range
 `>= 10.0.8` and `< 10.1.0` and the MySqlConnector security floor below. The
 standalone cache's Microsoft.Extensions dependencies are serviced independently
 of EF Core. SDK selection is a repository build contract, not a requirement
@@ -24,13 +24,24 @@ with `VerifyCA`/`VerifyFull`, no `SslCa` and a nonempty password. Update direct
 driver pins that conflict with the patched minimum. Doka preserves caller TLS
 configuration and connection ownership; no schema migration is required.
 
-The next release extends the upper boundary to `< 4.0.0`, admitting 3.x
+Starting with 10.6.7, the upper boundary is `< 4.0.0`, admitting 3.x
 alongside the existing patched 2.x line. The minimum and default resolution
 remain 2.6.1. Qualification covers the minimum, latest stable 2.x and latest
 stable 3.x independently, including restored package consumers. See the
 [driver compatibility notes](../operations/resilience-and-topology.md#mysqlconnector-3)
 before opting into 3.0.0. This compatibility extension does not weaken the
 advisory audit or permit an affected driver below the patched minimum.
+
+Dependabot excludes the already-admitted `[3.0.0, 4.0.0)` interval from driver
+floor-bump proposals so accepting 3.x support does not remove 2.x support.
+The exclusion does not cover 4.x. Explicit ignored versions also filter
+security-update candidates in 3.x; the `update-types` exclusions alone do not.
+The daily audit continues to check the default graph. The weekly/manual
+`mysqlconnector-patch-matrix` separately restores the minimum, latest 2.x and
+latest 3.x under GitHub's strict advisory settings. Those restores retain
+all-depth, low-severity auditing and fatal advisory warnings, independently
+of Dependabot's proposal filters. An advisory affecting a qualified line still
+requires a reviewed fix; no automatic 3.x security-fix PR is promised.
 
 ## Local development and qualification
 

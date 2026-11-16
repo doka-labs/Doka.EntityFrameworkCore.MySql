@@ -33,7 +33,7 @@ because an unrelated transport exception is nested below it. Cancellation,
 command timeout, and migration session-cleanup failure remain terminal across
 the complete bounded chain. The MySqlConnector matrix executes the same
 detector and live driver contracts at the security-supported 2.6.1 floor,
-latest stable 2.x and latest stable 3.x. The next release admits
+latest stable 2.x and latest stable 3.x. Doka 10.6.7 admits
 `[2.6.1, 4.0.0)`; the minimum and default resolution remain 2.6.1.
 
 `OperationCanceledException` and `CommandTimeoutExpired` are never retried -- the consumer's cancellation token wins, and a command-timeout is treated as a non-transient capacity signal.
@@ -49,11 +49,19 @@ before letting the provider migrate against a fronted cluster.
 
 ## MySqlConnector 3.x Compatibility
 
-The next release permits 3.x on .NET 10 while retaining the patched 2.6.1
+Version 10.6.7 permits 3.x on .NET 10 while retaining the patched 2.6.1
 minimum. Published Doka 10.6.6 retains its `< 3.0.0` limit. Selecting 3.0.0
-therefore requires the provider release containing this compatibility change
+therefore requires the 10.6.7 compatibility release
 and an explicit application driver reference. The default remains 2.6.1;
 the extension does not force existing applications onto 3.x.
+
+After 10.6.7 is published, an application can select the qualified 3.0.0
+driver explicitly:
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
+dotnet package add MySqlConnector --version 3.0.0
+```
 
 Upstream 3.0.0 fixes binary GUID parameter escaping with aligned
 `NO_BACKSLASH_ESCAPES` settings, including the ordinary unprepared command

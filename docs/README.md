@@ -5,34 +5,26 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.6 maintenance preparation, see the [changelog](../CHANGELOG.md#1066---2026-11-15)
-and [shared qualification overview](operations/workflow-overview.md). It updates
-release completion and branch instructions, separates upstream EF discovery from
-qualification, isolates exact-zero JSON comparer allocation checks and refreshes
-dependencies, tools and MariaDB image digests. It prepares maintenance/10.x
-without activating publication or asserting hosted qualification or NuGet availability.
-It also corrects supported boxed `Convert.ToString(object)` projections and
-filters, canonical coverage counting and fixed warm allocation samples for
-large cache writes; existing coverage floors and allocation ceilings remain.
-Filtered string parameter collections infer bounded mapped operands through
-scalar expressions and pagination while preserving lossless transport, decoded
-predicates, null semantics and explicit conflict guards. Ordered failover
-verification no longer assumes an unowned loopback port stays unavailable.
-Filtered native JSON membership groups disjunctions before its membership
-comparison; the missing grouping is confirmed in 10.6.5. Release-command
-cancellation also preserves signal verdicts and verifies process-group cleanup.
+For the 10.6.7 stable preparation, see the [changelog](../CHANGELOG.md#1067---2026-11-16)
+and [shared qualification overview](operations/workflow-overview.md). It adds
+optional MySqlConnector 3.x support alongside 2.x, retains the patched 2.6.1
+minimum and default, and extends the existing driver matrix and same-package
+runtime readback. Review the
+[driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)
+before selecting 3.0.0 explicitly.
+
+The release also corrects Dependabot's framework-major boundaries, updates the
+private Coverlet collector to 10.1.1 and preserves LF in C# raw-string sources.
+Coverage floors and allocation ceilings remain unchanged. It does not activate
+maintenance/10.x or preview/11.x, authorize publication, or assert hosted
+qualification or NuGet availability.
 Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
 minimum, supported engines and storage defaults remain unchanged.
 When upgrading from a version before 10.6.4, regenerate existing compiled models
 to adopt the corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
-remains `>= 2.6.1` and `< 3.0.0`.
-
-The next release additionally admits MySqlConnector 3.x without raising the
-2.6.1 minimum or changing model/engine defaults. See the
-[driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)
-for the explicit opt-in and upstream behavior changes. Published 10.6.6
-retains its original driver range.
+remains 2.6.1; the 10.6.7 upper boundary is `< 4.0.0`. Published 10.6.6
+retains its original `< 3.0.0` boundary.
 
 ## Use the Provider
 

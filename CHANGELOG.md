@@ -7,12 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Fixed
+## [10.6.7] - 2026-11-16
 
-- Keep framework-aligned Microsoft dependencies on their release-line major
-  in Dependabot. Group routine NuGet minor/patch updates separately from
-  independent major proposals, preserving existing EF/driver qualification
-  and security audits on the .NET 10 and prepared .NET 11 lines.
+Stable compatibility and engineering patch adding optional MySqlConnector 3.x
+support alongside 2.x. All three packages use the same version. The patched
+driver minimum and default resolution remain 2.6.1; applications select 3.x
+explicitly. Public APIs, application configuration, the .NET 10 requirement,
+EF Core 10.0.8 minimum, supported engines, GUID/collection defaults and cache
+schema remain unchanged. No database schema migration is required.
+These preparation notes do not assert publication or hosted qualification.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.7
+dotnet package add Doka.Caching.MySql --version 10.6.7
+```
 
 ### Changed
 
@@ -25,6 +34,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Update the private Coverlet collector to 10.1.1. Verify fresh coverage
   reports with unchanged thresholds; unreachable branches are no longer
   included in Coverlet's branch totals.
+- Update both test-only Testcontainers modules to 4.17.0 and verify their
+  restored graphs and live test-owned database lifecycle. Use the typed TLS
+  resource-mapping overload while preserving file ownership and permissions.
+- Enforce LF for C# sources across checkout platforms so multiline raw-string
+  contents remain consistent without renormalizing existing source files.
+
+### Fixed
+
+- Keep framework-aligned Microsoft dependencies on their release-line major
+  in Dependabot. Group routine NuGet minor/patch updates separately from
+  independent major proposals, preserving existing EF/driver qualification
+  and security audits on the .NET 10 and prepared .NET 11 lines.
+- Suppress MySqlConnector floor-bump proposals within the already-admitted
+  3.x interval while preserving the 2.6.1 minimum and future 4.x proposals.
+  Document the exclusion's effect on automatic security-update candidates;
+  independent strict dependency audits and driver matrices remain in place.
 
 ## [10.6.6] - 2026-11-15
 
@@ -1860,7 +1885,8 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.6...HEAD
+[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.7...HEAD
+[10.6.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.7
 [10.6.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.6
 [10.6.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.5
 [10.6.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.4

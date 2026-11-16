@@ -29,7 +29,7 @@ requires bypass to be disabled. Branch rules, exact deployment grants and any
 later activation require separate approval; local tests do not prove hosted
 configuration. This document creates no branches, grants, tags or packages.
 
-The 10.6.6 source prepares maintenance qualification without enabling its
+The 10.6.7 source retains maintenance qualification without enabling its
 publisher, schedules or Dependabot targets. The policy retains main/10 as the
 only active publication owner. A working-tree policy is not hosted authority;
 the protected main copy and real branch protections are checked independently.
@@ -40,7 +40,7 @@ The operator keeps the existing release actions:
 
 1. Merge the release-preparation PR into its protected, authorized line.
 2. Open `release-candidate.yml`, select that branch and enter its unused
-   canonical version, for example `10.6.6` or `11.0.0-rc.1`.
+   canonical version, for example `10.6.7` or `11.0.0-rc.1`.
 3. Leave `qualification_only=false`. Review the qualified source SHA, version,
    tag and evidence in the run summary.
 4. Create and push the personally signed annotated tag on that qualified SHA.
@@ -136,7 +136,7 @@ local source and scripted-boundary verification.
 
 ### Prepared main/11 and maintenance/10 handoff
 
-Finish the 10.6.6 publication before adopting the GA 11.x source. Its prepared
+Finish the 10.6.7 publication before adopting the GA 11.x source. The prepared
 `feature/dotnet-11` copy carries the future main/11 and maintenance/10 active
 policy plus the eight rendered Dependabot targets. That copy is the reviewed
 target state, not permission to publish while protected main still owns 10.x.
@@ -153,8 +153,9 @@ publisher route.
 
 Merge the own-base preparation PR and run `qualification_only=true` on the
 protected maintenance branch before enabling its publication grant. Select an
-unused canonical version such as `10.6.7-rc.1`; the already published `10.6.6`
-cannot pass the unchanged public-version absence check. The existing input
+unused canonical version such as `10.6.8-rc.1` after the 10.6.7 publication.
+A published version cannot pass the unchanged public-version absence check.
+The existing input
 overrides `PackageVersion` for all three builds and packs, so this qualification
 needs no additional `VersionPrefix` edit. Do not create a tag or approve
 publication for this qualification-only run. Existing
@@ -272,16 +273,25 @@ remain visible failures. Fixes need reviewed, line-specific ports and tests.
 Each NuGet target excludes major upgrades of `Microsoft.Extensions.*` and
 `System.IO.Hashing` relative to its own pinned major. This preserves 10.x and
 later 11.x independently without suppressing separately versioned Microsoft
-test tools or analyzers. Routine minor/patch updates share one group; other
-eligible major upgrades, including MySqlConnector, remain individual proposals.
+test tools or analyzers. Routine minor/patch updates share one group; unqualified
+major upgrades remain individual proposals.
 The NuGet limit of two permits a routine group and one major proposal together;
 it does not reserve a slot against additional open majors. Existing EF and
-driver patch qualification remains matrix-owned, including the next release's
+driver patch qualification remains matrix-owned, including the 10.6.7 release's
 additional 3.x line. Admitting 3.x does not require raising the 2.6.1 minimum.
-Keep the driver ignore rules based on update type: an explicit ignored version
-range would also suppress security-update candidates in that range. Rules take
-effect from the default-branch configuration; recheck an existing grouped PR's actual diff
-instead of assuming that it was rewritten or closed automatically.
+The driver ignore rule retains matrix-owned minor/patch updates and excludes
+only `[3.0.0, 4.0.0)` from floor-bump proposals. A future 4.x remains outside
+that exception and needs a separate compatibility decision.
+
+Dependabot also applies explicit version exclusions to security-update
+candidates. Therefore, automatic 3.x security-fix proposals are filtered too;
+this is not a claim that automatic remediation is unchanged. Daily strict
+audits cover the default dependency graph. The weekly/manual driver matrix
+separately restores the minimum, latest 2.x and latest 3.x with strict advisory
+checks on GitHub. A vulnerable graph remains a failure requiring reviewed
+remediation. See [dependency audits](../security/dependency-audits.md).
+Rules take effect from the default-branch configuration; recheck an existing
+PR's actual diff instead of assuming that it was rewritten or closed automatically.
 
 Doka plans 10.x servicing within Microsoft's .NET 10 support window through
 **2028-11-14**, on serviced patches, as verified on 2026-10-22 and subject to

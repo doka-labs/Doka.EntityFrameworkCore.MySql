@@ -72,7 +72,7 @@ packages.
   (2.6.1 fixes [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8)).
 - A supported MySQL or MariaDB server from the matrix below
 
-The additional 3.x support is part of the next release; published 10.6.6
+The 10.6.7 release preparation adds optional 3.x support; published 10.6.6
 retains its `< 3.0.0` boundary. The minimum and default resolution remain
 2.6.1. Applications can select 3.0.0 explicitly to obtain its binary GUID
 `NO_BACKSLASH_ESCAPES` fix. Review the
@@ -128,29 +128,25 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Next Stable Release: 10.6.6
+### Next Stable Release: 10.6.7
 
-`10.6.6` prepares a maintenance patch for branch-consistent release operations,
-bounded GitHub publication visibility, and safe completion of an already
-uploaded release. Scheduled discovery of an unreviewed EF patch is separated
-from qualification. Dependency/tool pins and MariaDB image digests are refreshed;
-exact-zero JSON comparer checks use an isolated allocation probe without
-relaxing budgets or changing production GC settings. See the [changelog][changelog].
-Supported boxed `Convert.ToString(object)` projections and filters preserve
-scalar, enum and GUID formatting, including empty-string results for boxed
-nulls. Coverage counts canonical class lines, and large-write allocation
-benchmarks use fixed warm samples without changing their allocation ceilings.
-Filtered string parameter collections also retain correct inference against
-bounded mapped operands, including scalar functions and pagination, with
-lossless values and preserved mapping-conflict guards. Ordered failover tests
-no longer depend on an unowned loopback port remaining unavailable.
-Grouped `OR` predicates also prevent filtered native JSON membership and its
-negation from including or excluding unrelated rows; this defect is confirmed
-in 10.6.5.
+`10.6.7` prepares a compatibility and engineering patch for all three packages.
+It admits MySqlConnector 3.x alongside 2.x without raising the patched 2.6.1
+minimum or default resolution. Applications selecting 3.0.0 receive its binary
+GUID `NO_BACKSLASH_ESCAPES` fix; review the
+[driver compatibility notes](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/resilience-and-topology.md#mysqlconnector-3)
+for upstream XA isolation, reader, pooled-session and telemetry changes.
+The existing driver matrix and isolated package consumers qualify both lines.
+
+Routine Dependabot updates stay within each framework release line; independent
+major proposals remain reviewable. Coverlet 10.1.1 stays test-only, and C#
+checkouts retain LF to keep raw-string values consistent across platforms.
+Coverage floors and allocation ceilings remain unchanged; hardware-dependent
+timings remain diagnostic. See the [changelog][changelog].
 These preparation notes do not assert NuGet availability or hosted release
 qualification; verify the published version on the package page before installing.
 
-The MySqlConnector requirement remains `>= 2.6.1` and `< 3.0.0`. Review direct
+The MySqlConnector range is `>= 2.6.1` and `< 4.0.0`. Review direct
 driver pins against the [security upgrade guidance][dependency-security-upgrade].
 
 Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
@@ -163,12 +159,12 @@ see
 [fixed binary byte arrays][fixed-binary-byte-arrays].
 SDK 10.0.404 is required to build this repository, not to consume its packages.
 Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.6 before upgrading the provider.
+its published dependency range includes 10.6.7 before upgrading the provider.
 
 After publication, pin the version explicitly when validating an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.6
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
 ```
 
 See [Provider Configuration][provider-configuration] for collection transport
