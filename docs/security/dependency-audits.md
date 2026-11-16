@@ -32,6 +32,17 @@ stable 3.x independently, including restored package consumers. See the
 before opting into 3.0.0. This compatibility extension does not weaken the
 advisory audit or permit an affected driver below the patched minimum.
 
+Dependabot excludes the already-admitted `[3.0.0, 4.0.0)` interval from driver
+floor-bump proposals so accepting 3.x support does not remove 2.x support.
+The exclusion does not cover 4.x. Explicit ignored versions also filter
+security-update candidates in 3.x; the `update-types` exclusions alone do not.
+The daily audit continues to check the default graph. The weekly/manual
+`mysqlconnector-patch-matrix` separately restores the minimum, latest 2.x and
+latest 3.x under GitHub's strict advisory settings. Those restores retain
+all-depth, low-severity auditing and fatal advisory warnings, independently
+of Dependabot's proposal filters. An advisory affecting a qualified line still
+requires a reviewed fix; no automatic 3.x security-fix PR is promised.
+
 ## Local development and qualification
 
 Ordinary local restores keep `NU1901`-`NU1904` visible as warnings.

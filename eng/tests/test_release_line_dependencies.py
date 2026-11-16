@@ -52,7 +52,8 @@ class DependencyTargetTests(unittest.TestCase):
                 self.assertEqual(2, rendered.count('dependency-name: "Microsoft.Extensions.*"'))
                 self.assertEqual(2, rendered.count("dependency-name: System.IO.Hashing"))
                 self.assertEqual(2, rendered.count("open-pull-requests-limit: 2"))
-                self.assertNotIn("versions:", rendered)
+                self.assertEqual(2, rendered.count("        versions:\n"))
+                self.assertEqual(2, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
 
     def test_framework_major_boundary_cannot_be_removed(self) -> None:
         """Both runtime-aligned families must keep their own-major exclusion."""
@@ -304,7 +305,7 @@ class DependencyTargetTests(unittest.TestCase):
         self.assertIn("permit routine and independent major", str(failure.exception))
 
     def test_driver_matrix_ownership_does_not_suppress_major_proposals(self) -> None:
-        """The 2.x patch matrix and deliberate future major decision remain separate."""
+        """The admitted 3.x line must not hide a future unqualified major."""
         # Arrange
         text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
         guard = ("      - dependency-name: MySqlConnector\n"
@@ -316,6 +317,66 @@ class DependencyTargetTests(unittest.TestCase):
             dependencies.validate_configuration(policy_fixture(), changed)
 
         # Assert
+        self.assertIn("driver patch ownership and individual major", str(failure.exception))
+
+    def test_admitted_driver_line_does_not_raise_the_shipping_minimum(self) -> None:
+        """Only the already-admitted 3.x interval is excluded from floor proposals."""
+        # Arrange
+        text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+        policy = policy_fixture()
+
+        # Act
+        rendered = dependencies.render_configuration(policy, text)
+
+        # Assert
+        self.assertEqual(text, rendered)
+        self.assertEqual(1, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
+        driver = rendered.split("      - dependency-name: MySqlConnector\n", 1)[1]
+        self.assertNotIn("version-update:semver-major", driver)
+
+    def test_driver_exclusion_cannot_omit_or_change_the_admitted_interval(self) -> None:
+        """Missing or altered bounds either restore floor churn or hide future majors."""
+        excluded = '        versions:\n          - "[3.0.0, 4.0.0)"\n'
+        cases = ("", '        versions: []\n',
+                 '        versions:\n          - "[3.0.0]"\n',
+                 '        versions:\n          - "[3.0.0, 4.0.0]"\n',
+                 '        versions:\n          - "[3.0.0, 5.0.0)"\n',
+                 '        versions:\n          - "[3.0.0,)"\n',
+                 '        versions:\n          - "[2.0.0, 4.0.0)"\n',
+                 '        versions:\n          - "[4.0.0, 5.0.0)"\n',
+                 '        versions:\n          - "*"\n',
+                 excluded + '          - "[4.0.0, 5.0.0)"\n')
+        for replacement in cases:
+            with self.subTest(replacement=replacement):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                changed = text.replace(excluded, replacement)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertNotEqual(text, changed)
+                self.assertIn("driver patch ownership and individual major", str(failure.exception))
+
+    def test_maintenance_driver_exclusion_cannot_borrow_main_rule(self) -> None:
+        """A correct main rule must not mask a missing admitted-line guard on maintenance."""
+        # Arrange
+        policy = policy_fixture()
+        policy["lines"][0]["packageMajor"] = 11
+        policy["lines"][1]["state"] = "active"
+        rendered = dependencies.render_configuration(policy, BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii"))
+        excluded = '        versions:\n          - "[3.0.0, 4.0.0)"\n'
+        before, _, after = rendered.rpartition(excluded)
+        changed = before + after
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy, changed)
+
+        # Assert
+        self.assertIn("NuGet target 'maintenance/10.x'", str(failure.exception))
         self.assertIn("driver patch ownership and individual major", str(failure.exception))
 
     def test_activation_renders_all_four_additional_ecosystems(self) -> None:
@@ -375,6 +436,7 @@ class DependencyTargetTests(unittest.TestCase):
         # Assert
         self.assertEqual(4, rendered.count("target-branch: preview/11.x"))
         self.assertNotIn("target-branch: maintenance/10.x", rendered)
+        self.assertEqual(2, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
 
     def test_duplicate_ecosystem_target_is_rejected(self) -> None:
         """Dependabot must not create competing updates for the same scope."""

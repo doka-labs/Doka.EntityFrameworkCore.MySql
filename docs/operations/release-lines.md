@@ -273,16 +273,25 @@ remain visible failures. Fixes need reviewed, line-specific ports and tests.
 Each NuGet target excludes major upgrades of `Microsoft.Extensions.*` and
 `System.IO.Hashing` relative to its own pinned major. This preserves 10.x and
 later 11.x independently without suppressing separately versioned Microsoft
-test tools or analyzers. Routine minor/patch updates share one group; other
-eligible major upgrades, including MySqlConnector, remain individual proposals.
+test tools or analyzers. Routine minor/patch updates share one group; unqualified
+major upgrades remain individual proposals.
 The NuGet limit of two permits a routine group and one major proposal together;
 it does not reserve a slot against additional open majors. Existing EF and
 driver patch qualification remains matrix-owned, including the 10.6.7 release's
 additional 3.x line. Admitting 3.x does not require raising the 2.6.1 minimum.
-Keep the driver ignore rules based on update type: an explicit ignored version
-range would also suppress security-update candidates in that range. Rules take
-effect from the default-branch configuration; recheck an existing grouped PR's actual diff
-instead of assuming that it was rewritten or closed automatically.
+The driver ignore rule retains matrix-owned minor/patch updates and excludes
+only `[3.0.0, 4.0.0)` from floor-bump proposals. A future 4.x remains outside
+that exception and needs a separate compatibility decision.
+
+Dependabot also applies explicit version exclusions to security-update
+candidates. Therefore, automatic 3.x security-fix proposals are filtered too;
+this is not a claim that automatic remediation is unchanged. Daily strict
+audits cover the default dependency graph. The weekly/manual driver matrix
+separately restores the minimum, latest 2.x and latest 3.x with strict advisory
+checks on GitHub. A vulnerable graph remains a failure requiring reviewed
+remediation. See [dependency audits](../security/dependency-audits.md).
+Rules take effect from the default-branch configuration; recheck an existing
+PR's actual diff instead of assuming that it was rewritten or closed automatically.
 
 Doka plans 10.x servicing within Microsoft's .NET 10 support window through
 **2028-11-14**, on serviced patches, as verified on 2026-10-22 and subject to

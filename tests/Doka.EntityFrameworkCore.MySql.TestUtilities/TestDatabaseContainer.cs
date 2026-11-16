@@ -1,4 +1,5 @@
 using Docker.DotNet.Models;
+using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
 using Testcontainers.MariaDb;
@@ -310,22 +311,23 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             return builder;
         }
 
+        // WHY: The 0400 private key must retain database ownership rather than the mapping's root default.
         return builder
             .WithResourceMapping(
                 tlsMaterial.CaCertificate,
-                ContainerCaCertificateFile,
+                FilePath.Of(ContainerCaCertificateFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead | UnixFileModes.GroupRead | UnixFileModes.OtherRead)
             .WithResourceMapping(
                 tlsMaterial.ServerCertificate,
-                ContainerServerCertificateFile,
+                FilePath.Of(ContainerServerCertificateFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead | UnixFileModes.GroupRead | UnixFileModes.OtherRead)
             .WithResourceMapping(
                 tlsMaterial.ServerKey,
-                ContainerServerKeyFile,
+                FilePath.Of(ContainerServerKeyFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead);
@@ -341,22 +343,23 @@ internal sealed class TestDatabaseContainer : IAsyncDisposable
             return builder;
         }
 
+        // WHY: The 0400 private key must retain database ownership rather than the mapping's root default.
         return builder
             .WithResourceMapping(
                 tlsMaterial.CaCertificate,
-                ContainerCaCertificateFile,
+                FilePath.Of(ContainerCaCertificateFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead | UnixFileModes.GroupRead | UnixFileModes.OtherRead)
             .WithResourceMapping(
                 tlsMaterial.ServerCertificate,
-                ContainerServerCertificateFile,
+                FilePath.Of(ContainerServerCertificateFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead | UnixFileModes.GroupRead | UnixFileModes.OtherRead)
             .WithResourceMapping(
                 tlsMaterial.ServerKey,
-                ContainerServerKeyFile,
+                FilePath.Of(ContainerServerKeyFile),
                 DatabaseUserId,
                 DatabaseGroupId,
                 UnixFileModes.UserRead);

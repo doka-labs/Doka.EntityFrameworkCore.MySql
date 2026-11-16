@@ -34,6 +34,9 @@ dotnet package add Doka.Caching.MySql --version 10.6.7
 - Update the private Coverlet collector to 10.1.1. Verify fresh coverage
   reports with unchanged thresholds; unreachable branches are no longer
   included in Coverlet's branch totals.
+- Update both test-only Testcontainers modules to 4.17.0 and verify their
+  restored graphs and live test-owned database lifecycle. Use the typed TLS
+  resource-mapping overload while preserving file ownership and permissions.
 - Enforce LF for C# sources across checkout platforms so multiline raw-string
   contents remain consistent without renormalizing existing source files.
 
@@ -43,6 +46,10 @@ dotnet package add Doka.Caching.MySql --version 10.6.7
   in Dependabot. Group routine NuGet minor/patch updates separately from
   independent major proposals, preserving existing EF/driver qualification
   and security audits on the .NET 10 and prepared .NET 11 lines.
+- Suppress MySqlConnector floor-bump proposals within the already-admitted
+  3.x interval while preserving the 2.6.1 minimum and future 4.x proposals.
+  Document the exclusion's effect on automatic security-update candidates;
+  independent strict dependency audits and driver matrices remain in place.
 
 ## [10.6.6] - 2026-11-15
 
