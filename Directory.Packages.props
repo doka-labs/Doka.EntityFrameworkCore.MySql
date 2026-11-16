@@ -11,7 +11,7 @@
     <!-- WHY: Preserve the patched 2.x minimum while permitting the qualified 3.x
          line. Each supported driver line has independent runtime qualification. -->
     <DokaMySqlConnectorVersion
-      Condition="'$(DokaMySqlConnectorVersion)' == ''">[2.6.1, 4.0.0)</DokaMySqlConnectorVersion>
+      Condition="'$(DokaMySqlConnectorVersion)' == ''">[3.0.0, 4.0.0)</DokaMySqlConnectorVersion>
   </PropertyGroup>
 
   <ItemGroup Label="Production">
