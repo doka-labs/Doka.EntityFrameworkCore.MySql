@@ -20,5 +20,11 @@
     <PackageReference
         Include="Doka.EntityFrameworkCore.MySql.NetTopologySuite"
         Version="$(DokaPackageVersion)" />
+    <!-- WHY: Only this external consumer selects another supported driver;
+         the candidate packages retain their reviewed minimum-driver build. -->
+    <PackageReference
+        Include="MySqlConnector"
+        Version="$(DokaMySqlConnectorVersion)"
+        Condition="'$(DokaMySqlConnectorVersion)' != ''" />
   </ItemGroup>
 </Project>

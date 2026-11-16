@@ -213,8 +213,10 @@ public sealed partial class QualificationStageExecutionTests
                 printf 'argument|%s\n' "$@" >> "${DOKA_STUB_ROOT}/consumer-arguments"
                 printf 'consumer|%s|%s|%s\n' "$1" "$2" "$3" >> "${DOKA_STUB_ROOT}/events"
                 if [[ "${DOKA_STUB_FAIL:-}" == consumer ]]; then exit 31; fi
+                if [[ "${DOKA_STUB_FAIL:-}" == consumer-3 && "${4:-}" == "3.0.0" ]]; then exit 31; fi
                 mkdir -p "$3"
-                if [[ "${DOKA_STUB_MISSING:-}" != consumer ]]; then
+                if [[ "${DOKA_STUB_MISSING:-}" != consumer \
+                    && !( "${DOKA_STUB_MISSING:-}" == consumer-3 && "${4:-}" == "3.0.0" ) ]]; then
                     printf '{"consumer":true}' > "$3/local-package-consumer.json"
                 fi
                 """);
@@ -228,8 +230,13 @@ public sealed partial class QualificationStageExecutionTests
                 printf 'argument|%s\n' "$@" >> "${DOKA_STUB_ROOT}/readback-arguments"
                 printf 'readback|%s|%s|%s|%s|%s|%s\n' "$@" >> "${DOKA_STUB_ROOT}/events"
                 if [[ "${DOKA_STUB_FAIL:-}" == readback ]]; then exit 31; fi
-                if [[ "${DOKA_STUB_MISSING:-}" != readback ]]; then
+                if [[ "${DOKA_STUB_FAIL:-}" == readback-3 && "${7:-}" == "3.0.0" ]]; then exit 31; fi
+                if [[ "${DOKA_STUB_MISSING:-}" != readback \
+                    && !( "${DOKA_STUB_MISSING:-}" == readback-3 && "${7:-}" == "3.0.0" ) ]]; then
                     printf '{"runtime":true}' > "$5/local-package-runtime.json"
+                fi
+                if [[ "${DOKA_STUB_MISSING:-}" != driver-3 ]]; then
+                    printf '{"mysqlConnectorVersion":"3.0.0"}' > "$5/mysqlconnector-consumer.json"
                 fi
                 """);
 
@@ -357,11 +364,11 @@ public sealed partial class QualificationStageExecutionTests
         /// <summary>Gets dotnet invocations with the original argument boundaries preserved.</summary>
         public string[][] DotnetCalls => ReadArgumentCalls("dotnet");
 
-        /// <summary>Gets the exact arguments passed to the isolated package consumer.</summary>
-        public string[] ConsumerArguments => Assert.Single(ReadArgumentCalls("consumer"));
+        /// <summary>Gets the exact arguments for default and additional-driver package consumers.</summary>
+        public string[][] ConsumerArguments => ReadArgumentCalls("consumer");
 
-        /// <summary>Gets the exact arguments passed to package runtime readback.</summary>
-        public string[] ReadbackArguments => Assert.Single(ReadArgumentCalls("readback"));
+        /// <summary>Gets the exact arguments for both package runtime readbacks.</summary>
+        public string[][] ReadbackArguments => ReadArgumentCalls("readback");
 
         /// <summary>Removes only this test's private checkout.</summary>
         public void Dispose() => Directory.Delete(Root, recursive: true);

@@ -14,12 +14,13 @@ project_template="${repo_root}/eng/templates/nuget-readback.csproj.template"
 release_version="${1:-}"
 packages_dir="${2:-}"
 evidence_dir="${3:-}"
+mysqlconnector_version="${4:-}"
 temporary_root=""
 
 print_usage() {
     cat <<'EOF'
 Usage:
-  ./eng/testing/test-local-package-consumer.sh VERSION PACKAGES_DIR EVIDENCE_DIR
+  ./eng/testing/test-local-package-consumer.sh VERSION PACKAGES_DIR EVIDENCE_DIR [MYSQLCONNECTOR_VERSION]
 
 Restores the exact locally packed provider artifacts into an isolated
 package-only consumer, executes the public handler conformance contract, and
@@ -29,9 +30,25 @@ EOF
 
 if [[ -z "${release_version}" \
     || -z "${packages_dir}" \
-    || -z "${evidence_dir}" ]]; then
+    || -z "${evidence_dir}" \
+    || "$#" -gt 4 ]]; then
     print_usage >&2
     exit 2
+fi
+
+if [[ -n "${mysqlconnector_version}" ]]; then
+    if [[ ! "${mysqlconnector_version}" =~ ^[23][.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$ \
+        || "${mysqlconnector_version}" =~ ^2[.]([0-5][.][0-9]+|6[.]0)$ ]]; then
+        echo "MYSQLCONNECTOR_VERSION requires one exact supported stable patch (2.6.1 or later, below 4.0.0)." >&2
+        exit 2
+    fi
+fi
+
+consumer_properties=("-p:DokaPackageVersion=${release_version}")
+if [[ -n "${mysqlconnector_version}" ]]; then
+    # WHY: The override belongs to copied consumers, never to the source
+    # projects that produced the minimum-driver candidate packages.
+    consumer_properties+=("-p:DokaMySqlConnectorVersion=${mysqlconnector_version}")
 fi
 
 packages_dir="$(cd "${packages_dir}" && pwd)"
@@ -149,13 +166,13 @@ dotnet restore "${consumer_project}" \
     --force \
     --no-cache \
     --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 dotnet build "${consumer_project}" \
     --configuration Release \
     --no-restore \
     --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 # Execute the handlers through EF Core's provider service graph. The dedicated
 # mode needs no database, but proves both handler and provider registration
@@ -167,6 +184,7 @@ dotnet run \
     --configuration Release \
     --no-build \
     --no-restore \
+    "${consumer_properties[@]}" \
     -- \
     --migration-handler-only
 
@@ -176,12 +194,13 @@ dotnet restore "${cache_consumer_project}" \
     --source "https://api.nuget.org/v3/index.json" \
     --packages "${package_cache}" \
     --force --no-cache --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 dotnet build "${cache_consumer_project}" \
     --configuration Release --no-restore --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 dotnet run --project "${cache_consumer_project}" \
-    --configuration Release --no-build --no-restore -- --registration-only
+    --configuration Release --no-build --no-restore \
+    "${consumer_properties[@]}" -- --registration-only
 
 jq -e --arg cacheKey "Doka.Caching.MySql/${release_version}" '
     .libraries[$cacheKey].type == "package"
@@ -194,6 +213,24 @@ jq -e --arg cacheKey "Doka.Caching.MySql/${release_version}" '
 assets_file="${consumer_root}/obj/project.assets.json"
 provider_key="${provider_id}/${release_version}"
 spatial_key="${spatial_id}/${release_version}"
+
+# WHY: A successful restore alone does not prove which supported driver the
+# provider/spatial and standalone-cache consumers actually loaded.
+resolved_mysqlconnector_version="$(jq -er '
+    [.libraries | to_entries[]
+      | select((.key | ascii_downcase | startswith("mysqlconnector/")) and .value.type == "package")]
+    | select(length == 1) | .[0].key | split("/")[1]
+' "${assets_file}")"
+resolved_cache_mysqlconnector_version="$(jq -er '
+    [.libraries | to_entries[]
+      | select((.key | ascii_downcase | startswith("mysqlconnector/")) and .value.type == "package")]
+    | select(length == 1) | .[0].key | split("/")[1]
+' "${cache_consumer_root}/obj/project.assets.json")"
+if [[ "${resolved_mysqlconnector_version}" != "${resolved_cache_mysqlconnector_version}" \
+    || ( -n "${mysqlconnector_version}" && "${resolved_mysqlconnector_version}" != "${mysqlconnector_version}" ) ]]; then
+    echo "The isolated consumers did not resolve the requested matching MySqlConnector version." >&2
+    exit 1
+fi
 
 # Package keys are case-insensitive, while project references have a distinct
 # assets type. Checking both properties proves the consumer compiled only
@@ -235,8 +272,10 @@ jq -n \
     --arg providerSha256 "${provider_sha256}" \
     --arg spatialSha256 "${spatial_sha256}" \
     --arg cacheSha256 "${cache_sha256}" \
+    --arg mysqlConnectorVersion "${resolved_mysqlconnector_version}" \
     '{
       schemaVersion: 4,
+      mysqlConnectorVersion: $mysqlConnectorVersion,
       generatedUtc: $generatedUtc,
       qualification: "pass",
       consumerBoundary: "isolated-local-package",

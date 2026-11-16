@@ -68,9 +68,16 @@ packages.
 - An application targeting .NET 10 or later
 - EF Core 10.0.x for the provider and spatial extension; the supported package
   range is `>= 10.0.8` and `< 10.1.0`
-- MySqlConnector 2.x; the supported package range is `>= 2.6.1` and `< 3.0.0`
+- MySqlConnector 2.x or 3.x; the package range in this checkout is `>= 2.6.1` and `< 4.0.0`
   (2.6.1 fixes [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8)).
 - A supported MySQL or MariaDB server from the matrix below
+
+The additional 3.x support is part of the next release; published 10.6.6
+retains its `< 3.0.0` boundary. The minimum and default resolution remain
+2.6.1. Applications can select 3.0.0 explicitly to obtain its binary GUID
+`NO_BACKSLASH_ESCAPES` fix. Review the
+[driver compatibility notes](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/resilience-and-topology.md#mysqlconnector-3)
+for transaction, reader, pooling and telemetry differences.
 
 Building the repository itself requires the exact .NET SDK declared in
 [`global.json`][global-json]. Docker is required only for live integration,

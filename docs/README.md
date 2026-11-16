@@ -28,6 +28,12 @@ to adopt the corrected [fixed-binary byte-array reader](provider-configuration.m
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
 remains `>= 2.6.1` and `< 3.0.0`.
 
+The next release additionally admits MySqlConnector 3.x without raising the
+2.6.1 minimum or changing model/engine defaults. See the
+[driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)
+for the explicit opt-in and upstream behavior changes. Published 10.6.6
+retains its original driver range.
+
 ## Use the Provider
 
 - [Provider Architecture](architecture.md) explains the runtime, design-time,

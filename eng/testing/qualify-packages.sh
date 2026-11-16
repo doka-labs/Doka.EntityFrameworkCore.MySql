@@ -49,12 +49,14 @@ VALIDATE_OUTPUT
 
 packages_dir="${output_root}/packages"
 local_package_consumer_dir="${output_root}/local-package-consumer"
+mysqlconnector3_consumer_dir="${local_package_consumer_dir}/mysqlconnector-3"
 sbom_components_dir="${output_root}/sbom-components"
 dependency_graph_file="${output_root}/resolved-packages.json"
 expected_release_tag="v${release_version_override}"
 
 # WHY: Other stages can share the root, but these outputs must belong to this invocation.
-for directory in "${packages_dir}" "${local_package_consumer_dir}" "${sbom_components_dir}"; do
+for directory in "${packages_dir}" "${local_package_consumer_dir}" \
+    "${mysqlconnector3_consumer_dir}" "${sbom_components_dir}"; do
     if [[ -L "${directory}" \
         || ( -e "${directory}" && ! -d "${directory}" ) \
         || ( -d "${directory}" && -n "$(find "${directory}" -mindepth 1 -print -quit)" ) ]]; then
@@ -147,6 +149,25 @@ bash "${repo_root}/eng/testing/test-nuget-readback.sh" \
     "${local_package_consumer_dir}" \
     "${packages_dir}"
 require_evidence_file "${local_package_consumer_dir}/local-package-runtime.json"
+
+# WHY: Load the same minimum-driver package bytes with the additional driver
+# line instead of recompiling the provider against that line's APIs.
+bash "${repo_root}/eng/testing/test-local-package-consumer.sh" \
+    "${release_version_override}" \
+    "${packages_dir}" \
+    "${mysqlconnector3_consumer_dir}" \
+    "3.0.0"
+require_evidence_file "${mysqlconnector3_consumer_dir}/local-package-consumer.json"
+bash "${repo_root}/eng/testing/test-nuget-readback.sh" \
+    "${release_version_override}" \
+    "${expected_release_tag}" \
+    "$(git rev-parse HEAD)" \
+    "${mysql84_image}" \
+    "${mysqlconnector3_consumer_dir}" \
+    "${packages_dir}" \
+    "3.0.0"
+require_evidence_file "${mysqlconnector3_consumer_dir}/local-package-runtime.json"
+require_evidence_file "${mysqlconnector3_consumer_dir}/mysqlconnector-consumer.json"
 
 # WHY: Capture NuGet's actual graph rather than infer dependencies from declarations.
 dotnet package list \

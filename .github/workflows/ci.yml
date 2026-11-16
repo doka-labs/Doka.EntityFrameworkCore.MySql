@@ -181,6 +181,9 @@ jobs:
           - mysqlconnector-version: "2.*"
             resolved-version-pattern: '^2[.][0-9]+[.][0-9]+$'
             artifact-suffix: latest-2-x
+          - mysqlconnector-version: "3.*"
+            resolved-version-pattern: '^3[.][0-9]+[.][0-9]+$'
+            artifact-suffix: latest-3-x
 
     steps:
       - name: Checkout

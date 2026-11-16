@@ -17,12 +17,20 @@ alone are not evidence that either has passed.
 
 ## MySqlConnector security floor
 
-Since 10.6.3, Doka requires MySqlConnector `>= 2.6.1` and `< 3.0.0` for
+Releases 10.6.3 through 10.6.6 require MySqlConnector `>= 2.6.1` and `< 3.0.0` for
 [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
 The upstream issue permits password disclosure to an intercepting attacker
 with `VerifyCA`/`VerifyFull`, no `SslCa` and a nonempty password. Update direct
 driver pins that conflict with the patched minimum. Doka preserves caller TLS
 configuration and connection ownership; no schema migration is required.
+
+The next release extends the upper boundary to `< 4.0.0`, admitting 3.x
+alongside the existing patched 2.x line. The minimum and default resolution
+remain 2.6.1. Qualification covers the minimum, latest stable 2.x and latest
+stable 3.x independently, including restored package consumers. See the
+[driver compatibility notes](../operations/resilience-and-topology.md#mysqlconnector-3)
+before opting into 3.0.0. This compatibility extension does not weaken the
+advisory audit or permit an affected driver below the patched minimum.
 
 ## Local development and qualification
 

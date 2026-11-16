@@ -725,6 +725,18 @@ run_finalization_stage() {
     bash "${repo_root}/eng/release/check-publication-readiness.sh" \
         --ef-core-version "${publication_ef_core_version}" \
         --mysqlconnector-version "${publication_mysqlconnector_version}"
+
+    # WHY: The default 2.x build cannot qualify the additional 3.x consumer
+    # contract; bind it to the exact driver already exercised by this run.
+    publication_mysqlconnector_version="$(
+        resolved_matrix_version \
+            "${mysqlconnector_matrix_dir}/latest-3-x/driver-contract-evidence.json" \
+            "MySqlConnector" \
+            '^3[.][0-9]+[.][0-9]+$'
+    )"
+    bash "${repo_root}/eng/release/check-publication-readiness.sh" \
+        --ef-core-version "${publication_ef_core_version}" \
+        --mysqlconnector-version "${publication_mysqlconnector_version}"
     assemble_qualification_manifest
     write_reconciliation
     write_summary "${release_version}" "${package_count}"
