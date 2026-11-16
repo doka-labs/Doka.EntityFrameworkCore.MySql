@@ -280,8 +280,13 @@ it does not reserve a slot against additional open majors. Existing EF and
 driver patch qualification remains matrix-owned, including the 10.6.7 release's
 additional 3.x line. Admitting 3.x does not require raising the 2.6.1 minimum.
 The driver ignore rule retains matrix-owned minor/patch updates and excludes
-only `[3.0.0, 4.0.0)` from floor-bump proposals. A future 4.x remains outside
+only `>= 3.0.0, < 4.0.0` from floor-bump proposals. A future 4.x remains outside
 that exception and needs a separate compatibility decision.
+
+The native NuGet updater parses comma-separated comparison clauses here.
+NuGet package-range brackets such as `[3.0.0, 4.0.0)` are not accepted in this
+field and stop the update job with `illformed_requirement`. Package dependency
+ranges in `Directory.Packages.props` retain their separate NuGet syntax.
 
 Dependabot also applies explicit version exclusions to security-update
 candidates. Therefore, automatic 3.x security-fix proposals are filtered too;

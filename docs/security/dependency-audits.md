@@ -32,7 +32,7 @@ stable 3.x independently, including restored package consumers. See the
 before opting into 3.0.0. This compatibility extension does not weaken the
 advisory audit or permit an affected driver below the patched minimum.
 
-Dependabot excludes the already-admitted `[3.0.0, 4.0.0)` interval from driver
+Dependabot excludes the already-admitted `>= 3.0.0, < 4.0.0` interval from driver
 floor-bump proposals so accepting 3.x support does not remove 2.x support.
 The exclusion does not cover 4.x. Explicit ignored versions also filter
 security-update candidates in 3.x; the `update-types` exclusions alone do not.
@@ -166,6 +166,12 @@ and branch creation/activation remain separately approved operational actions.
 
 The [MySqlConnector advisory](https://github.com/advisories/GHSA-473q-m89c-ghf8)
 was verified on 2026-10-29.
+
+The native NuGet updater's [requirement parser](https://github.com/dependabot/dependabot-core/blob/32316ae86eef9de285933b2fddc7d7655960009a/nuget/helpers/lib/NuGetUpdater/NuGetUpdater.Core/Analyze/Requirement.cs)
+and [JSON converter](https://github.com/dependabot/dependabot-core/blob/32316ae86eef9de285933b2fddc7d7655960009a/nuget/helpers/lib/NuGetUpdater/NuGetUpdater.Core/Analyze/RequirementConverter.cs)
+were executed in isolation on 2026-11-17. The deployed updater accepts comparison
+clauses for ignored versions; its separate Ruby parser's support for package
+intervals does not establish acceptance by this native job boundary.
 
 Verified on 2026-10-22:
 
