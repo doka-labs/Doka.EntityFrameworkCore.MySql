@@ -32,6 +32,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
         self.bin_directory = self.root / "bin"
         self.packages.mkdir()
         self.bin_directory.mkdir()
+        self.command_log = self.root / "dotnet-commands.txt"
 
         (self.packages / f"{self._PROVIDER_ID}.{self._VERSION}.nupkg").write_bytes(
             b"provider-candidate-bytes\n"
@@ -88,6 +89,64 @@ class LocalPackageConsumerTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertFalse((self.evidence / "local-package-consumer.json").exists())
 
+    def test_accepts_an_explicit_driver_in_both_external_consumers(self) -> None:
+        """Load unchanged candidate packages with the additional driver line."""
+        # Arrange
+        requested_version = "3.0.0"
+
+        # Act
+        result = self._run_gate(tamper=False, driver_version=requested_version)
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stderr)
+        evidence = json.loads((self.evidence / "local-package-consumer.json").read_text(encoding="ascii"))
+        self.assertEqual(requested_version, evidence["mysqlConnectorVersion"])
+        calls = self.command_log.read_text(encoding="ascii").splitlines()
+        self.assertEqual(6, len(calls))
+        self.assertTrue(all("-p:DokaMySqlConnectorVersion=3.0.0" in call for call in calls))
+        self.assertTrue(all(str(self.repository_root / "src") not in call for call in calls))
+
+    def test_rejects_an_override_that_the_actual_graph_did_not_select(self) -> None:
+        """Do not treat the requested version as proof of the restored driver."""
+        # Arrange
+        requested_version = "3.0.0"
+
+        # Act
+        result = self._run_gate(tamper=False, driver_version=requested_version, wrong_driver=True)
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("requested matching MySqlConnector version", result.stderr)
+        self.assertFalse((self.evidence / "local-package-consumer.json").exists())
+
+    def test_rejects_a_cache_graph_on_a_different_driver(self) -> None:
+        """Provider success must not hide a different standalone-cache dependency."""
+        # Arrange
+        requested_version = "3.0.0"
+
+        # Act
+        result = self._run_gate(tamper=False, driver_version=requested_version, wrong_cache_driver=True)
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("requested matching MySqlConnector version", result.stderr)
+        self.assertFalse((self.evidence / "local-package-consumer.json").exists())
+
+    def test_rejects_unsafe_or_noncanonical_driver_overrides_before_restore(self) -> None:
+        """An explicit consumer override retains the security and supported-major boundary."""
+        for version in ("2.6.0", "2.5.0", "3.*", "3.0.0-rc.1", "3.00.0", "4.0.0"):
+            with self.subTest(version=version):
+                # Arrange
+                requested_version = version
+
+                # Act
+                result = self._run_gate(tamper=False, driver_version=requested_version)
+
+                # Assert
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("one exact supported stable patch", result.stderr)
+                self.assertFalse(self.command_log.exists())
+
     def test_rejects_changed_cache_package_bytes(self) -> None:
         """A successful provider restore cannot hide stale cache bytes."""
         result = self._run_gate(tamper=False, tamper_cache=True)
@@ -107,7 +166,8 @@ class LocalPackageConsumerTests(unittest.TestCase):
         self.assertFalse((self.evidence / "local-package-consumer.json").exists())
 
     def _run_gate(
-        self, *, tamper: bool, inject_ef: bool = False, tamper_cache: bool = False
+        self, *, tamper: bool, inject_ef: bool = False, tamper_cache: bool = False,
+        driver_version: str = "", wrong_driver: bool = False, wrong_cache_driver: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment.update(
@@ -117,6 +177,9 @@ class LocalPackageConsumerTests(unittest.TestCase):
                 "DOKA_TEST_INJECT_EF": "1" if inject_ef else "0",
                 "DOKA_TEST_TAMPER_CACHE": "1" if tamper_cache else "0",
                 "DOKA_TEST_VERSION": self._VERSION,
+                "DOKA_TEST_COMMAND_LOG": str(self.command_log),
+                "DOKA_TEST_WRONG_DRIVER": "1" if wrong_driver else "0",
+                "DOKA_TEST_WRONG_CACHE_DRIVER": "1" if wrong_cache_driver else "0",
                 "PATH": f"{self.bin_directory}{os.pathsep}{environment['PATH']}",
             }
         )
@@ -133,6 +196,7 @@ class LocalPackageConsumerTests(unittest.TestCase):
                 self._VERSION,
                 str(self.packages),
                 str(self.evidence),
+                *([driver_version] if driver_version else []),
             ],
             cwd=self.repository_root,
             env=environment,
@@ -157,6 +221,17 @@ class LocalPackageConsumerTests(unittest.TestCase):
                     exit 0
                 fi
 
+                printf '%s\\n' "$*" >> "${{DOKA_TEST_COMMAND_LOG}}"
+                driver_version='2.6.1'
+                for argument in "$@"; do
+                    if [[ "${{argument}}" == -p:DokaMySqlConnectorVersion=* ]]; then
+                        driver_version="${{argument#*=}}"
+                    fi
+                done
+                if [[ "${{DOKA_TEST_WRONG_DRIVER}}" == "1" ]]; then
+                    driver_version='2.6.1'
+                fi
+
                 if [[ "${{1:-}}" == "build" ]]; then
                     exit 0
                 fi
@@ -177,6 +252,9 @@ class LocalPackageConsumerTests(unittest.TestCase):
 
                 consumer_root="$(dirname "$2")"
                 if [[ "$2" == *"CacheConsumer.csproj" ]]; then
+                    if [[ "${{DOKA_TEST_WRONG_CACHE_DRIVER}}" == "1" ]]; then
+                        driver_version='2.6.1'
+                    fi
                     cache_id='doka.caching.mysql'
                     cache_source="${{DOKA_TEST_PACKAGES_DIR}}/Doka.Caching.MySql.${{DOKA_TEST_VERSION}}.nupkg"
                     cache_target="${{NUGET_PACKAGES}}/${{cache_id}}/${{DOKA_TEST_VERSION}}/${{cache_id}}.${{DOKA_TEST_VERSION}}.nupkg"
@@ -189,8 +267,8 @@ class LocalPackageConsumerTests(unittest.TestCase):
                     if [[ "${{DOKA_TEST_INJECT_EF}}" == "1" ]]; then
                         extra_library=',"Microsoft.EntityFrameworkCore/10.0.11":{{"type":"package"}}'
                     fi
-                    printf '{{"libraries":{{"Doka.Caching.MySql/%s":{{"type":"package"}}%s}}}}\\n' \\
-                        "${{DOKA_TEST_VERSION}}" "${{extra_library}}" > "${{consumer_root}}/obj/project.assets.json"
+                    printf '{{"libraries":{{"Doka.Caching.MySql/%s":{{"type":"package"}},"MySqlConnector/%s":{{"type":"package"}}%s}}}}\\n' \\
+                        "${{DOKA_TEST_VERSION}}" "${{driver_version}}" "${{extra_library}}" > "${{consumer_root}}/obj/project.assets.json"
                     exit 0
                 fi
                 provider_id='doka.entityframeworkcore.mysql'
@@ -208,9 +286,10 @@ class LocalPackageConsumerTests(unittest.TestCase):
                     printf 'different-source\\n' >> "${{provider_target}}"
                 fi
 
-                printf '{{"libraries":{{"Doka.EntityFrameworkCore.MySql/%s":{{"type":"package"}},"Doka.EntityFrameworkCore.MySql.NetTopologySuite/%s":{{"type":"package"}}}}}}\\n' \\
+                printf '{{"libraries":{{"Doka.EntityFrameworkCore.MySql/%s":{{"type":"package"}},"Doka.EntityFrameworkCore.MySql.NetTopologySuite/%s":{{"type":"package"}},"MySqlConnector/%s":{{"type":"package"}}}}}}\\n' \\
                     "${{DOKA_TEST_VERSION}}" \\
                     "${{DOKA_TEST_VERSION}}" \\
+                    "${{driver_version}}" \\
                     > "${{consumer_root}}/obj/project.assets.json"
                 """
             ),

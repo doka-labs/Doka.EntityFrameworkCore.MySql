@@ -686,8 +686,12 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             '"${mysqlconnector_matrix_dir}/latest-2-x/driver-contract-evidence.json"',
             finalization,
         )
-        self.assertEqual(1, finalization.count("--ef-core-version"))
-        self.assertEqual(1, finalization.count("--mysqlconnector-version"))
+        self.assertIn(
+            '"${mysqlconnector_matrix_dir}/latest-3-x/driver-contract-evidence.json"',
+            finalization,
+        )
+        self.assertEqual(2, finalization.count("--ef-core-version"))
+        self.assertEqual(2, finalization.count("--mysqlconnector-version"))
 
     def test_repository_tests_execute_the_self_contained_publication_gate(self) -> None:
         """Move a broken clean-runner boundary from RC time to pull-request CI."""
@@ -731,6 +735,8 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
 
         self.assertLess(pack.index(readback), pack.index(evidence))
         self.assertEqual(1, pack.count(f"require_evidence_file {evidence}"))
+        self.assertIn('"${mysqlconnector3_consumer_dir}/local-package-runtime.json"', pack)
+        self.assertIn('"${mysqlconnector3_consumer_dir}/mysqlconnector-consumer.json"', pack)
 
     def test_release_matrix_stages_copy_only_registered_legs(self) -> None:
         """Exclude stale scratch rows from immutable release evidence."""
@@ -743,6 +749,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             "latest-10-0",
             "minimum-2-6-1",
             "latest-2-x",
+            "latest-3-x",
         ):
             with self.subTest(leg=leg):
                 self.assertEqual(1, body.count(f'"{leg}"'))

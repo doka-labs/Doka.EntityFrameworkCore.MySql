@@ -31,11 +31,10 @@ provider therefore continues through only error-number-zero wrappers. A real
 non-zero server error remains authoritative and cannot become retryable merely
 because an unrelated transport exception is nested below it. Cancellation,
 command timeout, and migration session-cleanup failure remain terminal across
-the complete bounded chain. The relevant exception contract is identical at
-the security-supported 2.6.1 floor and the latest stable 2.x patch. The
-MySqlConnector floor/latest matrix executes the same detector tests against
-both ends of the supported `[2.6.1, 3.0.0)` range; 3.x is not part of that
-contract.
+the complete bounded chain. The MySqlConnector matrix executes the same
+detector and live driver contracts at the security-supported 2.6.1 floor,
+latest stable 2.x and latest stable 3.x. The next release admits
+`[2.6.1, 4.0.0)`; the minimum and default resolution remain 2.6.1.
 
 `OperationCanceledException` and `CommandTimeoutExpired` are never retried -- the consumer's cancellation token wins, and a command-timeout is treated as a non-transient capacity signal.
 
@@ -45,6 +44,43 @@ Read-only failovers via MaxScale or ProxySQL stay invisible to the provider; the
 proxy decides transparently. Run the
 [Galera / MaxScale migration pre-flight](migrations.md#galera-maxscale-migration-pre-flight)
 before letting the provider migrate against a fronted cluster.
+
+<a id="mysqlconnector-3"></a>
+
+## MySqlConnector 3.x Compatibility
+
+The next release permits 3.x on .NET 10 while retaining the patched 2.6.1
+minimum. Published Doka 10.6.6 retains its `< 3.0.0` limit. Selecting 3.0.0
+therefore requires the provider release containing this compatibility change
+and an explicit application driver reference. The default remains 2.6.1;
+the extension does not force existing applications onto 3.x.
+
+Upstream 3.0.0 fixes binary GUID parameter escaping with aligned
+`NO_BACKSLASH_ESCAPES` settings, including the ordinary unprepared command
+path reported in [issue 1692](https://github.com/mysql-net/MySqlConnector/issues/1692).
+The [official release notes](https://github.com/mysql-net/MySqlConnector/releases/tag/3.0.0)
+also identify behavior changes applications must review:
+
+- XA transactions enlisted through `TransactionScope` honor its isolation
+  setting. The .NET default is `Serializable`; the previous driver used the
+  server default. Specify `TransactionOptions.IsolationLevel` explicitly when
+  an application intentionally needs another isolation level.
+- `GetValue` reads `VARBINARY(16)` as binary data rather than `Guid` under
+  `GuidFormat=Binary16`. Typed `GetGuid` remains available. Doka retains its
+  driver-independent model mappings, including the implicit `varbinary(17)`
+  byte-array convention; changing the driver does not change migration models.
+- After a pooled connection changes databases, reopening restores the configured
+  database. With `ConnectionReset=false`, 3.x preserves other session state
+  rather than incidentally resetting it. Keep the default reset behavior when
+  logical callers require clean pooled sessions.
+- Driver activities use stable OpenTelemetry conventions only. Legacy tag names
+  and the old semantic-convention opt-in no longer select driver output.
+
+The existing matrix retains 2.x qualification and adds 3.x separately. Package
+readback checks the same default-built provider, spatial and cache package
+bytes with the explicit 3.x consumer dependency. These checks qualify Doka's
+contracts; they do not promise identical behavior for arbitrary direct driver
+API calls or application-specific locking and monitoring assumptions.
 
 <a id="mysql-commit-unknown"></a>
 

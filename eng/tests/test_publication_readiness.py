@@ -136,7 +136,7 @@ class PublicationReadinessTests(unittest.TestCase):
         )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("one exact MySqlConnector 2.x patch", result.stderr)
+        self.assertIn("one exact MySqlConnector 2.x or 3.x patch", result.stderr)
 
     def test_gate_rejects_affected_connector_versions_before_dotnet(self) -> None:
         """Do not let an exact override restore the vulnerable driver floor."""
@@ -164,7 +164,8 @@ class PublicationReadinessTests(unittest.TestCase):
 
     def test_gate_rejects_noncanonical_connector_versions_before_dotnet(self) -> None:
         """Do not let normalized numeric aliases bypass the exact security-floor check."""
-        for version in ("2.06.0", "2.6.00", "2.6.1+build", "2.6.1-rc.1"):
+        for version in ("2.06.0", "2.6.00", "2.6.1+build", "2.6.1-rc.1",
+                        "3.00.0", "3.0.00", "3.*", "3.0.0-rc.1", "4.0.0"):
             with self.subTest(version=version):
                 # Arrange
                 environment = os.environ.copy()
@@ -181,7 +182,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(2, result.returncode, result.stderr)
-                self.assertIn("one exact MySqlConnector 2.x patch", result.stderr)
+                self.assertIn("one exact MySqlConnector 2.x or 3.x patch", result.stderr)
                 self.assertFalse(self.command_log.exists())
 
     def test_gate_accepts_the_latest_patched_connector(self) -> None:
@@ -203,6 +204,26 @@ class PublicationReadinessTests(unittest.TestCase):
         # Assert
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("-p:DokaMySqlConnectorVersion=2.6.2", self.command_log.read_text(encoding="utf-8"))
+
+    def test_gate_accepts_the_additional_stable_driver_major(self) -> None:
+        """Qualify an exact 3.x consumer without raising the default driver minimum."""
+        # Arrange
+        environment = os.environ.copy()
+        environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
+        environment["TMPDIR"] = str(self.root)
+        environment["DOKA_TEST_DOTNET_LOG"] = str(self.command_log)
+
+        # Act
+        result = subprocess.run(
+            ("bash", str(self.script), "--ef-core-version", "10.0.14",
+             "--mysqlconnector-version", "3.0.0"),
+            cwd=self.repo, env=environment, check=False,
+            capture_output=True, text=True,
+        )
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("-p:DokaMySqlConnectorVersion=3.0.0", self.command_log.read_text(encoding="utf-8"))
 
     def _write_fake_dotnet(self) -> None:
         """Write a deterministic CLI that materializes only requested build outputs."""

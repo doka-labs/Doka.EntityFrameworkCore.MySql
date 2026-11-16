@@ -11,5 +11,10 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Doka.Caching.MySql" Version="$(DokaPackageVersion)" />
+    <!-- WHY: Qualify the additional driver without rebuilding the cache package. -->
+    <PackageReference
+        Include="MySqlConnector"
+        Version="$(DokaMySqlConnectorVersion)"
+        Condition="'$(DokaMySqlConnectorVersion)' != ''" />
   </ItemGroup>
 </Project>

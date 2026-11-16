@@ -7,7 +7,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlDriverDependencyContractTests
 {
-    /// <summary>Verifies ordinary consumers require a patched driver without admitting a new major.</summary>
+    /// <summary>Retains the patched minimum and permits both qualified driver lines without admitting 4.x.</summary>
     [Fact]
     public void Central_driver_range_excludes_affected_versions()
     {
@@ -25,7 +25,7 @@ public sealed class MySqlDriverDependencyContractTests
         // Assert
         // WHY: A successful audit of a warm graph does not protect a new
         // consumer if the published dependency still permits affected versions.
-        Assert.Equal("[2.6.1, 3.0.0)", range);
+        Assert.Equal("[2.6.1, 4.0.0)", range);
     }
 
     /// <summary>Verifies every shipped package lock selects a patched driver.</summary>
@@ -59,6 +59,9 @@ public sealed class MySqlDriverDependencyContractTests
         // WHY: Safe matrix overrides can request an exact or floating version.
         // The resolved lock must be patched; the default range is checked separately.
         Assert.True(resolved >= new Version(2, 6, 1), $"{project} resolves affected MySqlConnector {resolved}.");
+
+        // WHY: Admitting 3.x must not silently raise the default shipping graph
+        // or require existing 2.x applications to change their direct driver pin.
         Assert.Equal(2, resolved.Major);
     }
 

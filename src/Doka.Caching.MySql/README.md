@@ -20,6 +20,12 @@ Use `--version 10.6.6` after publication to pin this coordinated release. The ca
 are unchanged. MySqlConnector 2.6.1 or later, below 3.0.0, is required to address
 [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8).
 
+The next release additionally permits MySqlConnector 3.x, with a package range
+of `>= 2.6.1` and `< 4.0.0`. The minimum and default remain 2.6.1; select
+3.0.0 explicitly when needed. Review the
+[driver compatibility notes](../../docs/operations/resilience-and-topology.md#mysqlconnector-3)
+before changing an application's driver. The cache API and schema are unchanged.
+
 ## Deploy and Register
 
 The application runtime never creates or updates database objects. Generate

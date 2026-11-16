@@ -118,7 +118,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.8, 10.1.0)",
-          "MySqlConnector": "[2.6.1, 3.0.0)",
+          "MySqlConnector": "[2.6.1, 4.0.0)",
           "System.IO.Hashing": "[10.0.15, )"
         }
       },
@@ -136,7 +136,7 @@
       },
       "MySqlConnector": {
         "type": "CentralTransitive",
-        "requested": "[2.6.1, 3.0.0)",
+        "requested": "[2.6.1, 4.0.0)",
         "resolved": "2.6.1",
         "contentHash": "MzNSfnHWBc0Mo3zVbYxG+556zuex9obs8NYtwcPCwFahel40e49stH+osjX4k/doEHp4LT/zTtGdax4nlGWhcw==",
         "dependencies": {

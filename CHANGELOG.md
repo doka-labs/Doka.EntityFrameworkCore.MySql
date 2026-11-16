@@ -7,6 +7,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep framework-aligned Microsoft dependencies on their release-line major
+  in Dependabot. Group routine NuGet minor/patch updates separately from
+  independent major proposals, preserving existing EF/driver qualification
+  and security audits on the .NET 10 and prepared .NET 11 lines.
+
+### Changed
+
+- Admit MySqlConnector 3.x alongside 2.x with range `>= 2.6.1` and `< 4.0.0`,
+  retaining the patched minimum and default resolution. Applications selecting
+  3.0.0 receive its binary GUID `NO_BACKSLASH_ESCAPES` fix; review its XA
+  isolation, binary-reader, pooled-session and telemetry changes before opting
+  in. Extend the existing driver matrix and package-only runtime readback to
+  qualify both lines without changing model defaults or the cache schema.
+- Update the private Coverlet collector to 10.1.1. Verify fresh coverage
+  reports with unchanged thresholds; unreachable branches are no longer
+  included in Coverlet's branch totals.
+
 ## [10.6.6] - 2026-11-15
 
 Maintenance patch for query translation, release recovery, dependency

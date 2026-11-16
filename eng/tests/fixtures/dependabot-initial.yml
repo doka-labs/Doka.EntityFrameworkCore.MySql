@@ -58,7 +58,16 @@ updates:
       nuget-dependencies:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
     ignore:
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: System.IO.Hashing
+        update-types:
+          - version-update:semver-major
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
         update-types:
           - version-update:semver-major
@@ -68,7 +77,7 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
     commit-message:
       prefix: chore
       include: scope

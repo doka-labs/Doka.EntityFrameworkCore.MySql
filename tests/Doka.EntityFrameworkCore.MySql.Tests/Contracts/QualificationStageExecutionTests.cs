@@ -182,10 +182,33 @@ public sealed partial class QualificationStageExecutionTests
             Path.Combine(repository.Output, "local-package-consumer"), Path.Combine(repository.Output, "packages"),
         ];
 
-        Assert.Equal(expectedConsumer, repository.ConsumerArguments);
-        Assert.Equal(expectedReadback, repository.ReadbackArguments);
+        string[] expectedDriver3Consumer =
+        [
+            "10.0.8-test.1", Path.Combine(repository.Output, "packages"),
+            Path.Combine(repository.Output, "local-package-consumer/mysqlconnector-3"), "3.0.0",
+        ];
+
+        string[] expectedDriver3Readback =
+        [
+            "10.0.8-test.1", "v10.0.8-test.1", StubSourceCommit, StubDatabaseImage,
+            Path.Combine(repository.Output, "local-package-consumer/mysqlconnector-3"),
+            Path.Combine(repository.Output, "packages"), "3.0.0",
+        ];
+
+        Assert.Equal(2, repository.ConsumerArguments.Length);
+        Assert.Equal(2, repository.ReadbackArguments.Length);
+        Assert.Equal(expectedConsumer, repository.ConsumerArguments[0]);
+        Assert.Equal(expectedReadback, repository.ReadbackArguments[0]);
+        Assert.Equal(expectedDriver3Consumer, repository.ConsumerArguments[1]);
+        Assert.Equal(expectedDriver3Readback, repository.ReadbackArguments[1]);
+
         Assert.True(File.Exists(Path.Combine(repository.Output, "local-package-consumer/local-package-consumer.json")));
         Assert.True(File.Exists(Path.Combine(repository.Output, "local-package-consumer/local-package-runtime.json")));
+        var additionalConsumer = Path.Combine(repository.Output, "local-package-consumer/mysqlconnector-3");
+
+        Assert.True(File.Exists(Path.Combine(additionalConsumer, "local-package-consumer.json")));
+        Assert.True(File.Exists(Path.Combine(additionalConsumer, "local-package-runtime.json")));
+        Assert.True(File.Exists(Path.Combine(additionalConsumer, "mysqlconnector-consumer.json")));
         Assert.True(File.Exists(Path.Combine(repository.Output, "resolved-packages.json")));
         foreach (var role in new[] { "runtime", "spatial", "cache" })
         {
@@ -206,6 +229,8 @@ public sealed partial class QualificationStageExecutionTests
     [InlineData("pack:Doka.EntityFrameworkCore.MySql.NetTopologySuite")]
     [InlineData("consumer")]
     [InlineData("readback")]
+    [InlineData("consumer-3")]
+    [InlineData("readback-3")]
     [InlineData("graph")]
     public void Package_recipe_propagates_failed_operations(
         string failure
@@ -280,6 +305,34 @@ public sealed partial class QualificationStageExecutionTests
                 static entry => entry.StartsWith("consumer|", StringComparison.Ordinal)
                     || entry.StartsWith("readback|", StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>Rejects an incomplete additional-driver consumer after the default consumer passed.</summary>
+    /// <param name="mutation">The additional consumer's missing evidence.</param>
+    /// <param name="expectedReadbacks">The exact downstream runtime calls reached before rejection.</param>
+    [Theory]
+    [InlineData("consumer-3", 1)]
+    [InlineData("readback-3", 2)]
+    [InlineData("driver-3", 2)]
+    public void Package_recipe_requires_additional_driver_consumer_evidence(
+        string mutation,
+        int expectedReadbacks
+    )
+    {
+        // Arrange
+        using var repository = new StageRepository();
+        repository.Environment["DOKA_STUB_MISSING"] = mutation;
+
+        // Act
+        var result = repository.RunStage("qualify-packages.sh", "10.0.8-test.1", "artifacts/qualification");
+
+        // Assert
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Equal(2, repository.ConsumerArguments.Length);
+        Assert.Equal(expectedReadbacks, repository.ReadbackArguments.Length);
+        Assert.DoesNotContain(
+            repository.Events,
+            static entry => entry.StartsWith("dotnet|package list", StringComparison.Ordinal));
     }
 
     /// <summary>Refuses reuse of another invocation's package output before building or packing again.</summary>
@@ -827,7 +880,12 @@ public sealed partial class QualificationStageExecutionTests
         Assert.Equal("verify-dotnet", events[0]);
         string[] expectedEvents = stage == "efcore-patch-matrix"
             ? ["ef|10.0.8|^10[.]0[.]8$|minimum-10-0-8|dependency-graph", "ef|10.0.9|^10[.]0[.]9$|latest-10-0|full"]
-            : ["connector|2.6.1|^2[.]6[.]1$|minimum-2-6-1", "connector|2.*|^2[.][0-9]+[.][0-9]+$|latest-2-x"];
+            :
+            [
+                "connector|2.6.1|^2[.]6[.]1$|minimum-2-6-1",
+                "connector|2.*|^2[.][0-9]+[.][0-9]+$|latest-2-x",
+                "connector|3.*|^3[.][0-9]+[.][0-9]+$|latest-3-x",
+            ];
 
         Assert.Equal(
             fails
@@ -839,7 +897,7 @@ public sealed partial class QualificationStageExecutionTests
         {
             string[] legs = stage == "efcore-patch-matrix"
                 ? ["minimum-10-0-8", "latest-10-0"]
-                : ["minimum-2-6-1", "latest-2-x"];
+                : ["minimum-2-6-1", "latest-2-x", "latest-3-x"];
 
             Assert.All(
                 legs,
@@ -852,6 +910,53 @@ public sealed partial class QualificationStageExecutionTests
                             leg,
                             "evidence.json"))));
         }
+    }
+
+    /// <summary>Requires actual successful evidence from the additional driver line.</summary>
+    /// <param name="fails">Whether the third producer fails instead of omitting its evidence.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Engine_recipe_rejects_missing_or_failed_additional_driver_evidence(
+        bool fails
+    )
+    {
+        // Arrange
+        using var repository = new StageRepository();
+        repository.Environment["DOKA_STUB_DRIVER_OUTCOME"] = fails
+            ? "failed"
+            : "missing";
+
+        repository.Write(
+            "eng/testing/test-mysqlconnector-matrix.sh",
+            """
+            #!/usr/bin/env bash
+            set -euo pipefail
+            printf 'connector|%s\n' "${DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX}" >> "${DOKA_STUB_ROOT}/events"
+            if [[ "${DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX}" == latest-3-x ]]; then
+                if [[ "${DOKA_STUB_DRIVER_OUTCOME}" == failed ]]; then exit 31; fi
+                exit 0
+            fi
+            directory="${DOKA_STUB_ROOT}/artifacts/mysqlconnector-patch-matrix/${DOKA_MYSQLCONNECTOR_ARTIFACT_SUFFIX}"
+            mkdir -p "${directory}"
+            printf 'qualified-connector' > "${directory}/evidence.json"
+            """);
+
+        // Act
+        var result = repository.RunStage(
+            "qualify-engine.sh",
+            "mysqlconnector-patch-matrix",
+            "artifacts/release-candidate/process-1",
+            "process-1");
+
+        // Assert
+        Assert.Equal(fails ? 31 : 1, result.ExitCode);
+        Assert.Contains("connector|latest-3-x", repository.Events);
+        Assert.False(
+            Directory.Exists(
+                Path.Combine(
+                    repository.Root,
+                    "artifacts/release-candidate/process-1/mysqlconnector-patch-matrix/latest-3-x")));
     }
 
     /// <summary>Rejects invalid stages and paths before executing any branch-native producer.</summary>

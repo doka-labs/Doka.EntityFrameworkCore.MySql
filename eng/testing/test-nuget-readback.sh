@@ -18,6 +18,7 @@ source_commit="${3:-}"
 expected_engine_image="${4:-}"
 evidence_dir="${5:-}"
 package_source="${6:-https://api.nuget.org/v3/index.json}"
+mysqlconnector_version="${7:-}"
 run_identity="${GITHUB_RUN_ID:-local-$$}-${GITHUB_RUN_ATTEMPT:-1}"
 # The project name scopes Compose resources to this checkout and workflow
 # attempt, so cleanup cannot tear down an unrelated developer stack.
@@ -31,7 +32,7 @@ owned_stack=0
 print_usage() {
     cat <<'EOF'
 Usage:
-  ./eng/testing/test-nuget-readback.sh VERSION TAG COMMIT ENGINE_IMAGE EVIDENCE_DIR [PACKAGE_SOURCE]
+  ./eng/testing/test-nuget-readback.sh VERSION TAG COMMIT ENGINE_IMAGE EVIDENCE_DIR [PACKAGE_SOURCE] [MYSQLCONNECTOR_VERSION]
 
 Restores all Doka packages with an empty cache and runs their provider and
 standalone cache contracts against MySQL 8.4. PACKAGE_SOURCE
@@ -43,9 +44,25 @@ if [[ -z "${release_version}" \
     || -z "${release_tag}" \
     || -z "${source_commit}" \
     || -z "${expected_engine_image}" \
-    || -z "${evidence_dir}" ]]; then
+    || -z "${evidence_dir}" \
+    || "$#" -gt 7 ]]; then
     print_usage >&2
     exit 2
+fi
+
+if [[ -n "${mysqlconnector_version}" ]]; then
+    if [[ ! "${mysqlconnector_version}" =~ ^[23][.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$ \
+        || "${mysqlconnector_version}" =~ ^2[.]([0-5][.][0-9]+|6[.]0)$ ]]; then
+        echo "MYSQLCONNECTOR_VERSION requires one exact supported stable patch (2.6.1 or later, below 4.0.0)." >&2
+        exit 2
+    fi
+fi
+
+consumer_properties=("-p:DokaPackageVersion=${release_version}")
+if [[ -n "${mysqlconnector_version}" ]]; then
+    # WHY: Select the additional driver only in these external consumers;
+    # candidate package bytes stay compiled against their supported minimum.
+    consumer_properties+=("-p:DokaMySqlConnectorVersion=${mysqlconnector_version}")
 fi
 
 if [[ "${release_tag}" != "v${release_version}" \
@@ -120,17 +137,17 @@ dotnet restore "${consumer_project}" \
     --force \
     --no-cache \
     --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 cache_consumer_project="${cache_consumer_root}/CacheConsumer.csproj"
 dotnet restore "${cache_consumer_project}" \
     "${restore_sources[@]}" \
     --packages "${package_cache}" \
     --force --no-cache --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 dotnet build "${cache_consumer_project}" \
     --configuration Release --no-restore --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 jq -e --arg cacheKey "Doka.Caching.MySql/${release_version}" '
     .libraries[$cacheKey].type == "package"
@@ -139,6 +156,29 @@ jq -e --arg cacheKey "Doka.Caching.MySql/${release_version}" '
       and (.key | ascii_downcase | startswith("microsoft.entityframeworkcore") or startswith("doka.entityframeworkcore")
         or startswith("pomelo.") | not))
     ' "${cache_consumer_root}/obj/project.assets.json" >/dev/null
+
+resolved_mysqlconnector_version="$(jq -er '
+    [.libraries | to_entries[]
+      | select((.key | ascii_downcase | startswith("mysqlconnector/")) and .value.type == "package")]
+    | select(length == 1) | .[0].key | split("/")[1]
+' "${consumer_root}/obj/project.assets.json")"
+resolved_cache_mysqlconnector_version="$(jq -er '
+    [.libraries | to_entries[]
+      | select((.key | ascii_downcase | startswith("mysqlconnector/")) and .value.type == "package")]
+    | select(length == 1) | .[0].key | split("/")[1]
+' "${cache_consumer_root}/obj/project.assets.json")"
+if [[ "${resolved_mysqlconnector_version}" != "${resolved_cache_mysqlconnector_version}" \
+    || ( -n "${mysqlconnector_version}" && "${resolved_mysqlconnector_version}" != "${mysqlconnector_version}" ) ]]; then
+    echo "The runtime consumers did not resolve the requested matching MySqlConnector version." >&2
+    exit 1
+fi
+
+# WHY: Retain the observed driver for both public and candidate-package modes;
+# the version property itself is not evidence of the restored runtime graph.
+jq -n \
+    --arg version "${resolved_mysqlconnector_version}" \
+    '{mysqlConnectorVersion: $version, providerAndCacheMatch: true}' \
+    > "${evidence_dir}/mysqlconnector-consumer.json"
 
 if [[ "${package_source}" != "https://api.nuget.org/v3/index.json" ]]; then
     for package_id in \
@@ -171,7 +211,7 @@ dotnet build "${consumer_project}" \
     --configuration Release \
     --no-restore \
     --tl:off \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 export DOKA_MYSQL84_PORT=0
 "${compose_command[@]}" up -d mysql84
@@ -218,11 +258,11 @@ dotnet run \
     --configuration Release \
     --no-build \
     --no-restore \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 dotnet run --project "${cache_consumer_project}" \
     --configuration Release --no-build --no-restore \
-    -p:DokaPackageVersion="${release_version}"
+    "${consumer_properties[@]}"
 
 if [[ "${package_source}" == "https://api.nuget.org/v3/index.json" ]]; then
     python3 -m eng.release.nuget verify-restore \
@@ -253,6 +293,7 @@ else
         --arg packageSource "${package_source}" \
         --arg dotnetSdk "$(dotnet --version)" \
         --arg engineImage "${actual_engine_image}" \
+        --arg mysqlConnectorVersion "${resolved_mysqlconnector_version}" \
         '{
           schemaVersion: 2,
           kind: "local-package-runtime-qualification",
@@ -267,7 +308,8 @@ else
           engineImage: $engineImage,
           runtimeSmoke: "pass",
           cacheRuntimeSmoke: "pass",
-          cacheEfCoreDependencies: 0
+          cacheEfCoreDependencies: 0,
+          mysqlConnectorVersion: $mysqlConnectorVersion
         }' > "${evidence_dir}/local-package-runtime.json"
 fi
 

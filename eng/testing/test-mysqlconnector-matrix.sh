@@ -2,7 +2,7 @@
 
 # This gate validates both dependency resolution and runtime behavior for one
 # MySqlConnector matrix row. Environment inputs are explicit so CI can exercise
-# the supported floor and the latest compatible 2.x version with identical
+# the supported floor and the latest compatible 2.x/3.x versions with identical
 # contracts and independently retained evidence.
 
 set -euo pipefail
@@ -44,9 +44,12 @@ export DokaMySqlConnectorVersion="${requested_version}"
 export CentralPackageFloatingVersionsEnabled=true
 export DOKA_INTEGRATION_TARGETS="${targets}"
 export DOKA_TEST_DATABASE_EVIDENCE_FILE="${database_evidence_file}"
+# WHY: Matrix overrides qualify additional drivers without rewriting the
+# reviewed shipping locks or raising the default package minimum.
+export DokaIsolatedNuGetLockRoot="${evidence_dir}/locks"
 
 rm -rf -- "${evidence_dir}"
-mkdir -p "${evidence_dir}/unit" "${evidence_dir}/live"
+mkdir -p "${evidence_dir}/unit" "${evidence_dir}/live" "${DokaIsolatedNuGetLockRoot}"
 cd "${repo_root}"
 
 "${repo_root}/eng/common/verify-dotnet.sh"

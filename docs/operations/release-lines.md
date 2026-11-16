@@ -269,6 +269,20 @@ daily branch-native [dependency audits](../security/dependency-audits.md) cover
 that gap. Missing producers, incomplete advisory data and known vulnerabilities
 remain visible failures. Fixes need reviewed, line-specific ports and tests.
 
+Each NuGet target excludes major upgrades of `Microsoft.Extensions.*` and
+`System.IO.Hashing` relative to its own pinned major. This preserves 10.x and
+later 11.x independently without suppressing separately versioned Microsoft
+test tools or analyzers. Routine minor/patch updates share one group; other
+eligible major upgrades, including MySqlConnector, remain individual proposals.
+The NuGet limit of two permits a routine group and one major proposal together;
+it does not reserve a slot against additional open majors. Existing EF and
+driver patch qualification remains matrix-owned, including the next release's
+additional 3.x line. Admitting 3.x does not require raising the 2.6.1 minimum.
+Keep the driver ignore rules based on update type: an explicit ignored version
+range would also suppress security-update candidates in that range. Rules take
+effect from the default-branch configuration; recheck an existing grouped PR's actual diff
+instead of assuming that it was rewritten or closed automatically.
+
 Doka plans 10.x servicing within Microsoft's .NET 10 support window through
 **2028-11-14**, on serviced patches, as verified on 2026-10-22 and subject to
 the best-effort [support policy](../../SUPPORT.md). Refresh upstream policy

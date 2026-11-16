@@ -58,8 +58,8 @@ if [[ ! "${ef_core_version}" =~ ^10[.]0[.][0-9]+$ ]]; then
     exit 2
 fi
 
-if [[ ! "${mysqlconnector_version}" =~ ^2[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$ ]]; then
-    echo "--mysqlconnector-version must identify one exact MySqlConnector 2.x patch." >&2
+if [[ ! "${mysqlconnector_version}" =~ ^[23][.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$ ]]; then
+    echo "--mysqlconnector-version must identify one exact MySqlConnector 2.x or 3.x patch." >&2
     exit 2
 fi
 
