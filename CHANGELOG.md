@@ -48,6 +48,8 @@ dotnet package add Doka.Caching.MySql --version 10.6.7
   and security audits on the .NET 10 and prepared .NET 11 lines.
 - Suppress MySqlConnector floor-bump proposals within the already-admitted
   3.x interval while preserving the 2.6.1 minimum and future 4.x proposals.
+  Use comparison clauses accepted by Dependabot's native NuGet updater;
+  package-range brackets in this field cause `illformed_requirement`.
   Document the exclusion's effect on automatic security-update candidates;
   independent strict dependency audits and driver matrices remain in place.
 

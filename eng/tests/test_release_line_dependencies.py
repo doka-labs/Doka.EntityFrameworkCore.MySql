@@ -53,7 +53,7 @@ class DependencyTargetTests(unittest.TestCase):
                 self.assertEqual(2, rendered.count("dependency-name: System.IO.Hashing"))
                 self.assertEqual(2, rendered.count("open-pull-requests-limit: 2"))
                 self.assertEqual(2, rendered.count("        versions:\n"))
-                self.assertEqual(2, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
+                self.assertEqual(2, rendered.count('          - ">= 3.0.0, < 4.0.0"\n'))
 
     def test_framework_major_boundary_cannot_be_removed(self) -> None:
         """Both runtime-aligned families must keep their own-major exclusion."""
@@ -330,22 +330,24 @@ class DependencyTargetTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(text, rendered)
-        self.assertEqual(1, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
+        self.assertEqual(1, rendered.count('          - ">= 3.0.0, < 4.0.0"\n'))
         driver = rendered.split("      - dependency-name: MySqlConnector\n", 1)[1]
         self.assertNotIn("version-update:semver-major", driver)
 
     def test_driver_exclusion_cannot_omit_or_change_the_admitted_interval(self) -> None:
-        """Missing or altered bounds either restore floor churn or hide future majors."""
-        excluded = '        versions:\n          - "[3.0.0, 4.0.0)"\n'
+        """Require native-updater comparisons with exactly the admitted stable bounds."""
+        excluded = '        versions:\n          - ">= 3.0.0, < 4.0.0"\n'
         cases = ("", '        versions: []\n',
-                 '        versions:\n          - "[3.0.0]"\n',
-                 '        versions:\n          - "[3.0.0, 4.0.0]"\n',
-                 '        versions:\n          - "[3.0.0, 5.0.0)"\n',
-                 '        versions:\n          - "[3.0.0,)"\n',
-                 '        versions:\n          - "[2.0.0, 4.0.0)"\n',
-                 '        versions:\n          - "[4.0.0, 5.0.0)"\n',
+                 '        versions:\n          - "[3.0.0, 4.0.0)"\n',
+                 '        versions:\n          - "[3.0.0,4.0.0)"\n',
+                 '        versions:\n          - "= 3.0.0"\n',
+                 '        versions:\n          - ">= 3.0.0, <= 4.0.0"\n',
+                 '        versions:\n          - ">= 3.0.0, < 5.0.0"\n',
+                 '        versions:\n          - ">= 3.0.0"\n',
+                 '        versions:\n          - ">= 2.0.0, < 4.0.0"\n',
+                 '        versions:\n          - ">= 4.0.0, < 5.0.0"\n',
                  '        versions:\n          - "*"\n',
-                 excluded + '          - "[4.0.0, 5.0.0)"\n')
+                 excluded + '          - ">= 4.0.0, < 5.0.0"\n')
         for replacement in cases:
             with self.subTest(replacement=replacement):
                 # Arrange
@@ -367,7 +369,7 @@ class DependencyTargetTests(unittest.TestCase):
         policy["lines"][0]["packageMajor"] = 11
         policy["lines"][1]["state"] = "active"
         rendered = dependencies.render_configuration(policy, BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii"))
-        excluded = '        versions:\n          - "[3.0.0, 4.0.0)"\n'
+        excluded = '        versions:\n          - ">= 3.0.0, < 4.0.0"\n'
         before, _, after = rendered.rpartition(excluded)
         changed = before + after
 
@@ -436,7 +438,7 @@ class DependencyTargetTests(unittest.TestCase):
         # Assert
         self.assertEqual(4, rendered.count("target-branch: preview/11.x"))
         self.assertNotIn("target-branch: maintenance/10.x", rendered)
-        self.assertEqual(2, rendered.count('          - "[3.0.0, 4.0.0)"\n'))
+        self.assertEqual(2, rendered.count('          - ">= 3.0.0, < 4.0.0"\n'))
 
     def test_duplicate_ecosystem_target_is_rejected(self) -> None:
         """Dependabot must not create competing updates for the same scope."""

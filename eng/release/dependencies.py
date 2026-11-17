@@ -93,12 +93,13 @@ def _validate_nuget_boundary(block: str, target: str) -> None:
 
     # WHY: Admitting 3.x does not raise the 2.6.1 floor. Bound the exception
     # exactly so a reviewed line cannot hide a future 4.x compatibility decision.
+    # The native NuGet updater parses comparisons, not NuGet package intervals.
     driver_rule = (
         "        update-types:\n"
         "          - version-update:semver-minor\n"
         "          - version-update:semver-patch\n"
         "        versions:\n"
-        '          - "[3.0.0, 4.0.0)"\n')
+        '          - ">= 3.0.0, < 4.0.0"\n')
     if ("MySqlConnector", driver_rule) not in rules:
         raise DependencyPolicyError(
             f"NuGet target '{target}' must preserve driver patch ownership and individual major proposals.")

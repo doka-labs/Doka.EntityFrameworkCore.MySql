@@ -127,6 +127,7 @@ updates:
           - version-update:semver-patch
       # WHY: The minimum remains 2.6.1 even though 3.x is already qualified.
       # Suppress floor-bump proposals within that admitted line, not future 4.x.
+      # The native NuGet updater requires comparisons, not package-range brackets.
       # Explicit versions also filter security-update candidates; the daily
       # default-graph audit and strict 2.x/3.x matrix retain advisory detection.
       - dependency-name: MySqlConnector
@@ -134,7 +135,7 @@ updates:
           - version-update:semver-minor
           - version-update:semver-patch
         versions:
-          - "[3.0.0, 4.0.0)"
+          - ">= 3.0.0, < 4.0.0"
     # WHY: Allow the routine group alongside an independent major proposal.
     open-pull-requests-limit: 2
     commit-message:
