@@ -602,17 +602,17 @@ class GitHubReleaseFixture(unittest.TestCase):
                 "sbom/provider.cdx.json": (b'{"bomFormat":"CycloneDX"}\n', "sbom"),
             }
         )
-        # WHY: Historical GA-10 evidence retains its floor/latest receipts
-        # even when this test runs on an upstream RC preparation branch.
+        # WHY: The synthetic package identity is independent of the branch-native
+        # matrix format that the current evidence validator protects.
         efcore_packages = (
             "Microsoft.EntityFrameworkCore.Design",
             "Microsoft.EntityFrameworkCore.Relational",
             "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
         )
         efcore_legs = {
-            "minimum-10-0-8": {
-                "requestedVersion": "10.0.8",
-                "resolvedVersion": "10.0.8",
+            "minimum-11-0-0": {
+                "requestedVersion": "11.0.0",
+                "resolvedVersion": "11.0.0",
                 "validationScope": "dependency-graph",
                 "qualificationSource": "repository-qualification",
                 "specificationTargets": [],
@@ -622,9 +622,9 @@ class GitHubReleaseFixture(unittest.TestCase):
                     "version-contract-preflight",
                 ],
             },
-            "latest-10-0": {
-                "requestedVersion": "10.0.12",
-                "resolvedVersion": "10.0.12",
+            "latest-11-0": {
+                "requestedVersion": "11.0.2",
+                "resolvedVersion": "11.0.2",
                 "validationScope": "full",
                 "qualificationSource": None,
                 "specificationTargets": ["mariadb118", "mysql84"],
@@ -672,7 +672,7 @@ class GitHubReleaseFixture(unittest.TestCase):
                 (json.dumps(graph) + "\n").encode("ascii"),
                 "evidence",
             )
-            if leg == "latest-10-0":
+            if leg == "latest-11-0":
                 retained_targets = []
                 for target in ("mysql84", "mariadb118"):
                     target_evidence = {

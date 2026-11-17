@@ -4,8 +4,9 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Production compatibility ranges">
-    <!-- WHY: EF Core prereleases can change provider APIs; retain the exact qualified build. -->
-    <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">11.0.0-rc.3.26522.148</DokaEfCoreVersion>
+    <!-- WHY: Compatible EF patches remain consumable; every newly admitted patch
+         requires its own specification and provider qualification. -->
+    <DokaEfCoreVersion Condition="'$(DokaEfCoreVersion)' == ''">[11.0.0, 11.1.0)</DokaEfCoreVersion>
 
     <!-- WHY: Preserve the patched 2.x minimum while permitting the qualified 3.x
          line. Each supported driver line has independent runtime qualification. -->
@@ -18,7 +19,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(DokaEfCoreVersion)" />
     <PackageVersion Include="MySqlConnector" Version="$(DokaMySqlConnectorVersion)" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="11.0.0-rc.3.26522.148" />
+    <PackageVersion Include="System.IO.Hashing" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Production analyzers">
@@ -32,16 +33,20 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="Testcontainers.MariaDb" Version="4.17.0" />
     <PackageVersion Include="Testcontainers.MySql" Version="4.17.0" />
-    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 
   <ItemGroup Label="Benchmarks">
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <!-- WHY: The latest stable 0.15.8 cannot validate .NET 11. This official
+         preview is benchmark/test-only; replace it with a .NET 11-capable
+         stable release after requalification, without changing shipping graphs. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
   </ItemGroup>
 
   <ItemGroup Label="Example hosts">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.3.26522.148" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.21.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />

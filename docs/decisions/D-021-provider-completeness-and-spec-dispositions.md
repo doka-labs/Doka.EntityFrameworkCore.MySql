@@ -51,11 +51,12 @@ without falsifying engine reality.
 
 The specification suite has a zero provider-gap budget.
 
-Live specification execution requires a target in the test-host environment.
-The functional-test project supplies the version-controlled local default
-`mariadb123` through `LocalMariaDb123.runsettings`; explicit environment targets
-from CI and operators bypass that file. The database fixture still refuses to
-start without a resolved target, and an external endpoint must declare a
+Local specification discovery and execution resolve an absent target to
+`mariadb123` in the shared C# target resolver. Native MTP does not apply the
+former VSTest `.runsettings` default; the resolver therefore owns this policy
+for CLI and IDE hosts alike. Explicit environment targets retain precedence,
+blank or unsupported targets remain errors, and CI still refuses an absent
+target. An external endpoint must declare a
 server-version token from the selected target's engine and major/minor line.
 The per-event CI matrix runs every test in the provider `Specification`
 namespace, every provider adapter marked `Category=Spec`, and the standalone
@@ -250,11 +251,11 @@ Both sources were retrieved on 2026-07-30.
 
 ### Verified target matrix
 
-The active EF Core `11.0.0-rc.3.26522.148` contract contains 329 compliance
-bases, 9,305 unique test definitions, 19,665 effective assignments, and zero
-provider debt. Exact discovery regenerated on 2026-11-03 contains 30,440 test
+The active EF Core `11.0.0` contract contains 329 compliance
+bases, 9,318 unique test definitions, 19,682 effective assignments, and zero
+provider debt. Exact discovery regenerated on 2026-11-15 contains 30,473 test
 IDs for each of the six supported targets. These files establish the expected
-RC.3 inventory and discovery set; they do not claim that the complete live
+GA inventory and discovery set; they do not claim that the complete live
 matrix has executed.
 
 The tables below retain the dated full-matrix evidence from the 10.x line.

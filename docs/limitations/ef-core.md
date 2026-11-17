@@ -1,6 +1,6 @@
 # EF Core Limitations
 
-This inventory contains only contracts that EF Core 11 RC.3 rejects or cannot
+This inventory contains only contracts that EF Core 11 GA rejects or cannot
 represent before provider translation. Engine restrictions are documented
 separately in [Database Engine Limitations](database-engines.md), and the
 [cross-feature index](../limitations.md) defines the governing zero-gap
@@ -20,7 +20,7 @@ The shape-specific EF Core limitations later in this inventory remain exact
 upstream boundaries. They cover unsupported collection-tracking shapes,
 affected `EntityEntry` store-value and nested database-value APIs, and shadow
 complex properties. The following broader framework boundaries complete the
-public complex-type contract for the pinned EF Core 11 release candidate.
+public complex-type contract for the reviewed EF Core 11 GA release.
 Complex and JSON properties now participate in TPH, TPT, and TPC hierarchies,
 and nested complex members can participate in keys and indexes. Doka executes
 the corresponding inheritance and complex-type suites on every supported
@@ -29,7 +29,7 @@ engine target.
 ### Struct elements in complex collections
 
 - **Unavailable contract:** Persisting a complex collection whose element type
-  is a struct on EF Core 11 RC.3.
+  is a struct on EF Core 11 GA.
 - **Available contracts:** Reference-type complex collections mapped to JSON,
   and individual struct complex properties, remain supported.
 - **Responsibility:** EF Core documents struct complex properties but does

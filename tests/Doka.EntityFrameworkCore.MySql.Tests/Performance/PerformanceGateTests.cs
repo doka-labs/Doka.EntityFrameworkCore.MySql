@@ -24,7 +24,6 @@ public sealed partial class PerformanceGateTests
         var report = new BenchmarkReport(
             success,
             benchmarkCase: null!,
-            generateResult: null!,
             buildResult: null!,
             executeResults: [],
             metrics: []);
@@ -132,15 +131,16 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var fixture = PerformanceGateFixture.Create(sampleCountOffset: 1);
 
-        void act() => BenchmarkPerformanceGate.Evaluate(
-            fixture.ContractPath,
-            fixture.ReportsPath,
-            "mysql84",
-            "smoke",
-            soakPath: null);
+        var contractPath = fixture.ContractPath;
+        var reportsPath = fixture.ReportsPath;
 
         // Act
-        var recordedException = Record.Exception(act);
+        var recordedException = Record.Exception(() => BenchmarkPerformanceGate.Evaluate(
+            contractPath,
+            reportsPath,
+            "mysql84",
+            "smoke",
+            soakPath: null));
 
         // Assert
         Assert.IsType<InvalidDataException>(recordedException);

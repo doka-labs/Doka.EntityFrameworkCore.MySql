@@ -37,6 +37,7 @@ coverage_merged_dir="${release_candidate_dir}/coverage-merged"
 integration_dir="${release_candidate_dir}/integration"
 migration_deployment_root="${release_candidate_dir}/migration-deployment"
 runtime_dir="${release_candidate_dir}/runtime"
+efcore_matrix_dir="${release_candidate_dir}/efcore-patch-matrix"
 mysqlconnector_matrix_dir="${release_candidate_dir}/mysqlconnector-patch-matrix"
 reconciliation_file="${release_candidate_dir}/release-candidate-reconciliation.json"
 qualification_manifest_file="${release_candidate_dir}/release-qualification-manifest.json"
@@ -70,7 +71,7 @@ fi
 # database matrix, or publication gate.
 case "${selected_stage}" in
     all | quality | repository-tests | specification | integration \
-        | migration-deployment | runtime \
+        | migration-deployment | runtime | efcore-patch-matrix \
         | mysqlconnector-patch-matrix | coverage | package | sbom \
         | finalize)
         ;;
@@ -421,6 +422,16 @@ run_runtime_posture_gate() {
 }
 
 
+# The protected branch already runs the complete repository, specification,
+# and integration contracts against the deterministic EF Core floor. The
+# scheduled workflow owns floating-patch detection. A release selects the
+# highest patch already admitted to the reviewed specification baseline so an
+# upstream publication cannot invalidate a green candidate after merge.
+run_efcore_matrix_gate() {
+    bash "${repo_root}/eng/testing/qualify-engine.sh" \
+        "efcore-patch-matrix" "${release_candidate_dir}" "${release_candidate_run_id}"
+}
+
 run_mysqlconnector_matrix_gate() {
     bash "${repo_root}/eng/testing/qualify-engine.sh" \
         "mysqlconnector-patch-matrix" "${release_candidate_dir}" "${release_candidate_run_id}"
@@ -479,6 +490,7 @@ write_summary() {
         echo "- sbomDirectory: sbom"
         echo "- migrationDeploymentDirectory: migration-deployment/${release_candidate_run_id}"
         echo "- runtimeDirectory: runtime"
+        echo "- efcoreMatrixDirectory: efcore-patch-matrix"
         echo "- mysqlconnectorMatrixDirectory: mysqlconnector-patch-matrix"
         echo "- qualificationManifestFile: release-qualification-manifest.json"
         echo "- reconciliationFile: release-candidate-reconciliation.json"
@@ -538,6 +550,7 @@ write_reconciliation() {
     # Each matrix gate writes one evidence file per resolved dependency leg,
     # in that leg's own directory, so the requirement is per gate rather than
     # per fixed path.
+    require_evidence_glob "${efcore_matrix_dir}" "efcore-contract-evidence.json"
     require_evidence_glob "${mysqlconnector_matrix_dir}" \
         "driver-contract-evidence.json"
     require_evidence_directory "${packages_dir}"
@@ -694,6 +707,13 @@ run_finalization_stage() {
         exit 1
     fi
 
+    local publication_ef_core_version
+    publication_ef_core_version="$(
+        resolved_matrix_version \
+            "${efcore_matrix_dir}/latest-11-0/efcore-contract-evidence.json" \
+            "EF Core" \
+            '^11[.]0[.][0-9]+$'
+    )"
     local publication_mysqlconnector_version
     publication_mysqlconnector_version="$(
         resolved_matrix_version \
@@ -703,6 +723,7 @@ run_finalization_stage() {
     )"
 
     bash "${repo_root}/eng/release/check-publication-readiness.sh" \
+        --ef-core-version "${publication_ef_core_version}" \
         --mysqlconnector-version "${publication_mysqlconnector_version}"
 
     # WHY: The default 2.x build cannot qualify the additional 3.x consumer
@@ -755,6 +776,10 @@ run_all_stages() {
         run_migration_deployment_gate \
         "${migration_deployment_root}"
     run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+    run_named_stage \
+        "efcore-patch-matrix" \
+        run_efcore_matrix_gate \
+        "${efcore_matrix_dir}"
     run_named_stage \
         "mysqlconnector-patch-matrix" \
         run_mysqlconnector_matrix_gate \
@@ -858,6 +883,12 @@ case "${selected_stage}" in
         ;;
     runtime)
         run_named_stage "runtime" run_runtime_posture_gate "${runtime_dir}"
+        ;;
+    efcore-patch-matrix)
+        run_named_stage \
+            "efcore-patch-matrix" \
+            run_efcore_matrix_gate \
+            "${efcore_matrix_dir}"
         ;;
     mysqlconnector-patch-matrix)
         run_named_stage \

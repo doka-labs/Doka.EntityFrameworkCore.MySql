@@ -36,12 +36,16 @@ identity through the [release verification procedure](docs/security/release-veri
 | Version | Supported | Notes |
 |---|---|---|
 | Doka 10.x | Yes | Maintained .NET 10 package line; upgrade to its latest serviced release for security fixes. |
+| Doka 11.x | Prepared | .NET 11 GA source is being qualified; support begins only after approved cutover and publication. |
 | Other package majors | No | No published supported line is declared here; a development branch is not a support grant. |
 
 Doka package versions and EF Core versions are separate identities. The Doka
 10.x provider and spatial extension accept EF Core `>= 10.0.8` and `< 10.1.0`;
 this is not a restriction to Doka package version 10.0.x. The standalone cache
-has no EF Core requirement. All three packages require MySqlConnector
+has no EF Core requirement. The prepared 11.x provider/spatial line accepts
+EF Core `>= 11.0.0` and `< 11.1.0` and targets .NET 11; its prepared policy
+does not alter actual protected-main authority or establish a publication.
+All three packages require MySqlConnector
 `>= 2.6.1` and `< 3.0.0`.
 
 Maintained majors are serviced independently under the

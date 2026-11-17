@@ -7,9 +7,10 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
     private static readonly string[] s_predicateShapes = ["mixed-or", "and", "nullable-or", "in"];
 
     /// <summary>Reports each predicate shape, negation and engine independently.</summary>
-    public static IEnumerable<object[]> CountPredicateCases => s_booleanCases.SelectMany(mariaDb =>
-        s_booleanCases.SelectMany(negated =>
-            s_predicateShapes.Select(shape => new object[] { mariaDb, negated, shape })));
+    public static IEnumerable<TheoryDataRow<bool, bool, string>> CountPredicateCases => s_booleanCases
+        .SelectMany(mariaDb => s_booleanCases
+            .SelectMany(negated => s_predicateShapes
+                .Select(shape => new TheoryDataRow<bool, bool, string>(mariaDb, negated, shape))));
 
     /// <summary>Parenthesizes the complete predicate before attaching membership with AND.</summary>
     /// <param name="mariaDb">Whether to generate for MariaDB.</param>
@@ -24,15 +25,14 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
     )
     {
         // Arrange
-        using var context = new DbContext(
-            new DbContextOptionsBuilder()
-                .EnableServiceProviderCaching(false)
-                .UseMySql(
-                    "Server=localhost;Database=unused;User ID=root;Password=unused;",
-                    mariaDb
-                        ? MySqlServerVersion.MariaDb(new Version(12, 3, 0))
-                        : MySqlServerVersion.MySql(new Version(8, 4, 0)))
-                .Options);
+        using var context = new DbContext(new DbContextOptionsBuilder()
+            .EnableServiceProviderCaching(false)
+            .UseMySql(
+                "Server=localhost;Database=unused;User ID=root;Password=unused;",
+                mariaDb
+                    ? MySqlServerVersion.MariaDb(new Version(12, 3, 0))
+                    : MySqlServerVersion.MySql(new Version(8, 4, 0)))
+            .Options);
 
         var factory = context.GetService<ISqlExpressionFactory>();
         var mapping = context
@@ -54,11 +54,9 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
         var predicate = shape switch
         {
             "mixed-or" => factory.OrElse(factory.Equal(value, one), factory.GreaterThan(value, one)),
-            "and" => factory.AndAlso(
-                factory.GreaterThan(value, factory.Constant(0, mapping)),
+            "and" => factory.AndAlso(factory.GreaterThan(value, factory.Constant(0, mapping)),
                 factory.LessThan(value, factory.Constant(3, mapping))),
-            "nullable-or" => factory.OrElse(
-                factory.IsNull(value),
+            "nullable-or" => factory.OrElse(factory.IsNull(value),
                 factory.GreaterThan(value, factory.Constant(0, mapping))),
             "in" => factory.In(value, [one, factory.Constant(2, mapping)]),
             _ => throw new ArgumentOutOfRangeException(nameof(shape)),
@@ -66,8 +64,7 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
 
         var subquery = CreateSelect([rowset], predicate, value);
         var membership = factory.In(factory.Constant(3, mapping), subquery);
-        var expression = CreateSelect(
-            [],
+        var expression = CreateSelect([],
             predicate: null,
             negated
                 ? factory.Not(membership)

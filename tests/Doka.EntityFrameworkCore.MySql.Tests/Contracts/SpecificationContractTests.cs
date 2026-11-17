@@ -6,7 +6,7 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// Exercises the failure modes that protect the EF Core specification inventory,
 /// monotonic provider-debt baseline, exact discovery set, and TRX reconciliation.
 /// </summary>
-public class SpecificationContractTests
+public partial class SpecificationContractTests
 {
     private const string EfCoreVersion = "10.0.8";
     private const string UpstreamBaseId = "Specification.Tests:ExampleTestBase";

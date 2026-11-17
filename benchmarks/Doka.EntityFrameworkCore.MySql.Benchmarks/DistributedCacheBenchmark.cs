@@ -41,6 +41,8 @@ public class DistributedCacheBenchmark : IDisposable
     [GlobalCleanup]
     public void Dispose()
     {
+        // WHY: Benchmark cleanup must also tolerate setup failing before the cache is assigned.
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
         _cache?.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -139,11 +141,8 @@ public class DistributedCacheBenchmark : IDisposable
     // must not change how occasional cross-thread pool growth is amortized.
     [Benchmark]
     [InvocationCount(128)]
-    public ValueTask SetLargeAsync() => _cache.SetAsync(
-        "write-large",
-        _largeSequence,
-        _expiration,
-        CancellationToken.None);
+    public ValueTask SetLargeAsync()
+        => _cache.SetAsync("write-large", _largeSequence, _expiration, CancellationToken.None);
 
     /// <summary>Measures a warm large write from a multi-segment sequence.</summary>
 
@@ -151,11 +150,8 @@ public class DistributedCacheBenchmark : IDisposable
     // changing the production pool, transport, GC behavior or allocation ceiling.
     [Benchmark]
     [InvocationCount(128)]
-    public ValueTask SetLargeMultiSegmentAsync() => _cache.SetAsync(
-        "write-large",
-        _segmentedSequence,
-        _expiration,
-        CancellationToken.None);
+    public ValueTask SetLargeMultiSegmentAsync()
+        => _cache.SetAsync("write-large", _segmentedSequence, _expiration, CancellationToken.None);
 
     /// <summary>
     /// Measures concurrent buffered reads of an absolute-expiration entry.

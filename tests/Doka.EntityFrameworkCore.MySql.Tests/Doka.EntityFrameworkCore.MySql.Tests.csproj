@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- WHY: An explicit native coverage scope prevents inferred dependency prefixes from excluding shipping assemblies. -->
+    <None Include="../testconfig.json" Link="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.MTP">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -61,6 +66,9 @@
     </Compile>
     <Compile Update="Contracts/QualificationStageExecutionTests.*.cs">
       <DependentUpon>QualificationStageExecutionTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Contracts/SpecificationContractTests.*.cs">
+      <DependentUpon>SpecificationContractTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Contracts/DependencySecurityAuditTests.*.cs">
       <DependentUpon>DependencySecurityAuditTests.cs</DependentUpon>

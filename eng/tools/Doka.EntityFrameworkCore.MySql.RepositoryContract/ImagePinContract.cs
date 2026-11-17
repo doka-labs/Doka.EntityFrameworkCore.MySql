@@ -46,8 +46,8 @@ internal static partial class ImagePinContract
         new(StringComparer.Ordinal)
         {
             // WHY: Workflow recipes now resolve native pins; any future literal must still match compose.
-            [".github/workflows/ci.yml"] = [with(StringComparer.Ordinal)],
-            [".github/workflows/quality-gates.yml"] = [with(StringComparer.Ordinal)],
+            [".github/workflows/ci.yml"] = new Dictionary<string, int>(StringComparer.Ordinal),
+            [".github/workflows/quality-gates.yml"] = new Dictionary<string, int>(StringComparer.Ordinal),
             [PerformanceContractPath] = SixTargets(1),
             [CSharpPath] = SixTargets(1),
         };
@@ -164,6 +164,8 @@ internal static partial class ImagePinContract
             service = null;
         }
 
+        // WHY: Keep each missing image attached to its source-specific contract diagnostic.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var target in s_services.Values.Except(pins.Keys, StringComparer.Ordinal))
         {
             errors.Add(
@@ -310,6 +312,8 @@ internal static partial class ImagePinContract
             }
         }
 
+        // WHY: Report each unsupported benchmark target with its owning contract path.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var target in declared.Keys.Except(expected.Keys, StringComparer.Ordinal))
         {
             errors.Add(

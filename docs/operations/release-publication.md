@@ -6,9 +6,11 @@ authoritative in [Release Governance](../release-governance.md).
 
 The [release-line runbook](release-lines.md) extends this same entry to approved
 exact branch roles. All authorized lines use the existing `nuget` environment;
-`maintenance/10.x` is prepared for qualification only and `preview/11.x`
-remains inactive. Do not apply the publication examples below to a prepared
-or inactive branch by substituting a ref. Prepared
+this GA checkout prepares main/11 and maintenance/10, while `preview/11.x`
+remains inactive. Protected-main authority and hosted grants remain unchanged
+until the separately approved [GA cutover](release-lines.md#prepared-ga-cutover).
+Do not apply the
+examples below to an inactive branch by substituting a ref. Prepared
 qualification, current authorization and separately approved activation must
 be completed first. The single entry remains `release-candidate.yml`; its
 branch selector and version identify the candidate. No hosted change or
@@ -160,7 +162,7 @@ and provide:
 version: <release_version>
 ```
 
-For this currently active main/10 route, the workflow refuses an unauthorized
+After the approved cutover, for the main/11 route, the workflow refuses an unauthorized
 side branch, stale `main`, malformed version, dirty candidate identity, or any
 semantic version tag already pointing at the source commit. An activated
 maintenance/preview line uses its own exact branch and package-major/channel
@@ -193,7 +195,7 @@ The shared qualifier covers:
 - merged source coverage and its reviewed thresholds.
 
 The reusable `required` gate fails closed over the complete product graph.
-The same-run release assembly follows; on current main/10 it still requires
+The same-run release assembly follows; on GA main/11 and maintenance/10 it requires
 exactly six stage receipts: package, SBOM, migration deployment, runtime posture,
 EF Core patch matrix, and MySqlConnector patch matrix. These are separate from
 the complete product job inventory. Candidate stages keep their
@@ -220,7 +222,7 @@ trimmed and native executable hashes are part of the runtime receipt. Provider
 NativeAOT remains deferred under
 [D-017](../decisions/D-017-nativeaot-smoke-deferred.md); the cache's separate
 execution does not reopen that claim. Adding the cache extends the existing
-package, SBOM, consumer, and runtime stages; the current main/10 six-receipt set
+package, SBOM, consumer, and runtime stages; the GA main/11 and maintenance/10 six-receipt set
 is unchanged. Each line retains its own SDK, framework, test runner and applicable
 reviewed dependency policy. Floating scheduled probes remain separate from
 qualification, as do hardware-dependent performance measurements.

@@ -29,7 +29,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         ArgumentNullException.ThrowIfNull(expression);
         ArgumentNullException.ThrowIfNull(typeMappingSource);
 
-        var defaultStringMapping = (RelationalTypeMapping?)typeMappingSource.FindMapping(typeof(string))
+        var defaultStringMapping = typeMappingSource.FindMapping(typeof(string))
             ?? throw new InvalidOperationException("The provider must define a default string type mapping.");
 
         var aliasFinder = new ValuesAliasFindingVisitor(defaultStringMapping);
@@ -239,7 +239,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
     private sealed class ValuesAliasFindingVisitor(RelationalTypeMapping fallbackMapping)
         : ShapedQueryTraversingExpressionVisitor
     {
-        private readonly HashSet<string> _aliases = [with(StringComparer.Ordinal)];
+        private readonly HashSet<string> _aliases = new(StringComparer.Ordinal);
 
         public Dictionary<string, JsonParameterMapping>? JsonParameters { get; private set; }
 
@@ -284,7 +284,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
     {
         private readonly IReadOnlySet<string> _aliases;
         private readonly IReadOnlyDictionary<string, JsonParameterMapping>? _jsonParameters;
-        private readonly Dictionary<string, HashSet<string>> _storeTypesByAlias = [with(StringComparer.Ordinal)];
+        private readonly Dictionary<string, HashSet<string>> _storeTypesByAlias = new(StringComparer.Ordinal);
 
         public ValuesColumnMappingFindingVisitor(
             IReadOnlySet<string> aliases,
@@ -339,7 +339,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             {
                 if (!_storeTypesByAlias.TryGetValue(columnExpression.TableAlias, out var storeTypes))
                 {
-                    storeTypes = [with(StringComparer.OrdinalIgnoreCase)];
+                    storeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     _storeTypesByAlias.Add(columnExpression.TableAlias, storeTypes);
                 }
 
@@ -355,7 +355,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         private readonly IReadOnlySet<string> _aliases;
         private readonly IReadOnlySet<string>? _consumerAliases;
         private readonly IReadOnlyDictionary<string, JsonParameterMapping>? _jsonParameters;
-        private readonly Dictionary<string, HashSet<string>> _storeTypesByAlias = [with(StringComparer.Ordinal)];
+        private readonly Dictionary<string, HashSet<string>> _storeTypesByAlias = new(StringComparer.Ordinal);
         private ConsumerExpressionEligibilityVisitor? _consumerEligibility;
 
         public InContextMappingFindingVisitor(
@@ -420,7 +420,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             {
                 if (!_storeTypesByAlias.TryGetValue(valueColumn.TableAlias, out var storeTypes))
                 {
-                    storeTypes = [with(StringComparer.OrdinalIgnoreCase)];
+                    storeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     _storeTypesByAlias.Add(valueColumn.TableAlias, storeTypes);
                 }
 

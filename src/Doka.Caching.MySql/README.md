@@ -9,10 +9,10 @@ is required. The 11.x package line targets .NET 11.
 
 ## Install
 
-Install the exact release candidate represented by this branch:
+Once published, install the stable version prepared by this branch:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.3
+dotnet package add Doka.Caching.MySql --version 11.0.0
 ```
 
 This package is available from 10.1.0; it is not part of the 10.0.0 release.

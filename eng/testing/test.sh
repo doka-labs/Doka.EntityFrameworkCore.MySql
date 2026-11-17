@@ -74,23 +74,36 @@ bash "${repo_root}/eng/testing/check-spec-discovery.sh"
 # Running it here prevents local build residue from hiding a clean-runner RC
 # failure and moves the failure before merge instead of after expensive gates.
 bash "${repo_root}/eng/release/check-publication-readiness.sh" \
+    --ef-core-version "${DOKA_PUBLICATION_EF_CORE_VERSION:-11.0.0}" \
     --mysqlconnector-version "${DOKA_PUBLICATION_MYSQLCONNECTOR_VERSION:-2.6.1}"
+# WHY: Retain an atomically reserved artifact name so a later run cannot reuse an old report prefix.
+unit_coverage_prefix="$(mktemp "${coverage_results_dir}/unit-XXXXXXXX")"
+unit_coverage_prefix="${unit_coverage_prefix##*/}"
 dotnet test --project "${unit_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --coverlet \
     --coverlet-output-format cobertura \
-    --coverlet-file-prefix unit \
+    --coverlet-file-prefix "${unit_coverage_prefix}" \
     --results-directory "${coverage_results_dir}" \
     --report-xunit-trx \
     --report-xunit-trx-filename unit.trx
+bash "${repo_root}/eng/quality/check-coverage-threshold.sh" --modules \
+    "${coverage_results_dir}" "${unit_coverage_prefix}" \
+    Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite Doka.Caching.MySql
+
 # Tests in the Specification namespace, external namespace adapters marked
 # Category=Spec, and standalone Category=Live tests require a live MySQL or
 # MariaDB target. The repository-test path excludes all three forms because it
 # intentionally does not start Docker.
+functional_coverage_prefix="$(mktemp "${coverage_results_dir}/functional-XXXXXXXX")"
+functional_coverage_prefix="${functional_coverage_prefix##*/}"
 dotnet test --project "${functional_test_project}" --configuration Release --no-build --no-restore --tl:off \
     --filter "FullyQualifiedName!~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.&Category!=Spec&Category!=Live" \
     --coverlet \
     --coverlet-output-format cobertura \
-    --coverlet-file-prefix functional \
+    --coverlet-file-prefix "${functional_coverage_prefix}" \
     --results-directory "${coverage_results_dir}" \
     --report-xunit-trx \
     --report-xunit-trx-filename functional.trx
+bash "${repo_root}/eng/quality/check-coverage-threshold.sh" --modules \
+    "${coverage_results_dir}" "${functional_coverage_prefix}" \
+    Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite

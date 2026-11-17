@@ -1,7 +1,114 @@
+using System.Xml;
+
 namespace Doka.EntityFrameworkCore.MySql.CoverageGate;
 
 internal static class CoverageContract
 {
+    /// <summary>Verifies exact required assembly identities and instrumented source lines.</summary>
+    /// <param name="reportPath">The Cobertura report to inspect.</param>
+    /// <param name="requiredAssemblies">Distinct ASCII assembly names without wildcard filters.</param>
+    /// <returns>Missing, ambiguous or empty measurement boundaries.</returns>
+    /// <exception cref="InvalidDataException">A requested identity or report root is invalid.</exception>
+    public static IReadOnlyList<string> EvaluateModules(
+        string reportPath,
+        IReadOnlyList<string> requiredAssemblies
+    )
+    {
+        var requested = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in requiredAssemblies)
+        {
+            if (string.IsNullOrEmpty(name)
+                || !name.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
+                || !name.Any(char.IsAsciiLetterOrDigit)
+                || !requested.Add(name))
+            {
+                throw new InvalidDataException($"Required coverage assembly identity '{name}' is invalid or repeated.");
+            }
+        }
+
+        if (requested.Count == 0)
+        {
+            throw new InvalidDataException("At least one required coverage assembly identity is needed.");
+        }
+
+        using var reader = XmlReader.Create(
+            reportPath,
+            new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+            });
+
+        var root = XDocument.Load(reader)
+                .Root
+            ?? throw new InvalidDataException($"Coverage report '{reportPath}' has no root element.");
+
+        if (root.Name.LocalName != "coverage")
+        {
+            throw new InvalidDataException("Coverage report root must be 'coverage'.");
+        }
+
+        var errors = new List<string>();
+        var packages = new Dictionary<string, XElement>(StringComparer.Ordinal);
+
+        foreach (var package in Descendants(root, "package"))
+        {
+            var name = Attribute(package, "name");
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                errors.Add("Coverage report contains an empty assembly identity.");
+            }
+            else if (!packages.TryAdd(name, package))
+            {
+                errors.Add($"Coverage report contains duplicate assembly '{name}'.");
+            }
+        }
+
+        foreach (var name in requested)
+        {
+            if (!packages.TryGetValue(name, out var package))
+            {
+                errors.Add($"Coverage report is missing required assembly '{name}'.");
+                continue;
+            }
+
+            // WHY: A collector can emit an assembly shell without measuring its code.
+            // Zero hits remain valid here; execution percentages belong to the existing merged policy.
+            var hasSourceLines = package
+                .Elements()
+                .Where(element => element.Name.LocalName == "classes")
+                .SelectMany(classes => classes
+                    .Elements()
+                    .Where(element => element.Name.LocalName == "class"))
+                .Where(source => !string.IsNullOrWhiteSpace(Attribute(source, "filename")))
+                .SelectMany(source => source
+                    .Elements()
+                    .Where(element => element.Name.LocalName == "lines"))
+                .SelectMany(lines => lines
+                    .Elements()
+                    .Where(element => element.Name.LocalName == "line"))
+                .Any(line => int.TryParse(
+                        Attribute(line, "number"),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out var number)
+                    && number > 0
+                    && int.TryParse(
+                        Attribute(line, "hits"),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out var hits)
+                    && hits >= 0);
+
+            if (!hasSourceLines)
+            {
+                errors.Add($"Coverage assembly '{name}' has no instrumented source lines.");
+            }
+        }
+
+        return errors;
+    }
+
     public static IReadOnlyList<string> EvaluateFreshness(
         IEnumerable<string> reportPaths,
         string policyPath,
@@ -45,6 +152,8 @@ internal static class CoverageContract
 
         var errors = new List<string>();
         var packages = new Dictionary<string, XElement>(StringComparer.Ordinal);
+        // WHY: Keep registration and duplicate diagnostics together in one streaming pass.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var package in Descendants(root, "package"))
         {
             var name = Attribute(package, "name");
@@ -72,9 +181,8 @@ internal static class CoverageContract
 
             var threshold = ValidateThreshold(
                 $"assembly {assembly.Name}",
-                Metrics(
-                    Descendants(package, "class")
-                        .SelectMany(ClassLines)),
+                Metrics(Descendants(package, "class")
+                    .SelectMany(ClassLines)),
                 assembly.MinimumLinePercent,
                 assembly.MinimumBranchPercent);
 

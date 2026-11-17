@@ -353,6 +353,8 @@ run_integration_tests() {
     local target_results_dir
     local target_evidence_files=()
     local batch_targets=()
+    local batch_coverage_prefixes=()
+    local coverage_run_prefix
 
     coverage_results_dir="$(
         resolve_repo_path "${DOKA_COVERAGE_RESULTS_DIR:-artifacts/coverage/integration}"
@@ -407,6 +409,7 @@ run_integration_tests() {
     for (( batch_start = 0; batch_start < ${#selected_targets[@]}; batch_start += max_parallel_targets )); do
         active_target_pids=()
         batch_targets=()
+        batch_coverage_prefixes=()
 
         for (( batch_offset = 0;
             batch_offset < max_parallel_targets && batch_start + batch_offset < ${#selected_targets[@]};
@@ -418,6 +421,10 @@ run_integration_tests() {
             mkdir -p "${target_test_output_dir}"
             cp -R "${test_output_dir}/." "${target_test_output_dir}/" || return $?
 
+            # WHY: Retained atomic reservations prevent stale reports from satisfying a later target invocation.
+            coverage_run_prefix="$(mktemp "${target_results_dir}/integration-${target}-XXXXXXXX")" || return $?
+            coverage_run_prefix="${coverage_run_prefix##*/}"
+
             # MTP uses --output for console verbosity. Select the copied module
             # explicitly so Coverlet never instruments the shared build output.
             local test_arguments=(
@@ -427,7 +434,7 @@ run_integration_tests() {
                 --
                 --coverlet
                 --coverlet-output-format cobertura
-                --coverlet-file-prefix "integration-${target}"
+                --coverlet-file-prefix "${coverage_run_prefix}"
                 --report-xunit-trx
                 --report-xunit-trx-filename integration.trx
             )
@@ -443,6 +450,7 @@ run_integration_tests() {
             active_target_pids+=("$!")
             active_target_pid_count=$((active_target_pid_count + 1))
             batch_targets+=("${target}")
+            batch_coverage_prefixes+=("${coverage_run_prefix}")
         done
 
         for batch_index in "${!active_target_pids[@]}"; do
@@ -451,6 +459,11 @@ run_integration_tests() {
             echo "Integration target ${batch_targets[batch_index]} exited with code ${target_exit_code}."
 
             if [[ "${target_exit_code}" -ne 0 ]]; then
+                matrix_exit_code=1
+            elif ! bash "${repo_root}/eng/quality/check-coverage-threshold.sh" --modules \
+                "${coverage_results_dir}/${batch_targets[batch_index]}" \
+                "${batch_coverage_prefixes[batch_index]}" \
+                Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite Doka.Caching.MySql; then
                 matrix_exit_code=1
             fi
         done

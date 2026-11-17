@@ -15,7 +15,7 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 | [D-006](D-006-default-decimal-breaking-change.md) | implemented | 2026-11-19 | Use decimal(18,2) as the default mapping | - |
 | [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-11-19 | Use shape-aware multi-row INSERT and generated-value readback | - |
 | [D-008](D-008-public-api-vertrag.md) | implemented | 2026-11-19 | Gate the public API with PublicApiAnalyzers | - |
-| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-11-19 | Support an EF Core patch range with a floor/latest matrix | amended by D-023, D-013 |
+| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-11-19 | Support an EF Core patch range with a floor/latest matrix | amended by D-013, D-023 |
 | [D-010](D-010-activity-meter-surface.md) | implemented | 2026-11-19 | Emit a diagnostic triple for significant operations | - |
 | [D-011](D-011-spec-test-subklassen-strategie.md) | implemented | 2026-11-19 | Adopt the official EF Core relational specification corpus | amended by D-021 |
 | [D-012](D-012-spatial-engine-detail.md) | implemented | 2026-11-19 | Adapt spatial materialization per engine | - |

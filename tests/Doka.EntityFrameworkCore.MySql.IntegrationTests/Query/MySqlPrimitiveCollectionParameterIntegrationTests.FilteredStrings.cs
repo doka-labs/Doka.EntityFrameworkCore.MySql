@@ -16,8 +16,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     ];
 
     /// <summary>Reports every semantic boundary separately on every selected supported engine.</summary>
-    public static IEnumerable<object[]> FilteredStringCases => SelectedTargets.SelectMany(target =>
-        s_filteredStringScenarios.Select(scenario => new[] { target[0], scenario }));
+    public static IEnumerable<TheoryDataRow<string, string>> FilteredStringCases => SelectedTargets
+        .SelectMany(target => s_filteredStringScenarios
+            .Select(scenario => new TheoryDataRow<string, string>(target.Data, scenario)));
 
     /// <summary>Preserves decoded predicates, membership and lossless transport without modifying stored rows.</summary>
     /// <param name="targetName">The selected database engine.</param>
@@ -50,6 +51,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 
         const string mappedSqlRoot = "SELECT * FROM `IntPrimitiveCollectionItems`";
 
+        // WHY: Explicit array arms give this tuple switch its int[] result without extra query casts.
+        // ReSharper disable UseCollectionExpression
         var (query, expected) = scenario switch
         {
             "length" => (context.Items.Where(item => EF
@@ -231,6 +234,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 .Contains(item.Name)), new[] { 1 }),
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
+
+        // ReSharper restore UseCollectionExpression
 
         // Act
         var ids = await SelectIdsAsync(query, CancellationToken.None);

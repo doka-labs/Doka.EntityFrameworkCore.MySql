@@ -66,18 +66,26 @@ public sealed class FunctionalDatabaseFixture : IAsyncLifetime
         }
     }
 
-    private static TestDatabaseRequest CreateRequest() => CreateRequest(
+    /// <summary>Resolves the same process configuration for native CLI and IDE hosts.</summary>
+    internal static TestDatabaseRequest CreateRequest() => CreateRequest(
         Environment.GetEnvironmentVariable(SpecTestTarget.EnvironmentVariableName),
         Environment.GetEnvironmentVariable(ConnectionStringEnvironmentVariable),
-        Environment.GetEnvironmentVariable(ServerVersionEnvironmentVariable));
+        Environment.GetEnvironmentVariable(ServerVersionEnvironmentVariable),
+        MySqlTestEnvironment.IsCi);
 
+    /// <summary>Resolves one validated target and its optional external endpoint.</summary>
+    /// <param name="configuredTarget">The explicit target, or null for the local default.</param>
+    /// <param name="externalConnectionString">The optional externally owned connection string.</param>
+    /// <param name="externalServerVersion">The matching external engine and version token.</param>
+    /// <param name="isCi">Whether execution must declare its matrix target explicitly.</param>
     internal static TestDatabaseRequest CreateRequest(
         string? configuredTarget,
         string? externalConnectionString,
-        string? externalServerVersion
+        string? externalServerVersion,
+        bool isCi
     )
     {
-        var targetId = SpecTestTarget.ResolveForExecution(configuredTarget);
+        var targetId = SpecTestTarget.ResolveForExecution(configuredTarget, isCi);
         var targetRequest = CreateTargetRequest(targetId);
 
         if (!string.IsNullOrWhiteSpace(externalConnectionString)

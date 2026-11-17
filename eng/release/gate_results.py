@@ -207,6 +207,7 @@ def protected_check_result(
 STAGE_BY_GATE = {
     "migration-deployment": "migration-deployment",
     "runtime-posture": "runtime",
+    "efcore-patch-matrix": "efcore-patch-matrix",
     "mysqlconnector-patch-matrix": "mysqlconnector-patch-matrix",
 }
 
@@ -214,7 +215,7 @@ STAGE_BY_GATE = {
 # has to include the graph that was actually resolved, or a rerun on a day the
 # upstream published a new patch would be represented by an older result.
 DEPENDENCY_SNAPSHOT_GATES = frozenset(
-    {"mysqlconnector-patch-matrix"}
+    {"efcore-patch-matrix", "mysqlconnector-patch-matrix"}
 )
 
 

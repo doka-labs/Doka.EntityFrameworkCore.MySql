@@ -28,13 +28,11 @@ remain immutable records of their original two-package set.
 ## Exact Release Lines and Current Authority
 
 [D-030](decisions/D-030-release-lines-and-monotonic-publication.md) extends the
-main-only baseline below with exact source roles. The current policy keeps
-main/10 active through `release-candidate.yml` and `nuget`, prepares
-`maintenance/10.x` for own-line qualification, and leaves `preview/11.x`
-inactive. Preparation does not create a branch, complete hosted qualification
-or grant publication rights. No hosted grant or platform RC is created by this
-repository change. The
-[release-line runbook](operations/release-lines.md) is authoritative for their
+main-only baseline below with exact source roles. This GA checkout prepares
+main/11 and maintenance/10 active with preview/11 inactive. Actual protected-main
+authority, maintenance own-base qualification and hosted grants remain separate
+approved cutover actions; this development branch authorizes no publication.
+The [release-line runbook](operations/release-lines.md) is authoritative for their
 preparation, current-authority checks, activation and maintenance.
 
 Every line retains its own successful PR base, tested merge tree, exact
@@ -125,9 +123,9 @@ The release-hardening evidence model is intentionally explicit and repeatable:
   - cadence: weekly or explicit maintenance dispatch for branch-applicable
     drift jobs; ordinary manual CI calls the shared qualifier once
   - migration deployment lifecycle: `./eng/test-migration-deployment.sh`
-  - exact EF Core 11 RC.3 graph: repository and six-engine specification gates
-    qualify the branch's pinned prerelease; no stable EF floor/latest or
-    floating patch-range gate is declared on this line
+  - reviewed EF Core 11 GA graph: strict `11.0.0` floor and independent
+    scheduled `11.0.*` discovery; release qualification fully executes the
+    highest admitted patch from the actual GA specification baseline
   - independent floating MySqlConnector drift probe:
     `mysqlconnector-patch-matrix`; ordinary qualification retains its reviewed
     floor/latest recipe

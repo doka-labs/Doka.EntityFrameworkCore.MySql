@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class QualificationStageExecutionTests
@@ -42,18 +44,41 @@ public sealed partial class QualificationStageExecutionTests
             File.ReadAllText(Path.Combine(repository.Root, EfProbeEvidence, "upstream-discovery.json")));
 
         var root = report.RootElement;
-        Assert.Equal("not-qualified", root.GetProperty("qualificationStatus").GetString());
-        Assert.Equal("upstream-probe", root.GetProperty("validationScope").GetString());
-        Assert.Equal(resolved, root.GetProperty("resolvedVersion").GetString());
-        Assert.Equal(reviewed, root.GetProperty("highestReviewedVersion").GetString());
-        Assert.Empty(root.GetProperty("specificationTargets").EnumerateArray());
-        Assert.Empty(root.GetProperty("integrationTargets").EnumerateArray());
+        Assert.Equal("not-qualified",
+            root
+                .GetProperty("qualificationStatus")
+                .GetString());
+
+        Assert.Equal("upstream-probe",
+            root
+                .GetProperty("validationScope")
+                .GetString());
+
+        Assert.Equal(resolved,
+            root
+                .GetProperty("resolvedVersion")
+                .GetString());
+
+        Assert.Equal(reviewed,
+            root
+                .GetProperty("highestReviewedVersion")
+                .GetString());
+
+        Assert.Empty(root
+            .GetProperty("specificationTargets")
+            .EnumerateArray());
+
+        Assert.Empty(root
+            .GetProperty("integrationTargets")
+            .EnumerateArray());
+
         Assert.False(File.Exists(Path.Combine(repository.Root, EfProbeEvidence, "efcore-contract-evidence.json")));
         Assert.True(File.Exists(Path.Combine(repository.Root, EfProbeEvidence, "resolved-packages.json")));
         Assert.Contains(
             "not qualified",
             File.ReadAllText(Path.Combine(repository.Root, "job-summary.md")),
             StringComparison.Ordinal);
+
         Assert.DoesNotContain(
             repository.Events,
             static entry => entry is "repository-tests" or "integration"
@@ -85,7 +110,12 @@ public sealed partial class QualificationStageExecutionTests
         using var receipt = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(repository.Root, EfProbeEvidence, "efcore-contract-evidence.json")));
 
-        Assert.Equal("full", receipt.RootElement.GetProperty("validationScope").GetString());
+        Assert.Equal("full",
+            receipt
+                .RootElement
+                .GetProperty("validationScope")
+                .GetString());
+
         Assert.False(File.Exists(Path.Combine(repository.Root, EfProbeEvidence, "upstream-discovery.json")));
     }
 
@@ -157,7 +187,9 @@ public sealed partial class QualificationStageExecutionTests
     {
         // Arrange
         using var repository = CreateEfMatrixRepository(
-            mutation == "older-unregistered-patch" ? "10.0.9" : "10.0.15",
+            mutation == "older-unregistered-patch"
+                ? "10.0.9"
+                : "10.0.15",
             "10.0.14");
 
         var contractRoot = Path.Combine(repository.Root, EfContracts);
@@ -175,7 +207,7 @@ public sealed partial class QualificationStageExecutionTests
                 break;
             case "entry-only-version":
             case "listed-version":
-                var baseline = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(baselinePath))!;
+                var baseline = JsonNode.Parse(File.ReadAllText(baselinePath))!;
                 var versions = mutation == "listed-version"
                     ? baseline["efCoreVersions"]!.AsArray()
                     : baseline["entries"]![0]!["efCoreVersions"]!.AsArray();
@@ -357,6 +389,15 @@ public sealed partial class QualificationStageExecutionTests
             if [[ "${DOKA_STUB_FAIL:-}" == integration ]]; then exit 31; fi
             """);
 
+        repository.Write(
+            "eng/testing/test-spec-target.sh",
+            """
+            #!/usr/bin/env bash
+            set -euo pipefail
+            DOKA_SPEC_TEST_TARGET="$1" dotnet test --project provider --results-directory "$2"
+            bash "${DOKA_STUB_ROOT}/eng/testing/check-spec-results.sh" "$1" "$2"
+            """);
+
         WriteEfContracts(repository, reviewed);
 
         return repository;
@@ -397,7 +438,14 @@ public sealed partial class QualificationStageExecutionTests
                     schemaVersion = 1,
                     efCoreVersion = version,
                     testMethods = s_efTestMethods,
-                    baseClasses = new[] { new { id = "Base", suiteDomain = "relational" } },
+                    baseClasses = new[]
+                    {
+                        new
+                        {
+                            id = "Base",
+                            suiteDomain = "relational",
+                        },
+                    },
                 }));
 
             repository.Write(

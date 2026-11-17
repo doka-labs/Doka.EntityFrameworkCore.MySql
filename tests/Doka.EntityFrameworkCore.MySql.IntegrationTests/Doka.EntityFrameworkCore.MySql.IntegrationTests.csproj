@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- WHY: An explicit native coverage scope prevents inferred dependency prefixes from excluding shipping assemblies. -->
+    <None Include="../testconfig.json" Link="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.MTP">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -96,6 +101,9 @@
     </Compile>
     <Compile Update="Query/MySqlLockingReadIntegrationTests.*.cs">
       <DependentUpon>MySqlLockingReadIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlIndependentCollectionMembershipIntegrationTests.*.cs">
+      <DependentUpon>MySqlIndependentCollectionMembershipIntegrationTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Query/MySqlPrimitiveCollectionParameterIntegrationTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionParameterIntegrationTests.cs</DependentUpon>

@@ -631,12 +631,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             self._generate()
 
+    def test_generate_rejects_another_framework_lines_patch_receipts(self) -> None:
+        """A complete 10.x matrix cannot qualify the branch-native GA 11 gate."""
+        # Arrange
+        matrix = self.root / "efcore-patch-matrix"
+        (matrix / "minimum-11-0-0").rename(matrix / "minimum-10-0-8")
+        (matrix / "latest-11-0").rename(matrix / "latest-10-0")
+
+        # Act
+        with self.assertRaises(release_evidence.EvidenceError) as failure:
+            self._generate()
+
+        # Assert
+        self.assertIn("exactly the floor and latest receipts", str(failure.exception))
+
     def test_generate_rejects_a_full_floor_matrix_rerun(self) -> None:
         """Keep the protected floor proof distinct from candidate-only latest work."""
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "minimum-10-0-8"
+            / "minimum-11-0-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -653,12 +667,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.10"
-        receipt["resolvedVersion"] = "10.0.10"
+        receipt["requestedVersion"] = "11.0.10"
+        receipt["resolvedVersion"] = "11.0.10"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -671,11 +685,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.*"
+        receipt["requestedVersion"] = "11.0.*"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -689,7 +703,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         path.write_text(
@@ -699,9 +713,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "validationScope": "upstream-probe",
                     "qualificationStatus": "not-qualified",
                     "reason": "unreviewed-newer-patch",
-                    "requestedVersion": "10.0.*",
-                    "resolvedVersion": "10.0.15",
-                    "highestReviewedVersion": "10.0.14",
+                    "requestedVersion": "11.0.*",
+                    "resolvedVersion": "11.0.15",
+                    "highestReviewedVersion": "11.0.14",
                     "results": {"dependencies": "resolved-packages.json"},
                     "specificationTargets": [],
                     "integrationTargets": [],
@@ -726,11 +740,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.11"
+        receipt["requestedVersion"] = "11.0.11"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -741,7 +755,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_generate_rejects_malformed_efcore_matrix_documents(self) -> None:
         """Keep malformed matrix JSON inside the typed evidence failure boundary."""
-        directory = self.root / "efcore-patch-matrix" / "latest-10-0"
+        directory = self.root / "efcore-patch-matrix" / "latest-11-0"
         documents = (
             (directory / "efcore-contract-evidence.json", []),
             (directory / "resolved-packages.json", {"projects": [None]}),
@@ -779,7 +793,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "mysql84"
             / "results.trx"
         )
@@ -796,7 +810,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "integration"
             / "compatibility-matrix-evidence.json"
         )
@@ -896,7 +910,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         # Act
         with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
-            with mock.patch.object(sys, "argv", arguments):
+            with (mock.patch.object(sys, "argv", arguments),
+                  mock.patch.object(lines, "load_policy", return_value=initial_policy())):
                 result = release_evidence.main()
 
         # Assert
@@ -913,7 +928,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         # Act
         with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
-            with mock.patch.object(sys, "argv", arguments):
+            with (mock.patch.object(sys, "argv", arguments),
+                  mock.patch.object(lines, "load_policy", return_value=initial_policy())):
                 result = release_evidence.main()
 
         # Assert
@@ -1129,9 +1145,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
         )
         legs = {
-            "minimum-10-0-8": {
-                "requestedVersion": "10.0.8",
-                "resolvedVersion": "10.0.8",
+            "minimum-11-0-0": {
+                "requestedVersion": "11.0.0",
+                "resolvedVersion": "11.0.0",
                 "validationScope": "dependency-graph",
                 "qualificationSource": "repository-qualification",
                 "specificationTargets": [],
@@ -1141,9 +1157,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "version-contract-preflight",
                 ],
             },
-            "latest-10-0": {
-                "requestedVersion": "10.0.12",
-                "resolvedVersion": "10.0.12",
+            "latest-11-0": {
+                "requestedVersion": "11.0.2",
+                "resolvedVersion": "11.0.2",
                 "validationScope": "full",
                 "qualificationSource": None,
                 "specificationTargets": ["mariadb118", "mysql84"],
@@ -1199,7 +1215,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 json.dumps(graph),
                 encoding="utf-8",
             )
-            if leg == "latest-10-0":
+            if leg == "latest-11-0":
                 self._write_efcore_full_results(directory, identities)
 
     @staticmethod

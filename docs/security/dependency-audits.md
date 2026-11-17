@@ -6,6 +6,13 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
+The prepared 11.x line uses SDK 11.0.100, EF Core `[11.0.0, 11.1.0)` and
+branch-owned GA package locks. Its cache consumes .NET 11 shared-framework
+abstractions without an EF dependency. The exact SDK remains a repository build
+contract, not a requirement for consumers to install that SDK. Each line must
+pass its own audit and qualification; these notes alone prove neither.
+
+For the published .NET 10 line, the following baseline remains separate.
 Version 10.7.0 retains the serviced .NET 10.0.15 dependencies and repository
 SDK 10.0.404 introduced in 10.6.6, with the provider/spatial EF Core range
 `>= 10.0.8` and `< 10.1.0` and the MySqlConnector security floor below. The

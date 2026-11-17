@@ -834,7 +834,7 @@ public sealed partial class QualificationStageExecutionTests
 
         repository.Write(
             "tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json",
-            "{\"efCoreVersions\":[\"10.0.8\",\"10.0.9\"]}");
+            "{\"efCoreVersions\":[\"11.0.0\",\"11.0.1\"]}");
 
         repository.Write(
             "eng/testing/test-efcore-matrix.sh",
@@ -879,7 +879,7 @@ public sealed partial class QualificationStageExecutionTests
         var events = repository.Events;
         Assert.Equal("verify-dotnet", events[0]);
         string[] expectedEvents = stage == "efcore-patch-matrix"
-            ? ["ef|10.0.8|^10[.]0[.]8$|minimum-10-0-8|dependency-graph", "ef|10.0.9|^10[.]0[.]9$|latest-10-0|full"]
+            ? ["ef|11.0.0|^11[.]0[.]0$|minimum-11-0-0|dependency-graph", "ef|11.0.1|^11[.]0[.]1$|latest-11-0|full"]
             :
             [
                 "connector|2.6.1|^2[.]6[.]1$|minimum-2-6-1",
@@ -896,7 +896,7 @@ public sealed partial class QualificationStageExecutionTests
         if (!fails)
         {
             string[] legs = stage == "efcore-patch-matrix"
-                ? ["minimum-10-0-8", "latest-10-0"]
+                ? ["minimum-11-0-0", "latest-11-0"]
                 : ["minimum-2-6-1", "latest-2-x", "latest-3-x"];
 
             Assert.All(
@@ -950,7 +950,11 @@ public sealed partial class QualificationStageExecutionTests
             "process-1");
 
         // Assert
-        Assert.Equal(fails ? 31 : 1, result.ExitCode);
+        Assert.Equal(fails
+                ? 31
+                : 1,
+            result.ExitCode);
+
         Assert.Contains("connector|latest-3-x", repository.Events);
         Assert.False(
             Directory.Exists(
@@ -1092,15 +1096,35 @@ public sealed partial class QualificationStageExecutionTests
 
             Assert.Contains("--coverlet", command);
             Assert.Equal("cobertura", ArgumentAfter(command, "--coverlet-output-format"));
-            Assert.Equal($"spec-{target}", ArgumentAfter(command, "--coverlet-file-prefix"));
+            Assert.Matches($"^spec-{target}-[A-Za-z0-9]+$", ArgumentAfter(command, "--coverlet-file-prefix"));
             Assert.Contains("--report-xunit-trx", command);
             Assert.Equal("spec-tests.trx", ArgumentAfter(command, "--report-xunit-trx-filename"));
         }
 
         Assert.Equal(!fails, repository.Events.Contains($"reconcile|{target}|{results}", StringComparer.Ordinal));
+        var moduleCalls = repository
+            .DotnetCalls
+            .Where(arguments => arguments[0] == "run")
+            .ToArray();
+
+        if (runner == "Microsoft.Testing.Platform"
+            && !fails)
+        {
+            var moduleCall = Assert.Single(moduleCalls);
+            var modulesIndex = Array.IndexOf(moduleCall, "modules");
+            Assert.True(modulesIndex >= 0);
+            Assert.Collection(
+                moduleCall[(modulesIndex + 2)..],
+                name => Assert.Equal("Doka.EntityFrameworkCore.MySql", name),
+                name => Assert.Equal("Doka.EntityFrameworkCore.MySql.NetTopologySuite", name));
+        }
+        else
+        {
+            Assert.Empty(moduleCalls);
+        }
     }
 
-    /// <summary>Stops first-target qualification when admission, disposition, or reconciliation fails.</summary>
+    /// <summary>Stops first-target qualification when admission, disposition, coverage, or reconciliation fails.</summary>
     /// <param name="runner">The branch's declared test runner.</param>
     /// <param name="failure">The first-target phase whose failure must propagate.</param>
     [Theory]
@@ -1112,6 +1136,7 @@ public sealed partial class QualificationStageExecutionTests
     [InlineData("Microsoft.Testing.Platform", "discovery")]
     [InlineData("Microsoft.Testing.Platform", "disposition")]
     [InlineData("Microsoft.Testing.Platform", "reconciliation")]
+    [InlineData("Microsoft.Testing.Platform", "coverage")]
     public void Specification_recipe_preserves_first_target_gate_failures(
         string runner,
         string failure
@@ -1126,7 +1151,7 @@ public sealed partial class QualificationStageExecutionTests
         {
             "contract" or "discovery" => 0,
             "disposition" => 1,
-            "reconciliation" => 2,
+            "reconciliation" or "coverage" => 2,
             _ => throw new InvalidOperationException($"Unknown failure '{failure}'."),
         };
 
@@ -1155,6 +1180,45 @@ public sealed partial class QualificationStageExecutionTests
         {
             Assert.Equal(reconciliation, repository.Events.Last());
         }
+    }
+
+    /// <summary>Requires one report from this invocation rather than accepting stale or ambiguous evidence.</summary>
+    /// <param name="scenario">The invalid current-run report shape.</param>
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("stale")]
+    [InlineData("duplicate")]
+    public void Native_specification_recipe_rejects_missing_or_ambiguous_current_coverage(
+        string scenario
+    )
+    {
+        // Arrange
+        using var repository = new StageRepository();
+        repository.Write("global.json", "{\"test\":{\"runner\":\"Microsoft.Testing.Platform\"}}");
+        repository.Environment[scenario == "duplicate"
+            ? "DOKA_STUB_DUPLICATE"
+            : "DOKA_STUB_MISSING"] = "coverage";
+
+        var results = Path.Combine(repository.Root, "artifacts/spec-tests/mariadb118");
+        if (scenario == "stale")
+        {
+            repository.Write("artifacts/spec-tests/mariadb118/spec-mariadb118-previous.coverage.cobertura.123.xml",
+                "<coverage />");
+        }
+
+        // Act
+        var result = repository.RunStage("test-spec-target.sh", "mariadb118", "artifacts/spec-tests/mariadb118");
+
+        // Assert
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Expected exactly one current native coverage report",
+            result.StandardError,
+            StringComparison.Ordinal);
+
+        Assert.DoesNotContain(repository.Events,
+            entry => entry.StartsWith("coverage-modules|", StringComparison.Ordinal));
+
+        Assert.DoesNotContain($"reconcile|mariadb118|{results}", repository.Events);
     }
 
     /// <summary>Rejects unsupported runners before SDK verification, guards, tests or output creation.</summary>

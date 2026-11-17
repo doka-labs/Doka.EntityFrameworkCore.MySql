@@ -9,6 +9,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
+    <!-- WHY: Reflection loads the provider tests in this process; its xUnit
+         contract must match the provider rather than EF's older minimum. -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
   </ItemGroup>
 
 </Project>

@@ -444,3 +444,8 @@ virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.HasPeriodEnd(st
 virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.HasPeriodStart(string! propertyName) -> Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<System.DateTime>!
 virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.UseHistoryTable(string! name) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
 virtual Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder.UseHistoryTable(string! name, string! schema) -> Doka.EntityFrameworkCore.MySql.MySqlTemporalTableBuilder!
+Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping
+Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.MySqlJsonContainerTypeMapping(string! storeType) -> void
+override Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.CustomizeDataReaderExpression(System.Linq.Expressions.Expression! expression) -> System.Linq.Expressions.Expression!
+override Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.GetDataReaderMethod() -> System.Reflection.MethodInfo!
+static Doka.EntityFrameworkCore.MySql.MySqlJsonContainerTypeMapping.CreateUtf8Stream(string! json) -> System.IO.MemoryStream!

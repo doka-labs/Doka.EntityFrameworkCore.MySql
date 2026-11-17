@@ -4,8 +4,12 @@
     <RootNamespace>Doka.EntityFrameworkCore.MySql.FunctionalTests</RootNamespace>
     <IsTestProject>true</IsTestProject>
     <PreserveCompilationContext>true</PreserveCompilationContext>
-    <RunSettingsFilePath Condition="'$(DOKA_SPEC_TEST_TARGET)' == ''">$(MSBuildProjectDirectory)/LocalMariaDb123.runsettings</RunSettingsFilePath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WHY: An explicit native coverage scope prevents inferred dependency prefixes from excluding shipping assemblies. -->
+    <None Include="../testconfig.json" Link="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.MTP">

@@ -105,8 +105,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Assert.Contains("`value` longtext PATH '$'", sql, StringComparison.Ordinal);
         Assert.Contains("FROM_BASE64(", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("`value` varchar(64)", sql, StringComparison.Ordinal);
-        Assert.Contains(
-            scenario switch
+        Assert.Contains(scenario switch
             {
                 "lower" or "nested" => "LOWER(",
                 "upper" => "UPPER(",
@@ -217,8 +216,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         if (scenario != "from-sql")
         {
             Assert.Contains("LIMIT", sql, StringComparison.Ordinal);
-            Assert.True(
-                sql.IndexOf("LIMIT", StringComparison.Ordinal) < sql.IndexOf("JSON_TABLE", StringComparison.Ordinal));
+            Assert.True(sql.IndexOf("LIMIT", StringComparison.Ordinal)
+                < sql.IndexOf("JSON_TABLE", StringComparison.Ordinal));
         }
     }
 
@@ -319,7 +318,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
             .Contains(item.ConvertedName));
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
         // Assert
         Assert.Contains("Conflicting type mappings", exception.Message, StringComparison.Ordinal);
@@ -347,7 +346,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
                 .Contains(item.ConvertedName));
 
         // Act
-        var exception = Assert.Throws<InvalidOperationException>(() => query.ToQueryString());
+        var exception = Assert.Throws<InvalidOperationException>(query.ToQueryString);
 
         // Assert
         Assert.Contains("Conflicting type mappings", exception.Message, StringComparison.Ordinal);

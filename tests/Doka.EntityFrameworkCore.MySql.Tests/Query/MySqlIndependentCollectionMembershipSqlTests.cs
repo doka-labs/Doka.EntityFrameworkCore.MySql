@@ -4,13 +4,11 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 public sealed partial class MySqlIndependentCollectionMembershipSqlTests
 {
     /// <summary>Supplies independently reported root, path, decoder and negation cases on both engines.</summary>
-    public static TheoryData<bool, string, bool, string, bool> IndependentCases
+    public static IEnumerable<TheoryDataRow<bool, string, bool, string, bool>> IndependentCases
     {
         get
         {
-            var cases = new TheoryData<bool, string, bool, string, bool>();
-
-            // WHY: Nested loops keep each case dimension explicit in the typed xUnit data set.
+            // WHY: Nested yields keep each case dimension explicit without materializing the Cartesian product.
             // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var mariaDb in new[] { false, true })
             {
@@ -22,7 +20,7 @@ public sealed partial class MySqlIndependentCollectionMembershipSqlTests
                         {
                             foreach (var negated in new[] { false, true })
                             {
-                                cases.Add(mariaDb,
+                                yield return new TheoryDataRow<bool, string, bool, string, bool>(mariaDb,
                                     root,
                                     nullPath,
                                     decoder,
@@ -32,70 +30,67 @@ public sealed partial class MySqlIndependentCollectionMembershipSqlTests
                     }
                 }
             }
-
-            return cases;
         }
     }
 
     /// <summary>Supplies correlation and composition cases without hiding a failure inside a test loop.</summary>
-    public static TheoryData<bool, string, string, bool> ProtectedCases
+    public static IEnumerable<TheoryDataRow<bool, string, string, bool>> ProtectedCases
     {
         get
         {
-            var cases = new TheoryData<bool, string, string, bool>();
-
             foreach (var mariaDb in new[] { false, true })
             {
-                cases.Add(mariaDb, "static-path", "'$.items[*]'", true);
+                yield return
+                    new TheoryDataRow<bool, string, string, bool>(mariaDb, "static-path", "'$.items[*]'", true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "outer-index-path",
                     "`e`.`Index`",
                     true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "entity-root",
                     "JSON_TABLE(`e`.`Document`",
                     true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "wrapped-root",
                     "JSON_EXTRACT(@values, '$')",
                     true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "predicate",
                     "`j`.`value` IS NOT NULL",
                     true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "natural-order",
                     "SELECT COUNT(*)",
                     true);
 
-                cases.Add(mariaDb, "limit", "`j`.`ordinal` <= 2", true);
+                yield return
+                    new TheoryDataRow<bool, string, string, bool>(mariaDb, "limit", "`j`.`ordinal` <= 2", true);
 
-                cases.Add(mariaDb, "offset", "`j`.`ordinal` > 1", true);
+                yield return
+                    new TheoryDataRow<bool, string, string, bool>(mariaDb, "offset", "`j`.`ordinal` > 1", true);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "distinct",
                     "SELECT DISTINCT",
                     false);
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "reverse-order",
                     "ORDER BY `j`.`ordinal` DESC",
                     false);
 
-                cases.Add(mariaDb, "group", "GROUP BY", false);
-                cases.Add(mariaDb, "having", "HAVING", false);
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb, "group", "GROUP BY", false);
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb, "having", "HAVING", false);
+                yield return new TheoryDataRow<bool, string, string, bool>(mariaDb,
                     "predicate-limit",
                     "`__doka_isolated_subquery`",
                     false);
             }
-
-            return cases;
         }
     }
 

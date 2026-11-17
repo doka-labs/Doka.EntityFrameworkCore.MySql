@@ -23,7 +23,6 @@ import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
-from xml.etree import ElementTree
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -44,6 +43,7 @@ PRODUCERS = {
     "sbom_dir": "sbom",
     "migration_deployment_root": "migration-deployment",
     "runtime_dir": "runtime",
+    "efcore_matrix_dir": "efcore-patch-matrix",
     "mysqlconnector_matrix_dir": "mysqlconnector-patch-matrix",
     "qualification_manifest_file": "finalize",
 }
@@ -669,8 +669,8 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             with self.subTest(directory=retired):
                 self.assertNotIn(f'"${{{retired}}}"', body)
 
-    def test_publication_readiness_uses_pinned_ef_core_and_resolved_connector(self) -> None:
-        """Keep EF Core central and bind only the floating connector leg."""
+    def test_publication_readiness_is_bound_to_matrix_resolved_versions(self) -> None:
+        """Reject a fresh floating restore after the candidate matrices passed."""
         body = ORCHESTRATOR.read_text(encoding="utf-8")
         finalization = body[
             body.index("run_finalization_stage() {") : body.index(
@@ -679,6 +679,10 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         ]
 
         self.assertIn(
+            '"${efcore_matrix_dir}/latest-11-0/efcore-contract-evidence.json"',
+            finalization,
+        )
+        self.assertIn(
             '"${mysqlconnector_matrix_dir}/latest-2-x/driver-contract-evidence.json"',
             finalization,
         )
@@ -686,7 +690,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             '"${mysqlconnector_matrix_dir}/latest-3-x/driver-contract-evidence.json"',
             finalization,
         )
-        self.assertNotIn("--ef-core-version", finalization)
+        self.assertEqual(2, finalization.count("--ef-core-version"))
         self.assertEqual(2, finalization.count("--mysqlconnector-version"))
 
     def test_repository_tests_execute_the_self_contained_publication_gate(self) -> None:
@@ -694,7 +698,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         test_entry = TEST_ENTRY.read_text(encoding="utf-8")
 
         self.assertEqual(1, test_entry.count("check-publication-readiness.sh"))
-        self.assertNotIn("--ef-core-version", test_entry)
+        self.assertEqual(1, test_entry.count("--ef-core-version"))
         self.assertEqual(1, test_entry.count("--mysqlconnector-version"))
 
     def test_migration_deployment_owns_its_release_build(self) -> None:
@@ -738,8 +742,11 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         """Exclude stale scratch rows from immutable release evidence."""
         body = ENGINE_QUALIFICATION.read_text(encoding="ascii")
 
+        self.assertNotIn('artifacts/efcore-patch-matrix/."', body)
         self.assertNotIn('artifacts/mysqlconnector-patch-matrix/."', body)
         for leg in (
+            "minimum-11-0-0",
+            "latest-11-0",
             "minimum-2-6-1",
             "latest-2-x",
             "latest-3-x",
@@ -747,73 +754,58 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             with self.subTest(leg=leg):
                 self.assertEqual(1, body.count(f'"{leg}"'))
 
-    def test_preview_publication_uses_the_central_exact_ef_contract(self) -> None:
-        """Keep preview qualification on the reviewed central pin without an EF readiness override."""
-        # Arrange
-        packages = ElementTree.parse(REPOSITORY_ROOT / "Directory.Packages.props")
-        version = (packages.findtext(".//DokaEfCoreVersion") or "").strip()
-        runner = json.loads((REPOSITORY_ROOT / "global.json").read_text(encoding="ascii"))["test"]["runner"]
+    def test_release_efcore_matrix_uses_a_reviewed_exact_patch(self) -> None:
+        """Do not let a new upstream patch invalidate a green release commit."""
+        body = ENGINE_QUALIFICATION.read_text(encoding="ascii")
+        start = body.index("run_efcore_matrix_gate() {")
+        matrix = body[start : body.index("\n}\n", start)]
 
-        # Act
-        contract = subprocess.run(
-            ["bash", str(REPOSITORY_ROOT / "eng/testing/check-spec-version-contract.sh"), version],
-            cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=False,
+        self.assertIn("SpecSuiteBaseline.json", matrix)
+        self.assertIn("max_by(.components)", matrix)
+        self.assertNotIn("10.0.*", matrix)
+        self.assertIn(
+            '"${qualified_version}:${qualified_pattern}:latest-11-0:full"',
+            matrix,
         )
-        override = subprocess.run(
-            ["bash", str(REPOSITORY_ROOT / "eng/release/check-publication-readiness.sh"),
-             "--ef-core-version", version, "--mysqlconnector-version", "2.6.1"],
-            cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=False,
-        )
-
-        # Assert
-        self.assertRegex(version, r"^11[.]0[.]0-(?:preview|rc)[.][0-9]+[.][0-9]+[.][0-9]+$")
-        self.assertEqual("Microsoft.Testing.Platform", runner)
-        self.assertEqual(0, contract.returncode, contract.stderr)
-        self.assertIn(f"EF Core {version} specification contracts are ready.", contract.stdout)
-        self.assertEqual(2, override.returncode)
-        self.assertIn("Unknown option '--ef-core-version'", override.stderr)
-
-    def test_preview_local_rc_omits_the_stable_ef_range_stage(self) -> None:
-        """Keep preview local execution, hosted inventory and native stage admission on the same producers."""
-        # Arrange
-        body = ORCHESTRATOR.read_text(encoding="ascii")
-        start = body.index("run_all_stages() {")
-        run_all = body[start : body.index("\n}\n", start) + 2]
-        environment = {**os.environ, **{
-            name: f"/contract/{name}" for name in re.findall(r"\$\{([a-z_]+)\}", run_all)
-        }}
-
-        # Act
-        inventory = subprocess.run(
-            ["bash", str(ENGINE_QUALIFICATION), "--all-stages"],
-            cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=False,
-        )
-        local = subprocess.run(
-            ["bash", "-c", "\n".join([
-                "set -euo pipefail", 'run_named_stage() { printf "%s\\n" "$1"; }', run_all, "run_all_stages",
-            ])],
-            cwd=REPOSITORY_ROOT, env=environment, capture_output=True, text=True, check=False,
-        )
-        unavailable = subprocess.run(
-            ["bash", str(ORCHESTRATOR), "--stage", "efcore-patch-matrix"],
-            cwd=REPOSITORY_ROOT, env={**os.environ, "DOKA_RELEASE_CHAIN_PROBE": "1"},
-            capture_output=True, text=True, check=False,
+        self.assertIn(
+            'ef-core-version: "11.0.*"',
+            CI_WORKFLOW.read_text(encoding="utf-8"),
         )
 
-        # Assert
-        self.assertEqual(0, inventory.returncode, inventory.stderr)
-        self.assertEqual(["migration-deployment", "runtime", "mysqlconnector-patch-matrix", "package", "sbom"],
-                         json.loads(inventory.stdout))
-        self.assertEqual(0, local.returncode, local.stderr)
-        self.assertEqual([
-            "quality", "repository-tests", "specification", "integration", "migration-deployment", "runtime",
-            "mysqlconnector-patch-matrix", "coverage", "package", "sbom", "complete",
-        ], local.stdout.splitlines())
-        self.assertNotEqual(0, unavailable.returncode)
-        self.assertIn("Unknown release-candidate stage", unavailable.stderr)
-        self.assertNotIn("latest-10-0", body)
-        self.assertNotIn("  efcore-patch-matrix:", CI_WORKFLOW.read_text(encoding="ascii"))
-        self.assertFalse((REPOSITORY_ROOT / "eng/testing/test-efcore-matrix.sh").exists())
+    def test_latest_qualified_efcore_patch_has_complete_contracts(self) -> None:
+        """Keep the release selector and exact contract files in one state."""
+        contracts = (
+            REPOSITORY_ROOT
+            / "tests"
+            / "Doka.EntityFrameworkCore.MySql.FunctionalTests"
+            / "Specification"
+            / "Contracts"
+        )
+        baseline = json.loads(
+            (contracts / "SpecSuiteBaseline.json").read_text(encoding="utf-8")
+        )
+        latest = max(
+            (
+                version
+                for version in baseline["efCoreVersions"]
+                if version.startswith("11.0.")
+            ),
+            key=lambda version: tuple(map(int, version.split("."))),
+        )
+
+        result = subprocess.run(
+            (
+                "bash",
+                str(REPOSITORY_ROOT / "eng/testing/check-spec-version-contract.sh"),
+                latest,
+            ),
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_release_run_id_cannot_escape_the_evidence_root(self) -> None:
         """Reject path traversal before an incomplete stage can replace evidence."""

@@ -71,8 +71,9 @@ gh api \
 
 ### Release-line activation uses the existing publisher
 
-The current policy keeps main/10 active, marks `maintenance/10.x` prepared for
-own-line qualification and leaves `preview/11.x` inactive. Preparation does not
+The actual protected-main settings remain unchanged until the approved GA
+cutover. This development checkout prepares main/11 and maintenance/10 active,
+with preview/11 inactive. That future policy does not
 create the branch or grant publication rights; real branch qualification and
 hosted authorization remain separately approved operations. All lines use
 `release-candidate.yml` and the existing `nuget` environment and Trusted

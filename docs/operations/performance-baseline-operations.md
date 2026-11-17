@@ -69,6 +69,15 @@ produced raw reports and diagnostic threshold crossings are retained.
   as diagnostic references using comparable measurements; they never become
   automatic local or hosted rejection limits.
 
+## .NET 11 Benchmark Tooling
+
+The .NET 11 development line pins the official BenchmarkDotNet
+`0.16.0-preview.2` because the latest stable `0.15.8` cannot validate the .NET 11
+runtime. This is a benchmark/test dependency, not a dependency of any shipping
+Doka package. Normal out-of-process execution, runtime identity, validators and
+allocation ceilings remain in force. Replace the preview when an official
+stable release supports .NET 11, and requalify the six targets before adopting it.
+
 ## Large Cache Write Allocation Samples
 
 The single- and multi-segment large-write benchmarks measure a warm average

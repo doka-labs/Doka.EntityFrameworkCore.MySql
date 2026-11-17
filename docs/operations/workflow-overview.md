@@ -61,6 +61,14 @@ The shared helper validates that selection before setup and uses the branch's
 runner-specific filtering, coverage and TRX protocol. This source contract does
 not establish that the new helper has executed on another framework line.
 
+The native MTP line copies one explicit coverage configuration into every test
+module. Each producer checks its own newly reserved report before aggregation:
+provider and spatial assemblies for functional/specification tests, all three
+shipping assemblies for unit/integration tests. Missing, duplicate or empty
+module measurements fail; measured zero-hit lines remain subject to the
+unchanged merged line/branch floors. This prevents inferred dependency-name
+exclusions from silently removing shipping code from a successful test run.
+
 [`dependency-review.yml`](../../.github/workflows/dependency-review.yml) is an
 independent PR workflow for dependency changes; it is not another job hidden
 inside `ci.yml`. Platform-owned dependency submission and code-scanning checks
@@ -198,8 +206,9 @@ authority before the candidate calls the common qualifier. Both callers execute
 the complete reversible quality, test, integration, deployment, runtime,
 dependency, package-consumer, SBOM and coverage graph. Candidate stages retain
 same-run `release-stage-<stage>-attempt-N` artifacts, checkpoint ownership and
-digest verification. Stable main/10 requires six stage receipts; preview/11
-requires five because its reviewed policy omits the stable EF patch matrix.
+digest verification. GA main/11 and maintenance/10 require six stage receipts, including their
+branch-native EF Core floor/highest-admitted patch matrix. The inactive
+preview role is not used for this GA preparation.
 Both use the branch-owned stage inventory, separately from the complete product
 job graph. Assembly does not repack qualified bytes. Attestation remains a
 separate release-only job.
@@ -214,10 +223,10 @@ timing, CPU or working-set thresholds are not qualifier gates.
 
 All authorized lines use the existing `nuget` environment and the same workflow.
 The single-maintainer approval arrangement and administrator bypass remain
-unchanged; neither is replaced by a new publisher environment or migration. The approved
-`maintenance/10.x` is **prepared** for qualification only; `preview/11.x`
-remains **inactive**. `feature/dotnet-11` holds the separate GA preparation.
-No branch, environment, NuGet binding or
+unchanged; neither is replaced by a new publisher environment or migration.
+The prepared GA policy enables main/11 and maintenance/10 after the separately
+approved cutover; `preview/11.x` remains **inactive**;
+`feature/dotnet-11` remains unchanged. No branch, environment, NuGet binding or
 package publication is created by this documentation.
 
 Preparation, admission upload and publication run under the same existing job

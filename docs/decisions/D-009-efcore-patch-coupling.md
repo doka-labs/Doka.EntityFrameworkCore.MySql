@@ -9,12 +9,26 @@ scope: "EF Core package range and compatibility verification"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: [D-023, D-013]
+amended-by: [D-013, D-023]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
 # D-009 -- Support an EF Core patch range with a floor/latest matrix
+
+## .NET 11 GA amendment (2026-11-15)
+
+The 11.x line uses `[11.0.0, 11.1.0)`, with exact SDK `11.0.100` and actual
+11.0.0 specification inventory/discovery. Its release recipe retains the
+`minimum-11-0-0` dependency-floor receipt and fully executes the highest
+repository-admitted patch as `latest-11-0`. The floor's behavioral proof comes
+from the same-source repository qualification. Both rows are 11.0.0 at GA.
+Scheduled CI runs the floor strictly and probes `11.0.*` independently; an
+unreviewed upstream patch is reported as not qualified rather than changing
+release admission. Malformed, missing or mismatched local contracts still fail.
+
+The historical decision below describes the separately serviced .NET 10 line.
+The 11.x line does not import its 10.0.8 floor or its qualification receipts.
 
 ## Context and Problem Statement
 
@@ -53,10 +67,6 @@ scenarios that the consumer would hit at runtime.
 ## Decision Outcome
 
 Chosen option: "Patch range with floor and latest matrix", because a bounded patch range balances consumer patching with evidence-backed compatibility.
-
-This decision governs the published 10.x maintenance line. D-013 amends it for
-the isolated 11.x line, which uses one exact EF Core RC graph and does not run
-the 10.x floor/latest matrix.
 
 Pin `Microsoft.EntityFrameworkCore.*` packages to the range
 `[10.0.8, 10.1.0)` in `Directory.Packages.props`. The range covers the
@@ -159,12 +169,16 @@ missing, swapped, widened, or non-exact row.
 
 ### Implementation Snapshot
 
-- The published 10.x maintenance line retains the bounded patch-range policy
-  and its historical floor/latest evidence.
-- The isolated 11.x line is governed by D-013. Its
-  `Directory.Packages.props` applies one exact RC.3 version through
-  `DokaEfCoreVersion`; repository and release workflows verify that exact
-  resolved graph instead of invoking the retired 10.x patch-matrix runner.
+- `Directory.Packages.props` applies the `DokaEfCoreVersion` property to the
+  three Microsoft.EntityFrameworkCore.* packages and defaults it to
+  `[10.0.8, 10.1.0)`. `.github/workflows/ci.yml` runs the default floor in its
+  fast lane. Its weekly and manually dispatched exhaustive lane overrides the
+  property with `10.0.8` and `10.0.*`, asserts the resolved package graph, and
+  runs full non-live, specification, live, and integration coverage for the
+  floor and for an admitted latest patch. Its floating row uses the explicit
+  `upstream-probe` scope for non-qualifying discovery of new patches.
+  Release qualification instead selects the numerically highest exact
+  10.0.x patch already listed in `SpecSuiteBaseline.json`.
 
 ### Implementation Notes
 
@@ -260,8 +274,8 @@ missing, swapped, widened, or non-exact row.
 - `Directory.Packages.props`
 - `.github/workflows/ci.yml`
 - `eng/testing/check-spec-version-contract.sh`
+- `eng/testing/test-efcore-matrix.sh`
 - `eng/release/evidence.py`
-- `docs/decisions/D-013-ef-core-11-upgrade.md`
 
 ### Sources
 

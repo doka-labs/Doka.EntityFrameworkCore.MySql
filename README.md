@@ -66,7 +66,7 @@ not present in the `10.0.0` packages.
 ## Requirements
 
 - An application targeting .NET 11
-- EF Core `11.0.0-rc.3.26522.148` for the provider and spatial extension
+- EF Core `>= 11.0.0` and `< 11.1.0` for the provider and spatial extension
 - MySqlConnector 2.x or 3.x; the package range in this checkout is `>= 2.6.1` and `< 4.0.0`
   (2.6.1 fixes [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8)).
 - A supported MySQL or MariaDB server from the matrix below
@@ -88,18 +88,11 @@ signed tags and publication remain separate. See the
 [workflow overview][workflow-overview] for the shared checks
 and the meaning of a green PR.
 
-The maintained stable line remains .NET 10. The release-line contract prepares
-`maintenance/10.x` for later 10.x servicing; optional `preview/11.x` remains
-inactive for independently qualified platform RCs. Preparation does not create
-or activate the maintenance branch, authorize .NET 11 publication, or change
-application requirements. Those operations require the separately approved
-cutover and hosted qualification.
-The same release workflow selects an authorized branch and canonical version;
-personal signed tags, single-maintainer approval and administrator bypass stay
-unchanged, using the existing `nuget` environment. Ordinary releases need
-no manual inventory or new configuration ceremony.
-See [release lines][release-lines] and the
-[support policy][support] for activation, exact RC consumption and lifecycle.
+This checkout prepares Doka 11.0.0 for .NET 11 GA. The future protected-main
+policy enables main/11 and `maintenance/10.x`; `preview/11.x` remains inactive.
+This development branch grants no publication authority. Complete the separate
+[cutover procedure](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md#prepared-ga-cutover)
+before merging that policy into protected main.
 
 ### Provider Features in 10.7.0
 
@@ -117,38 +110,62 @@ in the following guides. Existing applications opt into these APIs explicitly.
 
 ## Install
 
-The following .NET 11 command installs the exact provider release candidate
-represented by this branch once the package is published:
+The following .NET 11 command installs the exact provider stable version
+prepared by this branch once the package is published:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0-rc.3
+dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0
 ```
 
 Add the spatial extension only when the model uses NetTopologySuite types:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 11.0.0-rc.3
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 11.0.0
 ```
 
 Install the standalone distributed cache only when the application needs a
 MySQL or MariaDB-backed `IDistributedCache`:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.3
+dotnet package add Doka.Caching.MySql --version 11.0.0
 ```
 
 For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Current Release Candidate
+### Prepared Stable Release
 
-`11.0.0-rc.3` is the isolated .NET 11 and EF Core 11 line. It targets
-`net11.0`, pins the exact .NET and EF Core RC.3 toolchain, and does not change
+`11.0.0` prepares the isolated .NET 11 and EF Core 11 GA line. It targets
+`net11.0`, uses SDK `11.0.100` and EF Core `[11.0.0, 11.1.0)`, and does not change
 the supported MySQL, MariaDB, or MySqlConnector ranges. The stable 10.x line
-remains available for .NET 10 applications.
+remains available for .NET 10 applications. Preparation is not evidence that
+11.0.0 has already been published.
 
-### Stable .NET 10 Release: 10.7.0
+The shared servicing fixes preserve boxed `Convert.ToString(object)` scalar,
+enum and GUID formatting, including empty-string results for boxed nulls.
+Filtered string parameter collections retain bounded operand inference through
+scalar expressions and pagination, lossless transport and null-aware decoded
+predicates without accepting conflicting mappings. Ordered failover tests use
+an invalid TCP destination instead of assuming an unowned loopback port stays
+unavailable. Filtered native and decoded JSON membership also groups complete
+`OR` predicates, including null-compensation branches, before membership and
+negation so unrelated rows cannot bypass the comparison. Release-command
+cancellation preserves signal verdicts and verifies complete process-group
+cleanup.
+Independent decoded JSON membership stays an `IN` subquery so the optimizer can
+materialize its rowset; this does not change collection defaults or guarantee
+any particular execution plan.
+
+Qualification measures shipping code explicitly, counts canonical coverage
+lines once and uses fixed warm samples for large cache-write allocations
+without changing their ceilings. BenchmarkDotNet's official .NET 11-capable
+preview is a temporary development dependency; shipping package graphs remain
+independent of it. See the [changelog][changelog] and
+[allocation measurement protocol](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/performance-baseline-operations.md).
+Regenerate application compiled models with EF Core 11 when moving to 11.x.
+
+### Published .NET 10 Baseline: 10.7.0
 
 `10.7.0` delivers the six additive provider features above for all three
 coordinated packages. Existing applications retain their current defaults;
@@ -160,13 +177,19 @@ The .NET 10 requirement, EF Core 10.0.8 minimum, MySqlConnector range
 `>= 2.6.1` and `< 4.0.0`, supported engines, GUID storage defaults, cache schema
 and multiple-parameter collection default remain unchanged. The .NET 10
 checkout requires SDK 10.0.404 to build, not to consume its packages. This
-preview checkout uses the .NET 11 SDK pinned in `global.json`. Coverage floors
+GA preparation checkout uses the .NET 11 SDK pinned in `global.json`. Coverage floors
 and allocation ceilings remain unchanged; hardware-dependent timings remain
 diagnostic.
 
-These preparation notes do not assert NuGet availability or hosted release
-qualification. After publication, pin the version explicitly when validating
-an application:
+Routine Dependabot updates stay within each framework release line; independent
+major proposals remain reviewable. Coverlet 10.1.1 stays test-only, and C#
+checkouts retain LF to keep raw-string values consistent across platforms.
+Coverage floors and allocation ceilings remain unchanged; hardware-dependent
+timings remain diagnostic. See the [changelog][changelog].
+These .NET 10 release notes do not establish hosted qualification or
+publication of this .NET 11 development branch.
+
+To consume the published .NET 10 line, pin its version explicitly:
 
 ```bash
 dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0
@@ -499,7 +522,7 @@ package: neither the EF Core provider nor a `DbContext` is required.
 Install the package:
 
 ```bash
-dotnet package add Doka.Caching.MySql --version 11.0.0-rc.3
+dotnet package add Doka.Caching.MySql --version 11.0.0
 ```
 
 First, generate the cache table script for an existing database:

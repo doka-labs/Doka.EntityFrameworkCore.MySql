@@ -8,11 +8,11 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         Guid[] values
     ) => context.Items.Where(item => values.Contains(item.BinaryId));
 
-    /// <summary>Creates a context using the existing transient or cache-sensitive provider policy.</summary>
+    /// <summary>Creates a context using the existing transient or explicitly cache-sensitive provider policy.</summary>
     /// <param name="defaultGuidFormat">The default model collection GUID representation.</param>
     /// <param name="parameterTranslationMode">The optional explicit collection strategy.</param>
-    /// <param name="cacheServiceProvider">Whether to verify the shared provider cache.</param>
-    /// <param name="mariaDb">Whether to translate for the supported MariaDB profile.</param>
+    /// <param name="cacheServiceProvider">Whether this case verifies EF's shared provider cache.</param>
+    /// <param name="mariaDb">Whether this case uses the supported MariaDB profile.</param>
     private static PrimitiveCollectionContext CreateContext(
         MySqlGuidFormat defaultGuidFormat = MySqlGuidFormat.Binary16,
         ParameterTranslationMode? parameterTranslationMode = null,

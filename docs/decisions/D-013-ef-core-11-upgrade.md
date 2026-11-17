@@ -25,8 +25,10 @@ the current major after an approved GA handoff; `maintenance/10.x` retains
 .NET 10 servicing; optional `preview/11.x` can qualify independent Doka platform
 RCs before that handoff. The `x` is literal, not a ref pattern.
 
-The existing `feature/dotnet-11` integration work remains unchanged. Main/10
-publication stays active; the maintenance/preview routes remain inactive.
+At the original amendment, main/10 publication remained active and the
+maintenance/preview routes remained inactive. The GA preparation below now
+contains the desired future main/11 plus maintenance/10 policy; actual
+protected-main cutover and hosted activation remain separate.
 Name approval and repository implementation do not imply branch creation,
 hosted protection, preview adoption, package publication or GA readiness.
 Microsoft's upstream go-live policy is distinct from Doka's own qualified RC
@@ -76,11 +78,15 @@ Chosen option: "Isolated single-target 11.x provider line", because it keeps
 the released 10.x line stable while letting the next major validate the real
 .NET 11 and EF Core 11 surface without a conditional dual-provider build.
 
-The `feature/dotnet-11` line targets `net11.0` only. It pins SDK
-`11.0.100-rc.3.26522.148` and EF Core `11.0.0-rc.3.26522.148` exactly. The
-matching RC dependency graph is intentional: a prerelease provider-facing API
-change requires a reviewed code and evidence update rather than a floating
-restore.
+The `feature/dotnet-11` line targets `net11.0` only. Its GA preparation uses
+SDK `11.0.100`, stable EF Core `[11.0.0, 11.1.0)`, and exact tool/test pins.
+The reviewed GA floor and highest admitted patch are both `11.0.0`. The
+repository qualifies that bound graph; scheduled floating patch discovery
+reports new versions separately and cannot silently admit them.
+
+The earlier RC.1, RC.2 and RC.3 contracts remain historical evidence. The
+actual GA inventory and per-engine discovery were regenerated from restored
+11.0.0 assemblies, rather than relabelled RC evidence.
 
 The published 10.x packages remain the .NET 10 / EF Core 10 maintenance line.
 They are not multi-targeted and are not changed by the 11.x branch.
@@ -94,12 +100,12 @@ The 11.x line may ship only after all of the following contracts pass:
    debt, and exact discovery and TRX reconciliation pass on all six supported
    database targets.
 4. Unit, functional, integration, runtime-posture, trimming, packaging, and
-   release-qualification gates pass against the exact RC graph.
+   release-qualification gates pass against the exact reviewed GA graph.
 5. CLI and IDE test discovery work from checked-in project configuration; no
    local runner setting is part of the repository contract.
 
-At EF Core 11 GA, the line moves from the exact RC pins to exact GA pins and is
-requalified before the first stable 11.x release. An RC qualification cannot be
+The first stable 11.x release requires complete GA requalification and the
+separately approved protected-main cutover. An RC qualification cannot be
 reused as GA evidence.
 
 ### Consequences
@@ -116,11 +122,20 @@ reused as GA evidence.
 - `global.json` pins the exact .NET 11 SDK and Microsoft Testing Platform
   runner.
 - `Directory.Build.props` targets `net11.0` and declares the 11.x package line.
-- `Directory.Packages.props` pins one exact EF Core RC.3 graph.
+- `Directory.Packages.props` declares the stable EF Core `[11.0.0, 11.1.0)` range.
 - The versioned specification inventory and discovery files identify that
   exact EF Core version.
 - Repository scripts reject stale framework, package, discovery, and evidence
   contracts.
+- Native coverage declares the exact shipping-assembly scope, retains existing
+  source exclusions and checks each current report's referenced modules before
+  applying the unchanged merged coverage floors.
+- Native xUnit TRX transport is reconciled through exact forward-encoded
+  discovery identities and linked result definitions; ambiguity remains fatal.
+- BenchmarkDotNet `0.16.0-preview.2` supplies official .NET 11 support while
+  `0.15.8` remains the latest stable tool. This temporary benchmark/test-only pin
+  preserves out-of-process execution and validators. Re-evaluate it when a
+  .NET 11-capable stable tool is available; shipping package graphs are unchanged.
 
 ## Pros and Cons of the Options
 
@@ -148,15 +163,15 @@ reused as GA evidence.
 
 ### Implementation Snapshot
 
-As of 2026-11-03, the isolated 11.x branch targets the exact .NET 11 RC.3 SDK
-and EF Core RC.3 packages. The provider source, upstream specification
-adapters, xUnit v3 test projects, repository scripts, runtime posture, package
-locks, documentation, and release contracts are being qualified as one change.
+As of 2026-11-15, the isolated 11.x branch targets SDK 11.0.100 and EF Core
+11.0.0 GA. The provider source, upstream specification adapters, xUnit v3 / MTP
+test projects, repository scripts, runtime posture, package locks and release
+contracts are prepared for qualification as one graph.
 
-The exact upstream contract contains 329 compliance bases, 9,305 test
-definitions, and 19,665 provider assignments. Each supported target discovers
-30,440 tests. The versioned inventory and six target-specific discovery files
-are release inputs, not descriptive snapshots.
+Actual GA reflection yields 329 compliance bases, 9,318 test definitions,
+19,682 assignments and zero provider debt. Each supported target discovers
+30,473 IDs. These define coverage; complete live GA executions and publication
+remain separate evidence requirements.
 
 ### Re-evaluation Triggers
 

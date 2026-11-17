@@ -23,9 +23,9 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
     ];
 
     /// <summary>Reports each composition independently for both supported engine families.</summary>
-    public static IEnumerable<object[]> PredicateGroupingCases => s_predicateGroupingEngineFamilies.SelectMany(mariaDb
-        =>
-        s_predicateGroupingScenarios.Select(scenario => new object[] { mariaDb, scenario }));
+    public static IEnumerable<TheoryDataRow<bool, string>> PredicateGroupingCases => s_predicateGroupingEngineFamilies
+        .SelectMany(mariaDb => s_predicateGroupingScenarios
+            .Select(scenario => new TheoryDataRow<bool, string>(mariaDb, scenario)));
 
     /// <summary>Keeps every COUNT predicate together before appending null-safe membership.</summary>
     /// <param name="mariaDb">Whether to translate for MariaDB.</param>
@@ -58,8 +58,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
         {
             // WHY: EF may retain IN/EXISTS for nullable or decoded inputs;
             // the predicate-grouping fix must not force them into the COUNT path.
-            Assert.True(
-                scenario.Contains("null", StringComparison.Ordinal)
+            Assert.True(scenario.Contains("null", StringComparison.Ordinal)
                 || scenario.StartsWith("decoded-", StringComparison.Ordinal));
         }
     }
@@ -137,34 +136,30 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
                 && EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-nonmatch" => source.Where(item => item.Id == 3
                 && EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-negated-match" => source.Where(item => item.Id == 2
                 && !EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-negated-nonmatch" => source.Where(item => item.Id == 3
                 && !EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "decoded-inequality" => source.Where(item => EF
                 .Parameter(names)
                 .Where(value => value != "alpha")

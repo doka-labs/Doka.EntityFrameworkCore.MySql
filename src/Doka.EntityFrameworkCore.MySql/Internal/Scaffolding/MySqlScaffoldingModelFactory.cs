@@ -122,7 +122,7 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
             }
 
             entityBuilders[table] = entityBuilder;
-            propertyNamesByEntity[table] = [with(StringComparer.Ordinal)];
+            propertyNamesByEntity[table] = new HashSet<string>(StringComparer.Ordinal);
         }
 
         foreach (var table in sortedTables)

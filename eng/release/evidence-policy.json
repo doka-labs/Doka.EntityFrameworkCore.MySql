@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-09-01.1",
+  "policyVersion": "2026-11-15.11-ga",
   "documentation": [
     "Candidate-produced release gates describe the candidate commit directly.",
     "Repository qualification is imported from the single merged pull request",
@@ -86,6 +86,24 @@
         "commit",
         "treeId",
         "sourceHash",
+        "workflowPath",
+        "workflowRunId",
+        "runAttempt",
+        "conclusion",
+        "artifactId",
+        "artifactDigest"
+      ]
+    },
+    {
+      "id": "efcore-patch-matrix",
+      "kind": "candidate-produced",
+      "producerWorkflow": ".github/workflows/release-candidate.yml",
+      "implementation": "eng/testing/test-efcore-matrix.sh",
+      "boundIdentities": [
+        "commit",
+        "treeId",
+        "sourceHash",
+        "dependencySnapshotDigest",
         "workflowPath",
         "workflowRunId",
         "runAttempt",

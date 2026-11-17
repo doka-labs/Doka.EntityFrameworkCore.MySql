@@ -5,15 +5,35 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-This checkout prepares the isolated `11.0.0-rc.3` line for .NET 11 and the
-exact EF Core release candidate pinned in `Directory.Packages.props`.
-See the [preview changelog](../CHANGELOG.md#unreleased),
+This checkout prepares the isolated `11.0.0` line for .NET 11 and the
+reviewed EF Core `[11.0.0, 11.1.0)` range in `Directory.Packages.props`.
+The build SDK is `11.0.100`. Publication and the protected-main cutover remain
+separately approved actions.
+See the [GA preparation changelog](../CHANGELOG.md#1100---2026-11-15),
 [asynchronous contributor policy](../CONTRIBUTING.md#code-style) and
 [shared qualification overview](operations/workflow-overview.md).
 
+The branch also carries the shared [10.6.6 servicing fixes](../CHANGELOG.md#1066---2026-11-15):
+boxed scalar/enum/GUID string conversion, bounded filtered string-parameter
+inference through scalar expressions and pagination with null-aware decoded
+predicates, isolated JSON allocation verification, canonical coverage counting,
+fixed warm large-write samples, deterministic unavailable-host failover checks
+and safer release recovery. Filtered native and decoded JSON membership groups
+complete disjunctions before its membership comparison, including null semantics
+and negation. Release-command cancellation preserves signal verdicts and checks
+process-group cleanup. The temporary .NET 11-capable BenchmarkDotNet preview is
+development-only; see the
+[allocation measurement protocol](operations/performance-baseline-operations.md).
+Independent decoded JSON membership preserves an `IN` rowset without changing
+collection defaults, native JSON membership or correlated/composed safeguards.
+Optimizer plan choice remains workload-dependent.
+Supported engines and storage defaults remain unchanged. When upgrading from
+a version before 10.6.4, regenerate existing compiled models to adopt the
+corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
+
 The following notes describe the stable .NET 10 line.
 
-For the 10.7.0 stable preparation, see the [changelog](../CHANGELOG.md#1070---2026-11-18)
+For stable 10.7.0, see the [changelog](../CHANGELOG.md#1070---2026-11-18)
 and [shared qualification overview](operations/workflow-overview.md). This release
 adds application text defaults, locking reads, scoped ordinary/recursive CTEs,
 window calculations, typed INSERT SELECT and native UPSERT on .NET 10 / EF Core 10.
@@ -27,9 +47,8 @@ workflow. Direct writes have explicit transaction, affected-count and
 change-tracker boundaries.
 
 Coverage floors and allocation ceilings remain unchanged. Timing observations
-remain diagnostic. This preparation does not activate `maintenance/10.x` or
-`preview/11.x`, authorize publication, or assert hosted qualification or NuGet
-availability. When upgrading from a version before 10.6.4, regenerate existing
+remain diagnostic. These .NET 10 notes do not activate `maintenance/10.x` or
+`preview/11.x`, authorize .NET 11 publication, or establish hosted qualification. When upgrading from a version before 10.6.4, regenerate existing
 compiled models to adopt the corrected
 [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
@@ -96,7 +115,7 @@ before selecting 3.x explicitly.
   personal signed tagging, protected publication, and public readback; its
   concrete main/10 examples remain the currently active route.
 - [Release Lines](operations/release-lines.md) defines exact main/maintenance/
-  preview roles, prepared 10.x maintenance, inactive preview and protected activation,
+  preview roles, the prepared GA cutover, protected activation,
   monotonic Latest, framework servicing and exact public RC consumption. It
   retains the existing single-maintainer/admin-bypass arrangement and `nuget`
   environment, with no publisher migration or transition-report subsystem.

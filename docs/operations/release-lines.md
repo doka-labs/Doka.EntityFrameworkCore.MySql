@@ -7,16 +7,46 @@ the decision. The [workflow overview](workflow-overview.md) maps PR checks,
 schedules and publication; [release governance](../release-governance.md)
 retains the existing evidence, signing and three-package requirements.
 
-## Current configuration
+## Prepared GA configuration
 
 The reviewed authority is
 [`eng/release/lines-policy.json`](../../eng/release/lines-policy.json):
 
 | Exact branch | Role | Package major | Prepared source state |
 | --- | --- | --- | --- |
-| `main` | Main | 10 | `active` |
-| `maintenance/10.x` | Maintenance | 10 | `prepared` |
+| `main` | Main | 11 | `active` |
+| `maintenance/10.x` | Maintenance | 10 | `active` |
 | `preview/11.x` | Platform preview | 11 | `inactive` |
+
+This is the desired future policy in the .NET 11 development checkout. The
+actual protected main still owns the current authorization; a feature-branch
+policy cannot activate a hosted publisher or grant maintenance publication.
+
+### Prepared GA cutover
+
+1. Complete and publish the reviewed .NET 10 maintenance release 10.7.0 first.
+2. Under separately approved bootstrap, create `maintenance/10.x` from that
+   final reviewed .NET 10 source and protect it before qualification. Preserve
+   the existing single-maintainer approval arrangement and admin bypass.
+3. Apply the retained one-line own-base patch through a real PR targeting
+   `maintenance/10.x`. After merging its own qualified preparation PR, run
+   `qualification_only=true` on that protected branch while it is prepared,
+   using unused version `10.7.1-rc.1`. The source may retain VersionPrefix
+   `10.7.0`: the existing package-version override binds every built package
+   to the selected qualification version. Published `10.7.0` cannot be reused
+   because absent-version admission remains strict. No tag, publisher approval
+   or publication is part of this qualification-only bootstrap.
+4. Coordinate the separately approved cutover: merge the future main/11 plus
+   maintenance/10 active policy and eight Dependabot targets, and grant the
+   exact maintenance ref in the existing GitHub `nuget` deployment policy.
+   Verify the retained NuGet owner/repository/workflow/environment identity and
+   package permissions; NuGet has no separate branch-binding field.
+5. Qualify the first stable 11.x candidate from actual main after the cutover.
+   Personal signed tagging and approved publication remain the existing
+   separate steps. Ordinary maintenance releases use a new unused version.
+
+No step is executed by this document. `preview/11.x` remains inactive and the
+existing `feature/dotnet-11` branch is neither renamed nor a publisher.
 
 The `x` is literal, not a wildcard. `feature/dotnet-11` remains a development
 branch; its GA preparation does not rename it or activate preview publication.
@@ -40,7 +70,7 @@ The operator keeps the existing release actions:
 
 1. Merge the release-preparation PR into its protected, authorized line.
 2. Open `release-candidate.yml`, select that branch and enter its unused
-   canonical version, for example `10.7.0` or `11.0.0-rc.1`.
+   canonical version, for example unused `10.7.1` on maintenance or `11.0.0` on main.
 3. Leave `qualification_only=false`. Review the qualified source SHA, version,
    tag and evidence in the run summary.
 4. Create and push the personally signed annotated tag on that qualified SHA.
@@ -105,7 +135,7 @@ need not remain Latest. See [Verifying a Release](../security/release-verificati
 
 The shared qualification call preserves same-run
 `release-stage-<stage>-attempt-N` artifacts, digest checks and checkpoints.
-Current main/10 assembly retains its six release-stage receipts, independently
+GA main/11 and maintenance/10 each retain their six release-stage receipts, independently
 of the complete product job graph; it consumes qualified package bytes without
 repacking. Source/version binding, attestation, protected admission and recovery
 remain release-caller responsibilities.

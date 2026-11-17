@@ -27,6 +27,9 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
     {
         _sqlExpressionFactory = sqlExpressionFactory ?? throw new ArgumentNullException(nameof(sqlExpressionFactory));
         _sqlAliasManager = sqlAliasManager ?? throw new ArgumentNullException(nameof(sqlAliasManager));
+
+        // WHY: Conditional access preserves the explicit ArgumentNullException for an invalid caller.
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
         _longTypeMapping = typeMappingSource?.FindMapping(typeof(long))
             ?? throw new ArgumentNullException(nameof(typeMappingSource));
     }
@@ -355,7 +358,7 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
 
     private sealed class ColumnAliasCollector : ExpressionVisitor
     {
-        private readonly HashSet<string> _aliases = [with(StringComparer.Ordinal)];
+        private readonly HashSet<string> _aliases = new(StringComparer.Ordinal);
 
         public static HashSet<string> Collect(
             Expression expression

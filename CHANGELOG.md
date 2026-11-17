@@ -5,6 +5,172 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.0.0] - 2026-11-15
+
+Preparation for the first stable .NET 11 / EF Core 11 provider line. Publication
+requires the separately approved main/maintenance cutover and release run.
+All three packages use the same version; the .NET 10 line remains independently
+maintained. No package publication is implied by this preparation.
+
+### Changed
+
+- Update private Coverlet MTP to 10.1.1 and verify fresh coverage reports
+  against unchanged thresholds after its unreachable-branch accounting fix.
+- Target net11.0 with .NET SDK 11.0.100 and the EF Core [11.0.0, 11.1.0)
+  patch range. Restore stable floor/highest-admitted patch qualification and
+  independent non-qualifying upstream discovery after the exact RC graph.
+- Retain the native Microsoft Testing Platform runner, current xUnit v3 and
+  coverlet packages, with the xUnit IDE adapter available for Rider.
+- Pin the official BenchmarkDotNet `0.16.0-preview.2` for .NET 11 runtime
+  support until a capable stable tool is available. This benchmark/test-only
+  dependency preserves normal process isolation, validators and allocation
+  ceilings; it does not enter any shipping package dependency graph.
+- Consume the .NET 11 shared-framework caching, dependency-injection, logging
+  and options abstractions without redundant shipping package references.
+- Prepare main/11 and maintenance/10 authority and dependency-update targets;
+  the existing protected main remains unchanged until the approved cutover.
+- Keep package validation and public API checks while starting a new major
+  baseline; preserve the engine, driver, GUID, collection and cache contracts.
+
+### Fixed
+
+- Resolve the local MariaDB 12.3 functional-test default in shared C# code so
+  native MTP and IDE runs agree without VSTest `.runsettings`. Preserve explicit
+  engine targets, mandatory CI selection and external-endpoint validation.
+- Keep framework-aligned Microsoft packages on each release-line major in
+  Dependabot and separate routine NuGet minor/patch groups from individual
+  major proposals, preserving independently versioned tools and EF/driver
+  qualification.
+- Preserve complete `OR` predicates in filtered native and decoded JSON
+  collection membership, including null-compensation branches and negation.
+  The membership comparison now applies to the complete collection filter
+  instead of allowing a disjunction to include or exclude unrelated rows.
+- Keep independent, uncomposed decoded JSON parameter and constant membership
+  as `IN` subqueries, preserving the optimizer's ability to materialize the
+  rowset once. Retain decoding, null/negated membership, the existing native
+  `JSON_CONTAINS` fast path and correlated/composed collection safeguards.
+  Collection defaults and optimizer settings are unchanged; no universal
+  execution-plan or latency guarantee is implied.
+- Infer bounded string mappings for filtered parameter collections consumed by
+  `Contains` or `Any`, including mapped scalar expressions and predicate
+  pushdown after pagination. Preserve lossless JSON transport, decoded
+  predicates and null comparisons; conflicting explicit or converter mappings
+  remain rejected even alongside a valid consumer.
+- Make ordered failover verification independent of unrelated loopback
+  listeners by using an invalid TCP destination for the first host. Preserve
+  the exception assertion, connection timeout and real healthy-host readback.
+- Preserve the string result and null-to-empty semantics of boxed
+  `Convert.ToString(object)` projections and predicates. Reuse the existing
+  scalar, enum and GUID translators for Binary16, Char36 and native UUID;
+  unsupported custom-converter shapes retain strict translation failure.
+- Match native xUnit TRX transport against exact discovered identities and
+  linked result definitions; reject ambiguous, missing or duplicate outcomes.
+- Declare the native coverage scope explicitly so inferred dependency-name
+  exclusions cannot omit shipping assemblies. Require current per-producer
+  module measurements without changing source exclusions or coverage floors.
+- Count canonical class-level coverage records once so optional method detail
+  cannot inflate or dilute assembly and critical-class coverage percentages.
+- Preserve EF Core 11 string-collection membership semantics when its
+  JSON value projection is wrapped in `JSON_UNQUOTE(JSON_QUOTE(...))`. Native
+  unencoded membership uses `JSON_CONTAINS`, while composed queries retain
+  their complete decoded projection instead of being reduced to a bare
+  `JSON_TABLE` value column.
+- Preserve nullable NetTopologySuite `IsSimple` semantics on every supported
+  MariaDB release. The explicit null guard now survives EF Core's relational
+  nullability processing instead of exposing MariaDB's `-1` sentinel for
+  `ST_IsSimple(NULL)` as `true`.
+- Make normal release instructions branch-consistent and reject conflicting
+  pre-tag protected refs. Give GitHub publication/immutability visibility a
+  separate bounded wait while preserving immediate identity/content failures.
+- Allow protected completion of an already uploaded release through
+  `finalize_run_id` on current main. Revalidate original evidence, current
+  authority, signed public packages and exact symbols before completing only
+  the existing GitHub Release ID; never rebuild, upload or rewrite its identity.
+- Preserve operator signal exit codes while stopping release commands on
+  macOS. Reap exited children and verify vanished process groups, retaining
+  forced descendant cleanup and fatal permission errors for live groups.
+- Separate scheduled EF Core patch discovery from qualification. A newer patch
+  without reviewed specification contracts is reported as not qualified instead
+  of failing CI solely because it exists. Registered patches still run the full
+  matrix; partial or invalid contracts and actual execution failures remain
+  fatal. PR/release qualification retains its exact reviewed versions and guards.
+
+## [10.6.6] - 2026-11-15
+
+Maintenance patch for query translation, release recovery, dependency
+servicing and reproducible allocation/coverage verification. All three packages
+use the same version.
+Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
+minimum, MySqlConnector range, supported engines, GUID/collection defaults and
+cache schema remain unchanged. No database schema migration is required.
+This section prepares the release; it does not assert publication or completed
+hosted qualification.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.6
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.6.6
+dotnet package add Doka.Caching.MySql --version 10.6.6
+```
+
+### Changed
+
+- Update the repository SDK to 10.0.404, fixed Microsoft dependencies and
+  dotnet-ef to 10.0.15, Microsoft.NET.Test.Sdk to 18.12.0, OpenTelemetry to
+  1.21.0 and ReportGenerator to 5.6.0. Refresh all four MariaDB image digests
+  across qualification and benchmark consumers without changing server series
+  or patch versions. The SDK pin remains a build-tool contract, not a consumer
+  SDK minimum; EF Core and MySqlConnector compatibility floors are unchanged.
+- Prepare `maintenance/10.x` for own-line qualification while keeping main/10
+  active and preview/11 inactive. Branch creation, hosted authorization and
+  actual cutover remain separate; preparation grants no publication rights.
+- Correct the security/support policy to cover all three packages and distinguish
+  the Doka 10.x package line from its EF Core 10.0.x compatibility range.
+
+### Fixed
+
+- Preserve complete `OR` predicates in filtered JSON collection `Contains`
+  and negated membership, including disjunctions introduced for null semantics.
+  Missing grouping could include unrelated rows or exclude expected rows.
+  The native-collection defect is confirmed in 10.6.5.
+- Infer bounded string mappings for filtered parameter collections consumed by
+  `Contains` or `Any`, including mapped scalar expressions and predicate
+  pushdown after pagination. Preserve lossless JSON transport, decoded
+  predicates and null comparisons; conflicting explicit or converter mappings
+  remain rejected even alongside a valid consumer.
+- Make ordered failover verification independent of unrelated loopback
+  listeners by using an invalid TCP destination for the first host. Preserve
+  the exception assertion, connection timeout and real healthy-host readback.
+- Keep large cache-write allocation samples at 128 awaited operations instead
+  of using a CPU-calibrated denominator. Preserve warm per-operation budgets,
+  actual cold pool-capacity evidence and deliberate per-write copy controls;
+  do not change production pooling, TLS or GC behavior.
+- Calculate coverage from canonical class-level source lines instead of
+  weighting them again through redundant method detail. Preserve partial-file
+  identities and all existing line/branch coverage floors.
+- Preserve string shaping for boxed `Convert.ToString(object)` projections and
+  predicates. Reuse the existing scalar, enum and GUID translations, retain
+  empty-string results for boxed nulls, and reject unsupported custom-converter
+  predicates rather than treating arbitrary storage text as CLR formatting.
+- Isolate exact-zero JSON comparer equality/hash allocation verification from
+  unrelated process activity. Retain the unchanged 1,000-call zero-allocation
+  contract, GC-overlap rejection and intentional-allocation negative controls;
+  do not relax benchmark budgets, retry until green or change production GC.
+- Make normal release instructions branch-consistent and reject conflicting
+  pre-tag protected refs. Give GitHub publication/immutability visibility a
+  separate bounded wait while preserving immediate identity/content failures.
+- Allow protected completion of an already uploaded release through
+  `finalize_run_id` on current main. Revalidate original evidence, current
+  authority, signed public packages and exact symbols before completing only
+  the existing GitHub Release ID; never rebuild, upload or rewrite its identity.
+- Preserve operator signal exit codes while stopping release commands on
+  macOS. Reap exited children and verify vanished process groups, retaining
+  forced descendant cleanup and fatal permission errors for live groups.
+- Separate scheduled EF Core patch discovery from qualification. A newer patch
+  without reviewed specification contracts is reported as not qualified instead
+  of failing CI solely because it exists. Registered patches still run the full
+  matrix; partial or invalid contracts and actual execution failures remain
+  fatal. PR/release qualification retains its exact reviewed versions and guards.
+
 ## [10.7.0] - 2026-11-18
 
 Additive feature release for the .NET 10 / EF Core 10 line. All three packages
@@ -84,42 +250,6 @@ dotnet package add Doka.Caching.MySql --version 10.7.0
   once and preserves separately owned caller references.
 - Preserve design-time logger ownership across successive or overlapping
   scaffolding scopes instead of disposing the shared logger with one scope.
-
-### Changed
-
-- Start the isolated 11.x provider line on `net11.0` with exact .NET SDK and
-  EF Core `11.0.0-rc.3.26522.148` pins. The stable 10.x line remains the .NET
-  10 maintenance line.
-- Advance the .NET 11 SDK, runtime packages and dotnet-ef to RC.3, including
-  Microsoft's out-of-band runtime security fixes. Regenerate the exact
-  specification inventory, six-target discovery contracts and shipping locks.
-- Move the test projects to xUnit.net v3 package version 4.0.0. Repository
-  automation uses the .NET 11 Microsoft Testing Platform runner, while the
-  xUnit IDE adapter keeps Rider and other supported IDE runners available.
-- Replace the stable-line EF Core floor/latest patch matrix with one exact
-  RC.3 dependency graph. Repository, specification, integration, runtime, and
-  publication gates qualify that graph without a second floating restore.
-- Consume the .NET 11 shared-framework caching, dependency-injection, logging,
-  and options abstractions instead of shipping redundant package references.
-- Keep package validation enabled while resetting the incompatible 10.x
-  package baselines for the new `net11.0` major line. Public API analyzers
-  remain the source-level compatibility boundary until an 11.x baseline is
-  published.
-- Reject direct indexes over JSON complex values and JSON member paths during
-  model validation. Index an explicitly typed generated scalar column instead,
-  matching the portable MySQL and MariaDB JSON-index contract.
-
-### Fixed
-
-- Preserve EF Core 11 RC.1 string-collection membership semantics when its
-  JSON value projection is wrapped in `JSON_UNQUOTE(JSON_QUOTE(...))`. Direct
-  membership uses `JSON_CONTAINS`, while composed collection queries retain
-  their complete decoded projection instead of being reduced to a bare
-  `JSON_TABLE` value column.
-- Preserve nullable NetTopologySuite `IsSimple` semantics on every supported
-  MariaDB release. The explicit null guard now survives EF Core's relational
-  nullability processing instead of exposing MariaDB's `-1` sentinel for
-  `ST_IsSimple(NULL)` as `true`.
 
 ## [10.6.7] - 2026-11-16
 
@@ -2003,6 +2133,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
 
 [10.7.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.7...v10.7.0
 [10.6.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.7
+[11.0.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v11.0.0
 [10.6.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.6
 [10.6.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.5
 [10.6.4]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.4

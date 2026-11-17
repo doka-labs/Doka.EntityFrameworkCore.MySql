@@ -193,7 +193,7 @@ public sealed partial class AdrRepositoryValidatorTests
         Assert.Empty(EngineeringSurfaceContract.ValidateQualificationWorkflow(shared));
         Assert.Contains(SpecificationFilter, specificationTarget, StringComparison.Ordinal);
         Assert.Contains("  migration-deployment:\n", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("  efcore-patch-matrix:\n", workflow, StringComparison.Ordinal);
+        Assert.Contains("  efcore-patch-matrix:\n", workflow, StringComparison.Ordinal);
         Assert.Contains("  mysqlconnector-patch-matrix:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("  benchmark-smoke:\n", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -255,12 +255,12 @@ public sealed partial class AdrRepositoryValidatorTests
 
         // Assert
         Assert.Contains(
-            "artifact-suffix: minimum-10-0-8\n            validation-scope: full",
+            "artifact-suffix: minimum-11-0-0\n            validation-scope: full",
             efMatrix,
             StringComparison.Ordinal);
 
         Assert.Contains(
-            "artifact-suffix: latest-10-0\n            validation-scope: upstream-probe",
+            "artifact-suffix: latest-11-0\n            validation-scope: upstream-probe",
             efMatrix,
             StringComparison.Ordinal);
 

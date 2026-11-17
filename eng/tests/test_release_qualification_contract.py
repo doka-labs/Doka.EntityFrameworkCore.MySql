@@ -25,6 +25,7 @@ from typing import Any
 from unittest import mock
 
 from eng.release import gate_results, qualification
+from eng.tests.test_release_lines import initial_policy
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -38,10 +39,11 @@ RUN_ATTEMPT = 1
 STAGE_DIRECTORIES = {
     "migration-deployment": "migration-deployment",
     "runtime": "runtime",
+    "efcore-patch-matrix": "efcore-patch-matrix",
     "mysqlconnector-patch-matrix": "mysqlconnector-patch-matrix",
 }
 
-DEPENDENCY_STAGES = ("mysqlconnector-patch-matrix",)
+DEPENDENCY_STAGES = ("efcore-patch-matrix", "mysqlconnector-patch-matrix")
 DEPENDENCY_LEGS = ("minimum", "latest")
 
 
@@ -179,6 +181,12 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         })
         environment.start()
         self.addCleanup(environment.stop)
+
+        # WHY: The synthetic 10.x candidate owns its admission independently of
+        # the development checkout's prepared main-major rollover.
+        policy = mock.patch.object(qualification.release_lines, "load_policy", return_value=initial_policy())
+        policy.start()
+        self.addCleanup(policy.stop)
 
         self.directory = tempfile.TemporaryDirectory()
         root = Path(self.directory.name)
@@ -361,7 +369,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         """Refuse a floating-dependency gate that recorded no resolved graph."""
         self.chain.complete()
         for leg in DEPENDENCY_LEGS:
-            (self.chain.evidence_root / "mysqlconnector-patch-matrix" / leg
+            (self.chain.evidence_root / "efcore-patch-matrix" / leg
              / "resolved-packages.json").unlink()
 
         self.assertEqual(1, self._derive_exit_code())
@@ -376,11 +384,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         self.chain.complete()
         first = {result["gate"]: result for result in self.derive()}
 
-        leg = (
-            self.chain.evidence_root
-            / "mysqlconnector-patch-matrix"
-            / DEPENDENCY_LEGS[-1]
-        )
+        leg = self.chain.evidence_root / "efcore-patch-matrix" / DEPENDENCY_LEGS[-1]
         (leg / "resolved-packages.json").write_text(
             json.dumps({"projects": [{"changed": True}]}), encoding="utf-8"
         )
@@ -388,11 +392,11 @@ class ReleaseQualificationChainTests(unittest.TestCase):
 
         self.assertEqual(
             len(DEPENDENCY_LEGS),
-            first["mysqlconnector-patch-matrix"]["dependencySnapshotCount"],
+            first["efcore-patch-matrix"]["dependencySnapshotCount"],
         )
         self.assertNotEqual(
-            first["mysqlconnector-patch-matrix"]["dependencySnapshotDigest"],
-            second["mysqlconnector-patch-matrix"]["dependencySnapshotDigest"],
+            first["efcore-patch-matrix"]["dependencySnapshotDigest"],
+            second["efcore-patch-matrix"]["dependencySnapshotDigest"],
         )
 
     def test_a_tampered_package_fails_verification(self) -> None:

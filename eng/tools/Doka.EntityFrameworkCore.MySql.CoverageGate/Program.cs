@@ -1,3 +1,5 @@
+using System.Xml;
+
 namespace Doka.EntityFrameworkCore.MySql.CoverageGate;
 
 internal static class Program
@@ -8,6 +10,36 @@ internal static class Program
     {
         try
         {
+            if (args is ["modules", var moduleReport, var requiredAssembly, .. var additionalAssemblies])
+            {
+                var errors = CoverageContract.EvaluateModules(
+                    moduleReport,
+                    [requiredAssembly, .. additionalAssemblies]);
+
+                foreach (var error in errors)
+                {
+                    Console.Error.WriteLine(error);
+                }
+
+                if (errors.Count > 0)
+                {
+                    Console.Error.WriteLine("Coverage module boundary not met.");
+
+                    return 1;
+                }
+
+                Console.WriteLine($"Coverage module boundary met for {additionalAssemblies.Length + 1} assembly(s).");
+
+                return 0;
+            }
+
+            if (args is ["modules", ..])
+            {
+                WriteUsage();
+
+                return 2;
+            }
+
             if (args is ["freshness", var policyPath, var reportPath, .. var additionalReports])
             {
                 var errors = CoverageContract.EvaluateFreshness(
@@ -59,6 +91,7 @@ internal static class Program
             or InvalidDataException
             or InvalidOperationException
             or JsonException
+            or XmlException
             or FormatException
             or OverflowException)
         {
@@ -69,5 +102,6 @@ internal static class Program
 
     private static void WriteUsage() => Console.Error.WriteLine(
         "Usage: CoverageGate <merged-cobertura.xml> <coverage-policy.json>\n"
-        + "       CoverageGate freshness <coverage-policy.json> <report> [report...]");
+        + "       CoverageGate freshness <coverage-policy.json> <report> [report...]\n"
+        + "       CoverageGate modules <report> <required-assembly> [required-assembly...]");
 }
