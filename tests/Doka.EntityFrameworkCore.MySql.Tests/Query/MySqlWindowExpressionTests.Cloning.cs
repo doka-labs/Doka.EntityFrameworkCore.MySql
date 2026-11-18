@@ -23,7 +23,7 @@ public sealed partial class MySqlWindowExpressionTests
 
         // WHY: Construct the actual completed framework SELECT so Clone, rather than a
         // stand-in visitor or quotation, must retain the window's relational bindings.
-#pragma warning disable EF1001 // Direct EF10 relational-node construction is the specific versioned clone contract under test.
+#pragma warning disable EF1001 // Direct EF11 relational-node construction is the specific versioned clone contract under test.
         var source = new TableExpression("r", table);
         var column = new ColumnExpression("Id", source.Alias, typeof(int), integer, nullable: false);
         var width = new SqlParameterExpression("width", typeof(long), wide);
@@ -54,7 +54,7 @@ public sealed partial class MySqlWindowExpressionTests
             .GetCommand(original);
 
         // Act
-#pragma warning disable EF1001 // The regression intentionally exercises EF10's actual framework cloning API.
+#pragma warning disable EF1001 // The regression intentionally exercises EF11's actual framework cloning API.
         var cloned = original.Clone();
 #pragma warning restore EF1001
         var clonedCommand = generator

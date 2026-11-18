@@ -45,136 +45,57 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
     // WHY: Select supported engine rows during discovery while keeping each
     // selected engine visible as an independent case in Rider.
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Returns the selected engines crossed with all byte payload sizes.</summary>
-    public static TheoryData<string, int> BytePayloadCases
-    {
-        get
-        {
-            var data = new TheoryData<string, int>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var size in s_payloadSizes)
-                {
-                    data.Add(target, size);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, int>> BytePayloadCases => SelectedTargets.SelectMany(target
+        => s_payloadSizes.Select(size
+            => new TheoryDataRow<string, int>(target.Data, size)));
 
     /// <summary>Returns sizes large enough to exercise multi-segment payloads.</summary>
-    public static TheoryData<string, int> SegmentedBytePayloadCases
-    {
-        get
-        {
-            var data = new TheoryData<string, int>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var size in s_payloadSizes)
-                {
-                    if (size > 1)
-                    {
-                        data.Add(target, size);
-                    }
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, int>> SegmentedBytePayloadCases => SelectedTargets.SelectMany(target
+        => s_payloadSizes
+            .Where(size => size > 1)
+            .Select(size => new TheoryDataRow<string, int>(target.Data, size)));
 
     /// <summary>Returns each selected engine crossed with an independent cleanup initiator.</summary>
-    public static TheoryData<string, string> CleanupCancellationCases
-    {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var initiator in s_cleanupInitiators)
-                {
-                    data.Add(target, initiator);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, string>> CleanupCancellationCases
+        => SelectedTargets.SelectMany(target =>
+            s_cleanupInitiators.Select(initiator => new TheoryDataRow<string, string>(target.Data, initiator)));
 
     /// <summary>Returns each selected engine with one synchronous or asynchronous cache path.</summary>
-    public static TheoryData<string, bool> SyncAsyncCases
+    public static IEnumerable<TheoryDataRow<string, bool>> SyncAsyncCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+    });
 
     /// <summary>Returns each engine with either deployment selected for the isolation operation.</summary>
-    public static TheoryData<string, bool> TableIsolationCases => SyncAsyncCases;
+    public static IEnumerable<TheoryDataRow<string, bool>> TableIsolationCases => SyncAsyncCases;
 
     /// <summary>Returns each engine with one refresh or buffer-read sliding-expiration probe.</summary>
-    public static TheoryData<string, bool> CappedSlidingCases => SyncAsyncCases;
+    public static IEnumerable<TheoryDataRow<string, bool>> CappedSlidingCases => SyncAsyncCases;
 
     /// <summary>Returns each selected engine with one sliding-read outcome.</summary>
-    public static TheoryData<string, bool, bool> SlidingLockWaitCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool, bool>> SlidingLockWaitCases
+        => SelectedTargets.SelectMany(target => new[]
         {
-            var data = new TheoryData<string, bool, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false, false);
-                data.Add(target, false, true);
-                data.Add(target, true, false);
-                data.Add(target, true, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool, bool>(target.Data, false, false),
+            new TheoryDataRow<string, bool, bool>(target.Data, false, true),
+            new TheoryDataRow<string, bool, bool>(target.Data, true, false),
+            new TheoryDataRow<string, bool, bool>(target.Data, true, true),
+        });
 
     /// <summary>Returns each selected engine with one lock-waiting cache operation.</summary>
-    public static TheoryData<string, string> WaitedRefreshCases
-    {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var operation in s_waitedRefreshOperations)
-                {
-                    data.Add(target, operation);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, string>> WaitedRefreshCases => SelectedTargets.SelectMany(target =>
+        s_waitedRefreshOperations.Select(operation => new TheoryDataRow<string, string>(target.Data, operation)));
 
     /// <summary>Returns each selected engine with one table-lock cancellation initiator.</summary>
-    public static TheoryData<string, string> LockedCancellationCases => CleanupCancellationCases;
+    public static IEnumerable<TheoryDataRow<string, string>> LockedCancellationCases => CleanupCancellationCases;
 
     private static IntegrationDatabaseTarget ParseTarget(
         string targetName

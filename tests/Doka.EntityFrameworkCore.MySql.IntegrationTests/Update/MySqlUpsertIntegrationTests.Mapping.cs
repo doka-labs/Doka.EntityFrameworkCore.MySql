@@ -3,23 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports separate escaping and nullable-value variants for every selected engine.</summary>
-    public static TheoryData<string, string> TextCases
+    public static IEnumerable<TheoryDataRow<string, string>> TextCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, string.Empty);
-                data.Add(target, "Hallo 'Test' \"quoted\" \\ folder\\file");
-                data.Add(target, "line1\r\nline2\n\t\0end");
-                data.Add(target, "\u00e4\u4e2d\ud83d\ude42; DROP TABLE UpsertRows; --");
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, string.Empty),
+        new TheoryDataRow<string, string>(target.Data, "Hallo 'Test' \"quoted\" \\ folder\\file"),
+        new TheoryDataRow<string, string>(target.Data, "line1\r\nline2\n\t\0end"),
+        new TheoryDataRow<string, string>(target.Data, "\u00e4\u4e2d\ud83d\ude42; DROP TABLE UpsertRows; --"),
+    });
 
     /// <summary>Supplied runtime metadata preserves actual native conversions, defaults and computed values without rebuilding.</summary>
     [RequiresSupportedDatabaseTargetTheory]

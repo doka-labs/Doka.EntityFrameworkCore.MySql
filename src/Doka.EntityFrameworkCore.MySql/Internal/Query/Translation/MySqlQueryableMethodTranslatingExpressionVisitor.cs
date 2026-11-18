@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Query.Internal;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
@@ -55,6 +53,9 @@ internal sealed partial class
         LambdaExpression resultSelector
     )
     {
+        PrepareWindowComposition(outer);
+        PrepareWindowComposition(inner);
+
         var translated = base.TranslateFullJoin(
             outer,
             inner,
@@ -210,7 +211,7 @@ internal sealed partial class
         }
 
         var fromSqlExpression = new FromSqlExpression(
-            tableExpression.Alias!,
+            tableExpression.Alias,
             tableExpression.Table,
             queryRoot.Sql,
             queryRoot.Argument);

@@ -4,11 +4,11 @@ internal sealed partial class MySqlRecursiveRelationalDataReader
 {
     /// <inheritdoc />
 
-    // WHY: EF Core 10.0.8 requires RelationalDataReader but hides ownership fields; base.Dispose would double-close or use uninitialized state.
+    // WHY: EF Core 11.0.0 requires RelationalDataReader but hides ownership fields; base.Dispose would double-close or use uninitialized state.
     [SuppressMessage("Usage",
         "CA2215:Dispose methods should call base class dispose",
         Justification =
-            "EF Core 10.0.8 return-type adapter owns separate state; base cleanup is unsafe. See D-024 and the recursive reader disposal regression.")]
+            "EF Core 11.0.0 return-type adapter owns separate state; base cleanup is unsafe. See D-024 and the recursive reader disposal regression.")]
     public override void Dispose()
     {
         if (_disposed)
@@ -85,11 +85,11 @@ internal sealed partial class MySqlRecursiveRelationalDataReader
 
     /// <inheritdoc />
 
-    // WHY: EF Core 10.0.8 base.DisposeAsync owns inaccessible private fields; calling it would duplicate this owner's reference release.
+    // WHY: EF Core 11.0.0 base.DisposeAsync owns inaccessible private fields; calling it would duplicate this owner's reference release.
     [SuppressMessage("Usage",
         "CA2215:Dispose methods should call base class dispose",
         Justification =
-            "EF Core 10.0.8 imposes this base return type; actual baseline proof skips command/connection after reader failure. See D-024.")]
+            "EF Core 11.0.0 imposes this base return type; actual baseline proof skips command/connection after reader failure. See D-024.")]
     public override async ValueTask DisposeAsync()
     {
         if (_disposed)

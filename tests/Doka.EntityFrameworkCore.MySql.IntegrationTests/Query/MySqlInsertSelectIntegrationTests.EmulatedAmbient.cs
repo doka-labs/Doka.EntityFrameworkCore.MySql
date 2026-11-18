@@ -5,7 +5,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlInsertSelectIntegrationTests
 {
     /// <summary>Reports actual automatic and explicit non-XA enlistment with independent native rollback outcomes.</summary>
-    public static TheoryData<string, bool, string, bool> EmulatedAmbientCases => MySqlEmulatedAmbientProbe.Cases;
+    public static IEnumerable<TheoryDataRow<string, bool, string, bool>> EmulatedAmbientCases
+        => MySqlEmulatedAmbientProbe.Cases;
 
     /// <summary>A native ambient full rollback cannot make a subsequent INSERT SELECT escape the caller's scope.</summary>
     [RequiresSupportedDatabaseTargetTheory]

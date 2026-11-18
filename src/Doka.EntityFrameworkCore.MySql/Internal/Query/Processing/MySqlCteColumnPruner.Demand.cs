@@ -35,7 +35,7 @@ internal static partial class MySqlCteColumnPruner
 
             _columns.Add(alias, new HashSet<string>(definition.Columns, StringComparer.Ordinal));
 
-#pragma warning disable EF1001 // Exact EF10 protected projection-pruning seam; qualified on the supported EF patch matrix.
+#pragma warning disable EF1001 // Exact EF11 protected projection-pruning seam; qualified on the supported EF patch matrix.
             return PruneSelect(source,
                 preserveProjection: definition.Definition.Kind == MySqlSourceBindingKind.Materialized);
 #pragma warning restore EF1001
@@ -50,7 +50,7 @@ internal static partial class MySqlCteColumnPruner
             {
                 // WHY: Target assignments consume every source ordinal; they are not ordinary
                 // outer column references which may be absent from this demand map.
-#pragma warning disable EF1001 // Exact EF10 top-level projection-pruning seam, qualified by the EF patch matrix.
+#pragma warning disable EF1001 // Exact EF11 top-level projection-pruning seam, qualified by the EF patch matrix.
                 return insert.Update(PruneSelect(insert.Source, preserveProjection: true));
 #pragma warning restore EF1001
             }

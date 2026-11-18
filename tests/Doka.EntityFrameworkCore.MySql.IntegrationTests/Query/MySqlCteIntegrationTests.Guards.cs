@@ -3,21 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteIntegrationTests
 {
     /// <summary>Exercises the native stream and EF-owned buffering as independently reported cases.</summary>
-    public static TheoryData<string, bool> BufferCases
+    public static IEnumerable<TheoryDataRow<string, bool>> BufferCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+    });
 
     /// <summary>Both recursive arms retain their native ordinal placeholder without adding a CLR result member.</summary>
     [RequiresSupportedDatabaseTargetTheory]

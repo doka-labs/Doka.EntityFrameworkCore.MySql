@@ -8,102 +8,49 @@ public sealed partial class MySqlIndexedSelectTests
     private static readonly string[] s_groupKeyModes = ["Composite", "Converted"];
 
     /// <summary>Reports each existing aggregate both alone and beside actual indexed group members.</summary>
-    public static TheoryData<bool, string, bool> AggregateCases
+    public static IEnumerable<TheoryDataRow<bool, string, bool>> AggregateCases
     {
         get
         {
-            var cases = new TheoryData<bool, string, bool>();
-
             foreach (var mariaDb in s_contractDialects)
             {
                 foreach (var aggregate in s_groupAggregates)
                 {
                     foreach (var indexed in s_contractFlags)
                     {
-                        cases.Add(mariaDb, aggregate, indexed);
+                        yield return new TheoryDataRow<bool, string, bool>(mariaDb, aggregate, indexed);
                     }
                 }
             }
-
-            return cases;
         }
     }
 
     /// <summary>Reports each key representation under both native SQL dialects.</summary>
-    public static TheoryData<bool, string> GroupKeyCases
-    {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_contractDialects)
-            {
-                foreach (var mode in s_groupKeyModes)
-                {
-                    cases.Add(mariaDb, mode);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, string>> GroupKeyCases => s_contractDialects
+        .SelectMany(mariaDb => s_groupKeyModes.Select(mode => new TheoryDataRow<bool, string>(mariaDb, mode)));
 
     /// <summary>Reports independent flag variants under each dialect without combining their acts inside one test.</summary>
-    public static TheoryData<bool, bool> DialectFlags
-    {
-        get
-        {
-            var cases = new TheoryData<bool, bool>();
-
-            foreach (var mariaDb in s_contractDialects)
-            {
-                foreach (var flag in s_contractFlags)
-                {
-                    cases.Add(mariaDb, flag);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, bool>> DialectFlags => s_contractDialects
+        .SelectMany(mariaDb => s_contractFlags.Select(flag => new TheoryDataRow<bool, bool>(mariaDb, flag)));
 
     /// <summary>Exercises exact operators on the sequence of complete groups in each SQL dialect.</summary>
-    public static TheoryData<bool, string> GroupSequenceCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<bool, string>> GroupSequenceCases => s_contractDialects.SelectMany(mariaDb
+        => new[]
         {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_contractDialects)
-            {
-                foreach (var shape in new[] { "ordered", "filtered", "paged" })
-                {
-                    cases.Add(mariaDb, shape);
-                }
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<bool, string>(mariaDb, "ordered"),
+            new TheoryDataRow<bool, string>(mariaDb, "filtered"),
+            new TheoryDataRow<bool, string>(mariaDb, "paged"),
+        });
 
     /// <summary>Reports nullable scalar keys and one-field composite wrappers independently for each dialect.</summary>
-    public static TheoryData<bool, string> NullableGroupKeyCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<bool, string>> NullableGroupKeyCases
+        => s_contractDialects.SelectMany(mariaDb => new[]
         {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_contractDialects)
-            {
-                foreach (var mode in new[] { "text", "number", "wrapped-text", "wrapped-number" })
-                {
-                    cases.Add(mariaDb, mode);
-                }
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<bool, string>(mariaDb, "text"),
+            new TheoryDataRow<bool, string>(mariaDb, "number"),
+            new TheoryDataRow<bool, string>(mariaDb, "wrapped-text"),
+            new TheoryDataRow<bool, string>(mariaDb, "wrapped-number"),
+        });
 
     /// <summary>NULL-key membership is preserved by grouping correlation without adding the null-class bit to its window partition.</summary>
     [Theory]

@@ -21,9 +21,9 @@ defined by released packages, the support matrix, and release notes.
 
 ### Maintain supported dependencies and engines
 
-- Keep the supported EF Core 10 maintenance range, the exact EF Core 11 RC.3
-  graph, and the qualified MySqlConnector 2.x/3.x range under compatibility
-  and vulnerability review.
+- Keep the supported EF Core 10 maintenance range, the reviewed EF Core 11 GA
+  patch range, and the qualified MySqlConnector 2.x/3.x range under
+  compatibility and vulnerability review.
 - Prioritize dependency updates that remediate a relevant vulnerability.
   Routine version churn without compatibility, security, or support value is
   not a roadmap goal.
@@ -55,17 +55,27 @@ defined by released packages, the support matrix, and release notes.
 
 ### Qualify the next platform major deliberately
 
-- Keep the separate .NET 11 / EF Core 11 preparation isolated until the
+- Keep the separate .NET 11 / EF Core 11 GA preparation isolated until the
   approved platform cutover. It must retain the applicable feature contracts
   and their independent compatibility evidence.
 - The maintainer-authorized trigger in ADR D-013 has fired; `feature/dotnet-11`
-  owns the exact RC.3 graph.
+  owns SDK 11.0.100 and the reviewed EF Core 11 GA graph.
 - Treat that transition as a new provider major with explicit validation of
   EF Core internal services, public API compatibility, trimming/AOT posture,
   migrations and specification tests.
 - Keep publication, hosted authorization and the maintenance/main cutover as
   separate operator decisions. The maintenance branch name does not establish
   an automatic feature freeze for the supported .NET 10 line.
+
+### Complete the first 11.0.0 feature set
+
+- Implement application character-set/collation fallbacks, explicit locking
+  reads, typed ordinary/recursive CTEs, window functions, typed INSERT SELECT
+  and native single/range UPSERT before the first stable 11.0.0 publication.
+- Preserve existing contracts and validate the supported feature combinations
+  on the qualified MySQL and MariaDB profiles.
+- Keep publication, hosted authorization and the maintenance/main cutover as
+  separate operator decisions. No automatic 10.x feature backport is implied.
 
 ## Explicit Non-Goals Through July 2027
 

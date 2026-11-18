@@ -4,24 +4,20 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed class MySqlJsonMembershipConversionTests
 {
     /// <summary>Supplies both engine profiles, membership directions and boolean model values.</summary>
-    public static TheoryData<bool, bool, bool> BooleanCases
+    public static IEnumerable<TheoryDataRow<bool, bool, bool>> BooleanCases
     {
         get
         {
-            var cases = new TheoryData<bool, bool, bool>();
-
             foreach (var mariaDb in new[] { false, true })
             {
                 foreach (var negated in new[] { false, true })
                 {
                     foreach (var needle in new[] { false, true })
                     {
-                        cases.Add(mariaDb, negated, needle);
+                        yield return new TheoryDataRow<bool, bool, bool>(mariaDb, negated, needle);
                     }
                 }
             }
-
-            return cases;
         }
     }
 

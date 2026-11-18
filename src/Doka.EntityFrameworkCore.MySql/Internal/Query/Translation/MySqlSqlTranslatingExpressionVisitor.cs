@@ -718,7 +718,7 @@ internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalS
             $"{parameter.Name}_datetimeoffset",
             lambda);
 
-        return new SqlParameterExpression(runtimeParameter.Name!, runtimeParameter.Type, timeSpanMapping);
+        return new SqlParameterExpression(runtimeParameter.Name, runtimeParameter.Type, timeSpanMapping);
     }
 
     private static TimeSpan ValidateDateTimeOffsetParameter(

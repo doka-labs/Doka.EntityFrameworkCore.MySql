@@ -3,21 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlLockingReadIntegrationTests
 {
     /// <summary>Reports an independent boolean variant for every selected supported engine.</summary>
-    public static TheoryData<string, bool> BooleanCases
+    public static IEnumerable<TheoryDataRow<string, bool>> BooleanCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+    });
 
     /// <summary>An actual waiting writer continues after caller commit and observes the committed holder modification.</summary>
     [RequiresSupportedDatabaseTargetTheory]

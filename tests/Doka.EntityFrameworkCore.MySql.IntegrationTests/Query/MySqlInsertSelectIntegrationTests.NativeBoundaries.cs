@@ -3,38 +3,18 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlInsertSelectIntegrationTests
 {
     /// <summary>Separates native temporal range handling under strict and permissive SQL modes on every supported profile.</summary>
-    public static TheoryData<string, bool> TemporalRangeCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> TemporalRangeCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Reports native required-NULL and decimal range failures separately under an explicit strict session.</summary>
-    public static TheoryData<string, string> RangeCases
+    public static IEnumerable<TheoryDataRow<string, string>> RangeCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "required-null");
-                data.Add(target, "decimal-range");
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "required-null"),
+        new TheoryDataRow<string, string>(target.Data, "decimal-range"),
+    });
 
     /// <summary>Server-side date overflow preserves native errors or warning/coercion semantics and the caller's prior work.</summary>
     [RequiresSupportedDatabaseTargetTheory]

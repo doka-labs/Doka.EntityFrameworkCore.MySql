@@ -37,8 +37,28 @@ public sealed partial class PrimitiveCollectionsQueryMySqlTest
     {
         await base.Column_collection_of_strings_Contains();
 
-        Assert.Contains("JSON_CONTAINS(`p`.`Strings`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("JSON_TABLE(`p`.`Strings`", Fixture.TestSqlLoggerFactory.Sql, StringComparison.Ordinal);
+        var sql = Fixture.TestSqlLoggerFactory.Sql;
+        if (MySqlTestStore.ServerVersion.Profile.Engine.Has(EngineCapability.JsonContainsComparesDecodedStrings))
+        {
+            Assert.Contains("JSON_CONTAINS(`p`.`Strings`", sql, StringComparison.Ordinal);
+            Assert.DoesNotContain("JSON_TABLE(`p`.`Strings`", sql, StringComparison.Ordinal);
+        }
+        else
+        {
+            // WHY: MDEV-39995 requires decoded member comparisons on affected MariaDB
+            // versions; direct JSON_CONTAINS would restore the escaped-string defect.
+            Assert.DoesNotContain("JSON_CONTAINS(", sql, StringComparison.Ordinal);
+            Assert.Contains("CASE WHEN `p`.`Strings` IS NULL THEN NULL ELSE (", sql, StringComparison.Ordinal);
+            Assert.Contains("JSON_TABLE(`p`.`Strings`, '$[*]' COLUMNS (`value` JSON PATH '$'))",
+                sql,
+                StringComparison.Ordinal);
+
+            Assert.Contains("JSON_TYPE(`s`.`value`) = 'NULL'", sql, StringComparison.Ordinal);
+            Assert.Contains("JSON_TYPE(`s`.`value`) = 'STRING'", sql, StringComparison.Ordinal);
+            Assert.Contains("CAST(JSON_UNQUOTE(`s`.`value`) AS BINARY) = CAST(", sql, StringComparison.Ordinal);
+            Assert.Contains("LIMIT 1", sql, StringComparison.Ordinal);
+            Assert.Contains(") IS NOT NULL END)", sql, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>

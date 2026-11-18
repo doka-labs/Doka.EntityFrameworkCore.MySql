@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports the three owned/borrowed connection paths independently.</summary>
-    public static TheoryData<string, string> ConnectionCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> ConnectionCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "connection-string");
-                data.Add(target, "borrowed-connection");
-                data.Add(target, "data-source");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "connection-string"),
+            new TheoryDataRow<string, string>(target.Data, "borrowed-connection"),
+            new TheoryDataRow<string, string>(target.Data, "data-source"),
+        });
 
     /// <summary>Native writes preserve the user's connection and data-source ownership contracts.</summary>
     [RequiresSupportedDatabaseTargetTheory]

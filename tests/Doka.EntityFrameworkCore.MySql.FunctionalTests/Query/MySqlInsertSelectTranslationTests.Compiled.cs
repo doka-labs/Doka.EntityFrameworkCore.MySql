@@ -10,7 +10,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb: true, observation, forbidExecutionStrategy: true);
         var factory = Assert.IsType<ForbiddenExecutionStrategyFactory>(context.GetService<IExecutionStrategyFactory>());
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(context.Targets,
@@ -34,7 +34,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb: true, observation);
         var source = context.Sources.Where(row => row.Id > 3);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var first = await Record.ExceptionAsync(() => source.ExecuteInsertFromQueryAsync(context.Targets,
@@ -89,7 +89,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
                         .SetProperty(row => row.Value, row => row.Value),
                     token));
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var firstFailure = await Record.ExceptionAsync(() => compiled(first, 11, cancellationToken));
@@ -126,7 +126,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
 
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var initialized = await Record.ExceptionAsync(() => compiled(context, cancellationToken));
@@ -163,7 +163,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
                     .SetProperty(row => row.Value, row => row.Value),
                 token));
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => compiled(context, cancellationToken));
@@ -193,7 +193,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
                     .SetProperty(row => row.Value, row => row.Value),
                 token));
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => compiled(context, cancellationToken));

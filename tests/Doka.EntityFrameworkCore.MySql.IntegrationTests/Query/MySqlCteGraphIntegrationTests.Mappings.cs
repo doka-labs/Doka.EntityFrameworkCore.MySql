@@ -3,39 +3,18 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Reports ordinary and real recursive frontier mapping paths independently.</summary>
-    public static TheoryData<string, bool> BindingCases
+    public static IEnumerable<TheoryDataRow<string, bool>> BindingCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true),
+    });
 
     /// <summary>Reports EF's three runtime entity identity policies independently.</summary>
-    public static TheoryData<string, string> TrackingCases
+    public static IEnumerable<TheoryDataRow<string, string>> TrackingCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "tracking");
-                cases.Add(target, "no-tracking");
-                cases.Add(target, "identity-resolution");
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "tracking"),
+        new(target.Data, "no-tracking"),
+        new(target.Data, "identity-resolution"),
+    });
 
     /// <summary>CTE-P10/P11/P21 read exact native GUID, NULL, decimal, temporal and converted values through both binding kinds.</summary>
     [RequiresSupportedDatabaseTargetTheory]

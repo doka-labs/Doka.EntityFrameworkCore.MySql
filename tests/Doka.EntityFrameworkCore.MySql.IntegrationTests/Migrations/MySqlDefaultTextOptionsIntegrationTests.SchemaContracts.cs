@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlDefaultTextOptionsIntegrationTests
 {
     /// <summary>Reports ordinary and inverse metadata transitions separately for each supported engine.</summary>
-    public static TheoryData<string, bool> SchemaTransitionCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> SchemaTransitionCases => SelectedTargets
+        .SelectMany(target => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Native text ordering preserves collation semantics and the equality predicate remains index eligible.</summary>
     /// <param name="target">The selected engine profile.</param>

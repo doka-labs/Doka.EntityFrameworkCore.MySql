@@ -66,7 +66,7 @@ public static class MySqlServiceCollectionExtensions
                 .TryAddSingleton<IMySqlDriverFacade, MySqlConnectorDriverFacade>()
                 .TryAddSingleton<IMySqlTransientExceptionDetector, MySqlTransientExceptionDetector>());
 
-#pragma warning disable EF1001 // EF10 rewrites DbSet arguments before provider preprocessing; this adapter only prepares the compiled INSERT root.
+#pragma warning disable EF1001 // EF11 rewrites DbSet arguments before provider preprocessing; this adapter only prepares the compiled INSERT root.
         builder.TryAdd<IQueryCompiler, MySqlQueryCompiler>();
 #pragma warning restore EF1001
         builder.TryAddCoreServices();
@@ -115,10 +115,10 @@ public static class MySqlServiceCollectionExtensions
         // through DesignTimeServicesBuilder before invoking the provider; standalone
         // consumers (integration tests, custom scaffolders) skip the tooling path, so we
         // run the helper here to make this method self-contained.
-        // WHY: EF10 tooling registers its reporter instance before provider services.
+        // WHY: EF11 tooling registers its reporter instance before provider services.
         // Reuse that exact reporter so the repeated helper does not capture a new,
         // silent default reporter in its logger-factory closure.
-#pragma warning disable EF1001 // EF10 exposes the configured design-time reporter only through this tooling contract.
+#pragma warning disable EF1001 // EF11 exposes the configured design-time reporter only through this tooling contract.
         IOperationReporter? designTimeReporter = null;
 
         // WHY: Only the last unkeyed registration determines ordinary DI resolution;
@@ -142,7 +142,7 @@ public static class MySqlServiceCollectionExtensions
         serviceCollection.AddEntityFrameworkDesignTimeServices(designTimeReporter);
 #pragma warning restore EF1001
 
-        // WHY: EF10 creates one LoggerFactory and returns it from a scoped factory.
+        // WHY: EF11 creates one LoggerFactory and returns it from a scoped factory.
         // A completed scope would dispose the shared instance while another scaffold
         // operation still needs it. Preserve EF's exact factory, but let the root own it.
         // ReSharper disable once ForCanBeConvertedToForeach

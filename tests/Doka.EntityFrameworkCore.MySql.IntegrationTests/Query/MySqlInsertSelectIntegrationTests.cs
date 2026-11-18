@@ -16,29 +16,18 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     }
 
     /// <summary>Reports every selected supported profile independently.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Separates empty and populated parameterized selections.</summary>
-    public static TheoryData<string, bool> EmptyCases
+    public static IEnumerable<TheoryDataRow<string, bool>> EmptyCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+    });
 
     /// <summary>Filters and escaped identifiers stay parameterized with one nonquery and no source reader.</summary>
     [RequiresSupportedDatabaseTargetTheory]

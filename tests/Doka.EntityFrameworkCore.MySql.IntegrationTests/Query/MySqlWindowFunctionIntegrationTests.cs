@@ -16,12 +16,12 @@ public sealed partial class MySqlWindowFunctionIntegrationTests
     }
 
     /// <summary>Reports each supported pinned engine as an independent theory case.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Ranking functions distinguish peers from the explicit final result ordering.</summary>
     [RequiresSupportedDatabaseTargetTheory]

@@ -10,22 +10,12 @@ public sealed partial class MySqlWindowFunctionIntegrationTests
         .ToArray();
 
     /// <summary>Supplies large, many-small and skewed native partitions as independent full-materialization cases.</summary>
-    public static TheoryData<string, string> WideTargets
+    public static IEnumerable<TheoryDataRow<string, string>> WideTargets => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "single");
-                cases.Add(target, "many-small");
-                cases.Add(target, "skewed");
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "single"),
+        new TheoryDataRow<string, string>(target.Data, "many-small"),
+        new TheoryDataRow<string, string>(target.Data, "skewed"),
+    });
 
     /// <summary>Fifty-column native sources preserve every value and report ungated session work for each partition shape.</summary>
     [RequiresSupportedDatabaseTargetTheory]

@@ -94,10 +94,11 @@ This development branch grants no publication authority. Complete the separate
 [cutover procedure](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md#prepared-ga-cutover)
 before merging that policy into protected main.
 
-### Provider Features in 10.7.0
+### Provider Features in 10.7.0 and 11.0.0
 
 Version 10.7.0 adds six provider contracts on .NET 10 / EF Core 10, documented
-in the following guides. Existing applications opt into these APIs explicitly.
+in the following guides. The .NET 11 / EF Core 11 preparation carries the same
+contracts forward. Existing applications opt into these APIs explicitly.
 
 | Feature | Contract and guide |
 | --- | --- |

@@ -7,7 +7,8 @@ public sealed partial class MySqlUpsertIntegrationTests
     private static readonly string[] s_emulatedAmbientUpdates = [nameof(UpsertRow.Name)];
 
     /// <summary>Reports actual automatic and explicit non-XA enlistment with independent native rollback outcomes.</summary>
-    public static TheoryData<string, bool, string, bool> EmulatedAmbientCases => MySqlEmulatedAmbientProbe.Cases;
+    public static IEnumerable<TheoryDataRow<string, bool, string, bool>> EmulatedAmbientCases
+        => MySqlEmulatedAmbientProbe.Cases;
 
     /// <summary>A native ambient full rollback cannot make a subsequent UPSERT escape the caller's scope.</summary>
     [RequiresSupportedDatabaseTargetTheory]

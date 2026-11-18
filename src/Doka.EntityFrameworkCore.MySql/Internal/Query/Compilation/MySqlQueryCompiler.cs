@@ -44,8 +44,7 @@ internal sealed class MySqlQueryCompiler : QueryCompiler
         Expression query,
         Dictionary<string, object?> parameters,
         IDiagnosticsLogger<DbLoggerCategory.Query> logger,
-        bool compiledQuery = false,
-        bool generateContextAccessors = false
+        bool compiledQuery = false
     )
     {
         if (!compiledQuery
@@ -53,7 +52,7 @@ internal sealed class MySqlQueryCompiler : QueryCompiler
             || call.Method.DeclaringType != typeof(MySqlQueryableExtensions)
             || call.Method.Name != nameof(MySqlQueryableExtensions.ExecuteInsertFromQueryAsync))
         {
-            return base.ExtractParameters(query, parameters, logger, compiledQuery, generateContextAccessors);
+            return base.ExtractParameters(query, parameters, logger, compiledQuery);
         }
 
         // WHY: Evaluate the whole scalar receipt, so EF never rebuilds a method with
@@ -63,8 +62,7 @@ internal sealed class MySqlQueryCompiler : QueryCompiler
         var extracted = base.ExtractParameters(receiptExpression,
             parameters,
             logger,
-            compiledQuery: true,
-            generateContextAccessors);
+            compiledQuery: true);
 
         if (extracted is not ConstantExpression { Value: TargetReceipt receipt }
             || !ReferenceEquals(receipt.Context, _currentContext.Context)
@@ -82,8 +80,7 @@ internal sealed class MySqlQueryCompiler : QueryCompiler
         return base.ExtractParameters(lowered,
             parameters,
             logger,
-            compiledQuery: true,
-            generateContextAccessors);
+            compiledQuery: true);
     }
 
     /// <summary>Reads only the mapped root and its owner; it never enumerates or constructs an entity.</summary>

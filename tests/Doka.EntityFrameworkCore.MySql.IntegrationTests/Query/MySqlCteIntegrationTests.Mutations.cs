@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteIntegrationTests
 {
     /// <summary>Separates update and delete behavior on each supported server profile.</summary>
-    public static TheoryData<string, string> MutationCases
+    public static IEnumerable<TheoryDataRow<string, string>> MutationCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "update");
-                cases.Add(target, "delete");
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "update"),
+        new TheoryDataRow<string, string>(target.Data, "delete"),
+    });
 
     /// <summary>CTE mutation targets physical rows, preserves native counts and follows caller rollback.</summary>
     [RequiresSupportedDatabaseTargetTheory]

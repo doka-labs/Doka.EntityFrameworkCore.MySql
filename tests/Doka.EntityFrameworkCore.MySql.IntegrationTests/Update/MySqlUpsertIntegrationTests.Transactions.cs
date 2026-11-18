@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports owned versus caller-owned invocation protection independently.</summary>
-    public static TheoryData<string, bool> TransactionCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> TransactionCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>An externally supplied native transaction retains ownership across multiple data commands.</summary>
     [RequiresSupportedDatabaseTargetTheory]

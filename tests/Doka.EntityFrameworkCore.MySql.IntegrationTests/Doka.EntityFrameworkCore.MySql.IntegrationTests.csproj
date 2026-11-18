@@ -105,6 +105,9 @@
     <Compile Update="Query/MySqlIndependentCollectionMembershipIntegrationTests.*.cs">
       <DependentUpon>MySqlIndependentCollectionMembershipIntegrationTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="Query/MySqlLockingReadIntegrationTests.*.cs">
+      <DependentUpon>MySqlLockingReadIntegrationTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Query/MySqlPrimitiveCollectionParameterIntegrationTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionParameterIntegrationTests.cs</DependentUpon>
     </Compile>

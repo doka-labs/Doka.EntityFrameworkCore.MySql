@@ -96,7 +96,7 @@ internal static class MySqlLockingReadMetadata
             throw new InvalidOperationException("The locking read no longer has a direct physical query root.");
         }
 
-        // WHY: SelectExpression.WithAnnotations deliberately throws in EF10. Its supported
+        // WHY: SelectExpression.WithAnnotations deliberately throws in EF11. Its supported
         // table-copy and Update seams retain policy without mutating cached trees. The SQL
         // generator still appends one clause to the entire root block, not to this one table.
         var tables = select.Tables.ToArray();

@@ -18,7 +18,7 @@ internal sealed partial class MySqlRelationalCommand
         var startTimestamp = Stopwatch.GetTimestamp();
         var logCommandCreate = logger?.ShouldLogCommandCreate(startTime) == true;
 
-        // WHY: EF Core 10's CreateDbCommand keeps the native command in a local until
+        // WHY: EF Core 11's CreateDbCommand keeps the native command in a local until
         // every callback and binder succeeds. Publishing ownership immediately lets
         // the direct-write cleanup retain both initialization and disposal failures.
         // Replacement assignments preserve EF's existing interceptor ownership order.

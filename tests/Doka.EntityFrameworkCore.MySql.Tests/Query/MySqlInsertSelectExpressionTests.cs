@@ -201,7 +201,7 @@ public sealed class MySqlInsertSelectExpressionTests
         var original = CreateSql(context);
 
         // Act
-#pragma warning disable EF9100 // Exercises the exact pinned EF10 quotation contract, not a new public experimental API.
+#pragma warning disable EF9100 // Exercises the exact pinned EF11 quotation contract, not a new public experimental API.
         var quoted = new QuoteServices(context).Visit(original.Quote());
 #pragma warning restore EF9100
         var rebuilt = Expression
@@ -274,7 +274,7 @@ public sealed class MySqlInsertSelectExpressionTests
             ParameterExpression node
         )
         {
-            // WHY: EF10 quotes concrete service types, not their interfaces. Bind its
+            // WHY: EF11 quotes concrete service types, not their interfaces. Bind its
             // exact named placeholders while preserving the quoted parameter's type.
             if (node.Name == "relationalTypeMappingSource")
             {

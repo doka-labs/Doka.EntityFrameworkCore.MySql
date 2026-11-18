@@ -40,9 +40,9 @@ public sealed class MySqlWindowTheorySelectionTests
         var attributes = testClass.GetMethod(methodName)!
             .GetCustomAttributes(typeof(RequiresDatabaseTargetsTheoryAttribute), false);
 
-        // WHY: Materialize the typed view so xUnit's comparer cannot use TheoryData's object-array rows.
-        IEnumerable<string> data = (TheoryData<string>)testClass.GetProperty(dataName)!.GetValue(null)!;
-        var actualTargets = data.ToArray();
+        // WHY: Inspect the actual typed rows and compare their engine values independently of discovery metadata.
+        var data = (IEnumerable<TheoryDataRow<string>>)testClass.GetProperty(dataName)!.GetValue(null)!;
+        var actualTargets = data.Select(row => row.Data).ToArray();
 
         // Assert
         // WHY: Checking the actual attribute type catches a return to the broad

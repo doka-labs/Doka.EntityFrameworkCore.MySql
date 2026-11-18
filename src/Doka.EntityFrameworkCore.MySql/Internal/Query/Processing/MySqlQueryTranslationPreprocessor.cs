@@ -95,7 +95,7 @@ internal sealed class MySqlQueryTranslationPreprocessor : RelationalQueryTransla
         BoundNavigationExpandingExpressionVisitor navigationVisitor
     )
     {
-        // WHY: EF Core 10 creates its navigation visitor inside Process without a factory hook.
+        // WHY: EF Core 11 creates its navigation visitor inside Process without a factory hook.
         // Preserve its visitor order and inherited relational metadata/root normalization,
         // but reuse one bound-root visitor so completed sources keep navigation metadata
         // without applying their root filters twice.

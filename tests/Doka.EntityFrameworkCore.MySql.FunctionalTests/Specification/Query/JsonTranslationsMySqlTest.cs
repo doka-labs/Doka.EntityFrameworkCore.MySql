@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.Query.Translations;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;

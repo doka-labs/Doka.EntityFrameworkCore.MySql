@@ -17,30 +17,20 @@ public sealed partial class MySqlCteIntegrationTests
     }
 
     /// <summary>Runs each supported pinned engine as a separately reported case.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Separates anchor-only recursion from one and several recursive iterations.</summary>
-    public static TheoryData<string, int> DepthCases
+    public static IEnumerable<TheoryDataRow<string, int>> DepthCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, int>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, 0);
-                cases.Add(target, 1);
-                cases.Add(target, 4);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, int>(target.Data, 0),
+        new TheoryDataRow<string, int>(target.Data, 1),
+        new TheoryDataRow<string, int>(target.Data, 4),
+    });
 
     /// <summary>A shared ordinary relation preserves duplicate multiplicity and the completed source page.</summary>
     [RequiresSupportedDatabaseTargetTheory]

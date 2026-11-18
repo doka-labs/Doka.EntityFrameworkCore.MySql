@@ -5,19 +5,15 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
     private const string OwnedCollectionTable = "DefaultTextOwnedCollection";
 
     /// <summary>Reports selected and absent projected members and their negation separately on each engine.</summary>
-    public static TheoryData<string, bool, bool> OwnedCollectionCases()
+    public static IEnumerable<TheoryDataRow<string, bool, bool>> OwnedCollectionCases()
     {
-        var data = new TheoryData<string, bool, bool>();
-
         foreach (var target in SelectedTargets)
         {
-            data.Add(target, true, false);
-            data.Add(target, false, false);
-            data.Add(target, true, true);
-            data.Add(target, false, true);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, true, false);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, false, false);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, true, true);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, false, true);
         }
-
-        return data;
     }
 
     /// <summary>Membership over owned JSON objects uses the configured member path and preserves escaped values.</summary>

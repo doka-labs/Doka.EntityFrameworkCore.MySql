@@ -74,19 +74,20 @@ public sealed class MySqlCteTheorySelectionTests
             .Order()
             .ToArray();
 
-        // WHY: TheoryData also exposes object-array rows; the typed view keeps LINQ selection unambiguous.
-        IEnumerable<string> rows = (TheoryData<string>)(type
+        // WHY: Inspect the actual typed xUnit rows instead of inferring eligibility from the attribute alone.
+        var rows = (IEnumerable<TheoryDataRow<string>>)(type
                 .GetProperty(dataMemberName, BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null)
             ?? throw new InvalidOperationException("The capability-specific CTE data member is missing."));
 
         var actual = rows
-            .Select(target => Enum.Parse<IntegrationDatabaseTarget>(target))
+            .Select(row => Enum.Parse<IntegrationDatabaseTarget>(row.Data))
             .Order()
             .ToArray();
 
         // Assert
         var attribute = Assert.IsType<RequiresDatabaseTargetsTheoryAttribute>(theory);
+        Assert.False(attribute.SkipTestWithoutData);
         Assert.Equal(dataMemberName,
             Assert.IsType<MemberDataAttribute>(data)
                 .MemberName);

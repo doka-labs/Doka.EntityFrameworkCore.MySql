@@ -4,12 +4,10 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlWindowFunctionTests
 {
     /// <summary>Supplies every function family independently for both engine forms.</summary>
-    public static TheoryData<bool, string, string> FunctionCases
+    public static IEnumerable<TheoryDataRow<bool, string, string>> FunctionCases
     {
         get
         {
-            var cases = new TheoryData<bool, string, string>();
-
             foreach (var mariaDb in new[] { false, true })
             {
                 foreach (var (name, sql) in new[]
@@ -48,11 +46,9 @@ public sealed partial class MySqlWindowFunctionTests
                         ("lag-guid", "LAG("),
                     })
                 {
-                    cases.Add(mariaDb, name, sql);
+                    yield return new TheoryDataRow<bool, string, string>(mariaDb, name, sql);
                 }
             }
-
-            return cases;
         }
     }
 

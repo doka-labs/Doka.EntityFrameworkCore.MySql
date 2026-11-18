@@ -19,64 +19,25 @@ public sealed partial class MySqlCteIntegrationTests
     ];
 
     /// <summary>Reports visible native name spellings and both named lookup paths per engine.</summary>
-    public static TheoryData<string, string, bool> VisibleReaderNameCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string, bool>> VisibleReaderNameCases => SelectedTargets
+        .SelectMany(target => s_visibleReaderNames.SelectMany(name => new[]
         {
-            var cases = new TheoryData<string, string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var name in s_visibleReaderNames)
-                {
-                    cases.Add(target, name, false);
-                    cases.Add(target, name, true);
-                }
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string, bool>(target.Data, name, false), new(target.Data, name, true),
+        }));
 
     /// <summary>Reports both private aliases and a genuinely missing native name independently.</summary>
-    public static TheoryData<string, string, bool> MissingReaderNameCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string, bool>> MissingReaderNameCases => SelectedTargets
+        .SelectMany(target => s_missingReaderNames.SelectMany(name => new[]
         {
-            var cases = new TheoryData<string, string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var name in s_missingReaderNames)
-                {
-                    cases.Add(target, name, false);
-                    cases.Add(target, name, true);
-                }
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string, bool>(target.Data, name, false), new(target.Data, name, true),
+        }));
 
     /// <summary>Reports negative and hidden native ordinals through value getter and indexer paths.</summary>
-    public static TheoryData<string, int, bool> InvalidReaderOrdinalCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, int, bool>> InvalidReaderOrdinalCases => SelectedTargets
+        .SelectMany(target => s_invalidReaderOrdinals.SelectMany(ordinal => new[]
         {
-            var cases = new TheoryData<string, int, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var ordinal in s_invalidReaderOrdinals)
-                {
-                    cases.Add(target, ordinal, false);
-                    cases.Add(target, ordinal, true);
-                }
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, int, bool>(target.Data, ordinal, false), new(target.Data, ordinal, true),
+        }));
 
     /// <summary>The recursive projection preserves the actual connector's visible name matching and value access.</summary>
     /// <param name="target">The selected pinned database engine.</param>

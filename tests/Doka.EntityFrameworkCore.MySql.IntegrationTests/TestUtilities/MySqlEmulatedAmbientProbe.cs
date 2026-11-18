@@ -4,12 +4,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 internal static class MySqlEmulatedAmbientProbe
 {
     /// <summary>Separates enlistment routes and surviving/fatal native outcomes on selected pinned profiles.</summary>
-    internal static TheoryData<string, bool, string, bool> Cases
+    internal static IEnumerable<TheoryDataRow<string, bool, string, bool>> Cases
     {
         get
         {
-            var data = new TheoryData<string, bool, string, bool>();
-
             foreach (var target in IntegrationTestEnvironment
                 .GetSelectedTargets()
                 .Where(target => IntegrationTestEnvironment
@@ -19,32 +17,30 @@ internal static class MySqlEmulatedAmbientProbe
                 foreach (var route in Enumerable.Range(0, 2))
                 {
                     var automatic = route == 1;
-                    data.Add(target.ToString(),
+                    yield return new TheoryDataRow<string, bool, string, bool>(target.ToString(),
                         automatic,
                         "valid",
                         false);
 
-                    data.Add(target.ToString(),
+                    yield return new TheoryDataRow<string, bool, string, bool>(target.ToString(),
                         automatic,
                         "deadlock",
                         false);
 
-                    data.Add(target.ToString(),
+                    yield return new TheoryDataRow<string, bool, string, bool>(target.ToString(),
                         automatic,
                         "timeout",
                         false);
 
                     if (target is IntegrationDatabaseTarget.MySql84 or IntegrationDatabaseTarget.MariaDb123)
                     {
-                        data.Add(target.ToString(),
+                        yield return new TheoryDataRow<string, bool, string, bool>(target.ToString(),
                             automatic,
                             "timeout",
                             true);
                     }
                 }
             }
-
-            return data;
         }
     }
 

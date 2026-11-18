@@ -3,24 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Supplies unsupported scalar and scope requests without synthesizing unsupported public APIs.</summary>
-    public static TheoryData<string, string> RejectedWindowTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> RejectedWindowTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "date-range");
-                cases.Add(target, "mapped-default");
-                cases.Add(target, "having");
-                cases.Add(target, "client-argument");
-                cases.Add(target, "member-filter-after-page");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "date-range"),
+            new TheoryDataRow<string, string>(target.Data, "mapped-default"),
+            new TheoryDataRow<string, string>(target.Data, "having"),
+            new TheoryDataRow<string, string>(target.Data, "client-argument"),
+            new TheoryDataRow<string, string>(target.Data, "member-filter-after-page"),
+        });
 
     /// <summary>Unsupported expressions fail at the provider translation boundary without opening a native reader.</summary>
     [RequiresSupportedDatabaseTargetTheory]

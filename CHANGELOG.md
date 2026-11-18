@@ -12,6 +12,28 @@ requires the separately approved main/maintenance cutover and release run.
 All three packages use the same version; the .NET 10 line remains independently
 maintained. No package publication is implied by this preparation.
 
+### Added
+
+- Add application-wide `DefaultCharSet` and `DefaultCollation` fallbacks with
+  explicit mapping precedence, unchanged JSON contracts and normal migration
+  semantics; no session or per-query collation rewrite.
+- Add typed locking reads through `ForUpdate`, `ForShare`, `ForUpdateNoWait`
+  and `ForUpdateSkipLocked`, with current transaction checks and explicit
+  final-query-block scope. Unsupported query forms remain guarded.
+- Add lexical `WithCte` and bounded `WithRecursiveCte` composition, preserving
+  duplicate paths, native mappings and relational scope. Ordinary CTEs do not
+  inherit the separate `WithMaterializedSource` sharing guarantee.
+- Add expression-only `EF.Functions.Window()` calculations and frames, plus
+  qualified ordered indexed LINQ. Native one-based row numbering remains
+  distinct from checked zero-based LINQ indices.
+- Add `ExecuteInsertFromQueryAsync` with one typed `SetProperty` assignment
+  language, including mapped shadow and field properties. Source rows remain
+  server-side; direct writes do not silently retry or synchronize tracked data.
+- Add `ExecuteUpsertAsync` and `ExecuteUpsertRangeAsync` with bounded native
+  batches, explicit update-property names and native Int64 affected-count
+  aggregation. No generated-value readback or optimistic-concurrency behavior
+  is inferred from the direct-write result.
+
 ### Changed
 
 - Update private Coverlet MTP to 10.1.1 and verify fresh coverage reports
@@ -34,6 +56,10 @@ maintained. No package publication is implied by this preparation.
 
 ### Fixed
 
+- Keep migration SQL commands on EF's ordinary command builder while retaining
+  typed query execution policies and application-provided factories. Complete
+  migration generation preserves SQL/redaction and its existing allocation
+  ceiling without changing ordinary query behavior.
 - Resolve the local MariaDB 12.3 functional-test default in shared C# code so
   native MTP and IDE runs agree without VSTest `.runsettings`. Preserve explicit
   engine targets, mandatory CI selection and external-endpoint validation.

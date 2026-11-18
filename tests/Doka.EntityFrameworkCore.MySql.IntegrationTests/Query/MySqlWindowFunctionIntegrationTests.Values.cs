@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Separates an empty preceding frame from a current-row all-NULL frame on every engine.</summary>
-    public static TheoryData<string, bool> NullableFrameTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> NullableFrameTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Full-frame value functions respect present NULLs and missing one-based positions.</summary>
     /// <param name="target">The selected pinned engine.</param>

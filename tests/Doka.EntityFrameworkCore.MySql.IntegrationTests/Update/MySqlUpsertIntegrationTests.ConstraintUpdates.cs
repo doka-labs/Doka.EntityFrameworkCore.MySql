@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports independent update-side foreign-key, check and converted-null constraints.</summary>
-    public static TheoryData<string, string> ConstraintUpdateCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> ConstraintUpdateCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "foreign");
-                data.Add(target, "check");
-                data.Add(target, "null-converter");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "foreign"),
+            new TheoryDataRow<string, string>(target.Data, "check"),
+            new TheoryDataRow<string, string>(target.Data, "null-converter"),
+        });
 
     /// <summary>Native constraints also apply to the update half and leave the original conflicted row intact.</summary>
     [RequiresSupportedDatabaseTargetTheory]

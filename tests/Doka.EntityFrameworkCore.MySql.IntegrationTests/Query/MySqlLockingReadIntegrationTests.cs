@@ -16,48 +16,34 @@ public sealed partial class MySqlLockingReadIntegrationTests
     }
 
     /// <summary>Reports exactly the selected supported pinned targets.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Reports page, First, Single and their default-returning variants independently.</summary>
-    public static TheoryData<string, string> TerminalCases
+    public static IEnumerable<TheoryDataRow<string, string>> TerminalCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "page");
-                cases.Add(target, "first");
-                cases.Add(target, "single");
-                cases.Add(target, "first-default");
-                cases.Add(target, "single-default");
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "page"),
+        new TheoryDataRow<string, string>(target.Data, "first"),
+        new TheoryDataRow<string, string>(target.Data, "single"),
+        new TheoryDataRow<string, string>(target.Data, "first-default"),
+        new TheoryDataRow<string, string>(target.Data, "single-default"),
+    });
 
     /// <summary>Reports the four locking modes with tracking enabled and disabled independently.</summary>
-    public static TheoryData<string, string, bool> ModeCases()
+    public static IEnumerable<TheoryDataRow<string, string, bool>> ModeCases()
     {
-        var cases = new TheoryData<string, string, bool>();
-
         foreach (var target in SelectedTargets)
         {
             foreach (var mode in new[] { "update", "share", "nowait", "skip" })
             {
-                cases.Add(target, mode, false);
-                cases.Add(target, mode, true);
+                yield return new TheoryDataRow<string, string, bool>(target.Data, mode, false);
+                yield return new TheoryDataRow<string, string, bool>(target.Data, mode, true);
             }
         }
-
-        return cases;
     }
 
     /// <summary>Every mode preserves filtered data and tracking while actually holding a native row lock.</summary>

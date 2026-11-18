@@ -3,39 +3,17 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Reports named-filter opt-outs separately from the fully filtered control.</summary>
-    public static TheoryData<string, string> NamedFilterCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> NamedFilterCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "none");
-                cases.Add(target, "Tenant");
-                cases.Add(target, "Name");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "none"),
+            new(target.Data, "Tenant"),
+            new(target.Data, "Name"),
+        });
 
     /// <summary>Separates the named navigated-target opt-out from its filtered control.</summary>
-    public static TheoryData<string, bool> NamedTargetFilterCases
-    {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, bool>> NamedTargetFilterCases => SelectedTargets.SelectMany(target
+        => new[] { new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true) });
 
     /// <summary>CTE-P10/P12/P13 retain same-table owned values and every independently named source filter.</summary>
     [RequiresSupportedDatabaseTargetTheory]

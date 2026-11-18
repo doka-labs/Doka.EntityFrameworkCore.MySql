@@ -5,22 +5,18 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
     private const string ElementConverterTable = "DefaultTextElementConverters";
 
     /// <summary>Reports matched and unmatched membership and its negation for each actual provider representation.</summary>
-    public static TheoryData<string, string, bool, bool> ElementConverterCases()
+    public static IEnumerable<TheoryDataRow<string, string, bool, bool>> ElementConverterCases()
     {
-        var data = new TheoryData<string, string, bool, bool>();
-
         foreach (var target in SelectedTargets)
         {
             foreach (var representation in new[] { "string-int", "bool-int", "bool-string" })
             {
-                data.Add(target, representation, true, false);
-                data.Add(target, representation, false, false);
-                data.Add(target, representation, true, true);
-                data.Add(target, representation, false, true);
+                yield return new TheoryDataRow<string, string, bool, bool>(target.Data, representation, true, false);
+                yield return new TheoryDataRow<string, string, bool, bool>(target.Data, representation, false, false);
+                yield return new TheoryDataRow<string, string, bool, bool>(target.Data, representation, true, true);
+                yield return new TheoryDataRow<string, string, bool, bool>(target.Data, representation, false, true);
             }
         }
-
-        return data;
     }
 
     /// <summary>Primitive collection membership and materialization honor the converter's persisted scalar representation.</summary>

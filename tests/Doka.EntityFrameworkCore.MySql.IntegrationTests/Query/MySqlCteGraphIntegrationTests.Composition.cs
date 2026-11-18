@@ -3,38 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Separates deterministic derived-key ordering from volatile native ordering after duplicate removal.</summary>
-    public static TheoryData<string, bool> RecursiveDistinctOrderCases
-    {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, bool>> RecursiveDistinctOrderCases
+        => SelectedTargets.SelectMany(target
+            => new[] { new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true) });
 
     /// <summary>Separates native UNION duplicate removal from UNION ALL's retained occurrences.</summary>
-    public static TheoryData<string, bool> SourceSetCases
+    public static IEnumerable<TheoryDataRow<string, bool>> SourceSetCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true),
+    });
 
     /// <summary>CTE-P06/P07 keep DISTINCT equivalence classes intact when the outer sort key is not itself projected.</summary>
     [RequiresSupportedDatabaseTargetTheory]

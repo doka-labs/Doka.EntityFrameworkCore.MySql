@@ -5,41 +5,19 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     private static readonly string[] s_stateOriginalRows = ["1|10|first", "2|20|second"];
 
     /// <summary>Reports direct and compiled execution against every selected normal profile.</summary>
-    public static TheoryData<string, bool> StaleTransactionCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> StaleTransactionCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Reports startup-only full-timeout rollback on the two pinned family representatives.</summary>
-    public static TheoryData<string, bool> TimeoutOnCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> TimeoutOnCases => SelectedTargets
+        .Where(target => target.Data is "MySql84" or "MariaDb123")
+        .SelectMany(target => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (target is "MySql84" or "MariaDb123")
-                {
-                    data.Add(target, false);
-                    data.Add(target, true);
-                }
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>A native deadlock outside the API cannot turn a subsequent direct or compiled insert into autocommit.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -95,7 +73,7 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     }
 
     /// <summary>Full rollback on a native timeout is qualified on private startup-configured representatives without changing shared profiles.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb123)]
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(TimeoutOnCases))]
     public async Task Timeout_on_full_rollback_rejects_a_later_direct_or_compiled_insert_before_data_write(
         string target,

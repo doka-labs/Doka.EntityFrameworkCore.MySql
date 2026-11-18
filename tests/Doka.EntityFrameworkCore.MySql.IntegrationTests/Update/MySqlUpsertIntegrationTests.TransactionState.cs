@@ -3,27 +3,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports the two pinned representatives that qualify startup-only timeout rollback policy.</summary>
-    public static TheoryData<string> TimeoutPolicyTargets
-    {
-        get
-        {
-            var data = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (Enum.Parse<IntegrationDatabaseTarget>(target) is IntegrationDatabaseTarget.MySql84
-                    or IntegrationDatabaseTarget.MariaDb123)
-                {
-                    data.Add(target);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> TimeoutPolicyTargets => SelectedTargets.Where(target =>
+        Enum.Parse<IntegrationDatabaseTarget>(target.Data) is IntegrationDatabaseTarget.MySql84
+            or IntegrationDatabaseTarget.MariaDb123);
 
     /// <summary>An engine-wide external timeout cannot turn a subsequent direct call into an autocommitted write.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb123)]
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(TimeoutPolicyTargets))]
     public async Task External_full_rollback_timeout_is_rejected_before_upsert_data_commands(
         string target

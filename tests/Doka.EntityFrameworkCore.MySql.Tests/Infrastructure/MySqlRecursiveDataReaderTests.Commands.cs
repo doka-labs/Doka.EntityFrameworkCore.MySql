@@ -283,7 +283,7 @@ public sealed partial class MySqlRecursiveDataReaderTests
         Assert.Equal(ConnectionState.Closed, scope.Database.State);
     }
 
-    // WHY: EF Core 10 marks the actual retry-buffer column constructor experimental;
+    // WHY: EF Core 11.0.0 marks the actual retry-buffer column constructor experimental;
     // exercising that same framework buffer is the regression contract, not an application API dependency.
 #pragma warning disable EF9100
     private static ReaderColumn?[] IntColumns() =>

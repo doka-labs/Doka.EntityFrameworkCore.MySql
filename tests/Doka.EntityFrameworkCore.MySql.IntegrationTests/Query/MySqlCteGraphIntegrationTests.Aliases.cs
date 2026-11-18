@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Reports colliding physical table names independently for all three statement-local source kinds.</summary>
-    public static TheoryData<string, string> PhysicalAliasCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> PhysicalAliasCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "__doka_cte_0");
-                cases.Add(target, "__doka_recursive_0");
-                cases.Add(target, "__doka_source_0");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "__doka_cte_0"),
+            new(target.Data, "__doka_recursive_0"),
+            new(target.Data, "__doka_source_0"),
+        });
 
     /// <summary>CTE-N04 resolves typed source collisions without capturing the physical source or another binding.</summary>
     [RequiresSupportedDatabaseTargetTheory]

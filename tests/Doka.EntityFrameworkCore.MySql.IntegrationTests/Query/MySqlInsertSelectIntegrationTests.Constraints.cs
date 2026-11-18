@@ -7,24 +7,15 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     private static readonly string[] s_existingPrimaryRows = ["99|existing"];
 
     /// <summary>Reports independent native plain-insert violations, including a late-row constraint failure.</summary>
-    public static TheoryData<string, string> ConstraintCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> ConstraintCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "primary");
-                data.Add(target, "unique-bag");
-                data.Add(target, "foreign-key");
-                data.Add(target, "check");
-                data.Add(target, "trigger");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "primary"),
+            new TheoryDataRow<string, string>(target.Data, "unique-bag"),
+            new TheoryDataRow<string, string>(target.Data, "foreign-key"),
+            new TheoryDataRow<string, string>(target.Data, "check"),
+            new TheoryDataRow<string, string>(target.Data, "trigger"),
+        });
 
     /// <summary>Separates omission, which invokes the default, from an explicit SQL NULL.</summary>
     [RequiresSupportedDatabaseTargetTheory]

@@ -3,9 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>CTE-N21 preserves an actual engine-aborted caller transaction instead of retrying or claiming savepoint repair.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84,
         IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(SupportedMutationTargets))]
     public async Task Native_cte_deadlock_preserves_the_engine_abort_and_rolls_back_prior_caller_work(
         string target

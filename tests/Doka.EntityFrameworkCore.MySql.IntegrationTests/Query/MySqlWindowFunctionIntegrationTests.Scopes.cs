@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Supplies independent filter opt-out and empty-input cases on each pinned engine.</summary>
-    public static TheoryData<string, bool> WindowFlagTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> WindowFlagTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Independent partitions in one projection cannot accidentally share a window definition.</summary>
     [RequiresSupportedDatabaseTargetTheory]
