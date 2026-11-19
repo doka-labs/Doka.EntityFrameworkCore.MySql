@@ -36,6 +36,8 @@ maintained. No package publication is implied by this preparation.
 
 ### Changed
 
+- Update the host example to Serilog.Extensions.Hosting 11.0.0 for .NET 11;
+  shipping package dependencies remain unchanged.
 - Update private Coverlet MTP to 10.1.1 and verify fresh coverage reports
   against unchanged thresholds after its unreachable-branch accounting fix.
 - Target net11.0 with .NET SDK 11.0.100 and the EF Core [11.0.0, 11.1.0)
@@ -63,10 +65,10 @@ maintained. No package publication is implied by this preparation.
 - Resolve the local MariaDB 12.3 functional-test default in shared C# code so
   native MTP and IDE runs agree without VSTest `.runsettings`. Preserve explicit
   engine targets, mandatory CI selection and external-endpoint validation.
-- Keep framework-aligned Microsoft packages on each release-line major in
-  Dependabot and separate routine NuGet minor/patch groups from individual
-  major proposals, preserving independently versioned tools and EF/driver
-  qualification.
+- Keep framework-aligned Microsoft packages and Serilog.Extensions.Hosting
+  on each release-line major in Dependabot and separate routine NuGet
+  minor/patch groups from individual major proposals, preserving independently
+  versioned tools, Serilog sinks and EF/driver qualification.
 - Preserve complete `OR` predicates in filtered native and decoded JSON
   collection membership, including null-compensation branches and negation.
   The membership comparison now applies to the complete collection filter

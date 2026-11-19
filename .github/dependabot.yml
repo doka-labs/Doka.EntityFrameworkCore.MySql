@@ -117,6 +117,11 @@ updates:
       - dependency-name: System.IO.Hashing
         update-types:
           - version-update:semver-major
+      # WHY: The hosting adapter follows the framework major; Serilog sinks
+      # retain their independent version-update policy.
+      - dependency-name: Serilog.Extensions.Hosting
+        update-types:
+          - version-update:semver-major
       # WHY: Each line owns its reviewed EF range under ADR D-009. The scheduled
       # floor/latest matrix validates patches; a new range needs deliberate
       # provider qualification rather than an automatic dependency rewrite.
@@ -234,6 +239,9 @@ updates:
         update-types:
           - version-update:semver-major
       - dependency-name: System.IO.Hashing
+        update-types:
+          - version-update:semver-major
+      - dependency-name: Serilog.Extensions.Hosting
         update-types:
           - version-update:semver-major
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
