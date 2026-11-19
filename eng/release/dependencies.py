@@ -39,7 +39,10 @@ NUGET_ROUTINE_GROUP = (
     "          - minor\n"
     "          - patch\n"
 )
-FRAMEWORK_PACKAGE_FAMILIES = ("Microsoft.Extensions.*", "System.IO.Hashing")
+# WHY: Serilog's hosting adapter follows framework majors, while unrelated
+# sinks retain their independently versioned update policy.
+FRAMEWORK_PACKAGE_FAMILIES = (
+    "Microsoft.Extensions.*", "System.IO.Hashing", "Serilog.Extensions.Hosting")
 INDEPENDENT_MICROSOFT_TOOLS = (
     "Microsoft.NET.Test.Sdk", "Microsoft.CodeAnalysis.PublicApiAnalyzers")
 # WHY: Match balanced scalar quotes before normalization, so damaged package

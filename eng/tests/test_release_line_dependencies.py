@@ -51,14 +51,16 @@ class DependencyTargetTests(unittest.TestCase):
                 # Assert
                 self.assertEqual(2, rendered.count('dependency-name: "Microsoft.Extensions.*"'))
                 self.assertEqual(2, rendered.count("dependency-name: System.IO.Hashing"))
+                self.assertEqual(2, rendered.count("dependency-name: Serilog.Extensions.Hosting"))
                 self.assertEqual(2, rendered.count("open-pull-requests-limit: 2"))
                 self.assertEqual(2, rendered.count("        versions:\n"))
                 self.assertEqual(2, rendered.count('          - ">= 3.0.0, < 4.0.0"\n'))
 
     def test_framework_major_boundary_cannot_be_removed(self) -> None:
-        """Both runtime-aligned families must keep their own-major exclusion."""
+        """Every runtime-aligned family must keep its own-major exclusion."""
         cases = (("Microsoft.Extensions.*", '"Microsoft.Extensions.*"'),
-                 ("System.IO.Hashing", "System.IO.Hashing"))
+                 ("System.IO.Hashing", "System.IO.Hashing"),
+                 ("Serilog.Extensions.Hosting", "Serilog.Extensions.Hosting"))
         for family, scalar in cases:
             with self.subTest(family=family):
                 # Arrange
@@ -264,6 +266,45 @@ class DependencyTargetTests(unittest.TestCase):
 
         # Assert
         self.assertIn("NuGet target 'maintenance/10.x'", str(failure.exception))
+
+    def test_maintenance_serilog_guard_cannot_borrow_main_rule(self) -> None:
+        """The .NET 10 target needs its own Serilog major guard after main adopts .NET 11."""
+        # Arrange
+        policy = policy_fixture()
+        policy["lines"][0]["packageMajor"] = 11
+        policy["lines"][1]["state"] = "active"
+        rendered = dependencies.render_configuration(policy, BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii"))
+        guard = ("      - dependency-name: Serilog.Extensions.Hosting\n"
+                 "        update-types:\n          - version-update:semver-major\n")
+        before, _, after = rendered.rpartition(guard)
+        changed = before + after
+
+        # Act
+        with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+            dependencies.validate_configuration(policy, changed)
+
+        # Assert
+        self.assertIn("NuGet target 'maintenance/10.x'", str(failure.exception))
+        self.assertIn("relative major boundary for Serilog.Extensions.Hosting", str(failure.exception))
+
+    def test_serilog_guard_cannot_freeze_minor_or_patch_updates(self) -> None:
+        """Framework alignment must leave routine Serilog servicing available."""
+        for extra in ("          - version-update:semver-minor\n",
+                      "          - version-update:semver-patch\n",
+                      '        versions: ["11.*"]\n'):
+            with self.subTest(extra=extra):
+                # Arrange
+                text = BOOTSTRAP_CONFIGURATION.read_text(encoding="ascii")
+                guard = ("      - dependency-name: Serilog.Extensions.Hosting\n"
+                         "        update-types:\n          - version-update:semver-major\n")
+                changed = text.replace(guard, guard + extra)
+
+                # Act
+                with self.assertRaises(dependencies.DependencyPolicyError) as failure:
+                    dependencies.validate_configuration(policy_fixture(), changed)
+
+                # Assert
+                self.assertIn("relative major boundary for Serilog.Extensions.Hosting", str(failure.exception))
 
     def test_routine_group_cannot_accept_major_updates(self) -> None:
         """An added major cannot hide beside the two permitted update types."""

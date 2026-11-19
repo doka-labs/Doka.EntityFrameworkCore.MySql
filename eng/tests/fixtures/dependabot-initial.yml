@@ -68,6 +68,9 @@ updates:
       - dependency-name: System.IO.Hashing
         update-types:
           - version-update:semver-major
+      - dependency-name: Serilog.Extensions.Hosting
+        update-types:
+          - version-update:semver-major
       - dependency-name: "Microsoft.EntityFrameworkCore.*"
         update-types:
           - version-update:semver-major
