@@ -42,7 +42,7 @@
       "kind": "protected-check",
       "producerWorkflow": ".github/workflows/ci.yml",
       "checkName": "repository-qualification",
-      "requiredBaseBranch": "main",
+      "requiredBaseBranch": "maintenance/10.x",
       "boundIdentities": [
         "commit",
         "treeId",

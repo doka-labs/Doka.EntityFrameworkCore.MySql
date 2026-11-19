@@ -205,6 +205,14 @@ class ReleaseQualificationChainTests(unittest.TestCase):
 
         self.chain = QualificationChain(root / "run", self.commit, self.tree)
         self.policy = qualification.load_policy(POLICY_PATH)
+        # WHY: The synthetic main receipts and historical schema-two manifest
+        # need their own main policy even when this suite runs on maintenance.
+        for gate in self.policy["gates"]:
+            if gate["id"] in self.policy["requiredProtectedChecks"]:
+                gate["requiredBaseBranch"] = "main"
+
+        self.policy_path = root / "evidence-policy.json"
+        self.policy_path.write_text(json.dumps(self.policy) + "\n", encoding="ascii")
 
         # The forge is the one input this test cannot produce, so it is
         # replaced at the single seam that reaches it. Everything else is real.
@@ -233,7 +241,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--assembling-attempt", str(RUN_ATTEMPT),
-                "--policy", str(POLICY_PATH),
+                "--policy", str(self.policy_path),
                 "--output", str(output),
             ]
         )
@@ -256,7 +264,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--release-version", RELEASE_VERSION,
                 "--assembling-attempt", str(RUN_ATTEMPT),
                 "--root", str(self.chain.packages),
-                "--policy", str(POLICY_PATH),
+                "--policy", str(self.policy_path),
                 "--output", str(output),
             ]
         )
@@ -269,7 +277,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
         arguments = [
             "verify",
             "--manifest", str(manifest),
-            "--policy", str(POLICY_PATH),
+            "--policy", str(self.policy_path),
             "--expected-repository", REPOSITORY,
             "--expected-commit", self.commit,
             "--expected-tree-id", self.tree,
@@ -339,7 +347,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                     "--checkpoint-directory", str(self.chain.checkpoints),
                     "--evidence-root", str(self.chain.evidence_root),
                     "--assembling-attempt", str(RUN_ATTEMPT),
-                    "--policy", str(POLICY_PATH),
+                    "--policy", str(self.policy_path),
                     "--output", str(Path(self.directory.name) / "out.json"),
                 ]
             )
@@ -495,7 +503,7 @@ class ReleaseQualificationChainTests(unittest.TestCase):
                 "--checkpoint-directory", str(self.chain.checkpoints),
                 "--evidence-root", str(self.chain.evidence_root),
                 "--assembling-attempt", str(RUN_ATTEMPT),
-                "--policy", str(POLICY_PATH),
+                "--policy", str(self.policy_path),
                 "--output", str(Path(self.directory.name) / "out.json"),
             ]
         )
