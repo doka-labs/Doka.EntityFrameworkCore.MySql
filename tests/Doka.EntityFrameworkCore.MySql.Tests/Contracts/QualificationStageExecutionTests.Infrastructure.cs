@@ -152,6 +152,10 @@ public sealed partial class QualificationStageExecutionTests
 
             WriteEnginePolicy(hasEfMatrix: true);
 
+            Write(
+                "eng/quality/check-coverage-threshold.sh",
+                File.ReadAllText(Path.Combine(FindRepositoryRoot(), "eng/quality/check-coverage-threshold.sh")));
+
             foreach (var id in s_packageIds)
             {
                 Write($"artifacts/obj/{id}/project.assets.json", $"{{\"qualified\":\"{id}\"}}");
@@ -325,6 +329,27 @@ public sealed partial class QualificationStageExecutionTests
                         elif [[ "${DOKA_STUB_FAIL:-}" == specification ]]; then
                             exit 31
                         fi
+                        report_directory=""
+                        coverage_prefix=""
+                        while (( $# > 0 )); do
+                            case "$1" in
+                                --results-directory) report_directory="$2"; shift ;;
+                                --coverlet-file-prefix) coverage_prefix="$2"; shift ;;
+                            esac
+                            shift
+                        done
+                        if [[ -n "${coverage_prefix}" && "${DOKA_STUB_MISSING:-}" != coverage ]]; then
+                            mkdir -p "${report_directory}"
+                            printf '<coverage />' > "${report_directory}/${coverage_prefix}.coverage.cobertura.123.xml"
+                            if [[ "${DOKA_STUB_DUPLICATE:-}" == coverage ]]; then
+                                printf '<coverage />' > "${report_directory}/${coverage_prefix}.coverage.cobertura.456.xml"
+                            fi
+                        fi
+                        ;;
+                    run)
+                        while [[ "$1" != modules ]]; do shift; done
+                        printf 'coverage-modules|%s\n' "$*" >> "${DOKA_STUB_ROOT}/events"
+                        if [[ "${DOKA_STUB_FAIL:-}" == coverage ]]; then exit 31; fi
                         ;;
                     tool)
                         if [[ "$1" == restore ]]; then

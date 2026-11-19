@@ -1,5 +1,3 @@
-using Xunit.Abstractions;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Conversion;
 
 /// <summary>

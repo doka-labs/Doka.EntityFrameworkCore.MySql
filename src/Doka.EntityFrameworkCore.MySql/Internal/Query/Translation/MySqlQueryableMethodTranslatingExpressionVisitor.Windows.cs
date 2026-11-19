@@ -269,9 +269,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
         if (included is null)
         {
-            // WHY: EF10's native quotation omits partitions. This native-node adapter
-            // preserves both lists while reconstructing only public EF types in generated C#.
-            ordinal = new MySqlQuotableRowNumberExpression(partitions, orderings, longMapping);
+            // WHY: EF11's native quotation preserves partitions and ordering, so the
+            // framework node needs no provider-specific quotation adapter.
+            ordinal = new RowNumberExpression(partitions, orderings, longMapping);
         }
         else
         {

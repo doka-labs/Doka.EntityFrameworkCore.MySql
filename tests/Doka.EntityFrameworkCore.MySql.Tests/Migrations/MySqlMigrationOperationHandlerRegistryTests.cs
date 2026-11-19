@@ -6,14 +6,14 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationOperationHandlerRegistryTests
 {
-    public static TheoryData<Type> InvalidOperationTypes => new()
-    {
+    public static TheoryData<Type> InvalidOperationTypes =>
+    [
         null!,
         typeof(string),
         typeof(MigrationOperation),
         typeof(AbstractOperation),
         typeof(OpenGenericOperation<>),
-    };
+    ];
 
     /// <summary>
     /// Verifies registry snapshots handler metadata once.
@@ -78,8 +78,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId!, typeof(FirstOperation))]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -98,8 +98,9 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handlerId = $"sample.{new string('a', 194)}";
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
+
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler(handlerId, typeof(FirstOperation))]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -131,8 +132,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry(handlers);
+        object? act() => new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -166,8 +166,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
             Array.Reverse(handlers);
         }
 
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry(handlers);
+        object? act() => new MySqlMigrationOperationHandlerRegistry(handlers);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -187,8 +186,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     {
         // Arrange
         var handler = new CountingHandler("sample.first", typeof(FirstOperation));
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([handler, handler]);
+
+        object? act() => new MySqlMigrationOperationHandlerRegistry([handler, handler]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -209,8 +208,7 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     public void Null_handler_fails_registration()
     {
         // Arrange
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([null!]);
+        static object? act() => new MySqlMigrationOperationHandlerRegistry([null!]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -230,8 +228,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
     )
     {
         // Arrange
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
+        object? act()
+            => new MySqlMigrationOperationHandlerRegistry([new CountingHandler("sample.invalid", operationType)]);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -306,8 +304,8 @@ public sealed class MySqlMigrationOperationHandlerRegistryTests
         var secret = "server=private;password=do-not-log";
         var source = new InvalidOperationException(secret);
         var handler = new ThrowingMetadataHandler(source);
-        Func<object?> act = () =>
-            new MySqlMigrationOperationHandlerRegistry([handler]);
+
+        object? act() => new MySqlMigrationOperationHandlerRegistry([handler]);
 
         // Act
         var recordedException = Record.Exception(act);

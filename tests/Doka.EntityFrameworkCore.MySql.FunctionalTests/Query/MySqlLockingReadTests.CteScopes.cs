@@ -5,45 +5,14 @@ public sealed partial class MySqlLockingReadTests
     private static readonly string[] s_nestedBindings = ["Ordinary", "Recursive", "Materialized"];
 
     /// <summary>Reports each binding independently under both supported SQL dialects.</summary>
-    public static TheoryData<bool, string> NestedBindings
-    {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var binding in s_nestedBindings)
-                {
-                    cases.Add(mariaDb, binding);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, string>> NestedBindings => s_dialects
+        .SelectMany(mariaDb => s_nestedBindings
+            .Select(binding => new TheoryDataRow<bool, string>(mariaDb, binding)));
 
     /// <summary>Reports each nested binding and locking policy independently.</summary>
-    public static TheoryData<bool, string, string> NestedBindingModes
-    {
-        get
-        {
-            var cases = new TheoryData<bool, string, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var mode in s_modes)
-                {
-                    foreach (var binding in s_nestedBindings)
-                    {
-                        cases.Add(mariaDb, mode, binding);
-                    }
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, string, string>> NestedBindingModes => s_dialects
+        .SelectMany(mariaDb => s_modes.SelectMany(mode => s_nestedBindings
+            .Select(binding => new TheoryDataRow<bool, string, string>(mariaDb, mode, binding))));
 
     /// <summary>A nested binding cannot send a physical outer locking query through the unlocked WITH path.</summary>
     /// <param name="mariaDb">Whether the MariaDB dialect is configured.</param>

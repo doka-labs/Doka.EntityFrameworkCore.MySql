@@ -3,56 +3,27 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlInsertSelectIntegrationTests
 {
     /// <summary>Reports compatible physical GUID shapes and both explicit representation conversions.</summary>
-    public static TheoryData<string, string> GuidCases
-    {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
+    public static IEnumerable<TheoryDataRow<string, string>> GuidCases => SelectedTargets.SelectMany(target =>
+        target.Data.StartsWith("MariaDb", StringComparison.Ordinal)
+            ? new[]
             {
-                if (target.StartsWith("MariaDb", StringComparison.Ordinal))
-                {
-                    data.Add(target, "same");
-                    data.Add(target, "text-to-binary");
-                    data.Add(target, "binary-to-text");
-                    data.Add(target, "native");
-                }
-                else
-                {
-                    data.Add(target, "same");
-                    data.Add(target, "text-to-binary");
-                    data.Add(target, "binary-to-text");
-                }
+                new TheoryDataRow<string, string>(target.Data, "same"),
+                new(target.Data, "text-to-binary"),
+                new(target.Data, "binary-to-text"),
+                new(target.Data, "native"),
             }
-
-            return data;
-        }
-    }
+            : new[]
+            {
+                new TheoryDataRow<string, string>(target.Data, "same"),
+                new(target.Data, "text-to-binary"),
+                new(target.Data, "binary-to-text"),
+            });
 
     /// <summary>Reports text UUID defaults on every profile and native UUID defaults only where the type exists.</summary>
-    public static TheoryData<string, bool> GuidDefaultCases
-    {
-        get
-        {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (target.StartsWith("MariaDb", StringComparison.Ordinal))
-                {
-                    data.Add(target, false);
-                    data.Add(target, true);
-                }
-                else
-                {
-                    data.Add(target, false);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, bool>> GuidDefaultCases => SelectedTargets.SelectMany(target =>
+        target.Data.StartsWith("MariaDb", StringComparison.Ordinal)
+            ? new[] { new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true) }
+            : new[] { new TheoryDataRow<string, bool>(target.Data, false) });
 
     /// <summary>Store GUID representations are copied or explicitly converted without client byte-order roundtrips.</summary>
     [RequiresSupportedDatabaseTargetTheory]

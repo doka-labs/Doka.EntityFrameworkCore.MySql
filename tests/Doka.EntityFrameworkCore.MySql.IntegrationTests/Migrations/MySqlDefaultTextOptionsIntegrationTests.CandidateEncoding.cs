@@ -5,19 +5,15 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
     private const string CandidateEncodingTable = "DefaultTextCandidateEncoding";
 
     /// <summary>Reports exact string membership across physical encodings and its negation for each engine.</summary>
-    public static TheoryData<string, bool, bool> CandidateEncodingCases()
+    public static IEnumerable<TheoryDataRow<string, bool, bool>> CandidateEncodingCases()
     {
-        var data = new TheoryData<string, bool, bool>();
-
         foreach (var target in SelectedTargets)
         {
-            data.Add(target, true, false);
-            data.Add(target, false, false);
-            data.Add(target, true, true);
-            data.Add(target, false, true);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, true, false);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, false, false);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, true, true);
+            yield return new TheoryDataRow<string, bool, bool>(target.Data, false, true);
         }
-
-        return data;
     }
 
     /// <summary>A real Latin1 candidate column compares decoded Unicode values rather than incompatible binary encodings.</summary>

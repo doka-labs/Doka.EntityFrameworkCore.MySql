@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Reports each independently constrained function on every selected engine.</summary>
-    public static TheoryData<string, string> CachedWindowTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> CachedWindowTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "offset");
-                cases.Add(target, "buckets");
-                cases.Add(target, "position");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "offset"),
+            new TheoryDataRow<string, string>(target.Data, "buckets"),
+            new TheoryDataRow<string, string>(target.Data, "position"),
+        });
 
     /// <summary>A compiled valid command cannot bypass current parameter validation on its next invocation.</summary>
     /// <param name="target">The selected pinned engine.</param>

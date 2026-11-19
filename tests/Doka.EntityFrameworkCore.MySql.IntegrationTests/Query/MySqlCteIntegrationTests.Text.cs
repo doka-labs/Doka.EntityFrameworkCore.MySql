@@ -3,21 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteIntegrationTests
 {
     /// <summary>Separates strict and permissive storage behavior rather than assuming truncation always throws.</summary>
-    public static TheoryData<string, bool> TextModes
+    public static IEnumerable<TheoryDataRow<string, bool>> TextModes => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+    });
 
     /// <summary>Widened anchor and outer-parameter mappings preserve text beyond the original physical column capacity.</summary>
     [RequiresSupportedDatabaseTargetTheory]

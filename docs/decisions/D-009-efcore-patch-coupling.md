@@ -9,12 +9,26 @@ scope: "EF Core package range and compatibility verification"
 supersedes: []
 superseded-by: []
 amends: []
-amended-by: [D-023]
+amended-by: [D-013, D-023]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
 
 # D-009 -- Support an EF Core patch range with a floor/latest matrix
+
+## .NET 11 GA amendment (2026-11-15)
+
+The 11.x line uses `[11.0.0, 11.1.0)`, with exact SDK `11.0.100` and actual
+11.0.0 specification inventory/discovery. Its release recipe retains the
+`minimum-11-0-0` dependency-floor receipt and fully executes the highest
+repository-admitted patch as `latest-11-0`. The floor's behavioral proof comes
+from the same-source repository qualification. Both rows are 11.0.0 at GA.
+Scheduled CI runs the floor strictly and probes `11.0.*` independently; an
+unreviewed upstream patch is reported as not qualified rather than changing
+release admission. Malformed, missing or mismatched local contracts still fail.
+
+The historical decision below describes the separately serviced .NET 10 line.
+The 11.x line does not import its 10.0.8 floor or its qualification receipts.
 
 ## Context and Problem Statement
 
@@ -246,6 +260,8 @@ missing, swapped, widened, or non-exact row.
   patch already registered in the reviewed specification baseline. Scheduled
   verification retains floating `10.0.*` discovery so a newly published patch
   cannot alter a previously green release commit.
+- 2026-09-19: Amended by D-013 for the isolated 11.x line. The 10.x range and
+  its evidence remain a maintenance-line contract; 11.x uses an exact RC graph.
 - 2026-11-14: Separated successful discovery of a new, unregistered patch from
   qualification. Retain explicit non-qualification evidence without failing
   solely on publication; strict admission, producer failures and release

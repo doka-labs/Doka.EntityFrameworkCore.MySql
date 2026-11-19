@@ -64,7 +64,7 @@ internal static class MySqlLockingReadQueryValidator
             projections.Visit(projection.Expression);
         }
 
-        // WHY: EF10 Select.WithAnnotations deliberately throws. A copied direct table is
+        // WHY: EF11 Select.WithAnnotations deliberately throws. A copied direct table is
         // only the supported metadata carrier; the policy still governs the entire root block.
         return MySqlLockingReadMetadata.ApplyMode(select, mode);
     }

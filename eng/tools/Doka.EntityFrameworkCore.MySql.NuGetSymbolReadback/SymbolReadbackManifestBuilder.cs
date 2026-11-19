@@ -46,8 +46,8 @@ internal static class SymbolReadbackManifestBuilder
     {
         var primaryPath = Path.Combine(packagesRoot, $"{packageId}.{version}.nupkg");
         var symbolsPath = Path.Combine(packagesRoot, $"{packageId}.{version}.snupkg");
-        var assemblyEntryName = $"lib/net10.0/{packageId}.dll";
-        var pdbEntryName = $"lib/net10.0/{packageId}.pdb";
+        var assemblyEntryName = $"lib/net11.0/{packageId}.dll";
+        var pdbEntryName = $"lib/net11.0/{packageId}.pdb";
 
         var assembly = ReadExactPackageEntry(primaryPath, assemblyEntryName);
         var pdb = ReadExactPackageEntry(symbolsPath, pdbEntryName);
@@ -56,7 +56,7 @@ internal static class SymbolReadbackManifestBuilder
         using var peReader = new PEReader(assemblyStream);
         var debugEntries = peReader.ReadDebugDirectory();
         var codeViewEntries = debugEntries
-            .Where(entry => entry.Type == DebugDirectoryEntryType.CodeView && entry.IsPortableCodeView)
+            .Where(entry => entry is { Type: DebugDirectoryEntryType.CodeView, IsPortableCodeView: true })
             .ToArray();
 
         var checksumEntries = debugEntries

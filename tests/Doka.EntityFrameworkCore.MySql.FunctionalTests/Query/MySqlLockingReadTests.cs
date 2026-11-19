@@ -4,48 +4,22 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlLockingReadTests
 {
     /// <summary>Returns diagnostic lookalikes independently under both dialects.</summary>
-    public static TheoryData<bool, string> MagicTags
+    public static IEnumerable<TheoryDataRow<bool, string>> MagicTags => s_dialects.SelectMany(mariaDb => new[]
     {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var tag in new[]
-                    {
-                        "__efcore_for_update__",
-                        "__efcore_for_share__",
-                        "__efcore_for_update_nowait__",
-                        "__efcore_for_update_skiplocked__",
-                    })
-                {
-                    cases.Add(mariaDb, tag);
-                }
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<bool, string>(mariaDb, "__efcore_for_update__"),
+        new TheoryDataRow<bool, string>(mariaDb, "__efcore_for_share__"),
+        new TheoryDataRow<bool, string>(mariaDb, "__efcore_for_update_nowait__"),
+        new TheoryDataRow<bool, string>(mariaDb, "__efcore_for_update_skiplocked__"),
+    });
 
     /// <summary>Reports direct-block source compositions without conflating native lock ownership with SQL shape.</summary>
-    public static TheoryData<bool, string> DirectShapes
+    public static IEnumerable<TheoryDataRow<bool, string>> DirectShapes => s_dialects.SelectMany(mariaDb => new[]
     {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var shape in new[] { "inner", "left", "reference", "straight" })
-                {
-                    cases.Add(mariaDb, shape);
-                }
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<bool, string>(mariaDb, "inner"),
+        new TheoryDataRow<bool, string>(mariaDb, "left"),
+        new TheoryDataRow<bool, string>(mariaDb, "reference"),
+        new TheoryDataRow<bool, string>(mariaDb, "straight"),
+    });
 
     /// <summary>All four public operators require reference rows and preserve the deferred IQueryable shape.</summary>
     /// <param name="mode">The public locking mode.</param>

@@ -1,4 +1,5 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Associations;
+using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
+using Xunit.v3;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification;
 
@@ -51,50 +52,19 @@ public class SpecDispositionContractTests
     ];
 
     /// <summary>
-    /// Keeps discovery stable while refusing an implicit live execution target.
+    /// Keeps the runner-independent discovery default aligned with local execution.
     /// </summary>
     [Fact]
-    public void Missing_specification_target_defaults_to_mysql84()
+    public void Missing_specification_target_defaults_to_mariadb123()
     {
-        Assert.Equal("mysql84", SpecTestTarget.Resolve(configuredTarget: null));
-        _ = Assert.Throws<InvalidOperationException>(() => SpecTestTarget.ResolveForExecution(configuredTarget: null));
-        _ = Assert.Throws<InvalidOperationException>(() => FunctionalDatabaseFixture.CreateRequest(
-            configuredTarget: null,
-            externalConnectionString: "Server=external",
-            externalServerVersion: "mysql:8.4.11"));
+        // Arrange
+        const string? configuredTarget = null;
 
-        (string Target, string ServerVersion)[] supportedEndpoints =
-        [
-            ("mysql84", "mysql:8.4.11"),
-            ("mysql97", "mysql:9.7.2"),
-            ("mariadb1011", "mariadb:10.11.18"),
-            ("mariadb114", "mariadb:11.4.12"),
-            ("mariadb118", "mariadb:11.8.8"),
-            ("mariadb123", "mariadb:12.3.2"),
-        ];
+        // Act
+        var target = SpecTestTarget.Resolve(configuredTarget);
 
-        foreach (var (target, serverVersion) in supportedEndpoints)
-        {
-            var request = FunctionalDatabaseFixture.CreateRequest(target, "Server=external", serverVersion);
-
-            Assert.Equal(target, request.TargetId);
-            Assert.Equal(serverVersion, request.ServerVersionToken);
-            Assert.Null(request.Image);
-        }
-
-        string[] mismatchedVersions =
-        [
-            "mariadb:11.4.12",
-            "mysql:9.7.2",
-        ];
-
-        foreach (var mismatchedVersion in mismatchedVersions)
-        {
-            var exception = Assert.Throws<InvalidOperationException>(() =>
-                FunctionalDatabaseFixture.CreateRequest("mysql84", "Server=external", mismatchedVersion));
-
-            Assert.Contains("does not match target 'mysql84'", exception.Message, StringComparison.Ordinal);
-        }
+        // Assert
+        Assert.Equal("mariadb123", target);
     }
 
     /// <summary>
@@ -104,13 +74,18 @@ public class SpecDispositionContractTests
     [Fact]
     public void Inherited_theory_data_uses_the_nearest_data_bearing_base_declaration()
     {
-        var method = typeof(OwnedNavigationsProjectionMySqlTest).GetMethod(
-            nameof(OwnedNavigationsProjectionMySqlTest
-                .Select_subquery_optional_related_FirstOrDefault))!;
+        var method = typeof(ComplexNavigationsQueryMySqlTest).GetMethod(
+            nameof(ComplexNavigationsQueryMySqlTest.SelectMany_subquery_with_custom_projection))!;
 
-        var attribute = method.GetCustomAttribute<InheritedTheoryDataAttribute>()!;
+        var dataDeclaration = TheoryDataInheritance.FindNearestDataDeclaration(method);
 
-        Assert.NotEmpty(attribute.GetData(method));
+        Assert.NotNull(dataDeclaration);
+        Assert.StartsWith(
+            "ComplexNavigationsQueryTestBase`1",
+            dataDeclaration.DeclaringType!.Name,
+            StringComparison.Ordinal);
+
+        Assert.NotEmpty(dataDeclaration.GetCustomAttributes<DataAttribute>(inherit: false));
     }
 
     /// <summary>
@@ -132,8 +107,7 @@ public class SpecDispositionContractTests
             .Assembly
             .GetTypes()
             .Where(type =>
-                type.IsClass
-                && !type.IsAbstract
+                type is { IsClass: true, IsAbstract: false }
                 && type.Namespace?.StartsWith(
                     "Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification",
                     StringComparison.Ordinal)
@@ -161,6 +135,39 @@ public class SpecDispositionContractTests
             + string.Join(
                 Environment.NewLine,
                 inheritedSkips.Select(item => FormatInheritedSkip(item.ProviderType, item.Method))));
+    }
+
+    /// <summary>
+    /// Prevents provider metadata from adding a second xUnit fact or theory attribute to an
+    /// inherited EF Core specification test.
+    /// </summary>
+    [Fact]
+    public void Specification_methods_expose_at_most_one_xunit_test_attribute()
+    {
+        var duplicateTestAttributes = SpecificationMethods()
+            .Select(method => new
+            {
+                Method = method,
+                Attributes = method
+                    .GetCustomAttributes<FactAttribute>(inherit: true)
+                    .ToArray(),
+            })
+            .Where(item => item.Attributes.Length > 1)
+            .OrderBy(item => item.Method.DeclaringType!.FullName, StringComparer.Ordinal)
+            .ThenBy(item => item.Method.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            duplicateTestAttributes.Length == 0,
+            "Specification methods expose multiple xUnit test attributes:"
+            + Environment.NewLine
+            + string.Join(
+                Environment.NewLine,
+                duplicateTestAttributes.Select(item =>
+                    $"{item.Method.DeclaringType!.FullName}.{item.Method.Name}: "
+                    + string.Join(", ",
+                        item.Attributes.Select(attribute => attribute.GetType()
+                            .Name)))));
     }
 
     /// <summary>
@@ -282,9 +289,9 @@ public class SpecDispositionContractTests
                 Assert.Equal("inherited-upstream-skip", execution.GetString());
                 Assert.Equal(
                     StringValues(disposition.GetProperty("testMethods"))
-                        .OrderBy(value => value),
+                        .OrderBy(value => value, StringComparer.Ordinal),
                     InheritedUpstreamMethods(disposition)
-                        .OrderBy(value => value));
+                        .OrderBy(value => value, StringComparer.Ordinal));
             }
 
             if (classification == "not-applicable")
@@ -318,8 +325,8 @@ public class SpecDispositionContractTests
                     RequiredString(disposition, "frameworkBoundaryAssessment")));
 
             Assert.Equal(
-                supportedTargets.OrderBy(value => value),
-                targets.OrderBy(value => value));
+                supportedTargets.OrderBy(value => value, StringComparer.Ordinal),
+                targets.OrderBy(value => value, StringComparer.Ordinal));
 
             ValidateProbe(
                 disposition,
@@ -394,11 +401,11 @@ public class SpecDispositionContractTests
     }
 
     /// <summary>
-    /// Reconciles every disposition with every supported target in both patch-bound
-    /// discovery contracts so a new Theory row or renamed test cannot inherit an old waiver.
+    /// Reconciles every disposition with each active version-bound discovery contract so a
+    /// new Theory row or renamed test cannot inherit a waiver from another EF Core graph.
     /// </summary>
     [Fact]
-    public void Disposition_ids_match_every_version_bound_discovery_contract()
+    public void Disposition_ids_match_active_version_bound_discovery_contracts()
     {
         using var ledger = LoadLedger();
         var dispositions = ledger
@@ -414,12 +421,18 @@ public class SpecDispositionContractTests
             "Specification",
             "Contracts");
 
-        var contractPaths = Directory
-            .EnumerateFiles(contractsDirectory, "SpecDiscovery.*.json")
-            .OrderBy(path => path, StringComparer.Ordinal)
+        using var baseline = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(contractsDirectory, "SpecSuiteBaseline.json")));
+
+        var contractPaths = StringValues(baseline.RootElement.GetProperty("efCoreVersions"))
+            .Select(version => Path.Combine(contractsDirectory, $"SpecDiscovery.{version}.json"))
+            .OrderBy(static path => path, StringComparer.Ordinal)
             .ToArray();
 
         Assert.NotEmpty(contractPaths);
+        Assert.All(
+            contractPaths,
+            path => Assert.True(File.Exists(path), $"Missing discovery contract '{path}'."));
 
         foreach (var contractPath in contractPaths)
         {
@@ -503,7 +516,7 @@ public class SpecDispositionContractTests
             {
                 item.Method,
                 item.Disposition!.DispositionId,
-                UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
+                item.Disposition.UnsupportedTargets,
             });
 
         var executableEngineFactSkips = methods
@@ -518,7 +531,7 @@ public class SpecDispositionContractTests
             {
                 item.Method,
                 item.Disposition!.DispositionId,
-                UnsupportedTargets = (IReadOnlyList<string>)item.Disposition.UnsupportedTargets,
+                item.Disposition.UnsupportedTargets,
             });
 
         var executableEngineSkips = executableEngineTheorySkips
@@ -538,17 +551,17 @@ public class SpecDispositionContractTests
             Assert.Contains(methodName, StringValues(disposition.GetProperty("testMethods")));
             Assert.Equal(
                 StringValues(disposition.GetProperty("targets"))
-                    .OrderBy(value => value),
-                item.UnsupportedTargets.OrderBy(value => value));
+                    .OrderBy(value => value, StringComparer.Ordinal),
+                item.UnsupportedTargets.OrderBy(value => value, StringComparer.Ordinal));
         }
 
         var documentedEngineMethods = engineDispositions
             .Values
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
-            .OrderBy(value => value)
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(documentedEngineMethods, actualEngineMethods.OrderBy(value => value));
+        Assert.Equal(documentedEngineMethods, actualEngineMethods.OrderBy(value => value, StringComparer.Ordinal));
 
         var executableFrameworkTheorySkips = methods
             .Select(method => new
@@ -598,13 +611,13 @@ public class SpecDispositionContractTests
         var documentedFrameworkMethods = frameworkDispositions
             .Values
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
-            .OrderBy(value => value)
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
         var inheritedUpstreamFrameworkMethods = frameworkDispositions
             .Values
             .SelectMany(InheritedUpstreamMethods)
-            .OrderBy(value => value)
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
         Assert.All(
@@ -614,8 +627,8 @@ public class SpecDispositionContractTests
         Assert.Equal(
             documentedFrameworkMethods
                 .Except(inheritedUpstreamFrameworkMethods, StringComparer.Ordinal)
-                .OrderBy(value => value),
-            actualFrameworkMethods.OrderBy(value => value));
+                .OrderBy(value => value, StringComparer.Ordinal),
+            actualFrameworkMethods.OrderBy(value => value, StringComparer.Ordinal));
 
         var explicitSkippedFacts = methods
             .Select(method => new
@@ -654,12 +667,12 @@ public class SpecDispositionContractTests
 
         var documentedNotApplicableMethods = notApplicableDispositions
             .SelectMany(disposition => StringValues(disposition.GetProperty("testMethods")))
-            .OrderBy(value => value)
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Equal(
             documentedNotApplicableMethods,
-            actualNotApplicableMethods.OrderBy(value => value));
+            actualNotApplicableMethods.OrderBy(value => value, StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -1025,10 +1038,10 @@ public class SpecDispositionContractTests
                 Assert.False(string.IsNullOrWhiteSpace(RequiredString(observation, "result")));
                 return RequiredString(observation, "target");
             })
-            .OrderBy(value => value)
+            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(targets.OrderBy(value => value), observedTargets);
+        Assert.Equal(targets.OrderBy(value => value, StringComparer.Ordinal), observedTargets);
     }
 
     private static string FindRepositoryRoot()

@@ -164,6 +164,8 @@ internal static partial class ImagePinContract
             service = null;
         }
 
+        // WHY: Keep each missing image attached to its source-specific contract diagnostic.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var target in s_services.Values.Except(pins.Keys, StringComparer.Ordinal))
         {
             errors.Add(
@@ -310,6 +312,8 @@ internal static partial class ImagePinContract
             }
         }
 
+        // WHY: Report each unsupported benchmark target with its owning contract path.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var target in declared.Keys.Except(expected.Keys, StringComparer.Ordinal))
         {
             errors.Add(

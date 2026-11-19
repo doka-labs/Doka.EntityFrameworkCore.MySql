@@ -3,20 +3,16 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlLockingReadIntegrationTests
 {
     /// <summary>Reports direct joins, reference includes and directed join edges with both read-lock strengths.</summary>
-    public static TheoryData<string, string, bool> DirectJoinCases()
+    public static IEnumerable<TheoryDataRow<string, string, bool>> DirectJoinCases()
     {
-        var cases = new TheoryData<string, string, bool>();
-
         foreach (var target in SelectedTargets)
         {
             foreach (var shape in new[] { "join", "left", "reference", "straight" })
             {
-                cases.Add(target, shape, false);
-                cases.Add(target, shape, true);
+                yield return new TheoryDataRow<string, string, bool>(target.Data, shape, false);
+                yield return new TheoryDataRow<string, string, bool>(target.Data, shape, true);
             }
         }
-
-        return cases;
     }
 
     /// <summary>Direct joins and reference includes preserve results while locking every directly joined table.</summary>

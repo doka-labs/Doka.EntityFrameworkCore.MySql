@@ -46,7 +46,6 @@ global using NetTopologySuite.Geometries;
 global using Testcontainers.MariaDb;
 global using Testcontainers.MySql;
 global using Xunit;
-global using Xunit.Abstractions;
 global using Xunit.Sdk;
 
 // WHY: EF places these facade extensions in System.Transactions; importing the

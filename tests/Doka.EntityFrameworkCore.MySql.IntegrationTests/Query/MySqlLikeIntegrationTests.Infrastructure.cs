@@ -13,10 +13,10 @@ public sealed partial class MySqlLikeIntegrationTests
         private readonly Dictionary<IntegrationDatabaseTarget, Task> _seeds = [];
 
         /// <inheritdoc />
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
         /// <inheritdoc />
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             List<Exception>? failures = null;
 

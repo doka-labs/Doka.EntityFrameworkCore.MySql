@@ -12,46 +12,27 @@ public sealed partial class MySqlInsertSelectIntegrationTests
         ["1|server-default|2", "2|server-default|4", "3|server-default|6"];
 
     /// <summary>Reports each independently composable relational source shape.</summary>
-    public static TheoryData<string, string> SourceCases
+    public static IEnumerable<TheoryDataRow<string, string>> SourceCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "join-bag");
-                data.Add(target, "distinct");
-                data.Add(target, "aggregate");
-                data.Add(target, "concat");
-                data.Add(target, "union");
-                data.Add(target, "intersect");
-                data.Add(target, "except");
-                data.Add(target, "page");
-                data.Add(target, "from-sql");
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "join-bag"),
+        new TheoryDataRow<string, string>(target.Data, "distinct"),
+        new TheoryDataRow<string, string>(target.Data, "aggregate"),
+        new TheoryDataRow<string, string>(target.Data, "concat"),
+        new TheoryDataRow<string, string>(target.Data, "union"),
+        new TheoryDataRow<string, string>(target.Data, "intersect"),
+        new TheoryDataRow<string, string>(target.Data, "except"),
+        new TheoryDataRow<string, string>(target.Data, "page"),
+        new TheoryDataRow<string, string>(target.Data, "from-sql"),
+    });
 
     /// <summary>Reports ordinary CTE, bounded recursion and window projections as independent source forms.</summary>
-    public static TheoryData<string, string> ComposedSourceCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> ComposedSourceCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "cte");
-                data.Add(target, "recursive");
-                data.Add(target, "window");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "cte"),
+            new TheoryDataRow<string, string>(target.Data, "recursive"),
+            new TheoryDataRow<string, string>(target.Data, "window"),
+        });
 
     /// <summary>Bag multiplicity and composed relational values survive without a source preload.</summary>
     [RequiresSupportedDatabaseTargetTheory]

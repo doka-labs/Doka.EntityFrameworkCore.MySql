@@ -17,12 +17,12 @@ public sealed partial class MySqlCteGraphIntegrationTests
     }
 
     /// <summary>Reports every selected supported pinned engine independently.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Bounds hung work; no success assertion depends on elapsed execution time.</summary>
     private static CancellationTokenSource CreateSafetyCancellation() => new(TimeSpan.FromMinutes(3));

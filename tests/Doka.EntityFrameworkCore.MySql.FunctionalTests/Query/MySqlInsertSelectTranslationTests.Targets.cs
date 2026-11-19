@@ -3,17 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlInsertSelectTranslationTests
 {
     /// <summary>Lists independent unsupported mapping contracts without combining failures in one invocation.</summary>
-    public static TheoryData<string> UnsupportedTargetCases => new()
-    {
-        "tpt",
-        "split",
-        "view",
-        "keyless",
-        "nonwritable",
-        "nontransactional",
-        "graph",
-        "guid-converter",
-    };
+    public static IEnumerable<TheoryDataRow<string>> UnsupportedTargetCases =>
+    [
+        new("tpt"), new("split"), new("view"), new("keyless"),
+        new("nonwritable"), new("nontransactional"), new("graph"), new("guid-converter"),
+    ];
 
     /// <summary>Valid EF models with unsupported direct-write targets fail before creating a native command.</summary>
     /// <param name="shape">The actual mapping contract to reject.</param>
@@ -34,7 +28,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
 
         await using var context = new TargetGuardContext(options, shape);
         _ = context.Model;
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         Func<Task<int>> operation = shape switch
         {
             "tpt" => () => context.Sources.ExecuteInsertFromQueryAsync(context.DerivedTargets,
@@ -101,7 +95,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb: true, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var source = argument == "source"
             ? null!
             : context.Sources;

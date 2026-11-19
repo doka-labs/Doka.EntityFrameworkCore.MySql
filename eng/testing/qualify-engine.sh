@@ -199,7 +199,7 @@ run_efcore_matrix_gate() {
     qualified_version="$(jq -er '
         [
           .efCoreVersions[]?
-          | select(test("^10[.]0[.][0-9]+$"))
+          | select(test("^11[.]0[.][0-9]+$"))
           | {version: ., components: (split(".") | map(tonumber))}
         ]
         | max_by(.components)
@@ -207,8 +207,8 @@ run_efcore_matrix_gate() {
     ' "${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Specification/Contracts/SpecSuiteBaseline.json")"
     qualified_pattern="^${qualified_version//./[.]}$"
 
-    for leg in "10.0.8:^10[.]0[.]8$:minimum-10-0-8:dependency-graph" \
-               "${qualified_version}:${qualified_pattern}:latest-10-0:full"; do
+    for leg in "11.0.0:^11[.]0[.]0$:minimum-11-0-0:dependency-graph" \
+               "${qualified_version}:${qualified_pattern}:latest-11-0:full"; do
         scope="${leg##*:}"
         leg="${leg%:*}"
         DokaEfCoreVersion="${leg%%:*}" \
@@ -220,8 +220,8 @@ run_efcore_matrix_gate() {
     copy_matrix_evidence_legs \
         "${repo_root}/artifacts/efcore-patch-matrix" \
         "${efcore_matrix_dir}" \
-        "minimum-10-0-8" \
-        "latest-10-0"
+        "minimum-11-0-0" \
+        "latest-11-0"
 }
 
 run_mysqlconnector_matrix_gate() {

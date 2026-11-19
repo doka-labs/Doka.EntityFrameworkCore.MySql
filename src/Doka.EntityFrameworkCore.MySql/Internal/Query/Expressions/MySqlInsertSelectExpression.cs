@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>Owns one physical INSERT target and its finalized positional SELECT projection.</summary>
-#pragma warning disable EF9100 // Implements the qualified EF10 SQL quotation contract; only Quote is exposed as experimental.
+#pragma warning disable EF9100 // Implements the qualified EF11 SQL quotation contract; only Quote is exposed as experimental.
 internal sealed class MySqlInsertSelectExpression : Expression, IRelationalQuotableExpression, IPrintableExpression
 #pragma warning restore EF9100
 {
@@ -115,7 +115,7 @@ internal sealed class MySqlInsertSelectExpression : Expression, IRelationalQuota
         && Table.Equals(other.Table)
         && CancellationTokenParameter == other.CancellationTokenParameter
 
-        // WHY: EF10 SelectExpression.Equals omits DISTINCT despite its effect on row multiplicity.
+        // WHY: EF11 SelectExpression.Equals omits DISTINCT despite its effect on row multiplicity.
         && Source.IsDistinct == other.Source.IsDistinct
         && Source.Equals(other.Source)
         && Columns.SequenceEqual(other.Columns, StringComparer.Ordinal)
@@ -130,7 +130,7 @@ internal sealed class MySqlInsertSelectExpression : Expression, IRelationalQuota
         hash.Add(Table.Alias, StringComparer.Ordinal);
         hash.Add(CancellationTokenParameter, StringComparer.Ordinal);
 
-        // WHY: EF10 ProjectionExpression hashes object identity despite structural
+        // WHY: EF11 ProjectionExpression hashes object identity despite structural
         // equality, so SelectExpression.GetHashCode changes after quotation. Hash
         // stable primitive shape data instead; full source equality still separates
         // legal collisions without SQL-string allocation or a second SQL-tree comparer.

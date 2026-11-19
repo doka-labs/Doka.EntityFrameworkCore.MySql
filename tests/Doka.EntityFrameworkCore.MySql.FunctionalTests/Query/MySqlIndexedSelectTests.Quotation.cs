@@ -31,7 +31,7 @@ public sealed partial class MySqlIndexedSelectTests
                 .ReturnType);
 
         Assert.Null(reconstructed.TypeMapping?.Converter);
-        var originalOrdinal = Assert.IsType<MySqlQuotableRowNumberExpression>(
+        var originalOrdinal = Assert.IsType<RowNumberExpression>(
             Assert.IsType<SqlBinaryExpression>(original.Operand)
                 .Left);
 
@@ -108,7 +108,7 @@ public sealed partial class MySqlIndexedSelectTests
         Assert.Equal(source.FindMapping(typeof(long)), reconstructedOrdinal.TypeMapping);
     }
 
-    /// <summary>Updating either child group preserves the adapter, mapping, and untouched original expression.</summary>
+    /// <summary>Updating either child group preserves the native node, mapping, and untouched original expression.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -138,7 +138,7 @@ public sealed partial class MySqlIndexedSelectTests
         var updated = original.Update(partitions, orderings);
 
         // Assert
-        Assert.IsType<MySqlQuotableRowNumberExpression>(updated);
+        Assert.IsType<RowNumberExpression>(updated);
         Assert.NotSame(original, updated);
         Assert.Equal(partitions, updated.Partitions);
         Assert.Equal(orderings, updated.Orderings);
@@ -170,7 +170,7 @@ public sealed partial class MySqlIndexedSelectTests
         Assert.Same(original, updated);
     }
 
-    /// <summary>A null partition update removes the partition without losing the quotation adapter.</summary>
+    /// <summary>An empty partition update removes the partition without changing the original node.</summary>
     [Fact]
     public void Row_number_update_can_clear_partitions_without_changing_the_original()
     {
@@ -179,17 +179,17 @@ public sealed partial class MySqlIndexedSelectTests
         var original = CreateRowNumberExpression(context.GetService<IRelationalTypeMappingSource>(), partitioned: true);
 
         // Act
-        var updated = original.Update(null, original.Orderings);
+        var updated = original.Update([], original.Orderings);
 
         // Assert
-        Assert.IsType<MySqlQuotableRowNumberExpression>(updated);
+        Assert.IsType<RowNumberExpression>(updated);
         Assert.Empty(updated.Partitions);
         Assert.Equal(original.Orderings, updated.Orderings);
         Assert.Same(original.TypeMapping, updated.TypeMapping);
         Assert.Single(original.Partitions);
     }
 
-    /// <summary>A visitor changes only its selected child while retaining adapter behavior and ordering direction.</summary>
+    /// <summary>A visitor changes only its selected child while retaining native behavior and ordering direction.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -217,7 +217,7 @@ public sealed partial class MySqlIndexedSelectTests
         var visited = visitor.Visit(original);
 
         // Assert
-        var updated = Assert.IsType<MySqlQuotableRowNumberExpression>(visited);
+        var updated = Assert.IsType<RowNumberExpression>(visited);
         Assert.NotSame(original, updated);
         Assert.Same(replacePartition
                 ? replacement
@@ -264,11 +264,11 @@ public sealed partial class MySqlIndexedSelectTests
         // Assert
         Assert.Same(original, visited);
         Assert.Same(original.Partitions,
-            Assert.IsType<MySqlQuotableRowNumberExpression>(visited)
+            Assert.IsType<RowNumberExpression>(visited)
                 .Partitions);
 
         Assert.Same(original.Orderings,
-            Assert.IsType<MySqlQuotableRowNumberExpression>(visited)
+            Assert.IsType<RowNumberExpression>(visited)
                 .Orderings);
     }
 
@@ -291,15 +291,16 @@ public sealed partial class MySqlIndexedSelectTests
         return new SqlUnaryExpression(ExpressionType.Convert, zeroBased, typeof(int), integer);
     }
 
-    /// <summary>Creates the provider's EF10 ordinal adapter with independently distinguishable partition and ordering columns.</summary>
-    private static MySqlQuotableRowNumberExpression CreateRowNumberExpression(
+    /// <summary>Creates the native EF11 ordinal with independently distinguishable partition and ordering columns.</summary>
+    private static RowNumberExpression CreateRowNumberExpression(
         IRelationalTypeMappingSource source,
         bool partitioned
     )
     {
         var integer = source.FindMapping(typeof(int))!;
 
-        return new MySqlQuotableRowNumberExpression(
+        // WHY: EF11's native node preserves partition quotation, so no EF10 adapter is required.
+        return new RowNumberExpression(
             partitioned
                 ? [new ColumnExpression("AccountId", "row", typeof(int), integer, nullable: false)]
                 : [],

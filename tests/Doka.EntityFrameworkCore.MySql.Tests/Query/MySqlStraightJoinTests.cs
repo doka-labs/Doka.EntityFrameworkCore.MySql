@@ -139,7 +139,7 @@ public sealed partial class MySqlStraightJoinTests
             ? null
             : (left, right) => left.Id;
 
-        Action act = () => outer!.StraightJoin(inner!, outerKey!, innerKey!, result!);
+        void act() => outer!.StraightJoin(inner!, outerKey!, innerKey!, result!);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -159,7 +159,7 @@ public sealed partial class MySqlStraightJoinTests
             .Empty<int>()
             .AsQueryable();
 
-        Action act = () => input.StraightJoin(
+        void act() => input.StraightJoin(
             input,
             value => value,
             value => value,
@@ -180,7 +180,8 @@ public sealed partial class MySqlStraightJoinTests
         // Arrange
         using var first = CreateContext();
         using var second = CreateContext();
-        Action act = () => first.Nodes.StraightJoin(
+
+        void act() => first.Nodes.StraightJoin(
             second.Nodes,
             value => value.Id,
             value => value.Id,
@@ -219,7 +220,8 @@ public sealed partial class MySqlStraightJoinTests
             });
 
         var sql = query.ToQueryString();
-        Func<Task> act = () => query.ToArrayAsync(CancellationToken.None);
+
+        Task act() => query.ToArrayAsync(CancellationToken.None);
 
         // Act
         var recordedException = await Record.ExceptionAsync(act);

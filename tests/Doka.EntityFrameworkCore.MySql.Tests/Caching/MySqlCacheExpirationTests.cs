@@ -188,7 +188,7 @@ public sealed class MySqlCacheExpirationTests
     public void Absolute_expiration_before_mysql_datetime_range_is_rejected()
     {
         // Arrange
-        Action act = () => MySqlCacheExpiration.Resolve(
+        static void act() => MySqlCacheExpiration.Resolve(
             new DistributedCacheEntryOptions
             {
                 AbsoluteExpiration = new DateTimeOffset(
@@ -230,7 +230,7 @@ public sealed class MySqlCacheExpirationTests
             options.AbsoluteExpirationRelativeToNow = TimeSpan.FromTicks(9);
         }
 
-        Action act = () => MySqlCacheExpiration.Resolve(options, 12_345L);
+        void act() => MySqlCacheExpiration.Resolve(options, 12_345L);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -268,7 +268,7 @@ public sealed class MySqlCacheExpirationTests
     public void Null_expiration_options_are_rejected()
     {
         // Arrange
-        Action act = () => MySqlCacheExpiration.Resolve(null!, 12_345L);
+        static void act() => MySqlCacheExpiration.Resolve(null!, 12_345L);
 
         // Act
         var recordedException = Record.Exception(act);

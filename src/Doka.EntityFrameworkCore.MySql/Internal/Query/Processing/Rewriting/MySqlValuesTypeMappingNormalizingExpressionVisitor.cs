@@ -29,7 +29,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         ArgumentNullException.ThrowIfNull(expression);
         ArgumentNullException.ThrowIfNull(typeMappingSource);
 
-        var defaultStringMapping = (RelationalTypeMapping?)typeMappingSource.FindMapping(typeof(string))
+        var defaultStringMapping = typeMappingSource.FindMapping(typeof(string))
             ?? throw new InvalidOperationException("The provider must define a default string type mapping.");
 
         var aliasFinder = new ValuesAliasFindingVisitor(defaultStringMapping);
@@ -616,19 +616,16 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
             SqlExpression expression
         )
         {
-            if (expression.Type != typeof(string)
+            return expression.Type != typeof(string)
                 || expression.TypeMapping is not { } typeMapping
-                || !IsDefaultStringMapping(typeMapping))
-            {
-                return expression;
-            }
-
-            return expression switch
-            {
-                SqlConstantExpression constantExpression => constantExpression.ApplyTypeMapping(null),
-                SqlParameterExpression parameterExpression => parameterExpression.ApplyTypeMapping(null),
-                _ => expression,
-            };
+                || !IsDefaultStringMapping(typeMapping)
+                    ? expression
+                    : expression switch
+                    {
+                        SqlConstantExpression constantExpression => constantExpression.ApplyTypeMapping(null),
+                        SqlParameterExpression parameterExpression => parameterExpression.ApplyTypeMapping(null),
+                        _ => expression,
+                    };
         }
 
         private bool IsDefaultStringMapping(

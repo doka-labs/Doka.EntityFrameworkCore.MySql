@@ -1,0 +1,15 @@
+{
+  "platformOptions": {
+    "Coverlet": {
+      "include": "[Doka.EntityFrameworkCore.MySql]*,[Doka.EntityFrameworkCore.MySql.NetTopologySuite]*,[Doka.Caching.MySql]*",
+      "exclude": "[coverlet.*]*,[Microsoft.VisualStudio.TestPlatform.*]*,[testhost*]*,[ReportGenerator.*]*,[Doka.EntityFrameworkCore.MySql.*Tests]*",
+      "excludeByAttribute": "ExcludeFromCodeCoverage,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute",
+      "format": "cobertura",
+      "useSourceLink": false,
+      "singleHit": false,
+      "includeTestAssembly": false,
+      "skipAutoProps": false,
+      "excludeAssembliesWithoutSources": "None"
+    }
+  }
+}

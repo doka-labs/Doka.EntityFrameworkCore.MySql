@@ -3,12 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlWindowFunctionTests
 {
     /// <summary>Supplies distinct unsupported semantics rather than exercising several acts in one test.</summary>
-    public static TheoryData<bool, string> RejectedCases
+    public static IEnumerable<TheoryDataRow<bool, string>> RejectedCases
     {
         get
         {
-            var cases = new TheoryData<bool, string>();
-
             foreach (var mariaDb in new[] { false, true })
             {
                 foreach (var scenario in new[]
@@ -38,11 +36,9 @@ public sealed partial class MySqlWindowFunctionTests
                         "frame-lead",
                     })
                 {
-                    cases.Add(mariaDb, scenario);
+                    yield return new TheoryDataRow<bool, string>(mariaDb, scenario);
                 }
             }
-
-            return cases;
         }
     }
 

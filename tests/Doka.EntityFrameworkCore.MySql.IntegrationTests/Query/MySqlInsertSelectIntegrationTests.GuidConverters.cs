@@ -3,21 +3,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlInsertSelectIntegrationTests
 {
     /// <summary>Reports each genuinely compatible custom GUID store representation independently.</summary>
-    public static TheoryData<string, string> CustomGuidCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> CustomGuidCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "char32");
-                data.Add(target, "little-endian");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "char32"),
+            new TheoryDataRow<string, string>(target.Data, "little-endian"),
+        });
 
     /// <summary>Matching custom GUID converters copy their actual store values without applying another CLR conversion.</summary>
     [RequiresSupportedDatabaseTargetTheory]

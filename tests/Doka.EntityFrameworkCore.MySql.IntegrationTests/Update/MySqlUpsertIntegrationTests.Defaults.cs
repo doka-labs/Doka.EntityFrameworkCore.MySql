@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports generated defaults, explicit nulls and explicit values as separate native cases.</summary>
-    public static TheoryData<string, string?, string?> SentinelCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string?, string?>> SentinelCases
+        => SelectedTargets.SelectMany(target => new[]
         {
-            var data = new TheoryData<string, string?, string?>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "missing", "server-default");
-                data.Add(target, null, null);
-                data.Add(target, "explicit", "explicit");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string?, string?>(target.Data, "missing", "server-default"),
+            new TheoryDataRow<string, string?, string?>(target.Data, null, null),
+            new TheoryDataRow<string, string?, string?>(target.Data, "explicit", "explicit"),
+        });
 
     /// <summary>UUID() is evaluated per native candidate without invoking a client generator or mutating input IDs.</summary>
     [RequiresSupportedDatabaseTargetTheory]

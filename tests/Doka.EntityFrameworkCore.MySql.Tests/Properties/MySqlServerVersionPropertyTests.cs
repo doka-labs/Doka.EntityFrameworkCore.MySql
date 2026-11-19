@@ -53,16 +53,16 @@ public sealed class MySqlServerVersionPropertyTests
     )
     {
         // Arrange
-        var expectedVersion = (Major: expectedMajor, Minor: expectedMinor, Build: expectedBuild);
+        var (major, minor, build) = (expectedMajor, expectedMinor, expectedBuild);
 
         // Act
         var parsed = MySqlServerVersion.Parse(serverVersion);
 
         // Assert
         Assert.Equal(expectedIsMariaDb, parsed.IsMariaDb);
-        Assert.Equal(expectedVersion.Major, parsed.Version.Major);
-        Assert.Equal(expectedVersion.Minor, parsed.Version.Minor);
-        Assert.Equal(expectedVersion.Build, parsed.Version.Build);
+        Assert.Equal(major, parsed.Version.Major);
+        Assert.Equal(minor, parsed.Version.Minor);
+        Assert.Equal(build, parsed.Version.Build);
     }
 
     /// <summary>Verifies that generated parser inputs expose only the documented rejection exception family.</summary>

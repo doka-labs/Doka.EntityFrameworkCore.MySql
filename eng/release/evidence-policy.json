@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyVersion": "2026-09-01.1",
+  "policyVersion": "2026-11-15.11-ga",
   "documentation": [
     "Candidate-produced release gates describe the candidate commit directly.",
     "Repository qualification is imported from the single merged pull request",

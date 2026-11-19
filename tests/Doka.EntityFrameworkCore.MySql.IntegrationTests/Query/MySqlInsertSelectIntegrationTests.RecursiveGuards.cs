@@ -6,27 +6,18 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     private static readonly string[] s_warmedRecursiveRows = ["1|recursive-budget", "5000|prior"];
 
     /// <summary>Reports invalid recursion on normal, empty, constant-false and Take-zero payloads, direct and compiled.</summary>
-    public static TheoryData<string, string, bool> RecursiveBudgetCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string, bool>> RecursiveBudgetCases
+        => SelectedTargets.SelectMany(target => new[]
         {
-            var data = new TheoryData<string, string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "normal", false);
-                data.Add(target, "normal", true);
-                data.Add(target, "empty", false);
-                data.Add(target, "empty", true);
-                data.Add(target, "false", false);
-                data.Add(target, "false", true);
-                data.Add(target, "take-zero", false);
-                data.Add(target, "take-zero", true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string, bool>(target.Data, "normal", false),
+            new(target.Data, "normal", true),
+            new(target.Data, "empty", false),
+            new(target.Data, "empty", true),
+            new(target.Data, "false", false),
+            new(target.Data, "false", true),
+            new(target.Data, "take-zero", false),
+            new(target.Data, "take-zero", true),
+        });
 
     /// <summary>An invalid native recursion budget remains an error even when EF can remove every payload row.</summary>
     [RequiresSupportedDatabaseTargetTheory]

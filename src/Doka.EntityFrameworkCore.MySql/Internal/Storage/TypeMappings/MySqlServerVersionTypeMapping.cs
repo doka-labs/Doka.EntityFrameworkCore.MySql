@@ -1,6 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-internal sealed class MySqlServerVersionTypeMapping : RelationalTypeMapping
+internal sealed class MySqlServerVersionTypeMapping : RelationalTypeMapping<MySqlServerVersion>
 {
     private static readonly ConstructorInfo s_version2Constructor = typeof(Version).GetConstructor(
     [

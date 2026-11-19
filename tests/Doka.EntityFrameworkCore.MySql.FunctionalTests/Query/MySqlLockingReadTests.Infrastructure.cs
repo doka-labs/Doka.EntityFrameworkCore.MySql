@@ -6,48 +6,17 @@ public sealed partial class MySqlLockingReadTests
     private static readonly bool[] s_dialects = [false, true];
 
     /// <summary>Reports each public lock mode independently.</summary>
-    public static TheoryData<string> Modes => new(s_modes);
+    public static IEnumerable<TheoryDataRow<string>> Modes => s_modes.Select(mode => new TheoryDataRow<string>(mode));
 
     /// <summary>Reports each mode under both supported SQL dialects.</summary>
-    public static TheoryData<bool, string> DialectModes
-    {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var (mariaDb, mode) in GetDialectModeCases())
-            {
-                cases.Add(mariaDb, mode);
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, string>> DialectModes => s_dialects
+        .SelectMany(mariaDb => s_modes.Select(mode => new TheoryDataRow<bool, string>(mariaDb, mode)));
 
     /// <summary>Reports every different ordered mode pair independently under each dialect.</summary>
-    public static TheoryData<bool, string, string> ConflictingModes
-    {
-        get
-        {
-            var cases = new TheoryData<bool, string, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var first in s_modes)
-                {
-                    foreach (var second in s_modes)
-                    {
-                        if (second != first)
-                        {
-                            cases.Add(mariaDb, first, second);
-                        }
-                    }
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<bool, string, string>> ConflictingModes => s_dialects
+        .SelectMany(mariaDb => s_modes.SelectMany(first => s_modes
+            .Where(second => second != first)
+            .Select(second => new TheoryDataRow<bool, string, string>(mariaDb, first, second))));
 
     /// <summary>Shares typed dialect/mode pairs between theory data and parallel compilation controls.</summary>
     private static IEnumerable<(bool MariaDb, string Mode)> GetDialectModeCases()

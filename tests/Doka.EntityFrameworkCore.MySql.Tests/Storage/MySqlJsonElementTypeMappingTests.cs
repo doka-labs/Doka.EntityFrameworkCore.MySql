@@ -65,7 +65,7 @@ public sealed class MySqlJsonElementTypeMappingTests
     )
     {
         // Arrange
-        Action act = () => s_converter.ConvertFromProvider(json);
+        void act() => s_converter.ConvertFromProvider(json);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -138,7 +138,7 @@ public sealed class MySqlJsonElementTypeMappingTests
     }
 
     /// <summary>Creates the provider mapping matching one supported JSON model type.</summary>
-    private static MySqlJsonTypeMapping CreateMapping(
+    private static RelationalTypeMapping CreateMapping(
         Type jsonType
     ) => jsonType switch
     {

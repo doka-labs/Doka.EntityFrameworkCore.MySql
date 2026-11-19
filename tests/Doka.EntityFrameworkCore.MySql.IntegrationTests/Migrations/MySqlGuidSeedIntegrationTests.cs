@@ -126,7 +126,7 @@ public sealed class MySqlGuidSeedIntegrationTests
                 .SingleAsync(principal => principal.Id == s_secondPrincipalId, cancellationToken)
                 .ConfigureAwait(false);
 
-            var physicalStorage = await ReadPhysicalGuidStorageAsync(connection, cancellationToken)
+            var (ids, binaryLengths, nullCount) = await ReadPhysicalGuidStorageAsync(connection, cancellationToken)
                 .ConfigureAwait(false);
 
             int deletedRows;
@@ -170,13 +170,12 @@ public sealed class MySqlGuidSeedIntegrationTests
                     s_secondPrincipalId.ToString("D", CultureInfo.InvariantCulture),
                     s_firstPrincipalId.ToString("D", CultureInfo.InvariantCulture),
                 ],
-                physicalStorage
-                    .Ids
+                ids
                     .OrderBy(value => value, StringComparer.Ordinal)
                     .ToArray());
 
-            Assert.All(physicalStorage.BinaryLengths, length => Assert.Equal(16, length));
-            Assert.Equal(1, physicalStorage.NullCount);
+            Assert.All(binaryLengths, length => Assert.Equal(16, length));
+            Assert.Equal(1, nullCount);
             Assert.Equal(1, deletedRows);
             Assert.False(dependentRemains);
         }

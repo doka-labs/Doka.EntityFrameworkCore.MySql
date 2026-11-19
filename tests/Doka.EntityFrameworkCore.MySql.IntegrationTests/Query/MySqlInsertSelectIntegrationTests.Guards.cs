@@ -5,30 +5,21 @@ public sealed partial class MySqlInsertSelectIntegrationTests
     private static int s_clientEvaluations;
 
     /// <summary>Reports independent invalid assignments and source shapes without running a write.</summary>
-    public static TheoryData<string, string> RejectionCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> RejectionCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "duplicate");
-                data.Add(target, "unmapped");
-                data.Add(target, "computed");
-                data.Add(target, "required");
-                data.Add(target, "client-method");
-                data.Add(target, "split");
-                data.Add(target, "collection-include");
-                data.Add(target, "materialized");
-                data.Add(target, "nested-materialized");
-                data.Add(target, "locking");
-                data.Add(target, "self-subquery");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "duplicate"),
+            new TheoryDataRow<string, string>(target.Data, "unmapped"),
+            new TheoryDataRow<string, string>(target.Data, "computed"),
+            new TheoryDataRow<string, string>(target.Data, "required"),
+            new TheoryDataRow<string, string>(target.Data, "client-method"),
+            new TheoryDataRow<string, string>(target.Data, "split"),
+            new TheoryDataRow<string, string>(target.Data, "collection-include"),
+            new TheoryDataRow<string, string>(target.Data, "materialized"),
+            new TheoryDataRow<string, string>(target.Data, "nested-materialized"),
+            new TheoryDataRow<string, string>(target.Data, "locking"),
+            new TheoryDataRow<string, string>(target.Data, "self-subquery"),
+        });
 
     /// <summary>Invalid mappings and unsupported source lineage fail before any data command or client callback.</summary>
     [RequiresSupportedDatabaseTargetTheory]

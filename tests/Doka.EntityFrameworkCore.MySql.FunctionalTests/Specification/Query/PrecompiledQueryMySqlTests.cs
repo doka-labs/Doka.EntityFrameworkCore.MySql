@@ -1,5 +1,3 @@
-using Xunit.Abstractions;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 [Trait("Category", "Spec")]
@@ -13,7 +11,7 @@ public sealed class AdHocPrecompiledQueryMySqlTest : AdHocPrecompiledQueryRelati
 
     protected override bool AlwaysPrintGeneratedSources => false;
 
-    protected override ITestStoreFactory TestStoreFactory => MySqlTestStoreFactory.Instance;
+    protected override ITestStoreFactory NonSharedTestStoreFactory => MySqlTestStoreFactory.Instance;
 
     protected override PrecompiledQueryTestHelpers PrecompiledQueryTestHelpers
         => MySqlPrecompiledQueryTestHelpers.Instance;

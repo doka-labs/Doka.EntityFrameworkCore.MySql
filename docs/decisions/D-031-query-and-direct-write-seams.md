@@ -5,7 +5,7 @@ date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
 informed: ["@doka-labs/core-maintainers"]
-scope: "Bounded EF10 compiler, command-policy, reader, indexed-window and design-time ownership seams"
+scope: "Bounded EF11 compiler, command-policy, reader, indexed-window and design-time ownership seams"
 supersedes: []
 superseded-by: []
 amends: [D-024]
@@ -18,8 +18,10 @@ doka-profile-version: "1.0"
 
 ## Context and Problem Statement
 
-The 10.7.0 query and direct-write features target .NET 10 and EF Core 10.
-They need metadata and execution checks that EF10 cannot carry through unchanged. Replacing the complete EF compiler, SQL cache
+The six query and direct-write contracts first shipped in 10.7.0 on .NET 10 /
+EF Core 10. Their 11.0.0 implementation targets .NET 11 / EF Core 11 and needs
+metadata and execution checks that EF11 cannot carry through unchanged. Replacing the complete EF compiler, SQL
+cache
 or reader pipeline would duplicate unrelated behavior. Keeping every base
 execution path unchanged would instead lose required write, recursive-reader
 or SQL-scope guarantees.
@@ -55,7 +57,7 @@ require.
 - Use the named tests and requalification table below for precise boundary
   checks; source presence alone is not a passing run.
 
-Keep small opt-in adapters at the actual EF10 seams. Ordinary queries and
+Keep small opt-in adapters at the actual EF11 seams. Ordinary queries and
 nonqueries delegate to their existing base implementation. Statement policies
 are typed metadata, copied or cleared when a pooled command is populated;
 query tags remain diagnostic text. No parallel query cache, context registry,
@@ -71,7 +73,7 @@ an unqualified decoder name alone cannot prove identity. Independent uncomposed
 parameter rowsets retain their materializable `IN` form.
 
 Aggregate/window expressions and scalar subqueries keep their original scope.
-EF10 does not distinguish scalar and aggregate calls in `SqlFunctionExpression`,
+EF11 does not distinguish scalar and aggregate calls in `SqlFunctionExpression`,
 so native aggregate names are checked separately from mapped scalar functions.
 Unparsed SQL fragments remain excluded except the closed first-argument unit
 grammar of the provider's builtin `TIMESTAMPDIFF` expression. No SQL parser,
@@ -85,7 +87,7 @@ then creates a typed query command. Applying that wrapper to every migration
 command added approximately 34.8 KB to the complete 256-scope migration
 allocation control, with identical SQL and command counts.
 
-Only the migrations generator receives a copy of EF10's public dependency
+Only the migrations generator receives a copy of EF11's public dependency
 record with an ordinary EF command-builder factory over the same dependencies.
 This applies only to Doka's sealed default factory. Application-provided
 factories keep their identity and behavior; the globally registered typed
@@ -99,9 +101,9 @@ classification or access to EF's private command buffers.
 target receipt before EF can replace a DbSet argument with a query root in a
 DbSet-typed slot. The receipt verifies the actual target context/provider,
 then disappears before normal EF extraction and cache-key processing.
-EF10's five-argument extraction override also forwards its
-`generateContextAccessors` argument unchanged on ordinary paths. Source and target roots still
-pass through the same normal extraction, preserving provider checks.
+EF11's four-argument extraction override delegates ordinary paths to the base
+implementation. Source and target roots still pass through the same normal
+extraction, preserving provider checks.
 
 Shared model identity is not target-owner identity. Cached delegates must use
 the current source parameters, target model/database and cancellation token;
@@ -111,7 +113,7 @@ no first context, DbSet or token source may survive through a cached receipt.
 
 `MySqlShapedQueryCompilingExpressionVisitor` recognizes only
 `MySqlInsertSelectExpression`. It uses EF's existing `RelationalCommandCache`
-because EF10's resolver-expression builder is private. It preserves parameter-
+because EF11's resolver-expression builder is private. It preserves parameter-
 dependent SQL processing, tags and current query parameters, then calls the
 small `MySqlInsertSelectExecutor`. The executor rents, populates and returns
 EF's normal command wrapper, honors thread-safety settings and logs through
@@ -132,9 +134,9 @@ of the one successfully acquired connection reference. A cleanup or diagnostic
 failure must not replace a native primary failure. Ordinary command templates
 clear this flag and retain base execution behavior.
 
-The direct-write creation helper mirrors EF10's command-creation callback and
+The direct-write creation helper mirrors EF11's command-creation callback and
 parameter-binding order, while publishing each acquired command to the caller
-before those callbacks or bindings can fail. EF10's base creation method does
+before those callbacks or bindings can fail. EF11's base creation method does
 not release its local command on such a failure. Publishing ownership early
 lets the same direct-write cleanup dispose it in the correct synchronous or
 asynchronous mode and retain both setup and cleanup failures. Suppressed
@@ -190,7 +192,7 @@ whole-result buffer. This order prevents EF from buffering private controls or
 materializing a synthetic row before validation.
 
 `MySqlRecursiveRelationalDataReader` adopts the successful base result's reader,
-command and single open reference. EF10's private ownership fields and cleanup
+command and single open reference. EF11's private ownership fields and cleanup
 ordering prevent safe reuse of base disposal after an injected reader failure.
 
 Its `Initialize` override retains EF's reusable-owner contract. Reinitializing
@@ -205,7 +207,7 @@ that buffer-initialization scope and immediately combined with the read error.
 No reflection into EF private fields or global resource registry is used.
 
 The finite recursive text proof also needs original column collations, which
-EF10 removes from runtime property metadata. The runtime convention and actual
+EF11 removes from runtime property metadata. The runtime convention and actual
 compiled-model generator retain a primitive explicit-value/known-absence marker,
 including table-specific property overrides. Query compilation consumes actual
 physical-column lineage and retained facets; it neither queries the database
@@ -228,7 +230,7 @@ ordering and directly nested/unprojected window operands. The helper closes
 only recognized LINQ/provider methods; it is not an arbitrary expression compiler.
 
 For an indexed group with one CLR nullable/reference key leaf, an internal
-null-class component keeps EF10's grouping correlation distinct from primitive
+null-class component keeps EF11's grouping correlation distinct from primitive
 LINQ equijoin null semantics. The public key and window partition remain the
 original key; no colliding sentinel or CLR string normalization is used.
 Composite keys, ordinary non-indexed queries and explicit joins keep their
@@ -244,30 +246,26 @@ queries and generated runtime models are distinct proofs.
 
 None alone establishes full pregenerated query execution or NativeAOT support.
 INSERT and locking reads have explicit provider pregeneration rejection. For
-`EF.Functions.Window()`, the current EF10 precompiler rejects its structural
+`EF.Functions.Window()`, the current EF11 precompiler rejects its structural
 `[NotParameterized]` functions receiver before Doka translation. Record that
 actual upstream boundary; do not invent a provider-wide window guard or disable
 ordinary `SupportsPrecompiledQuery`. D-017 remains authoritative for the runtime-
 posture support claim.
 
-### EF10 ROW_NUMBER quotation
+### Native EF11 ROW_NUMBER quotation
 
-EF Core 10.0.8's native `RowNumberExpression.Quote()` does not reconstruct its
-three-argument constructor with the complete partition/order/mapping state.
-The indexed-selector path therefore creates `MySqlQuotableRowNumberExpression`,
-a narrow `RowNumberExpression` subtype that retains EF's SQL, pruning, equality
-and nullability behavior. Its child visitation and updates retain that adapter.
+The .NET 10 line uses `MySqlQuotableRowNumberExpression` to repair EF Core
+10.0.8's incomplete native quotation. EF Core 11 provides the complete native
+`RowNumberExpression.Quote()` contract, so this line uses that expression
+instead of carrying the EF10 adapter into a platform which no longer needs it.
 
-Quotation reconstructs the public EF `RowNumberExpression` with its original
-partitions, orderings and type mapping, so separate-assembly generated C# needs
-no internal Doka expression type. Existing ordinary dynamic-offset translation
-keeps its original EF path. Recheck the exact native implementation on every
-supported EF patch and remove this adapter only after structural round trips
-and actual generated-C# execution preserve the same state.
+Structural round trips and separate-assembly generated C# must retain the
+complete partitions, orderings and type mapping. These controls remain required
+on every admitted EF patch; native API availability alone is not qualification.
 
 ### Design-time logger ownership
 
-EF10's design-time helper creates one LoggerFactory immediately and returns it
+EF11's design-time helper creates one LoggerFactory immediately and returns it
 from a scoped registration. Resolving and disposing one scope therefore
 disposes the same factory that a later or overlapping scaffolding scope needs.
 Doka changes only the helper's newly appended scoped factory descriptor to a
@@ -340,7 +338,7 @@ checks against rebuilt binaries; a test rename must preserve this mapping.
 | Recursive physical text metadata | `Runtime_property_retains_original_column_collation_evidence`; `Generated_model_preserves_compatible_recursive_copy_and_rejects_incompatible_copy`; `Different_physical_charsets_do_not_silently_corrupt_a_recursive_text_copy` | EF retains the required property/override collations in runtime and generated models; remove private markers only after equal compatibility, unknown-metadata and snapshot-isolation controls pass. |
 | Recursive resource owner | `Ordinary_to_recursive_reuse_transfers_exactly_one_open_reference`; `Repeated_disposal_preserves_the_callers_open_reference`; `Reinitialization_after_disposal_owns_only_the_fresh_execution_reference`; `Command_disposal_failure_still_attempts_connection_close`; `Native_close_failure_is_reported_without_a_second_reference_release` | EF makes its base owner safely extensible or changes disposal progress/suppression; returning to the base owner requires the same injected-failure and reuse proofs. |
 | Window scope and ordinal materialization | `Global_index_is_calculated_after_the_completed_source_page`; `Grouped_indexed_selector_preserves_six_aggregate_results`; `Filtered_group_member_page_keeps_a_distinct_zero_based_index_scope`; `Materialized_native_index_overflow_is_visible`; `Ordinary_projection_does_not_add_an_index_or_window_boundary` | EF normalization/navigation/group shaping or connector Int64-to-Int32 materialization changes; use a native EF indexed/window hook only if these scopes and checked overflow survive. |
-| EF10 ROW_NUMBER quotation | `Index_conversion_quotation_preserves_the_complete_native_expression`; `Index_conversion_generated_csharp_preserves_the_public_reconstruction_path` | EF fixes native partition/order/type-mapping quotation; remove the narrow adapter only after update/visitor identity and actual generated-C# execution preserve the same public reconstruction contract. |
+| Native EF11 ROW_NUMBER quotation | `Index_conversion_quotation_preserves_the_complete_native_expression`; `Index_conversion_generated_csharp_preserves_the_public_reconstruction_path` | EF changes native partition/order/type-mapping quotation; retain the native path only while update/visitor identity and actual generated-C# execution preserve the same public reconstruction contract. |
 | Quotation/pregeneration separation | `Index_conversion_generated_csharp_preserves_the_public_reconstruction_path`; `Sql_terminal_quote_round_trips_target_projection_tags_and_token`; `Pregenerated_window_boundary_preserves_the_ordinary_provider_contract`; `Generated_compiled_model_executes_native_upsert_and_reads_back_exact_values` | EF exposes a qualified generated command-policy transport or changes `[NotParameterized]` precompilation; lift a feature guard only after real generated-consumer execution, current parameters, cleanup and runtime-posture proof. |
 
 ### Decision History
@@ -352,8 +350,14 @@ checks against rebuilt binaries; a test rename must preserve this mapping.
   release line. EF10 extraction, quotation and generated consumers require their
   own qualification; results from the .NET 11 line do not establish that proof.
   Publication remains separate.
+- 2026-11-18: Recorded joint local EF11 qualification, including migration-only
+  command-factory isolation under the unchanged allocation ceiling. That
+  historical result does not qualify later rebased source.
 - 2026-11-19: Aligned current metadata with the shared notification audience and
   last-update date contract; retained the original decision and status history.
+- 2026-11-19: Reconciled the shared 10.7.0 fixes with the .NET 11 line, retaining
+  EF11 four-argument parameter extraction, the bounded command-cache adapter and
+  native ROW_NUMBER quotation. Platform qualification remains independent.
 
 ### Implementation References
 
@@ -364,12 +368,11 @@ checks against rebuilt binaries; a test rename must preserve this mapping.
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/MySqlRelationalCommand.DirectWriteCreation.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Infrastructure/MySqlAmbientTransactionGuard.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Processing/MySqlIndexedSelectLowering.cs`
-- `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlQuotableRowNumberExpression.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Query/SqlGeneration/MySqlQuerySqlGenerator.Json.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlIndependentCollectionMembershipSqlTests.ScalarProjections.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Query/MySqlJsonMembershipFunctionIdentityIntegrationTests.cs`
 
-The EF10 XML contract names
+The installed EF11 XML contract names
 `CoreStrings.NotParameterizedAttributeWithNonConstantNotSupportedInPrecompiledQueries`.
 The real precompiler test pins that observed boundary, rather than an inferred
 provider-owned guard.
@@ -390,3 +393,11 @@ provider-owned guard.
 - [EF10 relational reader ownership](https://github.com/dotnet/efcore/blob/v10.0.8/src/EFCore.Relational/Storage/RelationalDataReader.cs) (primary source; retrieved 2026-11-18)
 - [MySQL temporal function grammar](https://dev.mysql.com/doc/refman/8.4/en/date-and-time-functions.html#function_timestampdiff) (primary source; retrieved 2026-11-18)
 - [MariaDB TIMESTAMPDIFF units](https://mariadb.com/docs/server/reference/sql-functions/date-time-functions/timestampdiff) (primary source; retrieved 2026-11-18)
+- [EF11 public migration dependency record](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Relational/Migrations/MigrationsSqlGeneratorDependencies.cs) (primary source; retrieved 2026-11-18)
+- [EF11 core preprocessing visitor order](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore/Query/QueryTranslationPreprocessor.cs) (primary source; retrieved 2026-11-17)
+- [EF11 inherited relational metadata and root normalization](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Relational/Query/RelationalQueryTranslationPreprocessor.cs) (primary source; retrieved 2026-11-17)
+- [EF11 design-time services and shared logger factory registration](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Design/Design/DesignTimeServiceCollectionExtensions.cs) (primary source; retrieved 2026-11-17)
+- [EF11 QueryCompiler and ExtractParameters](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore/Query/Internal/QueryCompiler.cs) (primary source; retrieved 2026-11-17)
+- [EF11 relational shaped nonquery compilation and private resolver](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Relational/Query/RelationalShapedQueryCompilingExpressionVisitor.cs) (primary source; retrieved 2026-11-17)
+- [EF11 relational command execution and cleanup](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Relational/Storage/RelationalCommand.cs) (primary source; retrieved 2026-11-17)
+- [EF11 relational reader ownership](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore.Relational/Storage/RelationalDataReader.cs) (primary source; retrieved 2026-11-17)

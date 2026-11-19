@@ -1,7 +1,7 @@
 # Engineering Standards
 
 This document defines how Doka applies the shared engineering rules to the
-.NET 10 provider line. The applied rules and project exceptions are readable
+.NET 11 provider line. The applied rules and project exceptions are readable
 here without access to another repository or a private planning directory.
 Implementation boundaries remain in [Architecture](architecture.md), contribution
 instructions in [Contributing](../CONTRIBUTING.md), and individual decisions in
@@ -131,8 +131,8 @@ The following project-specific baselines remain deliberate:
 | Area | Applied Doka contract |
 | --- | --- |
 | Test names | Existing names and inherited EF test identities remain unchanged. The owner explicitly retained this convention for this adoption; no bulk renaming to `Method_Scenario_ExpectedBehavior` is performed. |
-| Test platform | The .NET 10 line retains xUnit 2 and VSTest. The shared template's xUnit 3/MTP setup is not an instruction to migrate this line. |
-| Test configuration | The existing VSTest `.runsettings`, target-selection and runner configuration remain valid. MTP-specific behavior is not assumed for VSTest. |
+| Test platform | This .NET 11 line uses xUnit 3 and Microsoft.Testing.Platform. The independently maintained .NET 10 line retains xUnit 2 and VSTest. |
+| Test configuration | Native MTP execution uses the copied `tests/testconfig.json` and explicit module/root-directory selection. The .NET 10 line retains its VSTest `.runsettings`; those files do not supply MTP defaults. |
 | Parallelism | Independent tests run within the established fixture and database ownership limits. The integration suite's bounded class parallelism protects its shared servers; process-wide pool resets remain exclusive. |
 | EF specifications | Inherited EF specification shape and generated fixtures retain their upstream contracts; local adapters and dispositions remain explicit. |
 | API diagnostics | RS0026 stays enabled, with justified per-method exceptions for established optional-overload contracts. PublicAPI files remain authoritative. |

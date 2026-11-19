@@ -64,11 +64,17 @@ case "${runner}" in
             --results-directory "${results_directory}"
         ;;
     Microsoft.Testing.Platform)
+        # WHY: Reserve a new prefix in this evidence directory; stale reports cannot satisfy this invocation.
+        coverage_run_prefix="$(mktemp "${results_directory}/spec-${target}-XXXXXXXX")"
+        coverage_run_prefix="${coverage_run_prefix##*/}"
         dotnet test --project "${project}" --configuration Release --no-build --no-restore --tl:off \
             --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live" \
-            --coverlet --coverlet-output-format cobertura --coverlet-file-prefix "spec-${target}" \
+            --coverlet --coverlet-output-format cobertura --coverlet-file-prefix "${coverage_run_prefix}" \
             --results-directory "${results_directory}" \
             --report-xunit-trx --report-xunit-trx-filename spec-tests.trx
+        bash "${repo_root}/eng/quality/check-coverage-threshold.sh" --modules \
+            "${results_directory}" "${coverage_run_prefix}" \
+            Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite
         ;;
 esac
 

@@ -12,12 +12,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 from eng.release import evidence as release_evidence, lines
-from eng.tests.test_release_lines import initial_policy
+from eng.tests.test_release_lines import ga_specification_baseline, initial_policy, prepared_policy
 
 
 def release_line(source_ref: str = "refs/heads/main") -> dict[str, object]:
@@ -45,12 +47,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
     cannot be accidentally mocked into agreement with the manifest.
     """
 
+    # WHY: Local fixtures own their admission; disabling GitHub identity alone
+    # does not stop discovery of the enclosing RC job's frozen line file.
     _LOCAL_RELEASE_ENVIRONMENT = {
         "GITHUB_ACTIONS": "false",
         "GITHUB_REF": "",
         "GITHUB_SHA": "",
+        "DOKA_RELEASE_LINE_FILE": "",
+        "DOKA_RELEASE_LINES_POLICY": "",
+        "DOKA_RELEASE_LINE_AUTHORITY": "",
+        "DOKA_RELEASE_WORKFLOW_PATH": "",
     }
-    _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
     def setUp(self) -> None:
         """Create an untagged repository with an ignored evidence fixture."""
@@ -72,9 +79,21 @@ class ReleaseEvidenceTests(unittest.TestCase):
         )
         # Evidence remains ignored so negative tests can mutate it without
         # turning an artifact-integrity failure into a source-dirty failure.
-        # The host may also carry preview SDKs. Release fixtures must inherit
-        # the repository-approved stable SDK rather than ambient tool selection.
-        dotnet_sdk = release_evidence.approved_dotnet_sdk(self._REPOSITORY_ROOT)
+        # WHY: These are historical GA-10 scenarios even on an RC-11 checkout.
+        # Simulate only their SDK observation; Git identity probes remain real.
+        dotnet_sdk = "10.0.402"
+        original_run_command = release_evidence.run_command
+
+        def run_fixture_command(*arguments: str, cwd: Path | None = None) -> str:
+            """Supply the owned fixture's SDK while forwarding every other probe."""
+            if arguments == ("dotnet", "--version") and cwd is not None and cwd.resolve() == self.repo.resolve():
+                return dotnet_sdk
+
+            return original_run_command(*arguments, cwd=cwd)
+
+        sdk_probe = mock.patch.object(release_evidence, "run_command", side_effect=run_fixture_command)
+        sdk_probe.start()
+        self.addCleanup(sdk_probe.stop)
         (self.repo / ".gitignore").write_text("/evidence/\n", encoding="ascii")
         (self.repo / "global.json").write_text(
             json.dumps(
@@ -99,11 +118,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "[10.0.8, 10.1.0)</DokaEfCoreVersion></PropertyGroup></Project>\n",
             encoding="ascii",
         )
-        # WHY: GA source qualification consumes its own reviewed patch baseline;
-        # the isolated repository must carry that source contract too.
+        # WHY: Keep the reviewed GA-10 versions independent of the active branch's
+        # specification inventory; full suite validation belongs to its own gate.
         baseline = self.repo / lines.SPECIFICATION_BASELINE_PATH
         baseline.parent.mkdir(parents=True)
-        baseline.write_bytes((self._REPOSITORY_ROOT / lines.SPECIFICATION_BASELINE_PATH).read_bytes())
+        baseline.write_text(json.dumps(ga_specification_baseline()), encoding="ascii")
         self._git("add", ".gitignore", "global.json", "source.txt", "Directory.Build.props",
                   "Directory.Packages.props", str(lines.SPECIFICATION_BASELINE_PATH))
         self._git("commit", "-m", "test: seed release source")
@@ -454,11 +473,31 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             release_evidence.approved_dotnet_sdk(self.repo)
 
+    def test_generate_rejects_a_different_observed_sdk(self) -> None:
+        """Keep fixture-local SDK simulation subject to the exact identity guard."""
+        # Arrange
+        original_probe = release_evidence.run_command
+
+        def wrong_sdk(*arguments: str, cwd: Path | None = None) -> str:
+            """Change only the owned fixture's SDK observation."""
+            if arguments == ("dotnet", "--version") and cwd is not None and cwd.resolve() == self.repo.resolve():
+                return "10.0.999"
+
+            return original_probe(*arguments, cwd=cwd)
+
+        # Act
+        with mock.patch.object(release_evidence, "run_command", side_effect=wrong_sdk):
+            with self.assertRaises(release_evidence.EvidenceError) as failure:
+                self._generate()
+
+        # Assert
+        self.assertIn("active .NET SDK 10.0.999 does not match the approved SDK 10.0.402", str(failure.exception))
+
     def test_sdk_contract_rejects_prerelease_version(self) -> None:
         """Reject an exact SDK identity that is not a stable release."""
         path = self.repo / "global.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["sdk"]["version"] = "11.0.100-rc.1.25451.107"
+        payload["sdk"]["version"] = "11.0.100-rc.2.26504.105"
         path.write_text(json.dumps(payload) + "\n", encoding="ascii")
 
         with self.assertRaisesRegex(
@@ -601,12 +640,26 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ):
             self._generate()
 
+    def test_generate_rejects_another_framework_lines_patch_receipts(self) -> None:
+        """A complete 10.x matrix cannot qualify the branch-native GA 11 gate."""
+        # Arrange
+        matrix = self.root / "efcore-patch-matrix"
+        (matrix / "minimum-11-0-0").rename(matrix / "minimum-10-0-8")
+        (matrix / "latest-11-0").rename(matrix / "latest-10-0")
+
+        # Act
+        with self.assertRaises(release_evidence.EvidenceError) as failure:
+            self._generate()
+
+        # Assert
+        self.assertIn("exactly the floor and latest receipts", str(failure.exception))
+
     def test_generate_rejects_a_full_floor_matrix_rerun(self) -> None:
         """Keep the protected floor proof distinct from candidate-only latest work."""
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "minimum-10-0-8"
+            / "minimum-11-0-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -623,12 +676,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.10"
-        receipt["resolvedVersion"] = "10.0.10"
+        receipt["requestedVersion"] = "11.0.10"
+        receipt["resolvedVersion"] = "11.0.10"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -641,11 +694,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.*"
+        receipt["requestedVersion"] = "11.0.*"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -659,7 +712,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         path.write_text(
@@ -669,9 +722,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "validationScope": "upstream-probe",
                     "qualificationStatus": "not-qualified",
                     "reason": "unreviewed-newer-patch",
-                    "requestedVersion": "10.0.*",
-                    "resolvedVersion": "10.0.15",
-                    "highestReviewedVersion": "10.0.14",
+                    "requestedVersion": "11.0.*",
+                    "resolvedVersion": "11.0.15",
+                    "highestReviewedVersion": "11.0.14",
                     "results": {"dependencies": "resolved-packages.json"},
                     "specificationTargets": [],
                     "integrationTargets": [],
@@ -696,11 +749,11 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "efcore-contract-evidence.json"
         )
         receipt = json.loads(path.read_text(encoding="utf-8"))
-        receipt["requestedVersion"] = "10.0.11"
+        receipt["requestedVersion"] = "11.0.11"
         path.write_text(json.dumps(receipt), encoding="utf-8")
 
         with self.assertRaisesRegex(
@@ -711,7 +764,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
     def test_generate_rejects_malformed_efcore_matrix_documents(self) -> None:
         """Keep malformed matrix JSON inside the typed evidence failure boundary."""
-        directory = self.root / "efcore-patch-matrix" / "latest-10-0"
+        directory = self.root / "efcore-patch-matrix" / "latest-11-0"
         documents = (
             (directory / "efcore-contract-evidence.json", []),
             (directory / "resolved-packages.json", {"projects": [None]}),
@@ -749,7 +802,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "mysql84"
             / "results.trx"
         )
@@ -766,7 +819,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         path = (
             self.root
             / "efcore-patch-matrix"
-            / "latest-10-0"
+            / "latest-11-0"
             / "integration"
             / "compatibility-matrix-evidence.json"
         )
@@ -866,7 +919,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         # Act
         with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
-            with mock.patch.object(sys, "argv", arguments):
+            with (mock.patch.object(sys, "argv", arguments),
+                  mock.patch.object(lines, "load_policy", return_value=initial_policy())):
                 result = release_evidence.main()
 
         # Assert
@@ -883,11 +937,63 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         # Act
         with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
-            with mock.patch.object(sys, "argv", arguments):
+            with (mock.patch.object(sys, "argv", arguments),
+                  mock.patch.object(lines, "load_policy", return_value=initial_policy())):
                 result = release_evidence.main()
 
         # Assert
         self.assertEqual(1, result)
+
+    def test_local_source_check_cli_ignores_ambient_rc_admission(self) -> None:
+        """Keep the local stable fixture independent of its hosting RC run."""
+        # Arrange
+        environment, _ = self._admission_fixture()
+        snapshot = lines.freeze_line(
+            prepared_policy(), "refs/heads/maintenance/10.x", "10.7.1-rc.1"
+        )
+
+        Path(environment["DOKA_RELEASE_LINE_FILE"]).write_text(
+            json.dumps(snapshot), encoding="ascii"
+        )
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/main", "--release-version", "10.2.3",
+        ]
+
+        # Act
+        with mock.patch.dict("os.environ", environment):
+            with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+                with (
+                    mock.patch.object(sys, "argv", arguments),
+                    mock.patch.object(lines, "load_policy", return_value=initial_policy()),
+                ):
+                    result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(0, result)
+
+    def test_hosted_source_check_cli_rejects_a_mismatched_admitted_channel(self) -> None:
+        """Retain channel enforcement when the caller intentionally uses admission."""
+        # Arrange
+        environment, snapshot = self._admission_fixture()
+        snapshot["channel"] = "prerelease"
+        Path(environment["DOKA_RELEASE_LINE_FILE"]).write_text(
+            json.dumps(snapshot), encoding="ascii"
+        )
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/main", "--release-version", "10.2.3",
+        ]
+        error = StringIO()
+
+        # Act
+        with mock.patch.dict("os.environ", environment):
+            with mock.patch.object(sys, "argv", arguments), redirect_stderr(error):
+                result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(1, result)
+        self.assertIn("Frozen release-line channel does not match", error.getvalue())
 
     def _generate(self) -> None:
         """Generate untagged release evidence under an explicit local identity."""
@@ -1099,9 +1205,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
             "Microsoft.EntityFrameworkCore.Relational.Specification.Tests",
         )
         legs = {
-            "minimum-10-0-8": {
-                "requestedVersion": "10.0.8",
-                "resolvedVersion": "10.0.8",
+            "minimum-11-0-0": {
+                "requestedVersion": "11.0.0",
+                "resolvedVersion": "11.0.0",
                 "validationScope": "dependency-graph",
                 "qualificationSource": "repository-qualification",
                 "specificationTargets": [],
@@ -1111,9 +1217,9 @@ class ReleaseEvidenceTests(unittest.TestCase):
                     "version-contract-preflight",
                 ],
             },
-            "latest-10-0": {
-                "requestedVersion": "10.0.12",
-                "resolvedVersion": "10.0.12",
+            "latest-11-0": {
+                "requestedVersion": "11.0.2",
+                "resolvedVersion": "11.0.2",
                 "validationScope": "full",
                 "qualificationSource": None,
                 "specificationTargets": ["mariadb118", "mysql84"],
@@ -1169,7 +1275,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 json.dumps(graph),
                 encoding="utf-8",
             )
-            if leg == "latest-10-0":
+            if leg == "latest-11-0":
                 self._write_efcore_full_results(directory, identities)
 
     @staticmethod

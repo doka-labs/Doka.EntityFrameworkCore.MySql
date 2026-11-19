@@ -35,6 +35,8 @@ internal static class JsonAllocationProbe
             _ => throw new ArgumentException($"Unknown JSON allocation scenario '{scenario}'.", nameof(scenario)),
         };
 
+        // WHY: Allocate the captured delegate before warmup, outside the retained measurement window.
+        // ReSharper disable once ConvertToLocalFunction
         var workload = () => Execute(iteration, allocate);
 
         // WHY: DOM materialization, comparer delegates and both measurement methods
@@ -154,6 +156,9 @@ internal static class JsonAllocationProbe
 /// <param name="Gen2Collections">Generation-two collections overlapping the window.</param>
 /// <param name="BackgroundGcBefore">The last background-GC index before sampling.</param>
 /// <param name="BackgroundGcAfter">The last background-GC index after sampling.</param>
+
+// WHY: The parent process reads these properties from serialized JSON, not direct CLR access.
+// ReSharper disable NotAccessedPositionalProperty.Global
 internal sealed record JsonAllocationProof(
     int SchemaVersion,
     string Scenario,
@@ -169,3 +174,5 @@ internal sealed record JsonAllocationProof(
     long BackgroundGcBefore,
     long BackgroundGcAfter
 );
+
+// ReSharper restore NotAccessedPositionalProperty.Global

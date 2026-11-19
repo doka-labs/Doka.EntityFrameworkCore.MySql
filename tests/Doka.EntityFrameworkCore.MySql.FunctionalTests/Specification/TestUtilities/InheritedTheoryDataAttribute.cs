@@ -1,4 +1,5 @@
 using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 
@@ -9,7 +10,7 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtili
 /// <remarks>
 /// A provider override sometimes changes only test metadata, such as an engine disposition.
 /// xUnit does not inherit data attributes from the base declaration, so this attribute makes
-/// that inheritance explicit to both the analyzer and the custom theory discoverer.
+/// that inheritance explicit to both the analyzer and the standard theory discoverer.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class InheritedTheoryDataAttribute : DataAttribute
@@ -19,9 +20,11 @@ public sealed class InheritedTheoryDataAttribute : DataAttribute
     /// that declares theory data.
     /// </summary>
     /// <param name="testMethod">Provider override requesting inherited theory data.</param>
+    /// <param name="disposalTracker">Tracks resources owned by the supplied theory data.</param>
     /// <returns>The exact data rows declared by the nearest data-bearing base method.</returns>
-    public override IEnumerable<object[]> GetData(
-        MethodInfo testMethod
+    public override async ValueTask<IReadOnlyCollection<ITheoryDataRow>> GetData(
+        MethodInfo testMethod,
+        DisposalTracker disposalTracker
     )
     {
         ArgumentNullException.ThrowIfNull(testMethod);
@@ -35,10 +38,20 @@ public sealed class InheritedTheoryDataAttribute : DataAttribute
             .GetCustomAttributes<DataAttribute>(inherit: false)
             .ToArray();
 
-        return dataAttributes
-            .SelectMany(attribute => attribute.GetData(baseMethod))
-            .ToArray();
+        var dataRows = new List<ITheoryDataRow>();
+        foreach (var dataAttribute in dataAttributes)
+        {
+            dataRows.AddRange(
+                await dataAttribute
+                    .GetData(baseMethod, disposalTracker)
+                    .ConfigureAwait(false));
+        }
+
+        return dataRows;
     }
+
+    /// <inheritdoc />
+    public override bool SupportsDiscoveryEnumeration() => true;
 }
 
 internal static class TheoryDataInheritance

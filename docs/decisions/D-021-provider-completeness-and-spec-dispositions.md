@@ -51,15 +51,22 @@ without falsifying engine reality.
 
 The specification suite has a zero provider-gap budget.
 
-Live specification execution requires a target in the test-host environment.
-The functional-test project supplies the version-controlled local default
-`mariadb123` through `LocalMariaDb123.runsettings`; explicit environment targets
-from CI and operators bypass that file. The database fixture still refuses to
-start without a resolved target, and an external endpoint must declare a
+Local specification discovery and execution resolve an absent target to
+`mariadb123` in the shared C# target resolver. Native MTP does not apply the
+former VSTest `.runsettings` default; the resolver therefore owns this policy
+for CLI and IDE hosts alike. Explicit environment targets retain precedence,
+blank or unsupported targets remain errors, and CI still refuses an absent
+target. An external endpoint must declare a
 server-version token from the selected target's engine and major/minor line.
-The per-event CI matrix runs `Category=Spec|Category=Live` in a separate process
-for every supported target. A local IDE run therefore cannot be mistaken for
-complete matrix evidence.
+The per-event CI matrix runs every test in the provider `Specification`
+namespace, every provider adapter marked `Category=Spec`, and the standalone
+`Category=Live` tests in a separate process for every supported target. The
+category admits the runtime-migration adapter that must reside in EF Core's
+namespace because upstream-generated source resolves it there. The discovery
+contract accepts only that exact external adapter prefix, so unrelated EF Core
+tests cannot enter the provider contract. A local IDE run therefore cannot be
+mistaken for complete matrix evidence, and every missing or additional test ID
+remains observable.
 
 Every applicable inherited relational behavior must execute on every supported target. A test
 may be skipped only when it belongs to one of these three classifications:
@@ -214,7 +221,7 @@ Six discovered engine constraints remain fully supported by the provider:
   with `ST_AsWKB` and reconstructed through `ST_GeomFromWKB` with the model
   column's SRID.
 - MariaDB uses `ST_NumInteriorRings` and returns a non-null sentinel for
-  `ST_IsSimple(NULL)` on the supported 11.x lines. The member translator
+  `ST_IsSimple(NULL)` on the supported MariaDB releases. The member translator
   selects the dialect name and preserves the nullable NTS contract with
   `CASE`.
 
@@ -243,6 +250,15 @@ MariaDB documents that another ordering expression is required to order ties.
 Both sources were retrieved on 2026-07-30.
 
 ### Verified target matrix
+
+The active EF Core `11.0.0` contract contains 329 compliance
+bases, 9,318 unique test definitions, 19,682 effective assignments, and zero
+provider debt. Exact discovery regenerated on 2026-11-15 contains 30,473 test
+IDs for each of the six supported targets. These files establish the expected
+GA inventory and discovery set; they do not claim that the complete live
+matrix has executed.
+
+The tables below retain the dated full-matrix evidence from the 10.x line.
 
 The complete `Category=Spec` matrix was executed on 2026-07-30. Every TRX
 total matched its version-bound discovery contract:
@@ -344,6 +360,9 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-08-18: Bound spatial validity, buffer strategies, and collection
   aggregates to their exact engine-version capabilities, and implemented the
   NetTopologySuite Crosses relation through MariaDB DE-9IM predicates.
+- 2026-09-19: Added the exact EF Core 11 RC.1 inventory and six-target
+  discovery contract while retaining the 10.x execution tables as historical
+  evidence.
 - 2026-11-19: Aligned current metadata with the shared notification audience and
   last-update date contract; retained the original decision and status history.
 

@@ -21,9 +21,9 @@ internal static class SpecTestTarget
     public const string FrameworkLimitationProbeEnvironmentVariableName = "DOKA_SPEC_TEST_PROBE_FRAMEWORK_LIMITS";
 
     /// <summary>
-    /// Gets the stable target used by discovery when none is configured.
+    /// Gets the local target shared by discovery and execution when none is configured.
     /// </summary>
-    public const string DefaultTarget = "mysql84";
+    public const string DefaultTarget = "mariadb123";
 
     /// <summary>
     /// Resolves the target used by target-dependent discovery.
@@ -32,10 +32,11 @@ internal static class SpecTestTarget
     public static string Resolve() => Resolve(Environment.GetEnvironmentVariable(EnvironmentVariableName));
 
     /// <summary>
-    /// Resolves the explicitly selected target for a live specification run.
+    /// Resolves the selected live target, requiring an explicit target in CI.
     /// </summary>
     public static string ResolveForExecution() => ResolveForExecution(
-        Environment.GetEnvironmentVariable(EnvironmentVariableName));
+        Environment.GetEnvironmentVariable(EnvironmentVariableName),
+        MySqlTestEnvironment.IsCi);
 
     /// <summary>
     /// Determines whether engine-limitation skips are disabled for a re-evaluation probe.
@@ -57,14 +58,33 @@ internal static class SpecTestTarget
         string? configuredTarget
     ) => configuredTarget ?? DefaultTarget;
 
+    /// <summary>Resolves a local default while retaining explicit CI target ownership.</summary>
+    /// <param name="configuredTarget">The explicit target, or null when none is configured.</param>
+    /// <param name="isCi">Whether a missing target must be rejected.</param>
+    /// <returns>The explicit target or the local MariaDB target.</returns>
     internal static string ResolveForExecution(
-        string? configuredTarget
-    ) => string.IsNullOrWhiteSpace(configuredTarget)
-        ? throw new InvalidOperationException(
-            $"Live FunctionalTests execute exactly one database target per process. Set "
-            + $"{EnvironmentVariableName} to mysql84, mysql97, mariadb1011, mariadb114, "
-            + "mariadb118, or mariadb123. CI executes the complete six-target matrix.")
-        : configuredTarget;
+        string? configuredTarget,
+        bool isCi
+    )
+    {
+        // WHY: Native MTP does not apply the VSTest runsettings default. Resolve it
+        // here so CLI and IDE hosts agree without making CI matrix rows implicit.
+        if (configuredTarget is null
+            && !isCi)
+        {
+            return DefaultTarget;
+        }
+
+        if (string.IsNullOrWhiteSpace(configuredTarget))
+        {
+            throw new InvalidOperationException(
+                $"Live FunctionalTests execute exactly one database target per process. Set "
+                + $"{EnvironmentVariableName} to mysql84, mysql97, mariadb1011, mariadb114, "
+                + "mariadb118, or mariadb123. CI executes the complete six-target matrix.");
+        }
+
+        return configuredTarget;
+    }
 
     private static bool IsEnabled(
         string environmentVariableName

@@ -3,32 +3,17 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Reports only engines that actually support ordinary native CTE UPDATE and DELETE.</summary>
-    public static TheoryData<string> SupportedMutationTargets
-    {
-        get
-        {
-            var cases = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (IntegrationTestEnvironment
-                    .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target))
-                    .Profile
-                    .Engine
-                    .Has(EngineCapability.CteUpdateDelete))
-                {
-                    cases.Add(target);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> SupportedMutationTargets => SelectedTargets.Where(target =>
+        IntegrationTestEnvironment
+            .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target.Data))
+            .Profile
+            .Engine
+            .Has(EngineCapability.CteUpdateDelete));
 
     /// <summary>CTE-N21 preserves the native foreign-key failure and atomic statement effect without a hidden retry.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84,
         IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(SupportedMutationTargets))]
     public async Task Constraint_failure_preserves_native_error_and_no_partial_cte_update(
         string target
@@ -67,9 +52,9 @@ public sealed partial class MySqlCteGraphIntegrationTests
     }
 
     /// <summary>CTE-N21 executes each native row trigger exactly once and reports the actual affected count.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84,
         IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(SupportedMutationTargets))]
     public async Task Native_trigger_runs_once_per_affected_physical_row(
         string target
@@ -110,9 +95,9 @@ public sealed partial class MySqlCteGraphIntegrationTests
     }
 
     /// <summary>CTE-N21 does not turn a failure after native completion into a success, replay or invented rollback.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84,
         IntegrationDatabaseTarget.MySql97,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(SupportedMutationTargets))]
     public async Task Failure_after_native_completion_is_preserved_without_replay_or_rollback_claim(
         string target

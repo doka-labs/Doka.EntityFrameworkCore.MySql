@@ -53,8 +53,8 @@ while (( $# > 0 )); do
     esac
 done
 
-if [[ ! "${ef_core_version}" =~ ^10[.]0[.][0-9]+$ ]]; then
-    echo "--ef-core-version must identify one exact EF Core 10.0 patch." >&2
+if [[ ! "${ef_core_version}" =~ ^11[.]0[.][0-9]+$ ]]; then
+    echo "--ef-core-version must identify one exact EF Core 11.0 patch." >&2
     exit 2
 fi
 

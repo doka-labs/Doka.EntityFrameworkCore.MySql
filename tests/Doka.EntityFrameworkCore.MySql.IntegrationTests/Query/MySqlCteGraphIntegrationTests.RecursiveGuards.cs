@@ -3,25 +3,16 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Reports each structurally unsupported recursive operator without conflating their failure oracles.</summary>
-    public static TheoryData<string, string, string> UnsupportedStepCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string, string>> UnsupportedStepCases
+        => SelectedTargets.SelectMany(target => new[]
         {
-            var cases = new TheoryData<string, string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "multiple", "exactly one frontier");
-                cases.Add(target, "aggregate", "grouping");
-                cases.Add(target, "union", "set operations");
-                cases.Add(target, "nested", "another statement-local");
-                cases.Add(target, "outer", "outer-joined");
-                cases.Add(target, "paging", "paging");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string, string>(target.Data, "multiple", "exactly one frontier"),
+            new(target.Data, "aggregate", "grouping"),
+            new(target.Data, "union", "set operations"),
+            new(target.Data, "nested", "another statement-local"),
+            new(target.Data, "outer", "outer-joined"),
+            new(target.Data, "paging", "paging"),
+        });
 
     /// <summary>CTE-N03/N08/N10 reject unsupported recursive structure before a data command.</summary>
     [RequiresSupportedDatabaseTargetTheory]

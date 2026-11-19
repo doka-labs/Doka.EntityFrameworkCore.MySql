@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Validates application-time periods, constraints, and shared-table contracts.
-/// </summary>
+/// <summary>Validates application-time periods, constraints, and shared-table contracts.</summary>
 internal sealed partial class MySqlModelValidator
 {
     private void ValidateApplicationTimeTables(
@@ -239,7 +237,7 @@ internal sealed partial class MySqlModelValidator
 
     private static void ValidateApplicationTimeConstraintProperties(
         IReadOnlyEntityType entityType,
-        IReadOnlyList<IReadOnlyProperty> properties,
+        IReadOnlyList<IReadOnlyPropertyBase> properties,
         string periodStartPropertyName,
         string periodEndPropertyName,
         string constraintKind,

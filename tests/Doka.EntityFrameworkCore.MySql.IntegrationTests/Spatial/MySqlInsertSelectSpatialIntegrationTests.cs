@@ -9,12 +9,12 @@ public sealed partial class MySqlInsertSelectSpatialIntegrationTests
     private const string TargetTable = "Insert spatial target";
 
     /// <summary>Reports each selected supported native profile independently.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Store-side Point copying preserves coordinates, SRID and WKB without loading source geometries.</summary>
     /// <param name="target">The supported native server profile.</param>
@@ -25,7 +25,7 @@ public sealed partial class MySqlInsertSelectSpatialIntegrationTests
     )
     {
         // Arrange
-        using var safety = new CancellationTokenSource();
+        using var safety = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         safety.CancelAfter(TimeSpan.FromMinutes(2));
         await using var store = await SpatialStore.CreateAsync(target, safety.Token);
         await store.SeedAsync(includeInvalidSrid: false, safety.Token);
@@ -100,7 +100,7 @@ public sealed partial class MySqlInsertSelectSpatialIntegrationTests
     )
     {
         // Arrange
-        using var safety = new CancellationTokenSource();
+        using var safety = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         safety.CancelAfter(TimeSpan.FromMinutes(2));
         await using var store = await SpatialStore.CreateAsync(target, safety.Token);
         await store.SeedAsync(includeInvalidSrid: true, safety.Token);

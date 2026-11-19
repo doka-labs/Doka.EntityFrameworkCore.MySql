@@ -227,7 +227,7 @@ def validate_efcore_full_results(
 ) -> None:
     """Verify that a full matrix row retained successful live evidence."""
     for target in targets:
-        target_root = matrix_root / "latest-10-0" / target
+        target_root = matrix_root / "latest-11-0" / target
         trx_files = sorted(target_root.glob("*.trx"))
         database_path = target_root / "test-database-evidence.json"
         if len(trx_files) != 1 or not database_path.is_file():
@@ -271,7 +271,7 @@ def validate_efcore_full_results(
 
     integration_path = (
         matrix_root
-        / "latest-10-0"
+        / "latest-11-0"
         / "integration"
         / "compatibility-matrix-evidence.json"
     )
@@ -321,8 +321,8 @@ def validate_efcore_patch_matrix(
     matrix_root = root / EFCORE_PATCH_MATRIX_ROOT
     receipts = sorted(matrix_root.rglob("efcore-contract-evidence.json"))
     expected_receipts = [
-        matrix_root / "latest-10-0" / "efcore-contract-evidence.json",
-        matrix_root / "minimum-10-0-8" / "efcore-contract-evidence.json",
+        matrix_root / "latest-11-0" / "efcore-contract-evidence.json",
+        matrix_root / "minimum-11-0-0" / "efcore-contract-evidence.json",
     ]
     if receipts != expected_receipts:
         rendered = [portable_path(path, root) for path in receipts]
@@ -332,9 +332,9 @@ def validate_efcore_patch_matrix(
         )
 
     expected = {
-        "minimum-10-0-8": {
-            "requestedPattern": r"10[.]0[.]8",
-            "resolvedPattern": r"10[.]0[.]8",
+        "minimum-11-0-0": {
+            "requestedPattern": r"11[.]0[.]0",
+            "resolvedPattern": r"11[.]0[.]0",
             "validationScope": "dependency-graph",
             "qualificationSource": "repository-qualification",
             "specificationTargets": [],
@@ -342,9 +342,9 @@ def validate_efcore_patch_matrix(
             "contracts": ["resolved-package-graph", "version-contract-preflight"],
             "results": {"dependencies": "resolved-packages.json"},
         },
-        "latest-10-0": {
-            "requestedPattern": r"10[.]0[.][0-9]+",
-            "resolvedPattern": r"10[.]0[.][0-9]+",
+        "latest-11-0": {
+            "requestedPattern": r"11[.]0[.][0-9]+",
+            "resolvedPattern": r"11[.]0[.][0-9]+",
             "validationScope": "full",
             "qualificationSource": None,
             "specificationTargets": ["mariadb118", "mysql84"],
@@ -442,7 +442,7 @@ def validate_efcore_patch_matrix(
         raise EvidenceError(
             "The EF Core floor receipt requires commit-exact repository-qualification."
         )
-    validate_efcore_full_results(matrix_root, expected["latest-10-0"]["specificationTargets"])
+    validate_efcore_full_results(matrix_root, expected["latest-11-0"]["specificationTargets"])
 
 
 def collect_engines(root: Path) -> list[dict[str, str]]:
@@ -918,7 +918,11 @@ def write_manifest(args: argparse.Namespace) -> None:
     qualification = validate_qualification_manifest(
         root, source["commit"], args.release_version, line
     )
-    validate_efcore_patch_matrix(root, qualification["gates"])
+    # WHY: Exact preview graphs have no GA floor/latest evidence; historical
+    # and admitted GA candidates retain the complete patch-matrix requirement.
+    if line is None or line["upstreamStage"] == "ga":
+        validate_efcore_patch_matrix(root, qualification["gates"])
+
     reconciliation = validate_reconciliation(root, args.run_id, source["commit"])
     dependencies = collect_dependencies(dependency_graph)
     approved_sdk = approved_dotnet_sdk(repo, line)
@@ -1134,7 +1138,8 @@ def verify_manifest(root: Path, repo: Path | None) -> None:
     qualification_gates = qualification.get("gates", [])
     if not isinstance(qualification_gates, list):
         raise EvidenceError("Release evidence has an invalid qualification gate inventory.")
-    validate_efcore_patch_matrix(root, qualification_gates)
+    if line is None or line["upstreamStage"] == "ga":
+        validate_efcore_patch_matrix(root, qualification_gates)
 
 
 def parse_arguments() -> argparse.Namespace:

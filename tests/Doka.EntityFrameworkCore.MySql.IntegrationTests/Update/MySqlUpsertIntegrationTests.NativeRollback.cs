@@ -3,29 +3,15 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports normal statement-only rollback profiles and the two isolated full-rollback representatives.</summary>
-    public static TheoryData<string, bool> NativeTimeoutCases
-    {
-        get
-        {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
+    public static IEnumerable<TheoryDataRow<string, bool>> NativeTimeoutCases => SelectedTargets.SelectMany(target =>
+        Enum.Parse<IntegrationDatabaseTarget>(target.Data) is IntegrationDatabaseTarget.MySql84
+            or IntegrationDatabaseTarget.MariaDb123
+            ? new[]
             {
-                if (Enum.Parse<IntegrationDatabaseTarget>(target) is IntegrationDatabaseTarget.MySql84
-                    or IntegrationDatabaseTarget.MariaDb123)
-                {
-                    data.Add(target, false);
-                    data.Add(target, true);
-                }
-                else
-                {
-                    data.Add(target, false);
-                }
+                new TheoryDataRow<string, bool>(target.Data, false),
+                new TheoryDataRow<string, bool>(target.Data, true),
             }
-
-            return data;
-        }
-    }
+            : new[] { new TheoryDataRow<string, bool>(target.Data, false) });
 
     /// <summary>A real UPSERT deadlock victim reports both the native abort and destroyed call-savepoint boundary.</summary>
     [RequiresSupportedDatabaseTargetTheory]

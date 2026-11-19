@@ -140,7 +140,7 @@ public sealed class MySqlBoxedStringConversionTests
             .Where(value => value == "prefix:value");
 
         // Act
-        var exception = Record.Exception(() => query.ToQueryString());
+        var exception = Record.Exception(query.ToQueryString);
 
         // Assert
         Assert.IsType<InvalidOperationException>(exception);
@@ -237,11 +237,15 @@ public sealed class MySqlBoxedStringConversionTests
         public CustomValue Custom { get; set; } = new("value");
     }
 
+    // WHY: SQL enum-name conversion needs both metadata names and their original zero/one values.
+    // ReSharper disable UnusedMember.Local
     private enum Role
     {
         User,
         Admin,
     }
+
+    // ReSharper restore UnusedMember.Local
 
     private sealed record CustomValue(string Text)
     {

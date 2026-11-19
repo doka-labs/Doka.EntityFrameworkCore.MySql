@@ -1,6 +1,7 @@
 # Application character-set and collation defaults
 
 The typed APIs described here are available from Doka 10.7.0 on .NET 10 / EF Core 10.
+The 11.0.0 preparation carries these contracts forward to .NET 11 / EF Core 11.
 
 ## Configure application fallbacks
 

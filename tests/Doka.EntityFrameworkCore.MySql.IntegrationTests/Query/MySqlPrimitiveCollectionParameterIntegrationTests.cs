@@ -28,10 +28,10 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests :
 
     // WHY: MySql80 is a legacy opt-in target, not part of this six-engine contract.
     // The companion theory attribute skips a run that selects only that target.
-    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => new object[] { target.ToString() });
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 }

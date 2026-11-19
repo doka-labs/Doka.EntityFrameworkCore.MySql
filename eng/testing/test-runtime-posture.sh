@@ -482,7 +482,7 @@ run_runtime_posture() {
     require_unchanged_source
     write_runtime_evidence "${runtime_identifier}" "${trimmed_executable}"
 
-    # Provider NativeAOT publish + smoke is intentionally not run. EF Core 10 NativeAOT
+    # Provider NativeAOT publish + smoke is intentionally not run. EF Core NativeAOT
     # is upstream-experimental (Microsoft Learn); the provider's Design.Internal
     # assembly reference forces the AOT publish to load Microsoft.EntityFrameworkCore.Design
     # which is not AOT-friendly (heavy reflection, [RequiresUnreferencedCode]

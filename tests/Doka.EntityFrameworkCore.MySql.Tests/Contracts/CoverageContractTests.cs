@@ -1,8 +1,253 @@
+using Program = Doka.EntityFrameworkCore.MySql.CoverageGate.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Verifies coverage evidence freshness, identity and aggregation contracts.</summary>
 public sealed class CoverageContractTests
 {
+    /// <summary>Accepts measured source lines even when no test executes them.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Module_command_accepts_instrumented_source_with_zero_or_positive_hits(
+        int hits
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class name=\"Provider.Critical\" filename=\"Critical.cs\"><lines>"
+            + $"<line number=\"1\" hits=\"{hits}\" />"
+            + "</lines></class>");
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Provider"]);
+
+        // Assert
+        Assert.Equal(0, exitCode);
+    }
+
+    /// <summary>Requires every requested assembly using ordinal identity matching.</summary>
+    [Theory]
+    [InlineData("Missing")]
+    [InlineData("provider")]
+    [InlineData("Provider.Extra")]
+    public void Module_contract_rejects_missing_or_inexact_assembly_identity(
+        string requiredAssembly
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var errors = CoverageContract.EvaluateModules(fixture.ReportPath, [requiredAssembly]);
+
+        // Assert
+        Assert.Contains($"Coverage report is missing required assembly '{requiredAssembly}'.", errors);
+    }
+
+    /// <summary>Rejects ambiguous module identity even when both copies contain source lines.</summary>
+    [Fact]
+    public void Module_contract_rejects_duplicate_report_assembly()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class filename=\"Source.cs\"><lines><line number=\"1\" hits=\"0\" /></lines></class>");
+
+        var report = File.ReadAllText(fixture.ReportPath);
+        File.WriteAllText(
+            fixture.ReportPath,
+            report.Replace(
+                "</packages>",
+                "<package name=\"Provider\"><classes><class filename=\"Other.cs\"><lines>"
+                + "<line number=\"1\" hits=\"0\" /></lines></class></classes></package></packages>",
+                StringComparison.Ordinal));
+
+        // Act
+        var errors = CoverageContract.EvaluateModules(fixture.ReportPath, ["Provider"]);
+
+        // Assert
+        Assert.Contains("Coverage report contains duplicate assembly 'Provider'.", errors);
+    }
+
+    /// <summary>Rejects module shells and synthetic line nodes without measured source identity.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("<class filename=\"Source.cs\"><lines /></class>")]
+    [InlineData("<class><lines><line number=\"1\" hits=\"0\" /></lines></class>")]
+    [InlineData("<class filename=\" \"><lines><line number=\"1\" hits=\"0\" /></lines></class>")]
+    [InlineData("<class filename=\"Source.cs\"><lines><line hits=\"0\" /></lines></class>")]
+    [InlineData("<class filename=\"Source.cs\"><lines><line number=\"0\" hits=\"0\" /></lines></class>")]
+    [InlineData("<class filename=\"Source.cs\"><lines><line number=\"1\" /></lines></class>")]
+    [InlineData("<class filename=\"Source.cs\"><lines><line number=\"1\" hits=\"-1\" /></lines></class>")]
+    [InlineData("<class filename=\"Source.cs\"><annotation><line number=\"1\" hits=\"0\" /></annotation></class>")]
+    public void Module_contract_rejects_empty_or_invalid_source_measurement(
+        string classElements
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(classElements: classElements);
+
+        // Act
+        var errors = CoverageContract.EvaluateModules(fixture.ReportPath, ["Provider"]);
+
+        // Assert
+        Assert.Contains("Coverage assembly 'Provider' has no instrumented source lines.", errors);
+    }
+
+    /// <summary>Validates each requested module independently without adding percentage floors.</summary>
+    [Fact]
+    public void Module_command_accepts_multiple_exact_zero_hit_assemblies()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class filename=\"Source.cs\"><lines><line number=\"1\" hits=\"0\" /></lines></class>");
+
+        var report = File.ReadAllText(fixture.ReportPath);
+        File.WriteAllText(
+            fixture.ReportPath,
+            report.Replace(
+                "</packages>",
+                "<package name=\"Spatial\"><classes><class filename=\"Spatial.cs\"><lines>"
+                + "<line number=\"1\" hits=\"0\" /></lines></class></classes></package></packages>",
+                StringComparison.Ordinal));
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Provider", "Spatial"]);
+
+        // Assert
+        Assert.Equal(0, exitCode);
+    }
+
+    /// <summary>Reports omitted measured assemblies as a failed boundary instead of malformed CLI input.</summary>
+    [Fact]
+    public void Module_command_returns_failure_for_missing_required_assembly()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Missing"]);
+
+        // Assert
+        Assert.Equal(1, exitCode);
+    }
+
+    /// <summary>Rejects wildcard filters, paths and empty requested identities.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(" Provider")]
+    [InlineData("Provider*")]
+    [InlineData("[Provider]*")]
+    [InlineData("../Provider")]
+    [InlineData("Provider\\Other")]
+    [InlineData(".")]
+    public void Module_command_rejects_invalid_required_identity(
+        string requiredAssembly
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, requiredAssembly]);
+
+        // Assert
+        Assert.Equal(2, exitCode);
+    }
+
+    /// <summary>Rejects repeated requested identities instead of silently discarding them.</summary>
+    [Fact]
+    public void Module_command_rejects_duplicate_required_identity()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Provider", "Provider"]);
+
+        // Assert
+        Assert.Equal(2, exitCode);
+    }
+
+    /// <summary>Requires at least one explicit assembly at the command boundary.</summary>
+    [Fact]
+    public void Module_command_rejects_missing_required_identity()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath]);
+
+        // Assert
+        Assert.Equal(2, exitCode);
+    }
+
+    /// <summary>Rejects an empty API request even when callers bypass command-line validation.</summary>
+    [Fact]
+    public void Module_contract_rejects_empty_required_identity_collection()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+
+        // Act
+        var error = Assert.Throws<InvalidDataException>(() => CoverageContract.EvaluateModules(fixture.ReportPath, []));
+
+        // Assert
+        Assert.Contains("At least one required coverage assembly identity", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Requires later module arguments as strictly as the first argument.</summary>
+    [Fact]
+    public void Module_command_rejects_missing_additional_assembly()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(
+            classElements: "<class filename=\"Source.cs\"><lines><line number=\"1\" hits=\"0\" /></lines></class>");
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Provider", "Missing"]);
+
+        // Assert
+        Assert.Equal(1, exitCode);
+    }
+
+    /// <summary>Rejects unnamed report modules instead of treating them as a measurement boundary.</summary>
+    [Fact]
+    public void Module_contract_rejects_empty_report_assembly_identity()
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create(assemblyName: "");
+
+        // Act
+        var errors = CoverageContract.EvaluateModules(fixture.ReportPath, ["Provider"]);
+
+        // Assert
+        Assert.Contains("Coverage report contains an empty assembly identity.", errors);
+    }
+
+    /// <summary>Rejects malformed XML, foreign report roots and unsafe external-entity declarations.</summary>
+    [Theory]
+    [InlineData("<coverage>")]
+    [InlineData("<other />")]
+    [InlineData(
+        "<!DOCTYPE coverage [<!ENTITY external SYSTEM 'file:///nonexistent-doka-coverage-entity'>]><coverage>&external;</coverage>")]
+    public void Module_command_rejects_invalid_report(
+        string report
+    )
+    {
+        // Arrange
+        using var fixture = CoverageFixture.Create();
+        File.WriteAllText(fixture.ReportPath, report);
+
+        // Act
+        var exitCode = Program.Main(["modules", fixture.ReportPath, "Provider"]);
+
+        // Assert
+        Assert.Equal(2, exitCode);
+    }
+
     /// <summary>
     /// Verifies coverage contract accepts fresh evidence at every floor.
     /// </summary>
@@ -218,15 +463,13 @@ public sealed class CoverageContractTests
         Assert.Collection(
             evaluation.Errors,
             error => Assert.StartsWith($"assembly Provider {metric} coverage", error, StringComparison.Ordinal),
-            error => Assert.StartsWith(
-                $"critical class Provider.Critical {metric} coverage",
+            error => Assert.StartsWith($"critical class Provider.Critical {metric} coverage",
                 error,
                 StringComparison.Ordinal));
 
         Assert.All(
             evaluation.Results,
-            result => Assert.Contains(
-                metric == "line"
+            result => Assert.Contains(metric == "line"
                     ? "lines 1/2"
                     : "branches 1/2",
                 result,
@@ -378,11 +621,11 @@ public sealed class CoverageContractTests
 
             Directory.CreateDirectory(path);
             var fixture = new CoverageFixture(path);
-            var hits = lineHits ?? (1, 1);
+            var (firstHits, secondHits) = lineHits ?? (1, 1);
             classElements ??= $"<class name=\"{className}\"><lines>"
-                + $"<line number=\"1\" hits=\"{hits.First}\" branch=\"true\" "
+                + $"<line number=\"1\" hits=\"{firstHits}\" branch=\"true\" "
                 + $"condition-coverage=\"{branchFraction}\" />"
-                + $"<line number=\"2\" hits=\"{hits.Second}\" />"
+                + $"<line number=\"2\" hits=\"{secondHits}\" />"
                 + "</lines></class>";
 
             File.WriteAllText(

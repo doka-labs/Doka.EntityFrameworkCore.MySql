@@ -10,7 +10,7 @@ shared rules and this project's explicit test, audit and release baselines.
 
 ## Prerequisites
 
-- The exact [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- The exact [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0)
   pinned in [`global.json`](global.json)
 - [Docker](https://docs.docker.com/get-docker/) -- required for the MySQL / MariaDB integration test suites
 - [ShellCheck](https://www.shellcheck.net) -- required by the quality gate, which the `pre-commit` hook runs
@@ -113,24 +113,31 @@ DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh
 Use `./eng/test-integration.sh --up-test-down` only when an explicit Compose stack is useful for debugging. That mode exposes the documented host ports and removes the stack plus its volumes after the run. External targets remain available through the `DOKA_<TARGET>_CONNECTION_STRING` variables. MySQL 8.0 is not part of the supported release matrix; its retained legacy tests require both an explicit `mysql80` selection and an external connection string.
 
 Specification and standalone live functional tests execute exactly one target
-per test-host process. The functional-test project references the versioned
-`LocalMariaDb123.runsettings`, so Rider and a direct unconfigured `dotnet test`
-use the visible repository default `mariadb123` on every workstation. An
-explicit `DOKA_SPEC_TEST_TARGET` overrides that local default:
+per test-host process. The shared C# target resolver selects `mariadb123` when
+`DOKA_SPEC_TEST_TARGET` is absent locally, so Rider and native MTP `dotnet test`
+use the same repository default without VSTest `.runsettings`. An explicit
+target overrides that local default; blank or unsupported values remain errors.
+CI requires an explicit target. See the
+[local specification-test target](docs/ide-integration.md#local-specification-test-target).
+
+For example, select MySQL 8.4 explicitly:
 
 ```bash
 DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
-  tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
-  --filter "Category=Spec|Category=Live"
+  --project tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj \
+  --filter "FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live"
 ```
 
 Accepted specification targets are `mysql84`, `mysql97`, `mariadb1011`,
 `mariadb114`, `mariadb118`, and `mariadb123`. Set
 `DOKA_SPEC_TEST_CONNECTION_STRING` together with
 `DOKA_SPEC_TEST_SERVER_VERSION` only when validating an external database.
-The shared qualification workflow runs `Category=Spec|Category=Live` in six
-independent processes, one for every accepted target, for both PR and candidate
-qualification.
+The shared qualification workflow runs every test in the `Specification` namespace,
+every provider adapter marked `Category=Spec`, and the standalone
+`Category=Live` tests in six independent processes, one for every accepted
+target, for both PR and candidate qualification. The category includes the
+runtime-migration adapter that resides in EF Core's namespace because its
+generated source resolves the test context there.
 
 For the complete local matrix, use the repository runner. It builds once,
 starts a separate test host and test-owned container for every target in the
@@ -149,8 +156,8 @@ configure Rider to use that external endpoint. For MariaDB 12.3, for example:
 docker compose -f docker/compose.yml up -d --wait mariadb123
 ```
 
-Set the endpoint and version in Rider for that service. The checked-in run
-settings already supply the matching `mariadb123` target; list it explicitly only
+Set the endpoint and version in Rider for that service. The shared resolver
+already supplies the matching `mariadb123` target locally; include it explicitly
 when a saved configuration should be self-contained:
 
 ```text
@@ -166,12 +173,11 @@ experimental Testcontainers reuse mode is not part of the repository test
 contract because it disables Resource Reaper cleanup.
 
 Rider documents both project-stored run configurations and per-configuration
-environment variables. JetBrains documents `.runsettings` plus the project
-`RunSettingsFilePath` as the supported project-specific test-runner mechanism:
+environment variables. Use these environment overrides with the shared target
+resolver on this native MTP line; VSTest `.runsettings` do not supply its defaults:
 
 - <https://www.jetbrains.com/help/rider/Run_Debug_Configuration.html>
 - <https://youtrack.jetbrains.com/projects/MPS/articles/SUPPORT-A-2390/How-to-configure-Test-Runner-Environment-Variables-for-Unit-Test-projct-in-JetBrains-Rider>
-- <https://learn.microsoft.com/visualstudio/test/configure-unit-tests-by-using-a-dot-runsettings-file>
 - <https://dotnet.testcontainers.org/api/resource_reaper/>
 - <https://dotnet.testcontainers.org/api/resource_reuse/>
 
@@ -207,8 +213,10 @@ coverage. Normal PR CI therefore exercises package consumption and SBOM before
 merge. The qualifier uses the source branch's SDK, framework and test runner;
 it has no publishing environment, publishing credentials, OIDC or repository-write
 authority.
-Scheduled floating dependency probes remain separate from the reviewed
-floor/highest-admitted EF Core and floor/latest driver qualification recipes.
+This preview line uses the exact SDK and native MTP runner in `global.json`
+and the exact EF Core prerelease graph in `Directory.Packages.props`; it has no
+stable EF floor/latest matrix. Branch-applicable scheduled dependency probes
+remain separate from the reviewed driver floor/latest qualification recipe.
 
 **Runtime-posture smoke** executes provider/spatial ordinary and full-trim
 builds, and standalone-cache ordinary, full-trim, and NativeAOT builds:

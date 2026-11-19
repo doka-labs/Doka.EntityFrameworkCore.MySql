@@ -48,7 +48,7 @@ public sealed class IntegrationDatabaseTargetContractTests
     )
     {
         // Arrange
-        Action createName = () => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
+        void createName() => IntegrationTestEnvironment.CreateScopedDatabaseName(runId, ownerFilePath);
 
         // Act
         var exception = Record.Exception(createName);
@@ -127,7 +127,7 @@ public sealed class IntegrationDatabaseTargetContractTests
     )
     {
         // Arrange
-        Action parse = () => IntegrationTestEnvironment.ParsePinnedImageVersion(image);
+        void parse() => IntegrationTestEnvironment.ParsePinnedImageVersion(image);
 
         // Act
         var exception = Record.Exception(parse);

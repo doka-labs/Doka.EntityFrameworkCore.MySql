@@ -102,9 +102,9 @@ internal sealed partial class MySqlRelationalCommand
 
         try
         {
-            // WHY: Preserve EF10's actual retry buffer after the guard can skip the
+            // WHY: Preserve EF11's actual retry buffer after the guard can skip the
             // synthetic row, with ownership installed before initialization can fail.
-#pragma warning disable EF1001 // Narrow EF10 buffering seam; original ReaderColumns and patch qualification remain required.
+#pragma warning disable EF1001 // Narrow EF11 buffering seam; original ReaderColumns and patch qualification remain required.
             var buffered = new BufferedDataReader(guarded, parameters.DetailedErrorsEnabled);
             InstallReader(owner, buffered, parameters);
             buffered.Initialize(columns);
@@ -139,7 +139,7 @@ internal sealed partial class MySqlRelationalCommand
 
         try
         {
-#pragma warning disable EF1001 // Same EF10 buffer only for originally buffered queries; no streaming query gains a full buffer.
+#pragma warning disable EF1001 // Same EF11 buffer only for originally buffered queries; no streaming query gains a full buffer.
             var buffered = new BufferedDataReader(guarded, parameters.DetailedErrorsEnabled);
             InstallReader(owner, buffered, parameters);
             await buffered

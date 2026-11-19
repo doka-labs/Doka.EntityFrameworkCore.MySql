@@ -123,16 +123,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ef-core-version: "10.0.8"
-            resolved-version-pattern: '^10[.]0[.]8$'
-            artifact-suffix: minimum-10-0-8
+          - ef-core-version: "11.0.0"
+            resolved-version-pattern: '^11[.]0[.]0$'
+            artifact-suffix: minimum-11-0-0
             validation-scope: full
-          - ef-core-version: "10.0.*"
-            resolved-version-pattern: '^10[.]0[.][0-9]+$'
-            artifact-suffix: latest-10-0
+          - ef-core-version: "11.0.*"
+            resolved-version-pattern: '^11[.]0[.][0-9]+$'
+            artifact-suffix: latest-11-0
             validation-scope: upstream-probe
 
-    # WHY: D-009 tests floating patch resolution itself, so 10.0.* must remain
+    # WHY: D-009 tests floating patch resolution itself, so 11.0.* must remain
     # uncached here. The shared candidate graph tests the reviewed exact patch;
     # replacing this drift probe with that pin would miss a newly published patch.
     env:

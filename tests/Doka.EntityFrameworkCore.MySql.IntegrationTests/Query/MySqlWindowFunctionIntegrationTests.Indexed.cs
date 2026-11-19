@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Reports independent tracking variants for each supported pinned engine.</summary>
-    public static TheoryData<string, bool> IndexedTrackingTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> IndexedTrackingTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>An actual indexed selector counts only the filtered, ordered source page.</summary>
     [RequiresSupportedDatabaseTargetTheory]

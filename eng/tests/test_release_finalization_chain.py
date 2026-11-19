@@ -679,7 +679,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         ]
 
         self.assertIn(
-            '"${efcore_matrix_dir}/latest-10-0/efcore-contract-evidence.json"',
+            '"${efcore_matrix_dir}/latest-11-0/efcore-contract-evidence.json"',
             finalization,
         )
         self.assertIn(
@@ -745,8 +745,8 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         self.assertNotIn('artifacts/efcore-patch-matrix/."', body)
         self.assertNotIn('artifacts/mysqlconnector-patch-matrix/."', body)
         for leg in (
-            "minimum-10-0-8",
-            "latest-10-0",
+            "minimum-11-0-0",
+            "latest-11-0",
             "minimum-2-6-1",
             "latest-2-x",
             "latest-3-x",
@@ -764,11 +764,11 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
         self.assertIn("max_by(.components)", matrix)
         self.assertNotIn("10.0.*", matrix)
         self.assertIn(
-            '"${qualified_version}:${qualified_pattern}:latest-10-0:full"',
+            '"${qualified_version}:${qualified_pattern}:latest-11-0:full"',
             matrix,
         )
         self.assertIn(
-            'ef-core-version: "10.0.*"',
+            'ef-core-version: "11.0.*"',
             CI_WORKFLOW.read_text(encoding="utf-8"),
         )
 
@@ -788,7 +788,7 @@ class FinalizationEvidenceContractTests(unittest.TestCase):
             (
                 version
                 for version in baseline["efCoreVersions"]
-                if version.startswith("10.0.")
+                if version.startswith("11.0.")
             ),
             key=lambda version: tuple(map(int, version.split("."))),
         )

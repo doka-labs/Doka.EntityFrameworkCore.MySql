@@ -3,21 +3,11 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlUpsertIntegrationTests
 {
     /// <summary>Reports conflicts that hit the same or different native unique-index rows.</summary>
-    public static TheoryData<string, bool> UniqueConflictCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> UniqueConflictCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>BEFORE triggers with a required computed column retain the engine's independently reproduced behavior.</summary>
     [RequiresSupportedDatabaseTargetTheory]

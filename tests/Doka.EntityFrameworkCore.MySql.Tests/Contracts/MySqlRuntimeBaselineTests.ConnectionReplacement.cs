@@ -82,9 +82,9 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnection = context.Database.GetDbConnection();
         var originalConnectionString = originalConnection.ConnectionString;
-        var act = () =>
-            context.Database.SetConnectionString(
-                $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};");
+
+        void act() => context.Database.SetConnectionString(
+            $"Server=replacement;Database=runtime;Password=secret-canary;{incompatibleOption};");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -152,9 +152,9 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         using var replacement = new RecordingDbConnection();
         context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
-        var act = () =>
-            context.Database.SetConnectionString(
-                "Server=second;Database=runtime;GuidFormat=Binary16;");
+
+        void act() => context.Database.SetConnectionString(
+            "Server=second;Database=runtime;GuidFormat=Binary16;");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -198,8 +198,7 @@ public sealed partial class MySqlRuntimeBaselineTests
         // WHY: Establish disposal ownership before applying the connection settings.
         replacement.ConnectionString = $"Server=replacement;Database=doka;Password=secret-canary;{options}";
 
-        var act = () =>
-            context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
+        void act() => context.Database.SetDbConnection(replacement, contextOwnsConnection: false);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -242,8 +241,8 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         var originalConnectionString = replacement.ConnectionString;
         var originalConnection = context.Database.GetDbConnection();
-        var act = () =>
-            context.Database.SetDbConnection(replacement, contextOwnsConnection);
+
+        void act() => context.Database.SetDbConnection(replacement, contextOwnsConnection);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -272,9 +271,9 @@ public sealed partial class MySqlRuntimeBaselineTests
         using var connection = new RecordingDbConnection();
         var originalConnectionString = connection.ConnectionString;
         using var context = new RuntimeBaselineContext(CreateOptions(connection));
-        var act = () =>
-            context.Database.SetConnectionString(
-                "Server=replacement;Database=runtime;GuidFormat=Binary16;");
+
+        void act() => context.Database.SetConnectionString(
+            "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 
         // Act
         var recordedException = Record.Exception(act);
@@ -308,9 +307,9 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         using var context = new RuntimeBaselineContext(builder.Options);
         var originalConnection = context.Database.GetDbConnection();
-        var act = () =>
-            context.Database.SetConnectionString(
-                "Server=replacement;Database=runtime;GuidFormat=Binary16;");
+
+        void act() => context.Database.SetConnectionString(
+            "Server=replacement;Database=runtime;GuidFormat=Binary16;");
 
         // Act
         var recordedException = Record.Exception(act);

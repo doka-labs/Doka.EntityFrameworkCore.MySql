@@ -52,7 +52,7 @@ internal sealed partial class MySqlUpsertCommandBuilder
     }
 
     /// <summary>Reads each model value once and delegates conversion and parameter facets to its actual column mapping.</summary>
-#pragma warning disable EF1001 // This EF10 nonmutating entry/member seam is confined to one binding method; it never creates entries or detects changes.
+#pragma warning disable EF1001 // This EF11 nonmutating entry/member seam is confined to one binding method; it never creates entries or detects changes.
     private BoundRow BindRow(
         DbContext context,
         DbCommand parameterFactory,

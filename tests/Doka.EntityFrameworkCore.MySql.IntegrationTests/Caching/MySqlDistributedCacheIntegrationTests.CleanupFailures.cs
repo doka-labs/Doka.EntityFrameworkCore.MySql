@@ -4,21 +4,12 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlDistributedCacheIntegrationTests
 {
     /// <summary>Returns each selected engine with a foreground operation that can wait on a live row.</summary>
-    public static TheoryData<string, string> CleanupObserverFailureCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> CleanupObserverFailureCases
+        => SelectedTargets.SelectMany(target => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "refresh");
-                data.Add(target, "try-get");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "refresh"),
+            new TheoryDataRow<string, string>(target.Data, "try-get"),
+        });
 
     /// <summary>An observer failure remains visible when protected teardown cancels blocked foreground work.</summary>
     /// <param name="targetName">The selected engine for the isolated lock scenario.</param>
@@ -83,7 +74,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         Assert.IsAssignableFrom<OperationCanceledException>(Assert.Single(secondaryFailures.InnerExceptions));
         Assert.Contains(
             nameof(Cleanup_observer_failure_is_not_replaced_by_foreground_cancellation),
-            failure.StackTrace);
+            expectedFailure.StackTrace);
 
         Assert.Equal(2L, await store.CountExpiredAsync(CancellationToken.None));
     }

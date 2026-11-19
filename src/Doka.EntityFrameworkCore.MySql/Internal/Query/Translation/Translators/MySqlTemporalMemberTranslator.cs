@@ -24,7 +24,6 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
     private readonly RelationalTypeMapping _doubleTypeMapping;
     private readonly RelationalTypeMapping _intTypeMapping;
     private readonly RelationalTypeMapping _longTypeMapping;
-
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     public MySqlTemporalMemberTranslator(
@@ -213,10 +212,30 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
                 ],
                 returnType,
                 _dateTimeTypeMapping),
+            nameof(DateTimeOffset.DateTime) => TranslateDateTimeOffsetDateTime(
+                instance,
+                MySqlSentinelKind.DateTimeOffsetDateTime),
+            nameof(DateTimeOffset.UtcDateTime) => TranslateDateTimeOffsetDateTime(
+                instance,
+                MySqlSentinelKind.DateTimeOffsetUtcDateTime),
+            nameof(DateTimeOffset.LocalDateTime) => TranslateDateTimeOffsetDateTime(
+                instance,
+                MySqlSentinelKind.DateTimeOffsetLocalDateTime),
             nameof(DateTimeOffset.DayOfYear) => TranslateDateTimeOffsetDayOfYear(instance),
             _ => null,
         };
     }
+
+    private SqlExpression TranslateDateTimeOffsetDateTime(
+        SqlExpression instance,
+        MySqlSentinelKind kind
+    ) => _sqlExpressionFactory.Function(
+        MySqlSentinelContract.GetName(kind),
+        [instance],
+        nullable: true,
+        argumentsPropagateNullability: s_singleArgumentNullPropagation,
+        typeof(DateTime),
+        _dateTimeTypeMapping);
 
     private SqlExpression TranslateDateTimeOffsetDayOfYear(
         SqlExpression instance

@@ -3,6 +3,9 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// <summary>Verifies ADR validation and the repository contracts that consume it.</summary>
 public sealed partial class AdrRepositoryValidatorTests
 {
+    private const string SpecificationFilter =
+        "--filter \"FullyQualifiedName~Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.|Category=Spec|Category=Live\"";
+
     /// <summary>
     /// Keeps the public migration-fragment contract and its runtime behavior
     /// visible in its release notes instead of only in the API baseline.
@@ -41,10 +44,10 @@ public sealed partial class AdrRepositoryValidatorTests
     }
 
     /// <summary>
-    /// Verifies functional tests default to MariaDB 12.3 without overriding explicit targets.
+    /// Keeps functional target selection independent of VSTest-only configuration.
     /// </summary>
     [Fact]
-    public void Functional_tests_define_a_portable_local_database_target()
+    public void Functional_tests_do_not_require_runner_specific_target_settings()
     {
         // Arrange
         var projectDirectory = Path.Combine(
@@ -56,22 +59,9 @@ public sealed partial class AdrRepositoryValidatorTests
         var project = File.ReadAllText(
             Path.Combine(projectDirectory, "Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"));
 
-        var runSettings = File.ReadAllText(Path.Combine(projectDirectory, "LocalMariaDb123.runsettings"));
-
         // Assert
-        Assert.Contains(
-            "<RunSettingsFilePath Condition=\"'$(DOKA_SPEC_TEST_TARGET)' == ''\">"
-            + "$(MSBuildProjectDirectory)/LocalMariaDb123.runsettings</RunSettingsFilePath>",
-            project,
-            StringComparison.Ordinal);
-
-        Assert.Contains(
-            "<DOKA_SPEC_TEST_TARGET>mariadb123</DOKA_SPEC_TEST_TARGET>",
-            runSettings,
-            StringComparison.Ordinal);
-
-        Assert.DoesNotContain("CONNECTION_STRING", runSettings, StringComparison.Ordinal);
-        Assert.DoesNotContain("PASSWORD", runSettings, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RunSettingsFilePath", project, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(projectDirectory, "LocalMariaDb123.runsettings")));
     }
 
     /// <summary>

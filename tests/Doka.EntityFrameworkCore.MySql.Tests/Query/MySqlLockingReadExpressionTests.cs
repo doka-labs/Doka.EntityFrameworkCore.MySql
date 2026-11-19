@@ -297,7 +297,7 @@ public sealed class MySqlLockingReadExpressionTests
         var input = new ShapedQueryExpression(CreateSelect(context, predicate), Expression.Constant(1));
         var shaped = (ShapedQueryExpression)MySqlLockingReadQueryValidator.Validate(input, compilation);
 
-        // WHY: The actual EF10 SQL processor constructor pins metadata survival through its
+        // WHY: The actual EF11 SQL processor constructor pins metadata survival through its
         // internal parameter-processing seam; production diagnostics remain unchanged.
 #pragma warning disable EF1001
         var processor = context

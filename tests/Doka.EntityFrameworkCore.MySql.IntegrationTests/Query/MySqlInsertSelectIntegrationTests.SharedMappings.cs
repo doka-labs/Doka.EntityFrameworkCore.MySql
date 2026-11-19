@@ -3,22 +3,13 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlInsertSelectIntegrationTests
 {
     /// <summary>Reports complete, conflicting and incomplete shared-column assignments separately.</summary>
-    public static TheoryData<string, string> SharedMappingCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> SharedMappingCases => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "complete");
-                data.Add(target, "conflict");
-                data.Add(target, "missing-companion");
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "complete"),
+            new TheoryDataRow<string, string>(target.Data, "conflict"),
+            new TheoryDataRow<string, string>(target.Data, "missing-companion"),
+        });
 
     /// <summary>One-table ownership accepts a complete shared representation and rejects conflicting or missing companion data.</summary>
     [RequiresSupportedDatabaseTargetTheory]

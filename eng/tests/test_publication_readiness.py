@@ -47,7 +47,7 @@ class PublicationReadinessTests(unittest.TestCase):
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "10.0.11",
+                "11.0.0",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),
@@ -98,6 +98,25 @@ class PublicationReadinessTests(unittest.TestCase):
             lock_paths,
         )
 
+    def test_gate_rejects_another_framework_major_before_dotnet(self) -> None:
+        """The maintenance line cannot substitute its EF graph for GA 11."""
+        # Arrange
+        environment = os.environ.copy()
+        environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
+        environment["DOKA_TEST_DOTNET_LOG"] = str(self.command_log)
+
+        # Act
+        result = subprocess.run(
+            ("bash", str(self.script), "--ef-core-version", "10.0.15",
+             "--mysqlconnector-version", "2.6.1"),
+            cwd=self.repo, env=environment, check=False, capture_output=True, text=True,
+        )
+
+        # Assert
+        self.assertEqual(2, result.returncode)
+        self.assertIn("one exact EF Core 11.0 patch", result.stderr)
+        self.assertFalse(self.command_log.exists())
+
     def test_gate_rejects_a_floating_ef_core_version_before_dotnet(self) -> None:
         """Require the finalizer to bind the check to one matrix-resolved patch."""
         result = subprocess.run(
@@ -105,7 +124,7 @@ class PublicationReadinessTests(unittest.TestCase):
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "10.0.*",
+                "11.0.*",
                 "--mysqlconnector-version",
                 "2.6.1",
             ),
@@ -116,7 +135,7 @@ class PublicationReadinessTests(unittest.TestCase):
         )
 
         self.assertEqual(2, result.returncode)
-        self.assertIn("one exact EF Core 10.0 patch", result.stderr)
+        self.assertIn("one exact EF Core 11.0 patch", result.stderr)
 
     def test_gate_rejects_a_floating_connector_version_before_dotnet(self) -> None:
         """Require the finalizer to bind the check to one driver-matrix patch."""
@@ -125,7 +144,7 @@ class PublicationReadinessTests(unittest.TestCase):
                 "bash",
                 str(self.script),
                 "--ef-core-version",
-                "10.0.11",
+                "11.0.0",
                 "--mysqlconnector-version",
                 "2.*",
             ),
@@ -151,7 +170,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
                 # Act
                 result = subprocess.run(
-                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
+                    ("bash", str(self.script), "--ef-core-version", "11.0.0",
                      "--mysqlconnector-version", version),
                     cwd=self.repo, env=environment, check=False,
                     capture_output=True, text=True,
@@ -174,7 +193,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
                 # Act
                 result = subprocess.run(
-                    ("bash", str(self.script), "--ef-core-version", "10.0.8",
+                    ("bash", str(self.script), "--ef-core-version", "11.0.0",
                      "--mysqlconnector-version", version),
                     cwd=self.repo, env=environment, check=False,
                     capture_output=True, text=True,
@@ -195,7 +214,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
         # Act
         result = subprocess.run(
-            ("bash", str(self.script), "--ef-core-version", "10.0.14",
+            ("bash", str(self.script), "--ef-core-version", "11.0.0",
              "--mysqlconnector-version", "2.6.2"),
             cwd=self.repo, env=environment, check=False,
             capture_output=True, text=True,
@@ -215,7 +234,7 @@ class PublicationReadinessTests(unittest.TestCase):
 
         # Act
         result = subprocess.run(
-            ("bash", str(self.script), "--ef-core-version", "10.0.14",
+            ("bash", str(self.script), "--ef-core-version", "11.0.0",
              "--mysqlconnector-version", "3.0.0"),
             cwd=self.repo, env=environment, check=False,
             capture_output=True, text=True,

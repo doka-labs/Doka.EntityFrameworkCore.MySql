@@ -5,24 +5,27 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
 {
     private static readonly (string Scenario, int[] Expected)[] s_predicateGroupingCases =
     [
-        ("native-or-absent", Array.Empty<int>()),
-        ("native-or-present", new[] { 2 }),
-        ("native-or-negated-absent", new[] { 3 }),
-        ("native-or-negated-present", Array.Empty<int>()),
-        ("native-and-absent", Array.Empty<int>()),
-        ("native-equality-or-absent", Array.Empty<int>()),
-        ("native-null-match", new[] { 2 }),
-        ("native-null-nonmatch", Array.Empty<int>()),
-        ("native-null-negated-match", Array.Empty<int>()),
-        ("native-null-negated-nonmatch", new[] { 3 }),
-        ("decoded-inequality", new[] { 2 }),
-        ("decoded-or", new[] { 1, 2 }),
-        ("decoded-or-negated", new[] { 3 }),
+        ("native-or-absent", []),
+        ("native-or-present", [2]),
+        ("native-or-negated-absent", [3]),
+        ("native-or-negated-present", []),
+        ("native-and-absent", []),
+        ("native-equality-or-absent", []),
+        ("native-null-match", [2]),
+        ("native-null-nonmatch", []),
+        ("native-null-negated-match", []),
+        ("native-null-negated-nonmatch", [3]),
+        ("decoded-inequality", [2]),
+        ("decoded-or", [1, 2]),
+        ("decoded-or-negated", [3]),
     ];
 
     /// <summary>Reports every semantic boundary separately on every selected supported engine.</summary>
-    public static IEnumerable<object[]> PredicateGroupingCases => SelectedTargets.SelectMany(target =>
-        s_predicateGroupingCases.Select(test => new[] { target[0], test.Scenario, test.Expected }));
+    public static IEnumerable<TheoryDataRow<string, string, int[]>> PredicateGroupingCases => SelectedTargets
+        .SelectMany(target => s_predicateGroupingCases.Select(test => new TheoryDataRow<string, string, int[]>(
+            target.Data,
+            test.Scenario,
+            test.Expected)));
 
     /// <summary>Preserves the relationship between a filtered JSON value and its membership candidate.</summary>
     /// <param name="targetName">The selected database engine.</param>
@@ -99,34 +102,30 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
                 && EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-nonmatch" => source.Where(item => item.Id == 3
                 && EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-negated-match" => source.Where(item => item.Id == 2
                 && !EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "native-null-negated-nonmatch" => source.Where(item => item.Id == 3
                 && !EF
                     .Parameter(nullable)
                     .Where(value => value == null || value > 0)
-                    .Contains(
-                        item.Id == 2
-                            ? null
-                            : item.Id)),
+                    .Contains(item.Id == 2
+                        ? null
+                        : item.Id)),
             "decoded-inequality" => source.Where(item => EF
                 .Parameter(names)
                 .Where(value => value != "alpha")

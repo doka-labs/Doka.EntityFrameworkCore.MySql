@@ -132,7 +132,7 @@ public sealed class MySqlMigrationCommandFactoryTests
         IMigrationsSqlGenerator generator
     )
     {
-        // WHY: EF10 exposes this record through a protected property. Inspect that
+        // WHY: EF11 exposes this record through a protected property. Inspect that
         // declared seam to verify the migration factory without reading private SQL buffers.
         var property = typeof(MigrationsSqlGenerator).GetProperty("Dependencies",
             BindingFlags.Instance | BindingFlags.NonPublic);

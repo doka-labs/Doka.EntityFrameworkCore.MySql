@@ -10,7 +10,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb: true, observation);
         var identifiers = new[] { 1, 2, 3 };
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context
@@ -45,7 +45,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var source = enumerable
             ? context.Sources.Where(row => Enumerable
                 .Empty<int>()
@@ -91,7 +91,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var callback = new SourceCallbackCanary();
         var predicate = callback.Accept;
         var identifiers = callback.Identifiers;
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         Func<Task<int>> operation = kind switch
         {
             "constructor" => () => context
@@ -195,7 +195,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         await using var context = CreateContext(mariaDb: true, observation);
         var minimum = 11;
         var increment = 2;
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var source = context
             .Sources
             .Where(row => row.Id > minimum)
@@ -228,7 +228,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb: true, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var source = context.Sources.Select(row => new
         {
             row.Name,

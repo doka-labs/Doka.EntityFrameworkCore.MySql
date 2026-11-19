@@ -3,21 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Separates normal filter behavior from the consumer's explicit global opt-out.</summary>
-    public static TheoryData<string, bool> FilterCases
+    public static IEnumerable<TheoryDataRow<string, bool>> FilterCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true),
+    });
 
     /// <summary>CTE-P12/P13/N14 retain source and independently filtered navigation scopes with explicit opt-out.</summary>
     [RequiresSupportedDatabaseTargetTheory]

@@ -26,10 +26,8 @@ internal static class TrxContract
         }
 
         var results = trxPaths
-            .SelectMany(ParseResults)
-            .Where(result => result.TestId.StartsWith(
-                DiscoveryContract.SpecificationTestPrefix,
-                StringComparison.Ordinal))
+            .SelectMany(path => ParseResults(path, expectation.TestIds))
+            .Where(result => DiscoveryContract.IsSpecificationTestId(result.TestId))
             .ToArray();
 
         var duplicates = results
@@ -37,6 +35,8 @@ internal static class TrxContract
             .Where(group => group.Count() > 1)
             .ToArray();
 
+        // WHY: Emit one diagnostic per offending group with its exact outcome count.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var duplicate in duplicates)
         {
             errors.Add($"TRX contains {duplicate.Count()} outcomes for '{duplicate.Key}'.");
@@ -51,11 +51,15 @@ internal static class TrxContract
 
         var expectedIds = expectation.TestIds.ToHashSet(StringComparer.Ordinal);
 
+        // WHY: Keep each inventory mismatch and its diagnostic in the same control-flow step.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var missing in expectedIds.Except(uniqueResults.Keys, StringComparer.Ordinal))
         {
             errors.Add($"TRX is missing expected test ID '{missing}'.");
         }
 
+        // WHY: Keep unexpected results visible beside the complementary missing-ID check.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var unexpected in uniqueResults.Keys.Except(expectedIds, StringComparer.Ordinal))
         {
             errors.Add($"TRX contains unexpected specification test ID '{unexpected}'.");
@@ -97,6 +101,8 @@ internal static class TrxContract
             }
         }
 
+        // WHY: Report each missing skip disposition explicitly after the outcome counters are finalized.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var dispositionedId in permittedNotExecuted.Except(
             uniqueResults
                 .Where(pair => pair.Value.Outcome is "NotExecuted" or "Skipped")
@@ -109,23 +115,187 @@ internal static class TrxContract
         return new TrxContractReport(uniqueResults.Count, passed, notExecuted, failed, errors);
     }
 
-    internal static IReadOnlyList<TrxTestResult> ParseResults(
-        string path
+    private static IReadOnlyList<TrxTestResult> ParseResults(
+        string path,
+        IReadOnlyList<string> expectedIds
     )
     {
         var document = XDocument.Load(path, LoadOptions.None);
+        var definitions = document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "UnitTest")
+            .ToArray();
+
+        var runId = (string?)document.Root?.Attribute("id");
+        Dictionary<string, (string Name, bool Native)>? linkedDefinitions = null;
+        Dictionary<string, string>? nativeIds = null;
+        if (definitions.Any(definition => UsesNativeXunitEncoding(definition, runId)))
+        {
+            linkedDefinitions = new Dictionary<string, (string Name, bool Native)>(StringComparer.Ordinal);
+            foreach (var definition in definitions)
+            {
+                var id = RequiredAttribute(definition, "id", path);
+                var name = RequiredAttribute(definition, "name", path);
+                if (!linkedDefinitions.TryAdd(id, (name, UsesNativeXunitEncoding(definition, runId))))
+                {
+                    throw new InvalidDataException($"TRX contains duplicate definition ID '{id}'.");
+                }
+            }
+
+            // WHY: Match forward-encoded committed IDs, never guess which escape
+            // sequences in arbitrary reporter text should become another test ID.
+            nativeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            // WHY: Keep dictionary insertion and collision rejection adjacent, outside a stateful LINQ predicate.
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            foreach (var expectedId in expectedIds)
+            {
+                if (!nativeIds.TryAdd(EncodeNativeXunitDisplayName(expectedId), expectedId))
+                {
+                    throw new InvalidDataException("Native TRX encoding collides for two expected test IDs.");
+                }
+            }
+        }
+
         return
         [
             .. document
                 .Descendants()
                 .Where(element => element.Name.LocalName == "UnitTestResult")
-                .Select(element => new TrxTestResult(
-                    NormalizeTestId(
-                        (string?)element.Attribute("testName")
-                        ?? throw new InvalidDataException($"TRX result in '{path}' has no testName.")),
-                    (string?)element.Attribute("outcome")
-                    ?? throw new InvalidDataException($"TRX result in '{path}' has no outcome."))),
+                .Select(element =>
+                {
+                    var name = RequiredAttribute(element, "testName", path);
+                    var testId = NormalizeTestId(name);
+                    if (linkedDefinitions is not null
+                        && nativeIds is not null)
+                    {
+                        var definitionId = RequiredAttribute(element, "testId", path);
+                        if (!linkedDefinitions.TryGetValue(definitionId, out var definition)
+                            || !string.Equals(definition.Name, name, StringComparison.Ordinal))
+                        {
+                            throw new InvalidDataException(
+                                "Native TRX result does not match its exact test definition.");
+                        }
+
+                        if (definition.Native)
+                        {
+                            // Non-specification live results remain outside this exact
+                            // specification inventory, but their linkage is still checked.
+                            testId = name;
+                            if (DiscoveryContract.IsSpecificationTestId(name))
+                            {
+                                if (!nativeIds.TryGetValue(name, out var canonicalId))
+                                {
+                                    throw new InvalidDataException(
+                                        $"Native TRX identity is not an exact encoded discovery ID: '{name}'.");
+                                }
+
+                                testId = canonicalId;
+                            }
+                        }
+                    }
+
+                    return new TrxTestResult(testId, RequiredAttribute(element, "outcome", path));
+                }),
         ];
+    }
+
+    /// <summary>Recognizes the native xUnit reporter through its run-bound adapter identity.</summary>
+    private static bool UsesNativeXunitEncoding(
+        XElement definition,
+        string? runId
+    )
+    {
+        var adapter = (string?)definition
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "TestMethod")
+            ?.Attribute("adapterTypeName");
+
+        if (adapter?.Contains("/xunit.v3/", StringComparison.Ordinal) != true)
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(adapter, UriKind.Absolute, out var identity)
+            || identity.Scheme != "executor"
+            || !string.Equals(identity.Host, runId, StringComparison.OrdinalIgnoreCase)
+            || !identity.AbsolutePath.StartsWith("/xunit.v3/", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Native xUnit TRX adapter is not bound to its test run.");
+        }
+
+        return true;
+    }
+
+    /// <summary>Requires one explicit XML identity component rather than inferring missing metadata.</summary>
+    private static string RequiredAttribute(
+        XElement element,
+        string name,
+        string path
+    ) => (string?)element.Attribute(name)
+        ?? throw new InvalidDataException($"TRX result in '{path}' has no {name}.");
+
+    /// <summary>Reproduces the native reporter's exact display-name transport.</summary>
+    /// <remarks>
+    /// Matches xUnit XmlUtility.Escape at commit 384aa7f0b49f7c41e41df57516afd79de83359db
+    /// (MIT source). That internal utility is not a reusable public API.
+    /// </remarks>
+    private static string EncodeNativeXunitDisplayName(
+        string value
+    )
+    {
+        var encoded = new StringBuilder(value.Length + 20);
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (char.IsSurrogatePair(value, index))
+            {
+                encoded
+                    .Append(character)
+                    .Append(value[++index]);
+
+                continue;
+            }
+
+            var escaped = character switch
+            {
+                '\0' => @"\0",
+                '\a' => @"\a",
+                '\b' => @"\b",
+                '\f' => @"\f",
+                '\n' => @"\n",
+                '\r' => @"\r",
+                '\t' => @"\t",
+                '\v' => @"\v",
+                '"' => "\\\"",
+                '\\' => @"\\",
+                _ => null,
+            };
+
+            if (escaped is not null)
+            {
+                encoded.Append(escaped);
+            }
+            else if (character < 32)
+            {
+                encoded
+                    .Append(@"\x")
+                    .Append(((int)character).ToString("x2", CultureInfo.InvariantCulture));
+            }
+            else if (char.IsSurrogate(character)
+                || character is '\uFFFE' or '\uFFFF')
+            {
+                encoded
+                    .Append(@"\x")
+                    .Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                encoded.Append(character);
+            }
+        }
+
+        return encoded.ToString();
     }
 
     /// <summary>
@@ -261,6 +431,8 @@ internal static class TrxContract
                 errors.Add($"Disposition '{dispositionId}' has no exact discovered test IDs.");
             }
 
+            // WHY: Keep each duplicate's group key attached to its disposition diagnostic.
+            // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var duplicate in ids
                 .GroupBy(id => id, StringComparer.Ordinal)
                 .Where(group => group.Count() > 1)
@@ -292,6 +464,8 @@ internal static class TrxContract
                 }
             }
 
+            // WHY: Preserve one explicit diagnostic for each declared method without an exact display ID.
+            // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var methodName in methodNames)
             {
                 if (!ids.Any(id => IsMethodDisplayId(id, methodName)))
@@ -310,6 +484,8 @@ internal static class TrxContract
                     continue;
                 }
 
+                // WHY: Retain the selected target in each individual missing-ID diagnostic.
+                // ReSharper disable once LoopCanBeConvertedToQuery
                 foreach (var id in ids)
                 {
                     if (!targetExpectation.TestIds.Contains(id, StringComparer.Ordinal))
@@ -323,6 +499,8 @@ internal static class TrxContract
 
             if (targets.Contains(target, StringComparer.Ordinal))
             {
+                // WHY: Keep set insertion and conflicting-disposition rejection outside a stateful LINQ predicate.
+                // ReSharper disable once LoopCanBeConvertedToQuery
                 foreach (var id in ids)
                 {
                     if (!permitted.Add(id))

@@ -45,9 +45,8 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
 
         // Assert
         Assert.NotSame(tree, normalized);
-        Assert.Null(
-            Assert.IsType<ColumnExpression>(normalized.Expressions[2])
-                .TypeMapping);
+        Assert.Null(Assert.IsType<ColumnExpression>(normalized.Expressions[2])
+            .TypeMapping);
 
         Assert.Same(tree.Expressions[0], normalized.Expressions[0]);
     }
@@ -155,7 +154,7 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
         string scenario
     )
     {
-        var fallback = (RelationalTypeMapping)context
+        var fallback = context
             .GetService<IRelationalTypeMappingSource>()
             .FindMapping(typeof(string))!;
 
@@ -210,8 +209,7 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
             modelMapping = (RelationalTypeMapping)modelMapping.WithComposedConverter(PrefixConverter());
         }
 
-        var modelTable = new TableExpression(
-            "model",
+        var modelTable = new TableExpression("model",
             context
                 .Model
                 .GetRelationalModel()
@@ -222,8 +220,7 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
         {
             "derived-consumer" or "unmapped-derived-consumer" or "converted-derived-consumer"
                 => CreateDerivedConsumer(context, modelMapping),
-            "from-sql-consumer" => new FromSqlExpression(
-                "model",
+            "from-sql-consumer" => new FromSqlExpression("model",
                 "SELECT Name FROM Items",
                 Expression.Constant(Array.Empty<object>())),
             "function-consumer" => new TableValuedFunctionExpression("model", "MappedItems", []),
@@ -267,8 +264,7 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
             "typed-constant-consumer" => new SqlConstantExpression("alpha", modelMapping),
             "typed-parameter-consumer" => new SqlParameterExpression("needle", typeof(string), modelMapping),
             "nested-unknown-alias" or "valid-before-unknown" or "unknown-before-valid"
-                => WrapScalar(
-                    new ColumnExpression("Name", "missing", typeof(string), modelMapping, false),
+                => WrapScalar(new ColumnExpression("Name", "missing", typeof(string), modelMapping, false),
                     modelMapping),
             "mixed-json-reference" or "valid-before-local" or "local-before-valid" => new SqlFunctionExpression(
                 "CONCAT",
@@ -278,11 +274,9 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
                 typeof(string),
                 modelMapping),
             "hidden-converted-column" or "valid-before-hidden" or "hidden-before-valid"
-                => WrapScalar(
-                    new ColumnExpression("Name", "model", typeof(string), convertedMapping, false),
+                => WrapScalar(new ColumnExpression("Name", "model", typeof(string), convertedMapping, false),
                     modelMapping),
-            "hidden-converted-constant" => WrapScalar(
-                new SqlConstantExpression("alpha", convertedMapping),
+            "hidden-converted-constant" => WrapScalar(new SqlConstantExpression("alpha", convertedMapping),
                 modelMapping),
             "hidden-converted-parameter" => WrapScalar(
                 new SqlParameterExpression("needle", typeof(string), convertedMapping),
@@ -362,24 +356,22 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
                 _ => modelMapping.Clone(),
             };
 
-            expressions.Add(
-                new SqlBinaryExpression(
-                    ExpressionType.Equal,
-                    comparedValue,
-                    new ColumnExpression("OtherName", "model", typeof(string), secondMapping, false),
-                    typeof(bool),
-                    BoolTypeMapping.Default));
+            expressions.Add(new SqlBinaryExpression(
+                ExpressionType.Equal,
+                comparedValue,
+                new ColumnExpression("OtherName", "model", typeof(string), secondMapping, false),
+                typeof(bool),
+                BoolTypeMapping.Default));
         }
 
         if (scenario == "third-mapping")
         {
-            expressions.Add(
-                new ColumnExpression(
-                    "value",
-                    "values_rows",
-                    typeof(string),
-                    new MySqlStringTypeMapping("varchar(32)", DbType.String, size: 32),
-                    true));
+            expressions.Add(new ColumnExpression(
+                "value",
+                "values_rows",
+                typeof(string),
+                new MySqlStringTypeMapping("varchar(32)", DbType.String, size: 32),
+                true));
         }
 
         return Expression.Block(expressions);
@@ -403,8 +395,7 @@ public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
         RelationalTypeMapping mapping
     )
     {
-        var table = new TableExpression(
-            "inner",
+        var table = new TableExpression("inner",
             context
                 .Model
                 .GetRelationalModel()

@@ -3,44 +3,40 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlWindowFunctionTests
 {
     /// <summary>Supplies literal ROWS and numeric RANGE forms independently on both engines.</summary>
-    public static TheoryData<bool, string, string> LiteralFrameCases
+    public static IEnumerable<TheoryDataRow<bool, string, string>> LiteralFrameCases
     {
         get
         {
-            var cases = new TheoryData<bool, string, string>();
-
             foreach (var mariaDb in new[] { false, true })
             {
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "running",
                     "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "sliding",
                     "ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "peers",
                     "RANGE BETWEEN CURRENT ROW AND CURRENT ROW");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "numeric",
                     "RANGE BETWEEN 0.75 PRECEDING AND CURRENT ROW");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "empty-first",
                     "ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "last",
                     "ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING");
 
-                cases.Add(mariaDb,
+                yield return new TheoryDataRow<bool, string, string>(mariaDb,
                     "nth",
                     "ROWS BETWEEN 1 PRECEDING AND CURRENT ROW");
             }
-
-            return cases;
         }
     }
 

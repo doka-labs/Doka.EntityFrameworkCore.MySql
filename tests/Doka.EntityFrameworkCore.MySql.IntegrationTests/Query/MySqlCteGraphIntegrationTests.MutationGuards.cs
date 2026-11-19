@@ -3,44 +3,16 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlCteGraphIntegrationTests
 {
     /// <summary>Separates both mutation terminals so neither rejection can hide the other.</summary>
-    public static TheoryData<string, bool> AliasMutationCases
-    {
-        get
-        {
-            var cases = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, false);
-                cases.Add(target, true);
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, bool>> AliasMutationCases => SelectedTargets.SelectMany(target
+        => new[] { new TheoryDataRow<string, bool>(target.Data, false), new(target.Data, true) });
 
     /// <summary>Reports actual profiles that need independent isolation for a self-referencing native write.</summary>
-    public static TheoryData<string> IsolatedMutationTargets
-    {
-        get
-        {
-            var cases = new TheoryData<string>();
-
-            foreach (var target in SupportedMutationTargets)
-            {
-                if (IntegrationTestEnvironment
-                        .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target))
-                        .Profile
-                        .GetSupport(ProviderCapability.SelfReferencingMutations)
-                    == ProviderSupportStatus.Emulated)
-                {
-                    cases.Add(target);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> IsolatedMutationTargets => SupportedMutationTargets.Where(target =>
+        IntegrationTestEnvironment
+            .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target.Data))
+            .Profile
+            .GetSupport(ProviderCapability.SelfReferencingMutations)
+        == ProviderSupportStatus.Emulated);
 
     /// <summary>A mapped entity terminal either rewrites to its real physical table or retains the established dialect/self-reference guard.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -192,7 +164,7 @@ public sealed partial class MySqlCteGraphIntegrationTests
     }
 
     /// <summary>CTE-N19 rejects an unsafe same-table source before relying on syntactic WITH as target isolation.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97])]
     [MemberData(nameof(IsolatedMutationTargets))]
     public async Task Unsafe_self_referencing_cte_write_is_rejected_before_native_execution(
         string target

@@ -15,23 +15,13 @@ public sealed partial class MySqlCteGraphIntegrationTests
     ];
 
     /// <summary>Reports actual chain, branching, repeated-path, cycle and immediately-empty-step bags separately.</summary>
-    public static TheoryData<string, string, int, int[]> GraphCases
-    {
-        get
-        {
-            var cases = new TheoryData<string, string, int, int[]>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var shape in s_graphCases)
-                {
-                    cases.Add(target, shape.Topology, shape.Depth, shape.Expected);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, string, int, int[]>> GraphCases => SelectedTargets.SelectMany(target
+        =>
+        s_graphCases.Select(shape => new TheoryDataRow<string, string, int, int[]>(
+            target.Data,
+            shape.Topology,
+            shape.Depth,
+            shape.Expected)));
 
     /// <summary>CTE-P16-P20 traverse real stored edges, retaining every UNION ALL occurrence through the selected depth.</summary>
     [RequiresSupportedDatabaseTargetTheory]

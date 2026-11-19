@@ -8,15 +8,15 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
     // WHY: Topic partials and the fixture must keep one schema owner so table
     // isolation tests compare separate deployments inside the same database.
     internal const string DatabaseOwner = nameof(MySqlDistributedCacheIntegrationTests);
-    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _expirationStores = new();
+    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _expirationStores = [];
 
-    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _stores = new();
+    private readonly Dictionary<IntegrationDatabaseTarget, CacheIntegrationStore> _stores = [];
 
     /// <summary>Defers database setup until a selected target is actually exercised.</summary>
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     /// <summary>Disposes the target-owned tables after the test class has completed.</summary>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // WHY: Fixture teardown must release every engine dataset after a cancelled test.
         List<Exception>? failures = null;
@@ -32,7 +32,7 @@ public sealed class MySqlDistributedCacheFixture : IAsyncLifetime
             catch (Exception failure)
             {
                 // WHY: One failed database teardown must not strand the other engine fixtures.
-                (failures ??= new List<Exception>()).Add(failure);
+                (failures ??= []).Add(failure);
             }
         }
 

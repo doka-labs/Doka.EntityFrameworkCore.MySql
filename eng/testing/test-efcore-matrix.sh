@@ -9,8 +9,6 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 solution="${repo_root}/Doka.EntityFrameworkCore.MySql.slnx"
-functional_project="${repo_root}/tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/"
-functional_project+="Doka.EntityFrameworkCore.MySql.FunctionalTests.csproj"
 requested_version="${DokaEfCoreVersion:?DokaEfCoreVersion is required}"
 resolved_pattern="${DOKA_EF_CORE_RESOLVED_PATTERN:?DOKA_EF_CORE_RESOLVED_PATTERN is required}"
 artifact_suffix="${DOKA_EF_CORE_ARTIFACT_SUFFIX:?DOKA_EF_CORE_ARTIFACT_SUFFIX is required}"
@@ -225,19 +223,9 @@ IFS=',' read -r -a spec_target_list <<< "${spec_targets}"
 for spec_target in "${spec_target_list[@]}"; do
     target_dir="${evidence_dir}/${spec_target}"
     mkdir -p "${target_dir}"
-    DOKA_SPEC_TEST_TARGET="${spec_target}" \
-    DOKA_TEST_DATABASE_EVIDENCE_FILE="${target_dir}/test-database-evidence.json" \
-        dotnet test "${functional_project}" \
-            --configuration Release \
-            --no-build \
-            --no-restore \
-            --tl:off \
-            --filter "Category=Spec|Category=Live" \
-            --logger trx \
-            --results-directory "${target_dir}"
-    bash "${repo_root}/eng/testing/check-spec-results.sh" \
-        "${spec_target}" \
-        "${target_dir}"
+    # WHY: Reuse the branch-owned runner so GA MTP and maintenance VSTest
+    # retain identical coverage, discovery and result reconciliation gates.
+    bash "${repo_root}/eng/testing/test-spec-target.sh" "${spec_target}" "${target_dir}"
 done
 
 DOKA_INTEGRATION_ARTIFACTS_DIR="${integration_evidence_dir}" \

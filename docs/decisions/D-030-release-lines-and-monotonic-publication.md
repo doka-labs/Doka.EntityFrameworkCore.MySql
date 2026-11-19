@@ -54,8 +54,10 @@ and recovery rules or introducing another operational subsystem.
 Canonical branches are `main`, `maintenance/10.x` and optional `preview/11.x`;
 `x` is literal. `feature/dotnet-11` stays unchanged. The policy admits exact
 refs, roles, package majors, channels and upstream stages. Its only lifecycle
-states are `inactive`, `prepared` and `active`. Main/10 starts active; maintenance
-and preview start inactive. The convention extends to later maintained majors.
+states are `inactive`, `prepared` and `active`. The initial .NET 10 policy started main/10 active and the other roles inactive.
+The prepared .NET 11 GA policy selects main/11 plus maintenance/10 active and
+preview/11 inactive. Actual protected-main cutover, maintenance own-base
+qualification and hosted grants remain separately approved actions. The convention extends to later maintained majors.
 
 Every authorized line uses `release-candidate.yml` and the existing `nuget`
 environment. Select branch and canonical version; the suffix selects RC or

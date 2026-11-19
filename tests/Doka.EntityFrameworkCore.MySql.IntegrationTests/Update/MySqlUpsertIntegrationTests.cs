@@ -14,54 +14,29 @@ public sealed partial class MySqlUpsertIntegrationTests
     private static readonly int[] s_originalAndPriorWorkIds = { 1, 2, 5000 };
 
     /// <summary>Reports the selected pinned supported target profiles.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Reports independent model representation variants.</summary>
-    public static TheoryData<string, string> MappingCases
+    public static IEnumerable<TheoryDataRow<string, string>> MappingCases => SelectedTargets.SelectMany(target => new[]
     {
-        get
-        {
-            var data = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, "ordinary");
-                data.Add(target, "char-guid");
-                data.Add(target, "converted-guid");
-                data.Add(target, "quoted");
-            }
-
-            return data;
-        }
-    }
+        new TheoryDataRow<string, string>(target.Data, "ordinary"),
+        new TheoryDataRow<string, string>(target.Data, "char-guid"),
+        new TheoryDataRow<string, string>(target.Data, "converted-guid"),
+        new TheoryDataRow<string, string>(target.Data, "quoted"),
+    });
 
     /// <summary>Reports native UUID mapping only on engines that actually supply the type.</summary>
-    public static TheoryData<string> UuidTargets
-    {
-        get
-        {
-            var data = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (IntegrationTestEnvironment
-                    .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target))
-                    .Profile
-                    .Engine
-                    .Has(EngineCapability.NativeUuidType))
-                {
-                    data.Add(target);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> UuidTargets => SelectedTargets.Where(target =>
+        IntegrationTestEnvironment
+            .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target.Data))
+            .Profile
+            .Engine
+            .Has(EngineCapability.NativeUuidType));
 
     /// <summary>One native insert preserves mapped values without attaching or mutating the input.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -300,10 +275,10 @@ public sealed partial class MySqlUpsertIntegrationTests
 
     // WHY: MySQL-only selections have no native UUID data; eligible MariaDB
     // selections must still fail if their capability-filtered data disappears.
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb1011,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MariaDb1011,
         IntegrationDatabaseTarget.MariaDb114,
         IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(UuidTargets))]
     public async Task Native_uuid_mapping_preserves_guid_values(
         string target

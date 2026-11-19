@@ -3,35 +3,19 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlLockingReadTests
 {
     /// <summary>Reports terminal simplifications that must not erase an earlier locking request.</summary>
-    public static TheoryData<bool, string> RejectedTerminals
+    public static IEnumerable<TheoryDataRow<bool, string>> RejectedTerminals => s_dialects.SelectMany(mariaDb => new[]
     {
-        get
-        {
-            var cases = new TheoryData<bool, string>();
-
-            foreach (var mariaDb in s_dialects)
-            {
-                foreach (var terminal in new[]
-                    {
-                        "count",
-                        "long-count",
-                        "any",
-                        "all",
-                        "sum",
-                        "average",
-                        "min",
-                        "max",
-                        "update",
-                        "delete",
-                    })
-                {
-                    cases.Add(mariaDb, terminal);
-                }
-            }
-
-            return cases;
-        }
-    }
+        new TheoryDataRow<bool, string>(mariaDb, "count"),
+        new TheoryDataRow<bool, string>(mariaDb, "long-count"),
+        new TheoryDataRow<bool, string>(mariaDb, "any"),
+        new TheoryDataRow<bool, string>(mariaDb, "all"),
+        new TheoryDataRow<bool, string>(mariaDb, "sum"),
+        new TheoryDataRow<bool, string>(mariaDb, "average"),
+        new TheoryDataRow<bool, string>(mariaDb, "min"),
+        new TheoryDataRow<bool, string>(mariaDb, "max"),
+        new TheoryDataRow<bool, string>(mariaDb, "update"),
+        new TheoryDataRow<bool, string>(mariaDb, "delete"),
+    });
 
     /// <summary>Each public API rejects a null source without evaluating another query.</summary>
     /// <param name="mode">The public locking mode.</param>
@@ -103,10 +87,8 @@ public sealed partial class MySqlLockingReadTests
     }
 
     /// <summary>Reports each forbidden relational scope before it can silently lose a locking marker.</summary>
-    public static TheoryData<bool, string> RejectedShapes()
+    public static IEnumerable<TheoryDataRow<bool, string>> RejectedShapes()
     {
-        var cases = new TheoryData<bool, string>();
-
         string[] shapes =
         [
             "distinct-before", "distinct-after", "union-before", "union-after", "concat", "intersect", "except",
@@ -118,11 +100,9 @@ public sealed partial class MySqlLockingReadTests
         {
             foreach (var shape in shapes)
             {
-                cases.Add(mariaDb, shape);
+                yield return new TheoryDataRow<bool, string>(mariaDb, shape);
             }
         }
-
-        return cases;
     }
 
     /// <summary>Unsupported SQL scopes fail offline rather than producing incomplete or misplaced locking SQL.</summary>

@@ -39,7 +39,7 @@ public sealed class MySqlRetryOptionsTests
     public void Create_with_zero_retry_count_throws()
     {
         // Arrange
-        Action act = () => MySqlRetryOptions.Create(0, TimeSpan.FromSeconds(5));
+        static void act() => MySqlRetryOptions.Create(0, TimeSpan.FromSeconds(5));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -53,7 +53,7 @@ public sealed class MySqlRetryOptionsTests
     public void Create_with_negative_retry_count_throws()
     {
         // Arrange
-        Action act = () => MySqlRetryOptions.Create(-1, TimeSpan.FromSeconds(5));
+        static void act() => MySqlRetryOptions.Create(-1, TimeSpan.FromSeconds(5));
 
         // Act
         var recordedException = Record.Exception(act);
@@ -67,7 +67,7 @@ public sealed class MySqlRetryOptionsTests
     public void Create_with_zero_delay_throws()
     {
         // Arrange
-        Action act = () => MySqlRetryOptions.Create(3, TimeSpan.Zero);
+        static void act() => MySqlRetryOptions.Create(3, TimeSpan.Zero);
 
         // Act
         var recordedException = Record.Exception(act);
@@ -81,7 +81,7 @@ public sealed class MySqlRetryOptionsTests
     public void Create_with_negative_delay_throws()
     {
         // Arrange
-        Action act = () => MySqlRetryOptions.Create(3, TimeSpan.FromSeconds(-1));
+        static void act() => MySqlRetryOptions.Create(3, TimeSpan.FromSeconds(-1));
 
         // Act
         var recordedException = Record.Exception(act);

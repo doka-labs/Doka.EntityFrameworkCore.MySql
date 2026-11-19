@@ -17,42 +17,13 @@ public sealed partial class MySqlUpsertIntegrationTests
     private static readonly string[] s_jsonAndNameUpdate = [nameof(UpsertRow.Json), nameof(UpsertRow.Name)];
 
     /// <summary>Reports representable decimal boundaries independently for every selected engine.</summary>
-    public static TheoryData<string, decimal> DecimalConflictCases
-    {
-        get
-        {
-            var data = new TheoryData<string, decimal>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var value in s_decimalBoundaryValues)
-                {
-                    data.Add(target, value);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, decimal>> DecimalConflictCases => SelectedTargets.SelectMany(target
+        =>
+        s_decimalBoundaryValues.Select(value => new TheoryDataRow<string, decimal>(target.Data, value)));
 
     /// <summary>Reports binary edge bytes and the distinct empty, non-null representation.</summary>
-    public static TheoryData<string, bool> BinaryConflictCases
-    {
-        get
-        {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                foreach (var empty in s_binaryPayloadVariants)
-                {
-                    data.Add(target, empty);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string, bool>> BinaryConflictCases => SelectedTargets.SelectMany(target =>
+        s_binaryPayloadVariants.Select(empty => new TheoryDataRow<string, bool>(target.Data, empty)));
 
     /// <summary>A duplicate update preserves all eighteen decimal digits and the mapped four-place scale.</summary>
     [RequiresSupportedDatabaseTargetTheory]

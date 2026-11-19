@@ -211,7 +211,7 @@ public sealed partial class MySqlCacheRegistrationTests
     /// Verifies validation at startup without requiring a cache operation.
     /// </summary>
     [Fact]
-    public void Startup_validation_rejects_missing_configuration_before_the_first_operation()
+    public async Task Startup_validation_rejects_missing_configuration_before_the_first_operation()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -219,10 +219,10 @@ public sealed partial class MySqlCacheRegistrationTests
         using var provider = services.BuildServiceProvider();
 
         // Act
-        var exception = Record.Exception(() =>
+        var exception = await Record.ExceptionAsync(() =>
             provider
-                .GetRequiredService<IStartupValidator>()
-                .Validate());
+                .GetRequiredService<IAsyncStartupValidator>()
+                .ValidateAsync(TestContext.Current.CancellationToken));
 
         // Assert
         var validationException = Assert.IsType<OptionsValidationException>(exception);
@@ -293,7 +293,7 @@ public sealed partial class MySqlCacheRegistrationTests
     /// Verifies that the system-time fallback resolves without requiring a clock or database connection.
     /// </summary>
     [Fact]
-    public void Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
+    public async Task Startup_and_resolution_without_a_time_provider_do_not_connect_or_create_the_schema()
     {
         // Arrange
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -303,9 +303,9 @@ public sealed partial class MySqlCacheRegistrationTests
             options.ConnectionString = $"Server=127.0.0.1;Port={port};User ID=cache;Pooling=false");
 
         // Act
-        provider
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
 
         _ = provider.GetRequiredService<IDistributedCache>();
         _ = provider.GetRequiredService<IBufferDistributedCache>();
@@ -343,9 +343,9 @@ public sealed partial class MySqlCacheRegistrationTests
         await using var provider = services.BuildServiceProvider();
 
         // Act
-        provider
-            .GetRequiredService<IStartupValidator>()
-            .Validate();
+        await provider
+            .GetRequiredService<IAsyncStartupValidator>()
+            .ValidateAsync(TestContext.Current.CancellationToken);
 
         var cache = provider.GetRequiredService<IDistributedCache>();
         var bufferCache = provider.GetRequiredService<IBufferDistributedCache>();

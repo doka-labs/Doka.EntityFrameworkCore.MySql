@@ -2,8 +2,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal static class MySqlSpatialTypeSupport
 {
-    private static readonly HashSet<string> s_spatialStoreTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly HashSet<string> s_spatialStoreTypes =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
         "geometry",
         "point",
         "linestring",
@@ -12,7 +13,7 @@ internal static class MySqlSpatialTypeSupport
         "multipoint",
         "multilinestring",
         "multipolygon",
-    };
+    ];
 
     public static bool IsSpatialClrType(
         Type type

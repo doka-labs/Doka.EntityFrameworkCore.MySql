@@ -6,18 +6,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector">
+    <!-- WHY: An explicit native coverage scope prevents inferred dependency prefixes from excluding shipping assemblies. -->
+    <None Include="../testconfig.json" Link="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.MTP">
       <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="FsCheck.Xunit" />
+    <PackageReference Include="FsCheck.Xunit.v3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <!-- WHY: The regression exercises EF's actual C# translator, so its compile assets are required. -->
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive; compile</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -62,6 +66,9 @@
     </Compile>
     <Compile Update="Contracts/QualificationStageExecutionTests.*.cs">
       <DependentUpon>QualificationStageExecutionTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Contracts/SpecificationContractTests.*.cs">
+      <DependentUpon>SpecificationContractTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Contracts/DependencySecurityAuditTests.*.cs">
       <DependentUpon>DependencySecurityAuditTests.cs</DependentUpon>

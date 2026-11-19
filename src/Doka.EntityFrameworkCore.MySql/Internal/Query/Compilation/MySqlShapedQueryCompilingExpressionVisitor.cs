@@ -46,10 +46,10 @@ internal sealed class MySqlShapedQueryCompilingExpressionVisitor : RelationalSha
                 typeof(CancellationToken))
             : Expression.Property(QueryCompilationContext.QueryContextParameter, s_cancellationTokenProperty);
 
-        // WHY: EF10's resolver-expression builder is private. Reuse its command cache
+        // WHY: EF11's resolver-expression builder is private. Reuse its command cache
         // through this narrow adapter, not reflection or a parallel query/SQL cache. The
         // ordinary compiler path above remains untouched; no context is retained in this cache.
-#pragma warning disable EF1001 // Narrow EF10 command-resolution seam, covered by direct-write compilation tests.
+#pragma warning disable EF1001 // Narrow EF11 command-resolution seam, covered by direct-write compilation tests.
         var commandCache = new RelationalCommandCache(
             Dependencies.MemoryCache,
             RelationalDependencies.QuerySqlGeneratorFactory,

@@ -30,6 +30,7 @@ class IntegrationTargetParallelismTests(unittest.TestCase):
             "global.json",
             "eng/testing/test-integration.sh",
             "eng/common/verify-dotnet.sh",
+            "eng/quality/check-coverage-threshold.sh",
         ):
             destination = self.repository / relative_path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -37,6 +38,7 @@ class IntegrationTargetParallelismTests(unittest.TestCase):
 
         self.artifacts = self.root / "artifacts"
         self.events = self.root / "events.txt"
+        self.module_events = self.root / "module-events.txt"
         self.barrier = self.root / "barrier"
         self.barrier.mkdir()
 
@@ -67,19 +69,43 @@ case "${1:-}" in
     test)
         target="${DOKA_INTEGRATION_TARGETS:?}"
         shift
-        test_output=""
+        test_module=""
+        test_root=""
+        results_directory=""
+        coverage_prefix=""
 
         while (( $# > 0 )); do
-            if [[ "$1" == "--output" ]]; then
-                test_output="${2:?}"
-                shift 2
-            else
-                shift
-            fi
+            case "$1" in
+                --test-modules)
+                    test_module="${2:?}"
+                    shift 2
+                    ;;
+                --root-directory)
+                    test_root="${2:?}"
+                    shift 2
+                    ;;
+                --results-directory)
+                    results_directory="${2:?}"
+                    shift 2
+                    ;;
+                --coverlet-file-prefix)
+                    coverage_prefix="${2:?}"
+                    shift 2
+                    ;;
+                --project|--output)
+                    # In MTP, --output controls verbosity rather than the
+                    # test assembly path. Reject the former VSTest invocation.
+                    exit 34
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
         done
 
-        copied_assembly="${test_output}/$(basename "${FAKE_TEST_ASSEMBLY_PATH:?}")"
-        if [[ -z "${test_output}" || "${copied_assembly}" == "${FAKE_TEST_ASSEMBLY_PATH}" \
+        copied_assembly="${test_root}/${test_module}"
+        if [[ "${test_module}" != "$(basename "${FAKE_TEST_ASSEMBLY_PATH:?}")" \
+            || -z "${test_root}" || "${copied_assembly}" == "${FAKE_TEST_ASSEMBLY_PATH}" \
             || ! -f "${copied_assembly}" ]]; then
             exit 31
         fi
@@ -87,7 +113,7 @@ case "${1:-}" in
         cmp -s "${FAKE_TEST_ASSEMBLY_PATH}" "${copied_assembly}" || exit 32
         # A hard link would still let Coverlet rewrite the shared build.
         [[ ! "${FAKE_TEST_ASSEMBLY_PATH}" -ef "${copied_assembly}" ]] || exit 33
-        printf '%s\\n' "${test_output}" > "${FAKE_BARRIER_DIR:?}/${target}.output"
+        printf '%s\\n' "${test_root}" > "${FAKE_BARRIER_DIR:?}/${target}.output"
         printf 'start:%s\\n' "${target}" >> "${FAKE_EVENT_PATH:?}"
 
         if [[ "${FAKE_WAIT_FOR_SIGNAL:-0}" == "1" ]]; then
@@ -139,10 +165,40 @@ while True:
                 "${target}" > "${DOKA_TEST_DATABASE_EVIDENCE_FILE:?}"
         fi
 
+        if [[ "${target}" != "${FAKE_MISSING_COVERAGE_TARGET:-}" ]]; then
+            [[ -n "${results_directory}" && -n "${coverage_prefix}" ]] || exit 35
+            coverage_report="${results_directory}/${coverage_prefix}.coverage.cobertura.1.xml"
+            printf '<coverage><packages>' > "${coverage_report}"
+            for assembly in Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite Doka.Caching.MySql; do
+                printf '<package name="%s"><classes><class filename="Source.cs"><lines><line number="1" hits="0" /></lines></class></classes></package>' \\
+                    "${assembly}" >> "${coverage_report}"
+            done
+            printf '</packages></coverage>\\n' >> "${coverage_report}"
+        fi
+
         printf 'end:%s\\n' "${target}" >> "${FAKE_EVENT_PATH}"
 
         if [[ "${target}" == "${FAKE_FAIL_TARGET:-}" ]]; then
             exit 17
+        fi
+        ;;
+    run)
+        # WHY: Keep the delivered current-run selector real; only substitute
+        # its already independently tested compiled XML-validation boundary.
+        shift
+        while (( $# > 0 )) && [[ "$1" != "--" ]]; do
+            shift
+        done
+        [[ "$#" == 6 && "$1" == "--" && "$2" == "modules" ]] || exit 36
+        coverage_report="$3"
+        shift 3
+        [[ -f "${coverage_report}" \\
+            && "$*" == "Doka.EntityFrameworkCore.MySql Doka.EntityFrameworkCore.MySql.NetTopologySuite Doka.Caching.MySql" ]] || exit 37
+        target="$(basename "$(dirname "${coverage_report}")")"
+        printf '%s\\n' "${target}" >> "${FAKE_MODULE_EVENT_PATH:?}"
+        if [[ "${target}" == "${FAKE_MODULE_FAILURE_TARGET:-}" ]]; then
+            echo "Fake coverage module validation failed for ${target}" >&2
+            exit 38
         fi
         ;;
     *)
@@ -163,6 +219,7 @@ esac
                 )["sdk"]["version"],
                 "FAKE_TEST_ASSEMBLY_PATH": str(self.test_assembly),
                 "FAKE_EVENT_PATH": str(self.events),
+                "FAKE_MODULE_EVENT_PATH": str(self.module_events),
                 "FAKE_BARRIER_DIR": str(self.barrier),
                 "DOKA_INTEGRATION_TARGETS": "mysql84,mariadb1011,mariadb114",
                 "DOKA_INTEGRATION_ARTIFACTS_DIR": str(self.artifacts),
@@ -176,6 +233,8 @@ esac
             "FAKE_FAIL_TARGET",
             "FAKE_MISSING_EVIDENCE_TARGET",
             "FAKE_WAIT_FOR_SIGNAL",
+            "FAKE_MISSING_COVERAGE_TARGET",
+            "FAKE_MODULE_FAILURE_TARGET",
         ):
             self.environment.pop(variable, None)
 
@@ -191,6 +250,10 @@ esac
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self._assert_bounded_events()
         self._assert_isolated_outputs()
+        self.assertEqual(
+            ["mysql84", "mariadb1011", "mariadb114"],
+            self.module_events.read_text(encoding="ascii").splitlines(),
+        )
         evidence = self._read_matrix_evidence()
         self.assertEqual(0, evidence["testExitCode"])
         self.assertEqual(
@@ -277,6 +340,43 @@ esac
         evidence = self._read_matrix_evidence()
         self.assertEqual(1, evidence["testExitCode"])
         self.assertIsNone(evidence["testDatabase"])
+
+    def test_missing_current_coverage_rejects_stale_report_and_drains_workers(self) -> None:
+        """Do not let a prior report replace the current worker's measurement."""
+        # Arrange
+        self.environment["FAKE_MISSING_COVERAGE_TARGET"] = "mariadb1011"
+        stale_directory = self.root / "coverage" / "mariadb1011"
+        stale_directory.mkdir(parents=True)
+        stale_report = stale_directory / "integration-mariadb1011-stale.coverage.cobertura.1.xml"
+        stale_report.write_text("<coverage />\n", encoding="ascii")
+
+        # Act
+        result = self._run()
+
+        # Assert
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("Expected exactly one current native coverage report", result.stderr)
+        self._assert_bounded_events()
+        self._assert_isolated_outputs()
+        self.assertEqual(1, self._read_matrix_evidence()["testExitCode"])
+        self.assertTrue(stale_report.is_file())
+
+    def test_module_validation_failure_drains_workers_and_fails_matrix(self) -> None:
+        """Retain module rejection after every worker and its cleanup finish."""
+        # Arrange
+        self.environment["FAKE_MODULE_FAILURE_TARGET"] = "mariadb1011"
+
+        # Act
+        result = self._run()
+
+        # Assert
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("Fake coverage module validation failed for mariadb1011", result.stderr)
+        self._assert_bounded_events()
+        self._assert_isolated_outputs()
+        evidence = self._read_matrix_evidence()
+        self.assertEqual(1, evidence["testExitCode"])
+        self.assertEqual(3, len(evidence["testDatabase"]["targets"]))
 
     def test_termination_stops_both_active_target_processes(self) -> None:
         """Do not leave database-test workers running after cancellation."""

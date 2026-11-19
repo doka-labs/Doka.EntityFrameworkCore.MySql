@@ -57,12 +57,12 @@ internal sealed class MySqlDirectWriteTarget
 
     /// <summary>Finds the property's actual column on this target, including field and shadow properties.</summary>
     internal IColumn RequireColumn(
-        IProperty property
+        IPropertyBase property
     )
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        // WHY: EF10 resolves scalar columns by IProperty identity, including store-name
+        // WHY: EF11 resolves columns by IPropertyBase identity, including store-name
         // overrides and shadow/field mappings; CLR names cannot identify a physical column.
         return Table.FindColumn(property)
             ?? throw new InvalidOperationException("The selected property is not mapped to the direct-write target.");

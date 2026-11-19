@@ -99,7 +99,9 @@ internal static class MySqlConnectionContract
     {
         try
         {
-            return new MySqlConnectionStringBuilder(connectionString);
+            MySqlConnectionStringBuilder builder = new(connectionString);
+
+            return builder;
         }
         catch (ArgumentException)
         {

@@ -3,64 +3,24 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlWindowFunctionIntegrationTests
 {
     /// <summary>Supplies the three independently bound read sources on every native engine.</summary>
-    public static TheoryData<string, string> WindowBindingTargets
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, string>> WindowBindingTargets => SelectedTargets.SelectMany(target
+        => new[]
         {
-            var cases = new TheoryData<string, string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                cases.Add(target, "raw");
-                cases.Add(target, "cte");
-                cases.Add(target, "materialized");
-            }
-
-            return cases;
-        }
-    }
+            new TheoryDataRow<string, string>(target.Data, "raw"),
+            new TheoryDataRow<string, string>(target.Data, "cte"),
+            new TheoryDataRow<string, string>(target.Data, "materialized"),
+        });
 
     /// <summary>Supplies the qualified MySQL correlated-derived-table targets.</summary>
-    public static TheoryData<string> CorrelatedWindowTargets
-    {
-        get
-        {
-            var cases = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (!IntegrationTestEnvironment
-                    .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target))
-                    .IsMariaDb)
-                {
-                    cases.Add(target);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> CorrelatedWindowTargets => SelectedTargets
+        .Where(target => !IntegrationTestEnvironment
+            .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target.Data))
+            .IsMariaDb);
 
     /// <summary>Supplies MariaDB targets whose existing JOIN grammar rejects this correlated derived-table shape.</summary>
-    public static TheoryData<string> UnsupportedCorrelatedWindowTargets
-    {
-        get
-        {
-            var cases = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (IntegrationTestEnvironment
-                    .GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target))
-                    .IsMariaDb)
-                {
-                    cases.Add(target);
-                }
-            }
-
-            return cases;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> UnsupportedCorrelatedWindowTargets => SelectedTargets
+        .Where(target => IntegrationTestEnvironment.GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target.Data))
+            .IsMariaDb);
 
     /// <summary>Raw, ordinary CTE and explicit materialized sources retain their own selected rows before ranking.</summary>
     [RequiresSupportedDatabaseTargetTheory]
@@ -314,7 +274,7 @@ public sealed partial class MySqlWindowFunctionIntegrationTests
     }
 
     /// <summary>MySQL preserves the correlation-before-window collection scope without one command per parent.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97])]
     [MemberData(nameof(CorrelatedWindowTargets))]
     public async Task Correlated_split_window_keeps_its_qualified_mysql_scope_without_n_plus_one(
         string target
@@ -417,10 +377,10 @@ public sealed partial class MySqlWindowFunctionIntegrationTests
     }
 
     /// <summary>MariaDB reports the existing engine boundary rather than executing an unqualified correlated window scope.</summary>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MariaDb1011,
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MariaDb1011,
         IntegrationDatabaseTarget.MariaDb114,
         IntegrationDatabaseTarget.MariaDb118,
-        IntegrationDatabaseTarget.MariaDb123)]
+        IntegrationDatabaseTarget.MariaDb123])]
     [MemberData(nameof(UnsupportedCorrelatedWindowTargets))]
     public async Task Correlated_split_window_reports_the_mariadb_lateral_boundary(
         string target

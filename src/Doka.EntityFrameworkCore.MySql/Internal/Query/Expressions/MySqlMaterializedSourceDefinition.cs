@@ -5,7 +5,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// </summary>
 internal sealed class MySqlMaterializedSourceDefinition
 {
-    private readonly ConditionalWeakTable<ExpressionVisitor, MySqlMaterializedSourceDefinition> _visited = new();
+    private readonly ConditionalWeakTable<ExpressionVisitor, MySqlMaterializedSourceDefinition> _visited = [];
 
     /// <summary>Initializes the existing materialized source contract.</summary>
     public MySqlMaterializedSourceDefinition(

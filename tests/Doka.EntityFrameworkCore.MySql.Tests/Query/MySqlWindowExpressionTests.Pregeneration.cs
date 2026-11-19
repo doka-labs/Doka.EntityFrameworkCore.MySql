@@ -39,7 +39,7 @@ public sealed partial class MySqlWindowExpressionTests
         // Act
         // WHY: The real compiler must extract parameters before generation; calling the
         // translation visitor alone could fail for an unrelated unextracted closure instead.
-#pragma warning disable EF1001 // This exact EF10 compiler boundary is the subject of the regression, not a replacement query pipeline.
+#pragma warning disable EF1001 // This exact EF11 compiler boundary is the subject of the regression, not a replacement query pipeline.
         var error = Record.Exception(() => context
             .GetService<IQueryCompiler>()
             .PrecompileQuery<IEnumerable<long>>(query.Expression, async: false));
@@ -52,7 +52,7 @@ public sealed partial class MySqlWindowExpressionTests
         }
         else
         {
-            // WHY: EF10 rejects the nonconstant structural receiver before SQL generation.
+            // WHY: EF11 rejects the nonconstant structural receiver before SQL generation.
             // This records the actual framework boundary, not a new blanket provider restriction.
             Assert.Equal(CoreStrings.NotParameterizedAttributeWithNonConstantNotSupportedInPrecompiledQueries(
                     "functions",

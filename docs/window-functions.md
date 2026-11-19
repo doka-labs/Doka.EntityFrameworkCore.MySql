@@ -1,6 +1,7 @@
 # Typed window functions
 
 The typed APIs described here are available from Doka 10.7.0 on .NET 10 / EF Core 10.
+The 11.0.0 preparation carries these contracts forward to .NET 11 / EF Core 11.
 
 ## Project a window calculation
 
@@ -247,7 +248,7 @@ their translation or guarantee that their marker failure precedes a read.
 
 Runtime `EF.CompileQuery` / `EF.CompileAsyncQuery`, SQL-expression quotation and
 pregenerated/NativeAOT query execution are separate qualification surfaces.
-EF Core 10's pregeneration compiler rejects the fluent `Window()`
+EF Core 11's actual pregeneration compiler rejects the fluent `Window()`
 receiver because its structural `functions` argument cannot be parameterized
 in that pipeline, including windows with constant offsets. This is an early
 framework boundary; ordinary query pregeneration remains available. Successful

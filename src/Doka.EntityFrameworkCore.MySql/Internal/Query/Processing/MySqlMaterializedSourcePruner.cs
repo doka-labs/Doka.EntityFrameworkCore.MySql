@@ -38,7 +38,7 @@ internal sealed class MySqlMaterializedSourcePruner
         {
             // WHY: INSERT assignments consume the complete positional SELECT projection even
             // when no outer SQL column points at it and the SELECT retains a nonnull alias.
-#pragma warning disable EF1001 // Exact EF10 top-level projection-pruning seam, qualified by the EF patch matrix.
+#pragma warning disable EF1001 // Exact EF11 top-level projection-pruning seam, qualified by the EF patch matrix.
             return insert.Update(PruneSelect(insert.Source, preserveProjection: true));
 #pragma warning restore EF1001
         }

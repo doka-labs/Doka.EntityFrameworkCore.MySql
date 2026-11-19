@@ -5,7 +5,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     /// <summary>Verifies one JSON metric against a real persisted document.</summary>
     /// <param name="method">The independently reported JSON metric.</param>
     /// <param name="expected">The expected document metric.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84)]
+    [RequiresDatabaseTargetsTheory(new[] { IntegrationDatabaseTarget.MySql84 })]
     [InlineData("Depth", 3)]
     [InlineData("Length", 2)]
     public async Task Json_metric_returns_expected_value(

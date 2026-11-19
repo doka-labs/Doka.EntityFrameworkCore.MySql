@@ -1,8 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
-/// <summary>
-/// Serializes relational scalars and composes partial JSON update setters.
-/// </summary>
+/// <summary>Serializes relational scalars and composes partial JSON update setters.</summary>
 internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 {
     /// <summary>
@@ -125,7 +123,13 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                     _sqlExpressionFactory.Constant("-", stringTypeMapping),
                 ],
                 nullable: true,
-                argumentsPropagateNullability: [true, false, false, false],
+                argumentsPropagateNullability:
+                [
+                    true,
+                    false,
+                    false,
+                    false,
+                ],
                 typeof(string),
                 stringTypeMapping);
         }
@@ -207,7 +211,11 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             "JSON_EXTRACT",
             [serializedValue, _sqlExpressionFactory.Constant("$")],
             nullable: true,
-            argumentsPropagateNullability: [true, false],
+            argumentsPropagateNullability:
+            [
+                true,
+                false,
+            ],
             typeof(string),
             jsonTypeMapping);
     }

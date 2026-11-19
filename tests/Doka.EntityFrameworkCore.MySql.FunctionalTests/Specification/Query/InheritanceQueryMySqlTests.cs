@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore.TestModels.GearsOfWarModel;
-using Xunit.Abstractions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
@@ -208,7 +207,7 @@ public sealed partial class
     /// Executes the upstream take-then-order contract without assigning a deterministic
     /// relative order to rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
@@ -218,12 +217,13 @@ public sealed partial class
     /// Executes the equivalent query-syntax contract without assigning a deterministic
     /// relative order to rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
     ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
+    [Theory]
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]
@@ -288,7 +288,7 @@ public sealed partial class
     /// Executes the upstream take-then-order contract without imposing a relative
     /// order on rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down1(
         bool async
@@ -298,12 +298,13 @@ public sealed partial class
     /// Executes the equivalent query-syntax contract without imposing a relative
     /// order on rows whose requested <c>Rank</c> values are equal.
     /// </summary>
-    [DirectTheory]
+    [Theory]
     [InheritedTheoryData]
     public override Task Take_without_orderby_followed_by_orderBy_is_pushed_down2(
         bool async
     ) => AssertTakeThenOrderByRank(async, cancellationToken: CancellationToken.None);
 
+    [Theory]
     [SpecEngineLimitationTheory("MYSQL-MARIADB-TEMPORAL-MICROSECOND-PRECISION", "mysql84", "mariadb114", "mariadb118")]
     [InlineData(false)]
     [InlineData(true)]

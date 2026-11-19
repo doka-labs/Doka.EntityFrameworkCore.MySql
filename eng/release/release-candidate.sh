@@ -710,9 +710,9 @@ run_finalization_stage() {
     local publication_ef_core_version
     publication_ef_core_version="$(
         resolved_matrix_version \
-            "${efcore_matrix_dir}/latest-10-0/efcore-contract-evidence.json" \
+            "${efcore_matrix_dir}/latest-11-0/efcore-contract-evidence.json" \
             "EF Core" \
-            '^10[.]0[.][0-9]+$'
+            '^11[.]0[.][0-9]+$'
     )"
     local publication_mysqlconnector_version
     publication_mysqlconnector_version="$(

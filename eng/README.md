@@ -46,6 +46,16 @@ documentation, examples, image pins, workflow boundaries, engineering
 ownership, dependency shape, Shell portability, and retained tool contracts.
 The provider test runner builds and executes the .NET test projects.
 
+Native MTP coverage uses the shared `tests/testconfig.json`, copied into each
+test module's build output for CLI and IDE launches. Its exact shipping-assembly
+scope prevents inferred dependency-name filters from excluding the provider;
+the previous source-attribute exclusions and coverage floors are unchanged.
+Each producer reserves a unique report prefix and uses the existing coverage
+tool's `modules` check before accepting its report. Functional/specification
+modules require provider and spatial measurements; unit/integration modules
+require those plus the standalone cache. Zero-hit source lines remain valid
+measurements here; the merged coverage policy enforces the execution floors.
+
 Full quality validation additionally restores the solution, runs analyzers,
 audits dependencies, builds examples, compiles README snippets, and checks
 migration-model drift:

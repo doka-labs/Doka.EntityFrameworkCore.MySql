@@ -3,12 +3,10 @@ namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 public sealed partial class MySqlInsertSelectTranslationTests
 {
     /// <summary>Reports each unsupported source independently for both selected dialects.</summary>
-    public static TheoryData<bool, string> InvalidSourceCases
+    public static IEnumerable<TheoryDataRow<bool, string>> InvalidSourceCases
     {
         get
         {
-            var cases = new TheoryData<bool, string>();
-
             foreach (var mariaDb in new[] { false, true })
             {
                 foreach (var shape in new[]
@@ -21,21 +19,17 @@ public sealed partial class MySqlInsertSelectTranslationTests
                         "locking",
                     })
                 {
-                    cases.Add(mariaDb, shape);
+                    yield return new TheoryDataRow<bool, string>(mariaDb, shape);
                 }
             }
-
-            return cases;
         }
     }
 
     /// <summary>Reports independent malformed assignment contracts for both dialects.</summary>
-    public static TheoryData<bool, string> InvalidAssignmentCases
+    public static IEnumerable<TheoryDataRow<bool, string>> InvalidAssignmentCases
     {
         get
         {
-            var cases = new TheoryData<bool, string>();
-
             foreach (var mariaDb in new[] { false, true })
             {
                 foreach (var assignment in new[]
@@ -49,11 +43,9 @@ public sealed partial class MySqlInsertSelectTranslationTests
                         "changed-type",
                     })
                 {
-                    cases.Add(mariaDb, assignment);
+                    yield return new TheoryDataRow<bool, string>(mariaDb, assignment);
                 }
             }
-
-            return cases;
         }
     }
 
@@ -96,7 +88,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
             _ => throw new ArgumentOutOfRangeException(nameof(shape)),
         };
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var reason = shape switch
         {
             "collection" or "collection-string" => "collection Include",
@@ -155,7 +147,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
             _ => throw new ArgumentOutOfRangeException(nameof(assignment)),
         };
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
         var reason = assignment switch
         {
             "empty" => "at least one target assignment",
@@ -194,7 +186,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(
@@ -224,7 +216,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var targetObservation = new InsertObservation();
         await using var sourceContext = CreateContext(mariaDb, sourceObservation);
         await using var targetContext = CreateContext(mariaDb, targetObservation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => sourceContext.Sources.ExecuteInsertFromQueryAsync(
@@ -253,7 +245,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
             .Empty<InsertSource>()
             .AsQueryable();
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => source.ExecuteInsertFromQueryAsync(context.Targets,
@@ -313,7 +305,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(()

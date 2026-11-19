@@ -52,7 +52,7 @@ internal sealed partial class MySqlRecursiveRelationalDataReader : RelationalDat
         IRelationalCommandDiagnosticsLogger? logger
     )
     {
-        // WHY: EF10's base state is private and its disposal skips later resources after
+        // WHY: EF11's base state is private and its disposal skips later resources after
         // a reader/command failure. This opt-in owner keeps explicit progress and no shared registry.
         // EF also permits a fresh execution after disposal. Reset its disposal progress;
         // the caller supplies the acquired open reference, which Initialize never acquires itself.

@@ -98,7 +98,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == MySqlDiagnostics.SourceName,
-                Sample = (ref _) => ActivitySamplingResult.AllData,
+                Sample = SampleAllData,
                 ActivityStopped = Activities.Enqueue,
             };
 
@@ -111,6 +111,10 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         public ConcurrentQueue<Activity> Activities { get; } = new();
 
         public void Dispose() => _listener.Dispose();
+
+        private static ActivitySamplingResult SampleAllData(
+            ref ActivityCreationOptions<ActivityContext> _
+        ) => ActivitySamplingResult.AllData;
     }
 
     private sealed class CounterSink<T> : IDisposable
@@ -157,7 +161,7 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
     {
         private readonly MeterListener _listener;
         private readonly Lock _lock = new();
-        private readonly List<double> _measurements = new();
+        private readonly List<double> _measurements = [];
         private readonly ConcurrentQueue<IReadOnlyDictionary<string, object?>> _tagSets = new();
 
         public HistogramSink(

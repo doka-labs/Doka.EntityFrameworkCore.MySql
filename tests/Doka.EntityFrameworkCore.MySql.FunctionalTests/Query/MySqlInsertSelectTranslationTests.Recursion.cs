@@ -29,7 +29,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
             source = source.Take(0);
         }
 
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => source.ExecuteInsertFromQueryAsync(context.Targets,

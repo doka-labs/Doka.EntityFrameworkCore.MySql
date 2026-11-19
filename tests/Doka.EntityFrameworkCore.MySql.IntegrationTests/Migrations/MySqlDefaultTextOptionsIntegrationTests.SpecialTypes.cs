@@ -7,54 +7,33 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
     private const string ScalarSpecialTable = "DefaultTextScalarSpecialTypes";
 
     /// <summary>Reports the engines on which native UUID must remain an explicit prewrite rejection.</summary>
-    public static TheoryData<string> UnsupportedSpecialUuidTargets
-    {
-        get
-        {
-            var data = new TheoryData<string>();
-
-            foreach (var target in SelectedTargets)
-            {
-                if (!IntegrationTestEnvironment.GetServerVersion(ParseTarget(target))
-                    .IsMariaDb)
-                {
-                    data.Add(target);
-                }
-            }
-
-            return data;
-        }
-    }
+    public static IEnumerable<TheoryDataRow<string>> UnsupportedSpecialUuidTargets => SelectedTargets
+        .Where(target => !IntegrationTestEnvironment.GetServerVersion(ParseTarget(target.Data))
+            .IsMariaDb);
 
     /// <summary>Reports each supported physical GUID representation independently for each selected engine.</summary>
-    public static TheoryData<string, MySqlGuidFormat> SpecialGuidCases()
+    public static IEnumerable<TheoryDataRow<string, MySqlGuidFormat>> SpecialGuidCases()
     {
-        var data = new TheoryData<string, MySqlGuidFormat>();
-
         foreach (var target in IntegrationTestEnvironment
             .GetSelectedTargets()
             .Where(target => IntegrationTestEnvironment
                 .GetSupportedTargets()
                 .Contains(target)))
         {
-            data.Add(target.ToString(), MySqlGuidFormat.Binary16);
-            data.Add(target.ToString(), MySqlGuidFormat.Char36);
+            yield return new TheoryDataRow<string, MySqlGuidFormat>(target.ToString(), MySqlGuidFormat.Binary16);
+            yield return new TheoryDataRow<string, MySqlGuidFormat>(target.ToString(), MySqlGuidFormat.Char36);
 
             if (IntegrationTestEnvironment.GetServerVersion(target)
                 .IsMariaDb)
             {
-                data.Add(target.ToString(), MySqlGuidFormat.Uuid);
+                yield return new TheoryDataRow<string, MySqlGuidFormat>(target.ToString(), MySqlGuidFormat.Uuid);
             }
         }
-
-        return data;
     }
 
     /// <summary>Reports decoded JSON membership and ordinal or JSON-type counterexamples independently.</summary>
-    public static TheoryData<string, string, string?, bool, bool> SpecialStringMembershipCases()
+    public static IEnumerable<TheoryDataRow<string, string, string?, bool, bool>> SpecialStringMembershipCases()
     {
-        var data = new TheoryData<string, string, string?, bool, bool>();
-
         (string Document, string? Needle, bool Matches)[] cases =
         [
             ("[\"Caf\\u00E9\"]", "Caf\u00e9", true),
@@ -80,21 +59,19 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
         {
             foreach (var testCase in cases)
             {
-                data.Add(target,
+                yield return new TheoryDataRow<string, string, string?, bool, bool>(target.Data,
                     testCase.Document,
                     testCase.Needle,
                     testCase.Matches,
                     false);
 
-                data.Add(target,
+                yield return new TheoryDataRow<string, string, string?, bool, bool>(target.Data,
                     testCase.Document,
                     testCase.Needle,
                     testCase.Matches,
                     true);
             }
         }
-
-        return data;
     }
 
     /// <summary>Application defaults cannot turn JSON string membership into collation, pattern or scalar coercion.</summary>
@@ -346,7 +323,7 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
 
     /// <summary>Text defaults cannot silently turn unsupported MySQL native UUID into another GUID format.</summary>
     /// <param name="target">The selected MySQL engine profile.</param>
-    [RequiresDatabaseTargetsTheory(IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97)]
+    [RequiresDatabaseTargetsTheory([IntegrationDatabaseTarget.MySql84, IntegrationDatabaseTarget.MySql97])]
     [MemberData(nameof(UnsupportedSpecialUuidTargets))]
     public async Task Enabled_defaults_do_not_bypass_mysql_native_uuid_rejection(
         string target

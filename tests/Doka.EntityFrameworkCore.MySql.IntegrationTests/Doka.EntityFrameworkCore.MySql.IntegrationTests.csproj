@@ -6,14 +6,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector">
+    <!-- WHY: An explicit native coverage scope prevents inferred dependency prefixes from excluding shipping assemblies. -->
+    <None Include="../testconfig.json" Link="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.MTP">
       <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational.Specification.Tests" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="MySqlConnector" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -94,6 +98,12 @@
     </Compile>
     <Compile Update="Query/MySqlPrimitiveCollectionFacetIntegrationTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionFacetIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlLockingReadIntegrationTests.*.cs">
+      <DependentUpon>MySqlLockingReadIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlIndependentCollectionMembershipIntegrationTests.*.cs">
+      <DependentUpon>MySqlIndependentCollectionMembershipIntegrationTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Query/MySqlLockingReadIntegrationTests.*.cs">
       <DependentUpon>MySqlLockingReadIntegrationTests.cs</DependentUpon>

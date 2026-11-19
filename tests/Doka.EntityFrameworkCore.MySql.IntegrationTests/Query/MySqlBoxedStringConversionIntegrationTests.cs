@@ -12,26 +12,56 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
         [typeof(object)])!;
 
     /// <summary>Includes nullable scalars and each engine's supported GUID representations.</summary>
-    public static IEnumerable<object[]> ConversionCases()
+    public static IEnumerable<TheoryDataRow<string, MySqlGuidFormat, string, string>> ConversionCases()
     {
         foreach (var target in IntegrationTestEnvironment
             .GetSupportedTargets()
             .Where(IntegrationTestEnvironment.IsTargetSelected))
         {
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.StringRole), "Admin"];
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.NumericRole), "Admin"];
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.Number), "42"];
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.Enabled), "True"];
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.Text), "value"];
-            yield return [target.ToString(), MySqlGuidFormat.Binary16, nameof(ConversionRow.Token), GuidText];
-            yield return [target.ToString(), MySqlGuidFormat.Char36, nameof(ConversionRow.Token), GuidText];
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.StringRole),
+                "Admin");
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.NumericRole),
+                "Admin");
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.Number),
+                "42");
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.Enabled),
+                "True");
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.Text),
+                "value");
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Binary16,
+                nameof(ConversionRow.Token),
+                GuidText);
+
+            yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                MySqlGuidFormat.Char36,
+                nameof(ConversionRow.Token),
+                GuidText);
 
             if (target is IntegrationDatabaseTarget.MariaDb1011
                 or IntegrationDatabaseTarget.MariaDb114
                 or IntegrationDatabaseTarget.MariaDb118
                 or IntegrationDatabaseTarget.MariaDb123)
             {
-                yield return [target.ToString(), MySqlGuidFormat.Uuid, nameof(ConversionRow.Token), GuidText];
+                yield return new TheoryDataRow<string, MySqlGuidFormat, string, string>(target.ToString(),
+                    MySqlGuidFormat.Uuid,
+                    nameof(ConversionRow.Token),
+                    GuidText);
             }
         }
     }
@@ -169,6 +199,8 @@ public sealed class MySqlBoxedStringConversionIntegrationTests
         public Guid? Token { get; set; }
     }
 
+    // WHY: Preserve the original zero/one values used by numeric and string enum conversions.
+    // ReSharper disable once UnusedMember.Local
     private enum Role
     {
         User,

@@ -1,7 +1,8 @@
 # Character Sets and Collations
 
-Demonstrates the application defaults added in Doka 10.7.0 on .NET 10 / EF Core 10
-and explicit provider metadata:
+Demonstrates the application defaults introduced in Doka 10.7.0 on .NET 10 /
+EF Core 10 and carried forward to .NET 11 / EF Core 11, together with explicit
+provider metadata:
 
 - `DefaultCharSet("utf8mb4")` and `DefaultCollation("utf8mb4_unicode_ci")`
   configured once through `UseMySql`

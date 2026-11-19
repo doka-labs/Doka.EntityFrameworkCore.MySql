@@ -7,7 +7,7 @@ defined by released packages, the support matrix, and release notes.
 
 ## Direction Through July 2027
 
-### Stabilize the EF Core 10 release line
+### Maintain the stable EF Core 10 release line
 
 - Maintain the released .NET 10 / EF Core 10 package line and qualify each
   patch or additive minor release through the shared release contract.
@@ -21,8 +21,9 @@ defined by released packages, the support matrix, and release notes.
 
 ### Maintain supported dependencies and engines
 
-- Keep the supported EF Core 10 patch range and qualified MySqlConnector
-  2.x/3.x range under continuous compatibility and vulnerability review.
+- Keep the supported EF Core 10 maintenance range, the reviewed EF Core 11 GA
+  patch range, and the qualified MySqlConnector 2.x/3.x range under
+  compatibility and vulnerability review.
 - Prioritize dependency updates that remediate a relevant vulnerability.
   Routine version churn without compatibility, security, or support value is
   not a roadmap goal.
@@ -42,27 +43,46 @@ defined by released packages, the support matrix, and release notes.
 - Continue to publish checksums, SBOMs, signed tags, immutable releases, NuGet
   repository signatures, and portable SLSA provenance for releases.
 
-### Deliver the 10.7.0 feature set on EF Core 10
+<a id="deliver-the-1070-feature-set-on-ef-core-10"></a>
 
-- Deliver application character-set/collation fallbacks, explicit locking
-  reads, typed ordinary/recursive CTEs, window functions, typed INSERT SELECT
-  and native single/range UPSERT in the .NET 10 line.
-- Preserve existing contracts and qualify supported feature combinations on
-  all supported MySQL and MariaDB profiles before publication.
+### Maintain the published 10.7.0 feature set
+
+- Version 10.7.0 published application character-set/collation fallbacks,
+  explicit locking reads, typed ordinary/recursive CTEs, window functions,
+  typed INSERT SELECT and native single/range UPSERT in the .NET 10 line.
+- Maintain these opt-in contracts and qualify affected feature combinations on
+  all supported MySQL and MariaDB profiles for subsequent releases.
 - Keep database-native timing measurements diagnostic and retain deterministic
   semantic controls and existing allocation ceilings.
 
-### Prepare the next platform major deliberately
+### Qualify the next platform major deliberately
 
-- Keep the separate .NET 11 / EF Core 11 preparation isolated until the
+- Keep the separate .NET 11 / EF Core 11 GA preparation isolated until the
   approved platform cutover. It must retain the applicable feature contracts
   and their independent compatibility evidence.
+- The maintainer-authorized trigger in ADR D-013 has fired; `feature/dotnet-11`
+  owns SDK 11.0.100 and the reviewed EF Core 11 GA graph.
 - Treat that transition as a new provider major with explicit validation of
   EF Core internal services, public API compatibility, trimming/AOT posture,
   migrations and specification tests.
 - Keep publication, hosted authorization and the maintenance/main cutover as
   separate operator decisions. The maintenance branch name does not establish
   an automatic feature freeze for the supported .NET 10 line.
+
+<a id="complete-the-first-1100-feature-set"></a>
+
+### Retain the implemented 11.0.0 feature set
+
+- The 11.0.0 source implements the same six contracts already published in
+  10.7.0, adapted to .NET 11 / EF Core 11. Their implementation is complete;
+  they are not pending feature work.
+- Preserve these contracts and require source-bound qualification of the
+  supported combinations on the qualified MySQL and MariaDB profiles before
+  the first 11.0.0 publication. Implementation does not establish publication
+  or completed hosted qualification for a later source revision.
+- Keep publication, hosted authorization and the maintenance/main cutover as
+  separate operator decisions. Review future changes for each supported line;
+  no automatic backport is implied.
 
 ## Explicit Non-Goals Through July 2027
 
@@ -77,7 +97,8 @@ The project does not intend to:
 - move application authentication, authorization, tenant isolation, network
   policy, or database privilege ownership into the provider;
 - make benchmarks a release-publication authority; or
-- begin EF Core 11 implementation merely because a preview is available.
+- merge the EF Core 11 line before its exact SDK, package graph, specification
+  contracts, runtime posture, and live-engine matrix are reproducible.
 
 ## Review and Change Process
 

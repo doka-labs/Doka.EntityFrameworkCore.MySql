@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -5,12 +7,18 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 /// </summary>
 internal sealed class RequiresSupportedDatabaseTargetTheoryAttribute : TheoryAttribute
 {
-    public RequiresSupportedDatabaseTargetTheoryAttribute()
+    /// <summary>Retains the theory's source while applying supported-target selection.</summary>
+    /// <param name="sourceFilePath">The compiler-supplied test source path.</param>
+    /// <param name="sourceLineNumber">The compiler-supplied attribute line.</param>
+    public RequiresSupportedDatabaseTargetTheoryAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1
+    ) : base(sourceFilePath, sourceLineNumber)
     {
         var supportedTargets = IntegrationTestEnvironment.GetSupportedTargets();
         var selectedTargets = IntegrationTestEnvironment.GetSelectedTargets();
 
-        // xUnit v2 reports an empty MemberData source as a test failure. An
+        // Empty MemberData is a test failure. An
         // explicit mysql80-only run should skip these six-engine contracts.
         if (!selectedTargets.Any(supportedTargets.Contains))
         {

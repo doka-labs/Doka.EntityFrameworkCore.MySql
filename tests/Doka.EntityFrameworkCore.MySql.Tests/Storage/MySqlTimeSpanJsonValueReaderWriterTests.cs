@@ -73,7 +73,7 @@ public sealed class MySqlTimeSpanJsonValueReaderWriterTests
             ? s_maximum + TimeSpan.FromTicks(1)
             : -s_maximum - TimeSpan.FromTicks(1);
 
-        Action act = () => readerWriter.ToJsonString(value);
+        void act() => readerWriter.ToJsonString(value);
 
         // Act
         var recordedException = Record.Exception(act);

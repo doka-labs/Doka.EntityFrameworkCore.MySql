@@ -4,11 +4,10 @@ This guide is the canonical map of application-facing provider configuration.
 It groups the public entry points by lifetime and links specialized contracts
 instead of duplicating them.
 
-This guide describes the Doka 10.x line. The provider and spatial extension
-accept EF Core `>= 10.0.8` and `< 10.1.0`; a newer repository build SDK does not
-raise the application's SDK minimum. The separately prepared .NET 11 branch
-does not change these package compatibility boundaries. See the
-[support policy](../SUPPORT.md#framework-lines-and-servicing).
+This checkout describes the prepared Doka 11.x line: .NET 11 with EF Core
+`>= 11.0.0` and `< 11.1.0`. The .NET 10 maintenance line retains EF Core
+`>= 10.0.8` and `< 10.1.0`. The exact repository build SDK is not an application
+SDK minimum. See the [support policy](../SUPPORT.md#framework-lines-and-servicing).
 
 ## Connection and Server Configuration
 
@@ -553,8 +552,8 @@ Migration restrictions and scaffolding behavior are described in
 [GUID SQL defaults](operations/migrations.md#guid-sql-defaults).
 
 Parameterized primitive collections preserve the effective storage
-representation of the property they are compared with. From 10.4.4, Doka
-again uses EF Core 10's `MultipleParameters` default: ordinary
+representation of the property they are compared with. The 11.x line explicitly
+retains the `MultipleParameters` default restored in Doka 10.4.4: ordinary
 `keys.Contains(entity.Id)` emits scalar parameters so the database can see
 collection cardinality. The one-JSON-parameter default in 10.4.3 could cause
 excessive latency, including a timeout, on a selective relationship query.
@@ -563,6 +562,12 @@ workloads with `EF.Parameter(keys).Contains(entity.Id)`.
 The JSON parameter is decoded as the configured `binary(16)` representation
 for `Binary16`, as value-preserving text for `Char36`, and as canonical UUID
 text for native `Uuid` columns.
+
+Uncomposed independent decoded parameter/constant rowsets remain `IN`
+subqueries, preserving the optimizer's ability to materialize the JSON rowset
+once. Unencoded JSON scalar membership keeps `JSON_CONTAINS`; correlated,
+filtered and paginated sources retain their existing safeguards. This does not
+select an execution plan or guarantee lower latency.
 
 All three strategies remain available per query:
 

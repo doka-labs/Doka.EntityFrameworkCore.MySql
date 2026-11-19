@@ -18,29 +18,19 @@ public sealed partial class MySqlDefaultTextOptionsIntegrationTests
     }
 
     /// <summary>Returns one independently reported case for each selected supported engine.</summary>
-    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
+    public static IEnumerable<TheoryDataRow<string>> SelectedTargets => IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => target.ToString()));
+        .Select(target => new TheoryDataRow<string>(target.ToString()));
 
     /// <summary>Returns each selected engine with ordinary text and Char36 GUID overrides separately.</summary>
-    public static TheoryData<string, bool> CentralizationCases
-    {
-        get
+    public static IEnumerable<TheoryDataRow<string, bool>> CentralizationCases => SelectedTargets
+        .SelectMany(target => new[]
         {
-            var data = new TheoryData<string, bool>();
-
-            foreach (var target in SelectedTargets)
-            {
-                data.Add(target, false);
-                data.Add(target, true);
-            }
-
-            return data;
-        }
-    }
+            new TheoryDataRow<string, bool>(target.Data, false), new TheoryDataRow<string, bool>(target.Data, true),
+        });
 
     /// <summary>Migration installs the application defaults while preserving explicit and JSON/binary exceptions.</summary>
     /// <param name="target">The selected engine profile.</param>

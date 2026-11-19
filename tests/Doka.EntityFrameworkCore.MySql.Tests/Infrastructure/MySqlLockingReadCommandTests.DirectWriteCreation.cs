@@ -217,7 +217,7 @@ public sealed partial class MySqlLockingReadCommandTests
             : Record.Exception(() => command.ExecuteNonQuery(parameters));
 
         // Assert
-        // WHY: The new cleanup contract is explicitly opt-in. This pins EF Core 10's
+        // WHY: The new cleanup contract is explicitly opt-in. This pins EF Core 11's
         // existing ordinary-path behavior rather than silently expanding its scope.
         Assert.Same(interceptor.Failure, actual);
         Assert.Equal(0, scope.Database.CommandDisposeCount);

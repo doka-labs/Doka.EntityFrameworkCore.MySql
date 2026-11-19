@@ -15,7 +15,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
         var minimum = 12;
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context
@@ -54,7 +54,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(
@@ -86,7 +86,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(
@@ -118,7 +118,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context
@@ -153,7 +153,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         await using var context = CreateContext(mariaDb, observation);
         var skip = 2;
         var take = 5;
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context
@@ -188,7 +188,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context
@@ -227,7 +227,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(context.Targets,
@@ -277,7 +277,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(context.Targets,
@@ -309,7 +309,7 @@ public sealed partial class MySqlInsertSelectTranslationTests
         // Arrange
         var observation = new InsertObservation();
         await using var context = CreateContext(mariaDb, observation);
-        var cancellationToken = CancellationToken.None;
+        var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var actual = await Record.ExceptionAsync(() => context.Sources.ExecuteInsertFromQueryAsync(

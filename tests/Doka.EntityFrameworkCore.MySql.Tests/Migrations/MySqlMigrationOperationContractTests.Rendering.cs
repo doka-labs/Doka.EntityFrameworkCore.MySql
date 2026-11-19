@@ -30,8 +30,7 @@ public sealed partial class MySqlMigrationOperationContractTests
             "tests.recursive",
             operation => context.RenderStandardOperation(operation));
 
-        Action act = () =>
-            context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" });
+        void act() => context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 1;" });
 
         // Act
         var recordedException = Record.Exception(act);
@@ -79,11 +78,11 @@ public sealed partial class MySqlMigrationOperationContractTests
 
         try
         {
-            await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
             // WHY: A broken concurrency guard can enter the blocking callback.
             // Keep the coordinator free to time out and release both renderers.
-            concurrentProbe = s_renderWorkers.StartNew<Exception?>(() => Record.Exception(() =>
+            concurrentProbe = s_renderWorkers.StartNew(() => Record.Exception(() =>
                 context.RenderStandardOperation(new SqlOperation { Sql = "SELECT 2;" })));
 
             recordedException = await concurrentProbe.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
@@ -146,8 +145,10 @@ public sealed partial class MySqlMigrationOperationContractTests
 
         try
         {
-            await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            deactivation = s_renderWorkers.StartNew(context.Deactivate);
+            await rendererEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+            // WHY: Lease teardown must still run after test cancellation.
+            deactivation = s_renderWorkers.StartNew(context.Deactivate, CancellationToken.None);
 
             // WHY: Probe the actual closed lease rather than a signal emitted
             // before Deactivate enters it. A broken guard must not block cleanup.
