@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.Query.Associations.ComplexJson;
 using Microsoft.EntityFrameworkCore.Query.Associations.ComplexTableSplitting;
 using Microsoft.EntityFrameworkCore.Query.Associations.OwnedJson;

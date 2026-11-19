@@ -61,10 +61,6 @@ internal static class BenchmarkProfiles
         _ => [100],
     };
 
-    public static bool IsScorecard() => string.Equals(Current, ScorecardProfile, StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsStress() => string.Equals(Current, StressProfile, StringComparison.OrdinalIgnoreCase);
-
     /// <summary>
     /// Whether the active profile measures the complete workload matrix.
     /// </summary>

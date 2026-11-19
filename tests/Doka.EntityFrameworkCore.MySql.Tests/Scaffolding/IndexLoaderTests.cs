@@ -48,7 +48,7 @@ public sealed class IndexLoaderTests
         var index = Assert.Single(table.Indexes);
         var annotation = index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength);
         Assert.NotNull(annotation);
-        var lengths = Assert.IsType<int[]>(annotation!.Value);
+        var lengths = Assert.IsType<int[]>(annotation.Value);
         Assert.Equal([64, 128], lengths);
     }
 
@@ -117,7 +117,7 @@ public sealed class IndexLoaderTests
         var index = Assert.Single(table.Indexes);
         var annotation = index.FindAnnotation(MySqlAnnotationNames.IndexPrefixLength);
         Assert.NotNull(annotation);
-        Assert.Equal([32, 0], (int[])annotation!.Value!);
+        Assert.Equal([32, 0], (int[])annotation.Value!);
     }
 
     /// <summary>

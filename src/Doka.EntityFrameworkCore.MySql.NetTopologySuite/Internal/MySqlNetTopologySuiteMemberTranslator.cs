@@ -189,6 +189,8 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         out RelationalTypeMapping typeMapping
     )
     {
+        // WHY: Search the cached function map directly and return the first compatible member mapping.
+        // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
         foreach (var candidate in s_scalarFunctions)
         {
             if (candidate.Key.MemberName == member.Name
@@ -210,6 +212,8 @@ internal sealed class MySqlNetTopologySuiteMemberTranslator : IMemberTranslator
         out string functionName
     )
     {
+        // WHY: Search the cached geometry map directly and return the first compatible member mapping.
+        // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
         foreach (var candidate in s_geometryFunctions)
         {
             if (candidate.Key.MemberName == member.Name

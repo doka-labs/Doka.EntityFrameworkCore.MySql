@@ -1,5 +1,3 @@
-using System.Linq.Expressions;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies fixed binary bytes through the provider's Binary16 connector contract.</summary>

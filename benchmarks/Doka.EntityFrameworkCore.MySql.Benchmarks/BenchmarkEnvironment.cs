@@ -16,12 +16,6 @@ internal static class BenchmarkEnvironment
 
     public static string TargetIdValue => s_target.TargetId;
 
-    public static string DisplayNameValue => s_target.DisplayName;
-
-    public static string EngineFamilyValue => s_target.EngineFamily;
-
-    public static string ServerVersionText => s_target.ServerVersion.ToString(3);
-
     public static MySqlServerVersion ServerVersionValue => s_target.CreateServerVersion();
 
     public static bool SupportsNativeSequencesValue
@@ -118,32 +112,6 @@ internal static class BenchmarkEnvironment
             .Database
             .ExecuteSqlRawAsync(ClearSaveChangesTableSql, cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Reads the server version reported by the configured benchmark target.
-    /// </summary>
-    /// <param name="cancellationToken">
-    /// The token to observe while opening the connection and reading the version.
-    /// </param>
-    /// <returns>The server's version string.</returns>
-    public static async Task<string> ReadServerVersionAsync(
-        CancellationToken cancellationToken
-    )
-    {
-        await using var connection = new MySqlConnection(CreateConnectionString(DatabaseName));
-        await connection
-            .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT VERSION();";
-        var result = await command
-            .ExecuteScalarAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        return result as string
-            ?? throw new InvalidOperationException("The benchmark server did not report its version.");
     }
 
     public static string CreateConnectionString(

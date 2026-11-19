@@ -1,5 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;
 
 // These metadata-only overrides keep every unsupported official query explicit. The base

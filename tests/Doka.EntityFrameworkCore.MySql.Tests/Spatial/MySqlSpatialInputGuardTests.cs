@@ -1,6 +1,4 @@
-using System.Reflection;
 using System.Runtime.ExceptionServices;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 

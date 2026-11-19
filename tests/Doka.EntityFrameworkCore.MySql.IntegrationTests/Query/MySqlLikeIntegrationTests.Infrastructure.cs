@@ -46,6 +46,7 @@ public sealed partial class MySqlLikeIntegrationTests
         /// <summary>
         /// Seeds the selected engine once and returns a fresh context for one case.
         /// </summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         internal async Task<LikeContext> CreateContextAsync(
             IntegrationDatabaseTarget target,
@@ -66,6 +67,7 @@ public sealed partial class MySqlLikeIntegrationTests
         }
 
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,

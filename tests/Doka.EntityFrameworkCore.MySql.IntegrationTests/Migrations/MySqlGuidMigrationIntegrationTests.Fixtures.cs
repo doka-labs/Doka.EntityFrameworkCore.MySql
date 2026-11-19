@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlGuidMigrationIntegrationTests

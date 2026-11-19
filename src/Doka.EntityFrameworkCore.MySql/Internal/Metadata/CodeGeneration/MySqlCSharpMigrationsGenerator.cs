@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Migrations.Design;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlCSharpMigrationsGenerator : CSharpMigrationsGenerator

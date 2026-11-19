@@ -25,6 +25,8 @@
   </Folder>
   <Folder Name="/config/">
     <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path="Doka.EntityFrameworkCore.MySql.sln.DotSettings" />
     <File Path=".gitignore" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />

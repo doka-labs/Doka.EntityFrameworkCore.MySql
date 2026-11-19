@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 // -- Inheritance Patterns with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: TPH with discriminator, OwnsOne (same-table owned type).
@@ -16,20 +12,39 @@ using var context = new InheritanceContext(options);
 context.Database.EnsureCreated();
 
 // TPH: Insert different animal types into the same table.
-context.Animals.Add(new Dog { Name = "Rex", Breed = "Shepherd" });
-context.Animals.Add(new Cat { Name = "Whiskers", IsIndoor = true });
+context.Animals.Add(new Dog
+{
+    Name = "Rex",
+    Breed = "Shepherd",
+});
+
+context.Animals.Add(new Cat
+{
+    Name = "Whiskers",
+    IsIndoor = true,
+});
+
 context.SaveChanges();
 
 // Query with OfType<T>() to filter by discriminator.
-var dogs = context.Animals.OfType<Dog>().ToList();
+var dogs = context
+    .Animals
+    .OfType<Dog>()
+    .ToList();
+
 Console.WriteLine($"Dogs: {dogs.Count}");
 
 // OwnsOne: Customer with embedded Address.
 context.Customers.Add(new Customer
 {
     Name = "Alice",
-    Address = new Address { Street = "123 Main St", City = "Berlin" },
+    Address = new Address
+    {
+        Street = "123 Main St",
+        City = "Berlin",
+    },
 });
+
 context.SaveChanges();
 
 var customer = context.Customers.First();
@@ -71,27 +86,41 @@ public class Address
 
 public class InheritanceContext : DbContext
 {
-    public InheritanceContext(DbContextOptions<InheritanceContext> options) : base(options) { }
+    public InheritanceContext(
+        DbContextOptions<InheritanceContext> options
+    ) : base(options) { }
 
     public DbSet<Animal> Animals => Set<Animal>();
     public DbSet<Customer> Customers => Set<Customer>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
     {
         modelBuilder.Entity<Animal>(e =>
         {
             e.ToTable("Animals");
-            e.HasDiscriminator<string>("Type")
+            e
+                .HasDiscriminator<string>("Type")
                 .HasValue<Dog>("Dog")
                 .HasValue<Cat>("Cat");
-            e.Property("Type").HasMaxLength(64);
-            e.Property(a => a.Name).HasMaxLength(100);
+
+            e
+                .Property("Type")
+                .HasMaxLength(64);
+
+            e
+                .Property(a => a.Name)
+                .HasMaxLength(100);
         });
 
         modelBuilder.Entity<Customer>(e =>
         {
             e.ToTable("Customers");
-            e.Property(c => c.Name).HasMaxLength(100);
+            e
+                .Property(c => c.Name)
+                .HasMaxLength(100);
+
             e.OwnsOne(c => c.Address);
         });
     }

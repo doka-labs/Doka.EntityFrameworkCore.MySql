@@ -51,6 +51,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         => await RunScalarEdgeCaseTests(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the scalar edge case tests integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunScalarEdgeCaseTests(
         IntegrationDatabaseTarget target,

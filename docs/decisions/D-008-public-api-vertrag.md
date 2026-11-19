@@ -1,10 +1,10 @@
 ---
 id: D-008
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Provider, spatial, and cache package public API governance"
 supersedes: []
 superseded-by: []
@@ -246,6 +246,8 @@ The `EnableRetryOnFailure(int, TimeSpan?)` signature matches Pomelo by coinciden
 - 2026-09-09: Promoted the commandless migration-operation result introduced
   for 10.4.0 from the provider's unshipped ledger to its stable shipped
   baseline before qualification.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

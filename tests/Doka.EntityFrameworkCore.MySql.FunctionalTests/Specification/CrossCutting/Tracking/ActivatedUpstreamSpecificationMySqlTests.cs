@@ -1,5 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Tracking;
 
 /// <summary>

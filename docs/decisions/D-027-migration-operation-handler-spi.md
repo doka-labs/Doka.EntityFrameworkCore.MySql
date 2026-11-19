@@ -1,10 +1,10 @@
 ---
 id: D-027
 status: implemented
-date: 2026-08-11
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "How external packages add exact custom migration operations without replacing the provider generator"
 supersedes: []
 superseded-by: []
@@ -312,6 +312,8 @@ contract.
   structure while internal scope kinds retain provenance.
 - 2026-09-09: Added an explicit commandless consumed result for control-only
   and validation-only custom operations.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

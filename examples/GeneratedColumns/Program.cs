@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 var database = ExampleDatabaseConfiguration.Create("doka_example_generated_columns");
 var cancellationToken = CancellationToken.None;
 var options = new DbContextOptionsBuilder<GeneratedColumnContext>()
@@ -18,9 +14,12 @@ try
     var item = new CatalogItem { Name = "Enterprise Provider" };
     context.Items.Add(item);
     await context.SaveChangesAsync(cancellationToken);
-    await context.Entry(item).ReloadAsync(cancellationToken);
+    await context
+        .Entry(item)
+        .ReloadAsync(cancellationToken);
 
-    if (item.NormalizedName != "enterprise provider" || item.NameLength != 19)
+    if (item.NormalizedName != "enterprise provider"
+        || item.NameLength != 19)
     {
         throw new InvalidOperationException("The generated columns were not materialized correctly.");
     }
@@ -49,14 +48,19 @@ internal sealed class GeneratedColumnContext : DbContext
         {
             entity.ToTable("CatalogItems");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.Name).HasMaxLength(200);
+            entity
+                .Property(item => item.Name)
+                .HasMaxLength(200);
 
             // The stored value is materialized on disk; the virtual value is
             // evaluated by the engine. Exercising both modes catches DDL drift.
-            entity.Property(item => item.NormalizedName)
+            entity
+                .Property(item => item.NormalizedName)
                 .HasMaxLength(200)
                 .HasComputedColumnSql("LOWER(`Name`)", stored: true);
-            entity.Property(item => item.NameLength)
+
+            entity
+                .Property(item => item.NameLength)
                 .HasComputedColumnSql("CHAR_LENGTH(`Name`)", stored: false);
         });
     }

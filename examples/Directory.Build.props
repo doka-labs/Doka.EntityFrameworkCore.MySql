@@ -3,10 +3,8 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <PropertyGroup>
-    <!-- Example projects use implicit usings for brevity;
-         the main provider disables them to enforce explicit imports. -->
-    <ImplicitUsings>enable</ImplicitUsings>
-
+    <!-- WHY: Examples inherit explicit imports from the root; each project keeps
+         its complete source dependencies visible in Imports.cs. -->
     <!-- Examples are illustrative; they are never packed and emit no XML doc artifact. -->
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

@@ -1,4 +1,3 @@
-using System.Reflection;
 using Xunit.Sdk;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;

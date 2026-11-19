@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class MySqlJsonValueComparersTests
@@ -195,30 +193,30 @@ public sealed partial class MySqlJsonValueComparersTests
     {
         "parsed-integer" => JsonNode.Parse("1")!,
         "parsed-decimal" => JsonNode.Parse("1.0")!,
-        "byte" => JsonValue.Create((byte)1)!,
-        "sbyte" => JsonValue.Create((sbyte)1)!,
-        "int16" => JsonValue.Create((short)1)!,
-        "uint16" => JsonValue.Create((ushort)1)!,
-        "int32" => JsonValue.Create(1)!,
-        "uint32" => JsonValue.Create(1U)!,
-        "int64" => JsonValue.Create(1L)!,
-        "uint64" => JsonValue.Create(1UL)!,
+        "byte" => JsonValue.Create((byte)1),
+        "sbyte" => JsonValue.Create((sbyte)1),
+        "int16" => JsonValue.Create((short)1),
+        "uint16" => JsonValue.Create((ushort)1),
+        "int32" => JsonValue.Create(1),
+        "uint32" => JsonValue.Create(1U),
+        "int64" => JsonValue.Create(1L),
+        "uint64" => JsonValue.Create(1UL),
         "half" => JsonValue.Create((Half)1)!,
-        "single" => JsonValue.Create(1F)!,
-        "double" => JsonValue.Create(1D)!,
-        "decimal" => JsonValue.Create(1M)!,
+        "single" => JsonValue.Create(1F),
+        "double" => JsonValue.Create(1D),
+        "decimal" => JsonValue.Create(1M),
         "int128" => JsonValue.Create((Int128)1)!,
         "uint128" => JsonValue.Create((UInt128)1)!,
         "parsed-boolean" => JsonNode.Parse("true")!,
-        "boolean" => JsonValue.Create(true)!,
+        "boolean" => JsonValue.Create(true),
         "parsed-text" => JsonNode.Parse("\"value\"")!,
-        "text" => JsonValue.Create("value")!,
+        "text" => JsonValue.Create("value"),
         "parsed-character" => JsonNode.Parse("\"v\"")!,
-        "character" => JsonValue.Create('v')!,
+        "character" => JsonValue.Create('v'),
         "parsed-guid" => JsonNode.Parse($"\"{s_jsonGuid}\"")!,
-        "guid" => JsonValue.Create(s_jsonGuid)!,
+        "guid" => JsonValue.Create(s_jsonGuid),
         "parsed-timestamp" => JsonNode.Parse($"\"{s_jsonTimestamp:O}\"")!,
-        "timestamp" => JsonValue.Create(s_jsonTimestamp)!,
+        "timestamp" => JsonValue.Create(s_jsonTimestamp),
         _ => throw new ArgumentOutOfRangeException(nameof(representation), representation, "Unknown JSON primitive."),
     };
 }

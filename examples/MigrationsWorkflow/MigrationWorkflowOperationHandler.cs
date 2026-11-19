@@ -1,10 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
 /// <summary>
@@ -28,7 +21,7 @@ internal static class MigrationWorkflowOperationHandlerExtensions
         ArgumentNullException.ThrowIfNull(optionsBuilder);
 
         var extension = optionsBuilder.Options
-            .FindExtension<MigrationWorkflowHandlerOptionsExtension>()
+                .FindExtension<MigrationWorkflowHandlerOptionsExtension>()
             ?? new MigrationWorkflowHandlerOptionsExtension();
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder)
@@ -37,51 +30,51 @@ internal static class MigrationWorkflowOperationHandlerExtensions
         return optionsBuilder;
     }
 
-    /// <summary>
-    /// Adds a custom operation that delegates creation of the evidence table
-    /// to the provider baseline renderer.
-    /// </summary>
+    /// <summary>Groups the example evidence-table operations for the active migration.</summary>
     /// <param name="migrationBuilder">The active migration builder.</param>
-    public static void CreateMigrationHandlerEvidence(
-        this MigrationBuilder migrationBuilder
-    )
+    extension(MigrationBuilder migrationBuilder)
     {
-        ArgumentNullException.ThrowIfNull(migrationBuilder);
-
-        var createTable = new CreateTableOperation { Name = EvidenceTableName };
-        createTable.Columns.Add(new AddColumnOperation
+        /// <summary>
+        /// Adds a custom operation that delegates creation of the evidence table
+        /// to the provider baseline renderer.
+        /// </summary>
+        public void CreateMigrationHandlerEvidence()
         {
-            Table = EvidenceTableName,
-            Name = "Id",
-            ClrType = typeof(int),
-            ColumnType = "int",
-            IsNullable = false,
-        });
-        createTable.PrimaryKey = new AddPrimaryKeyOperation
+            ArgumentNullException.ThrowIfNull(migrationBuilder);
+
+            var createTable = new CreateTableOperation { Name = EvidenceTableName };
+            createTable.Columns.Add(new AddColumnOperation
+            {
+                Table = EvidenceTableName,
+                Name = "Id",
+                ClrType = typeof(int),
+                ColumnType = "int",
+                IsNullable = false,
+            });
+
+            createTable.PrimaryKey = new AddPrimaryKeyOperation
+            {
+                Name = "PK_MigrationWorkflowHandlerEvidence",
+                Table = EvidenceTableName,
+                Columns = ["Id"],
+            };
+
+            migrationBuilder.Operations.Add(
+                new MigrationWorkflowOperation(createTable));
+        }
+
+        /// <summary>
+        /// Adds the corresponding custom operation for removing the evidence
+        /// table during rollback.
+        /// </summary>
+        public void DropMigrationHandlerEvidence()
         {
-            Name = "PK_MigrationWorkflowHandlerEvidence",
-            Table = EvidenceTableName,
-            Columns = ["Id"],
-        };
+            ArgumentNullException.ThrowIfNull(migrationBuilder);
 
-        migrationBuilder.Operations.Add(
-            new MigrationWorkflowOperation(createTable));
-    }
-
-    /// <summary>
-    /// Adds the corresponding custom operation for removing the evidence
-    /// table during rollback.
-    /// </summary>
-    /// <param name="migrationBuilder">The active migration builder.</param>
-    public static void DropMigrationHandlerEvidence(
-        this MigrationBuilder migrationBuilder
-    )
-    {
-        ArgumentNullException.ThrowIfNull(migrationBuilder);
-
-        migrationBuilder.Operations.Add(
-            new MigrationWorkflowOperation(
-                new DropTableOperation { Name = EvidenceTableName }));
+            migrationBuilder.Operations.Add(
+                new MigrationWorkflowOperation(
+                    new DropTableOperation { Name = EvidenceTableName }));
+        }
     }
 }
 
@@ -110,8 +103,7 @@ internal sealed class MigrationWorkflowOperation : MigrationOperation
 internal sealed class MigrationWorkflowOperationHandler
     : IMySqlMigrationOperationHandler
 {
-    public string HandlerId =>
-        "Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow";
+    public string HandlerId => "Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow";
 
     public Type OperationType => typeof(MigrationWorkflowOperation);
 
@@ -136,10 +128,14 @@ internal sealed class MigrationWorkflowOperationHandler
     {
         var body = standardCommand.Fragments
             .Single(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Body);
-        var providerSetup = standardCommand.Fragments
+
+        var providerSetup = standardCommand
+            .Fragments
             .TakeWhile(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Setup)
             .Select(fragment => fragment.CommandText.ToString());
-        var providerCleanupInAcquisitionOrder = standardCommand.Fragments
+
+        var providerCleanupInAcquisitionOrder = standardCommand
+            .Fragments
             .Reverse()
             .TakeWhile(fragment => fragment.Kind == MySqlMigrationCommandFragmentKind.Cleanup)
             .Select(fragment => fragment.CommandText.ToString());
@@ -151,7 +147,8 @@ internal sealed class MigrationWorkflowOperationHandler
             new[]
             {
                 $"CREATE TEMPORARY TABLE `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}` "
-                + "(`Id` int NOT NULL);" + Environment.NewLine,
+                + "(`Id` int NOT NULL);"
+                + Environment.NewLine,
                 $"INSERT INTO `{MigrationWorkflowOperationHandlerExtensions.ScopeTableName}` (`Id`) VALUES (1);"
                 + Environment.NewLine,
             }.Concat(providerSetup),
@@ -176,8 +173,7 @@ internal sealed class MigrationWorkflowHandlerOptionsExtension
 {
     private DbContextOptionsExtensionInfo? _info;
 
-    public DbContextOptionsExtensionInfo Info =>
-        _info ??= new ExtensionInfo(this);
+    public DbContextOptionsExtensionInfo Info => _info ??= new ExtensionInfo(this);
 
     public void ApplyServices(
         IServiceCollection services
@@ -201,14 +197,11 @@ internal sealed class MigrationWorkflowHandlerOptionsExtension
     {
         public ExtensionInfo(
             IDbContextOptionsExtension extension
-        ) : base(extension)
-        {
-        }
+        ) : base(extension) { }
 
         public override bool IsDatabaseProvider => false;
 
-        public override string LogFragment =>
-            "migration-workflow-handler ";
+        public override string LogFragment => "migration-workflow-handler ";
 
         public override int GetServiceProviderHashCode() => 0;
 

@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Migrations.Design;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
@@ -65,13 +63,13 @@ internal sealed class MySqlCSharpSnapshotGenerator : CSharpSnapshotGenerator
             stringBuilder
                 .AppendLine()
                 .Append(
-                    property.ValueGenerated == ValueGenerated.OnAdd
-                        ? ".ValueGeneratedOnAdd()"
-                        : property.ValueGenerated == ValueGenerated.OnUpdate
-                            ? ".ValueGeneratedOnUpdate()"
-                            : property.ValueGenerated == ValueGenerated.OnUpdateSometimes
-                                ? ".ValueGeneratedOnUpdateSometimes()"
-                                : ".ValueGeneratedOnAddOrUpdate()");
+                    property.ValueGenerated switch
+                    {
+                        ValueGenerated.OnAdd => ".ValueGeneratedOnAdd()",
+                        ValueGenerated.OnUpdate => ".ValueGeneratedOnUpdate()",
+                        ValueGenerated.OnUpdateSometimes => ".ValueGeneratedOnUpdateSometimes()",
+                        _ => ".ValueGeneratedOnAddOrUpdate()",
+                    });
         }
 
         GeneratePropertyAnnotations(propertyBuilderName, property, stringBuilder);

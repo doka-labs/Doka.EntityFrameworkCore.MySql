@@ -177,9 +177,7 @@ public sealed partial class MySqlSqlModeContractTests
         CancellationToken cancellationToken
     )
     {
-        // WHY: MySQL fills INFORMATION_SCHEMA.PROCESSLIST, including INFO, before filtering;
-        // unrelated binary SQL can break STATE-only reads. MariaDB uses a different conversion path.
-        var processSource = GetMetadataProcessSource(observer);
+        var processSource = MySqlNativeProcessMetadata.GetProcessListSource(observer);
 
         await using var command = observer.CreateCommand();
         command.CommandText = $"SELECT STATE FROM {processSource} WHERE ID = @connectionId;";
@@ -190,13 +188,6 @@ public sealed partial class MySqlSqlModeContractTests
 
         return state?.Contains("metadata lock", StringComparison.OrdinalIgnoreCase) == true;
     }
-
-    /// <summary>Selects the process source that preserves native statements for the connected engine family.</summary>
-    private static string GetMetadataProcessSource(
-        MySqlConnection observer
-    ) => observer.ServerVersion.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
-        ? "information_schema.PROCESSLIST"
-        : "performance_schema.processlist";
 
     /// <summary>Drops a probe table only after its command is drained; caller cancellation cannot abandon cleanup.</summary>
     private static async Task DropSqlModeProbeTableAsync(

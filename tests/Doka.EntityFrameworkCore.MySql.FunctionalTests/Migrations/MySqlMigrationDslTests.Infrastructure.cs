@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore.Design.Internal;
-using Microsoft.EntityFrameworkCore.Migrations.Design;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationDslTests

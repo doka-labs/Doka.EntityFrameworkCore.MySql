@@ -225,6 +225,8 @@ public class HotPathBenchmarks
             .AsNoTracking()
             .OrderBy(entity => entity.Id)
             .Take(RowCount)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToList();
     }
 }
@@ -341,6 +343,8 @@ public class JsonBenchmarks
             .OrderBy(entity => entity.Id)
             .Select(entity => entity.Payload)
             .Take(RowCount)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToList();
     }
 }
@@ -364,6 +368,8 @@ public class SpatialBenchmarks
             .AsNoTracking()
             .Where(entity => EF.Functions.DistanceSphere(entity.Location, _referencePoint) < 250000d)
             .Take(100)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToList();
     }
 }
@@ -384,6 +390,8 @@ public class ProjectionBenchmarks
             .BasicEntities
             .AsNoTracking()
             .Take(100)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToList();
     }
 
@@ -402,6 +410,8 @@ public class ProjectionBenchmarks
                 Name = entity.Name,
             })
             .Take(100)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToList();
     }
 }

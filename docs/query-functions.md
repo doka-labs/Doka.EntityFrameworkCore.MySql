@@ -22,6 +22,7 @@ options.UseMySql(
 
 | Function | SQL translation | Result contract |
 | --- | --- | --- |
+| `Window()` | Typed function terminals with an explicit `OVER (...)` definition | Ranking, aggregates, navigation and value functions retain their partition, ordering and frame scope; see [window functions](window-functions.md). |
 | `Like<T>(value, pattern)` | `value LIKE pattern`, with canonical text conversion for `Binary16` GUIDs | Pattern match for supported numeric, `DateTime`, and `Guid` values, including nullable values. |
 | `Like<T>(value, pattern, escapeCharacter)` | `value LIKE pattern ESCAPE escapeCharacter` | Same match with an explicit escape expression. |
 | `JsonArray(values)` | `JSON_ARRAY(values...)` | Constructs a JSON array. |

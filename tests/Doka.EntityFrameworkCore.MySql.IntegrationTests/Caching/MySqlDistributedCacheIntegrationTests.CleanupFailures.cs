@@ -4,8 +4,21 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlDistributedCacheIntegrationTests
 {
     /// <summary>Returns each selected engine with a foreground operation that can wait on a live row.</summary>
-    public static IEnumerable<object[]> CleanupObserverFailureCases => SelectedTargets.SelectMany(target
-        => new[] { new[] { target[0], "refresh" }, new[] { target[0], "try-get" } });
+    public static TheoryData<string, string> CleanupObserverFailureCases
+    {
+        get
+        {
+            var data = new TheoryData<string, string>();
+
+            foreach (var target in SelectedTargets)
+            {
+                data.Add(target, "refresh");
+                data.Add(target, "try-get");
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>An observer failure remains visible when protected teardown cancels blocked foreground work.</summary>
     /// <param name="targetName">The selected engine for the isolated lock scenario.</param>
@@ -229,5 +242,59 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         // Assert
         Assert.False(primaryFailure.Data.Contains(nameof(CompleteLockProbeAsync)));
         Assert.True(pending.IsCompleted);
+    }
+
+    /// <summary>Unlocking may complete failed-to-cancel work successfully without replacing the original assertion.</summary>
+    [Fact]
+    public async Task Lock_probe_teardown_keeps_the_primary_when_unlock_completes_work_successfully()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        var expectedFailure = new InvalidOperationException("The blocked operation did not observe cancellation.");
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = false;
+
+        // Act
+        var actual = await Record.ExceptionAsync(ExecuteProbeAsync);
+
+        // Assert
+        Assert.Same(expectedFailure, actual);
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.True(released);
+        Assert.True(pending.Task.IsCompletedSuccessfully);
+        Assert.False(expectedFailure.Data.Contains(nameof(CompleteLockProbeAsync)));
+
+        // WHY: This reproduces the failure ordering without scheduling delays: only
+        // unlocking completes the worker, whose successful result cannot mask the primary.
+        // This helper performs only simulated failure and protected uncancellable teardown.
+        async Task ExecuteProbeAsync()
+        {
+            Exception? primaryFailure = null;
+
+            try
+            {
+                throw expectedFailure;
+            }
+            catch (Exception exception)
+            {
+                primaryFailure = exception;
+
+                throw;
+            }
+            finally
+            {
+                await CompleteLockProbeAsync(
+                    cancellation,
+                    () =>
+                    {
+                        released = true;
+                        pending.SetResult();
+
+                        return Task.CompletedTask;
+                    },
+                    pending.Task,
+                    primaryFailure);
+            }
+        }
     }
 }

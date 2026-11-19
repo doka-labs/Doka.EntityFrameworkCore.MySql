@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies the volatile values shared contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertVolatileValuesSharedAsync(
         IntegrationDatabaseTarget target,
@@ -62,6 +63,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the disjoint arms share random page contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDisjointArmsShareRandomPageAsync(
         IntegrationDatabaseTarget target,
@@ -129,6 +131,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the duplicate occurrences contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDuplicateOccurrencesAsync(
         IntegrationDatabaseTarget target,
@@ -156,6 +159,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the reference filters independent contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertReferenceFiltersIndependentAsync(
         IntegrationDatabaseTarget target,
@@ -191,6 +195,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the empty envelope contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertEmptyEnvelopeAsync(
         IntegrationDatabaseTarget target,
@@ -217,6 +222,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the independent bindings contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertIndependentBindingsAsync(
         IntegrationDatabaseTarget target,
@@ -264,6 +270,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the native values contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertNativeValuesAsync(
         IntegrationDatabaseTarget target,
@@ -305,6 +312,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the dependent binding contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDependentBindingAsync(
         IntegrationDatabaseTarget target,

@@ -1,4 +1,3 @@
-using System.Text;
 using FsCheck.Xunit;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests.Properties;

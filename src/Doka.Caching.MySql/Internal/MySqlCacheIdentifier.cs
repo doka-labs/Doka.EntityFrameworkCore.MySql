@@ -28,6 +28,8 @@ internal static class MySqlCacheIdentifier
             throw new ArgumentException("MySQL identifiers cannot end with a space.", parameterName);
         }
 
+        // WHY: Validate characters directly and fail at the first invalid identifier character.
+        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
         foreach (var character in identifier)
         {
             if (character == '\0'

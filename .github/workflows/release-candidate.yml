@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Package version, for example 10.6.7
+        description: Package version, for example 10.7.0
         required: true
         type: string
       qualification_only:

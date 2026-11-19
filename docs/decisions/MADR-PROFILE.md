@@ -32,9 +32,9 @@ Every ADR MUST begin with these flat YAML keys in this exact order:
 id: D-NNN
 status: proposed
 date: YYYY-MM-DD
-decision-makers: [Doka maintainers]
+decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Bounded decision scope"
 supersedes: []
 superseded-by: []
@@ -178,8 +178,14 @@ The first entry MUST use `Decision recorded with status <status>.`. A status
 change MUST use `Status changed from <old> to <new>.`. The validator evaluates
 the chain against the allowed transitions and the current metadata status.
 
-Migration to this profile does not rewrite the date of the original decision.
-The migration date is appended as a separate history entry.
+The `date` metadata is the last update date and MUST match the final dated
+Decision History entry. History dates MUST be chronologically nondecreasing;
+multiple events on the same date are allowed. Migration preserves the original
+recording entry and appends its own dated event.
+
+`decision-makers` MUST name the actual responsible people. The `informed` list
+MUST contain exactly `"@doka-labs/core-maintainers"`. This audience identifies
+the notification target; its presence does not assert approval or notification.
 
 ## Tooling and Gates
 

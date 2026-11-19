@@ -1,6 +1,3 @@
-using System.Text;
-using Microsoft.EntityFrameworkCore.ValueGeneration;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>

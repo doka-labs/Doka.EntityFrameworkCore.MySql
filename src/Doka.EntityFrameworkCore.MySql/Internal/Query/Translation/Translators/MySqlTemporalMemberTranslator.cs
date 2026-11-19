@@ -26,7 +26,6 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
     private readonly RelationalTypeMapping _longTypeMapping;
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
-    private readonly RelationalTypeMapping _timeSpanTypeMapping;
 
     public MySqlTemporalMemberTranslator(
         ISqlExpressionFactory sqlExpressionFactory,
@@ -39,7 +38,6 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
         _doubleTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(double));
         _intTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(int));
         _longTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(long));
-        _timeSpanTypeMapping = MySqlTranslationTypeMapping.GetRequired(typeMappingSource, typeof(TimeSpan));
     }
 
     /// <inheritdoc />
@@ -64,7 +62,7 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
 
         if (declaringType == typeof(TimeSpan))
         {
-            return TranslateTimeSpanMember(instance, member.Name, returnType);
+            return TranslateTimeSpanMember(instance, member.Name);
         }
 
         if (declaringType != typeof(DateTime)
@@ -291,13 +289,12 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
 
     private SqlExpression? TranslateTimeSpanMember(
         SqlExpression instance,
-        string memberName,
-        Type returnType
+        string memberName
     )
     {
         if (instance.TypeMapping is MySqlTimeSpanTicksTypeMapping)
         {
-            return TranslateTickTimeSpanMember(instance, memberName, returnType);
+            return TranslateTickTimeSpanMember(instance, memberName);
         }
 
         var totalSeconds = TranslateFunction("TIME_TO_SEC", instance, typeof(double), _doubleTypeMapping);
@@ -324,8 +321,7 @@ internal sealed class MySqlTemporalMemberTranslator : IMemberTranslator
 
     private SqlExpression? TranslateTickTimeSpanMember(
         SqlExpression ticks,
-        string memberName,
-        Type returnType
+        string memberName
     )
     {
         // DateTime subtraction yields numeric ticks that can retain a temporal

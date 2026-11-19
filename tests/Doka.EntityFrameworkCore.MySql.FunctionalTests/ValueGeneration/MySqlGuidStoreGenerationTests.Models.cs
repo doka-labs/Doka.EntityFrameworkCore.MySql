@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.ValueGeneration;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 

@@ -1,8 +1,3 @@
-using System.Reflection;
-using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>

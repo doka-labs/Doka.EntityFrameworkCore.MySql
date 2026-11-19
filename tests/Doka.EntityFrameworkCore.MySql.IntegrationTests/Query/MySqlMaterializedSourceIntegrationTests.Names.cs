@@ -19,6 +19,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
         + " */";
 
     /// <summary>Verifies the raw sql collision has bounded identifier contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRawSqlCollisionHasBoundedIdentifierAsync(
         IntegrationDatabaseTarget target,

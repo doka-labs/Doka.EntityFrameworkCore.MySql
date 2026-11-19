@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.BulkUpdates;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 using Xunit.Abstractions;

@@ -112,6 +112,9 @@ internal static partial class AdrParser
         }
 
         ValidateStatusHistory(lines, document!.Status, relativePath, errors);
+
+        ValidateHistoryMetadata(lines, document.Date, relativePath, errors);
+
         return new AdrParseResult(document, errors);
     }
 
@@ -957,7 +960,7 @@ internal static partial class AdrParser
 
         ValidateNonEmptyList(metadata, "decision-makers", relativePath, errors);
         ValidateList(metadata, "consulted", relativePath, errors);
-        ValidateList(metadata, "informed", relativePath, errors);
+        ValidateInformed(metadata["informed"], relativePath, errors);
 
         if (Unquote(metadata["scope"])
                 .Length

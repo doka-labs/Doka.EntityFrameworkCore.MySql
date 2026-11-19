@@ -1,5 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Fixtures;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.ComplexNavigationsModel;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;

@@ -44,6 +44,11 @@ internal sealed partial class
         Expression extensionExpression
     )
     {
+        if (extensionExpression is MySqlInsertSelectQueryExpression insert)
+        {
+            return TranslateInsertSelect(insert);
+        }
+
         if (extensionExpression is IMySqlMaterializedQueryRoot materializedSource)
         {
             return TranslateMaterializedSource(materializedSource);

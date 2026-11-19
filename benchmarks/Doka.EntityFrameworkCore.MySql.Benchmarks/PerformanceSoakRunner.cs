@@ -7,12 +7,14 @@ namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 /// </summary>
 internal static class PerformanceSoakRunner
 {
+    private const string BudgetViolationMessage = "One or more sustained-use budgets were exceeded.";
+
     /// <summary>
     /// Executes the configured soak scenarios and writes their evidence report.
     /// </summary>
     /// <param name="outputPath">The path at which to write the report.</param>
     /// <param name="cancellationToken">The token to observe while running scenarios and writing their report.</param>
-    /// <returns>Zero when every scenario succeeds; otherwise one.</returns>
+    /// <returns>Zero when execution and resource invariants hold; one otherwise.</returns>
     public static async Task<int> RunAsync(
         string outputPath,
         CancellationToken cancellationToken
@@ -95,9 +97,65 @@ internal static class PerformanceSoakRunner
             .WriteAsync(outputPath, report, cancellationToken)
             .ConfigureAwait(false);
 
-        return report.Success
-            ? 0
-            : 1;
+        // WHY: Keep the raw threshold result for evidence validation, but a
+        // standalone soak must not turn machine-dependent observations into
+        // a rejecting process status before the combined evaluator can run.
+        return HasRejectingFailure(results)
+            ? 1
+            : 0;
+    }
+
+    /// <summary>Preserves resource and execution failures without rejecting diagnostic-only soak thresholds.</summary>
+    /// <param name="scenarios">The actual completed scenario observations.</param>
+    /// <returns>Whether execution failed, a metric is unusable, or an enforced invariant failed.</returns>
+    internal static bool HasRejectingFailure(
+        IReadOnlyList<SoakScenarioResult> scenarios
+    )
+    {
+        // WHY: Each scenario is already materialized by this invocation. Indexed
+        // traversal preserves its stable order without a second collection.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = 0; index < scenarios.Count; index++)
+        {
+            if (ScenarioRejects(scenarios[index]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Classifies one runner result without rewriting its retained raw success flag.</summary>
+    private static bool ScenarioRejects(
+        SoakScenarioResult scenario
+    )
+    {
+        if (scenario.Metrics.Count == 0)
+        {
+            return true;
+        }
+
+        var diagnosticOnly = true;
+        foreach (var (metric, value) in scenario.Metrics)
+        {
+            if (!double.IsFinite(value))
+            {
+                return true;
+            }
+
+            diagnosticOnly &= PerformanceEvaluationPolicy.IsDiagnostic(
+                PerformanceEvaluationMode.AllocationsOnly,
+                metric);
+        }
+
+        // WHY: The evaluator owns metric classification for both paths.
+        // An actual exception still rejects even when it carries partial
+        // observations; a threshold-only failure retains its raw evidence.
+        return !scenario.Success
+            && (scenario.Error != BudgetViolationMessage
+                || !diagnosticOnly);
     }
 
     private static SoakScenarioResult RunHiLoCacheBound(
@@ -262,7 +320,7 @@ internal static class PerformanceSoakRunner
             .ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var heldLockCount = holder is null || holder is DBNull
+        var heldLockCount = holder is null or DBNull
             ? 0
             : 1;
 
@@ -484,7 +542,7 @@ internal static class PerformanceSoakRunner
         Budgets = budgets,
         Error = success
             ? null
-            : "One or more sustained-use budgets were exceeded.",
+            : BudgetViolationMessage,
     };
 
     private static SoakScenarioResult Failed(

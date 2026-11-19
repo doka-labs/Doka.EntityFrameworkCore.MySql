@@ -12,6 +12,8 @@ public static class MySqlApplicationTimeTableBuilderExtensions
     /// </summary>
     /// <param name="tableBuilder">The table builder being configured.</param>
     /// <returns>A builder for configuring the application-time period.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlApplicationTimeTableBuilder HasApplicationTimePeriod(
         this TableBuilder tableBuilder
     )
@@ -91,6 +93,8 @@ public static class MySqlApplicationTimeTableBuilderExtensions
     /// <typeparam name="TEntity">The entity type being configured.</typeparam>
     /// <param name="tableBuilder">The table builder being configured.</param>
     /// <returns>A typed builder for configuring the application-time period.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlApplicationTimeTableBuilder<TEntity> HasApplicationTimePeriod<
         [DynamicallyAccessedMembers(MySqlTrimmingConstants.EntityType)] TEntity>(
         this TableBuilder<TEntity> tableBuilder

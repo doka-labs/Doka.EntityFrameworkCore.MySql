@@ -1,7 +1,3 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.EntityFrameworkCore.Migrations.Design;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Contains the infrastructure responsibility for MySqlGuidMigrationTests.</summary>

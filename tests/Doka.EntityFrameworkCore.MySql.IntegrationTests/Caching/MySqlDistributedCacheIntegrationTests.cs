@@ -1,9 +1,8 @@
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies distributed-cache behavior on every supported live engine.</summary>
-/// <param name="fixture">The lazily deployed per-engine cache stores.</param>
 [IntegrationDatabaseTest]
-public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistributedCacheFixture fixture)
+public sealed partial class MySqlDistributedCacheIntegrationTests
     : IClassFixture<MySqlDistributedCacheFixture>
 {
     private const int CleanupProbeConnectionCount = 2;
@@ -31,55 +30,151 @@ public sealed partial class MySqlDistributedCacheIntegrationTests(MySqlDistribut
         "try-get-async",
     ];
 
+    private readonly MySqlDistributedCacheFixture _fixture;
+
+    /// <summary>Uses the shared lazy fixture while retaining independent per-test cache ownership.</summary>
+    /// <param name="fixture">The lazily deployed per-engine cache stores.</param>
+    public MySqlDistributedCacheIntegrationTests(
+        MySqlDistributedCacheFixture fixture
+    )
+    {
+        _fixture = fixture;
+    }
+
     /// <summary>Returns one independently reported test case per selected database target.</summary>
 
-    // WHY: xUnit v2 cannot skip individual InlineData rows at runtime. Select the
-    // engine rows during discovery while keeping each selected engine visible in Rider.
-    public static IEnumerable<object[]> SelectedTargets => IntegrationTestEnvironment
+    // WHY: Select supported engine rows during discovery while keeping each
+    // selected engine visible as an independent case in Rider.
+    public static TheoryData<string> SelectedTargets => new(IntegrationTestEnvironment
         .GetSelectedTargets()
         .Where(target => IntegrationTestEnvironment
             .GetSupportedTargets()
             .Contains(target))
-        .Select(target => new object[] { target.ToString() });
+        .Select(target => target.ToString()));
 
     /// <summary>Returns the selected engines crossed with all byte payload sizes.</summary>
-    public static IEnumerable<object[]> BytePayloadCases
-        => SelectedTargets.SelectMany(target => s_payloadSizes.Select(size => new[] { target[0], size }));
+    public static TheoryData<string, int> BytePayloadCases
+    {
+        get
+        {
+            var data = new TheoryData<string, int>();
+
+            foreach (var target in SelectedTargets)
+            {
+                foreach (var size in s_payloadSizes)
+                {
+                    data.Add(target, size);
+                }
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns sizes large enough to exercise multi-segment payloads.</summary>
-    public static IEnumerable<object[]> SegmentedBytePayloadCases => SelectedTargets.SelectMany(target => s_payloadSizes
-        .Where(size => size > 1)
-        .Select(size => new[] { target[0], size }));
+    public static TheoryData<string, int> SegmentedBytePayloadCases
+    {
+        get
+        {
+            var data = new TheoryData<string, int>();
+
+            foreach (var target in SelectedTargets)
+            {
+                foreach (var size in s_payloadSizes)
+                {
+                    if (size > 1)
+                    {
+                        data.Add(target, size);
+                    }
+                }
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns each selected engine crossed with an independent cleanup initiator.</summary>
-    public static IEnumerable<object[]> CleanupCancellationCases => SelectedTargets.SelectMany(target =>
-        s_cleanupInitiators.Select(initiator => new[] { target[0], initiator }));
+    public static TheoryData<string, string> CleanupCancellationCases
+    {
+        get
+        {
+            var data = new TheoryData<string, string>();
+
+            foreach (var target in SelectedTargets)
+            {
+                foreach (var initiator in s_cleanupInitiators)
+                {
+                    data.Add(target, initiator);
+                }
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns each selected engine with one synchronous or asynchronous cache path.</summary>
-    public static IEnumerable<object[]> SyncAsyncCases => SelectedTargets.SelectMany(target =>
-        new[] { new[] { target[0], false }, new[] { target[0], true } });
+    public static TheoryData<string, bool> SyncAsyncCases
+    {
+        get
+        {
+            var data = new TheoryData<string, bool>();
+
+            foreach (var target in SelectedTargets)
+            {
+                data.Add(target, false);
+                data.Add(target, true);
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns each engine with either deployment selected for the isolation operation.</summary>
-    public static IEnumerable<object[]> TableIsolationCases => SyncAsyncCases;
+    public static TheoryData<string, bool> TableIsolationCases => SyncAsyncCases;
 
     /// <summary>Returns each engine with one refresh or buffer-read sliding-expiration probe.</summary>
-    public static IEnumerable<object[]> CappedSlidingCases => SyncAsyncCases;
+    public static TheoryData<string, bool> CappedSlidingCases => SyncAsyncCases;
 
     /// <summary>Returns each selected engine with one sliding-read outcome.</summary>
-    public static IEnumerable<object[]> SlidingLockWaitCases => SelectedTargets.SelectMany(target => new[]
+    public static TheoryData<string, bool, bool> SlidingLockWaitCases
     {
-        new[] { target[0], false, false },
-        new[] { target[0], false, true },
-        new[] { target[0], true, false },
-        new[] { target[0], true, true },
-    });
+        get
+        {
+            var data = new TheoryData<string, bool, bool>();
+
+            foreach (var target in SelectedTargets)
+            {
+                data.Add(target, false, false);
+                data.Add(target, false, true);
+                data.Add(target, true, false);
+                data.Add(target, true, true);
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns each selected engine with one lock-waiting cache operation.</summary>
-    public static IEnumerable<object[]> WaitedRefreshCases => SelectedTargets.SelectMany(target =>
-        s_waitedRefreshOperations.Select(operation => new[] { target[0], operation }));
+    public static TheoryData<string, string> WaitedRefreshCases
+    {
+        get
+        {
+            var data = new TheoryData<string, string>();
+
+            foreach (var target in SelectedTargets)
+            {
+                foreach (var operation in s_waitedRefreshOperations)
+                {
+                    data.Add(target, operation);
+                }
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>Returns each selected engine with one table-lock cancellation initiator.</summary>
-    public static IEnumerable<object[]> LockedCancellationCases => CleanupCancellationCases;
+    public static TheoryData<string, string> LockedCancellationCases => CleanupCancellationCases;
 
     private static IntegrationDatabaseTarget ParseTarget(
         string targetName

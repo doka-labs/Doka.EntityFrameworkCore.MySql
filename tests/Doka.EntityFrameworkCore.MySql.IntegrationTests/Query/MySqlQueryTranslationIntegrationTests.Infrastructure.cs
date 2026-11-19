@@ -32,6 +32,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     }
 
     /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="context">The context whose mapped schema and seed rows are prepared.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
         QueryContext context,
@@ -70,6 +71,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         CancellationToken.None);
 
     /// <summary>Executes the cleanup json database scenario.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CleanupJsonAsync(
         JsonQueryContext context,

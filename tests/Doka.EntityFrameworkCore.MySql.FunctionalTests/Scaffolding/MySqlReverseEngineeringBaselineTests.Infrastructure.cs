@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Design.Internal;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Contains the infrastructure cases and shared support.</summary>

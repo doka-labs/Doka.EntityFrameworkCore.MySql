@@ -1,10 +1,10 @@
 ---
 id: D-014
 status: accepted
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Advertised database support and compatibility matrix"
 supersedes: []
 superseded-by: []
@@ -202,6 +202,8 @@ pins move independently after successful qualification.
 - 2026-08-11: Extended the maintained-LTS rule to MySQL 9.7 and MariaDB
   10.11 / 12.3, then bound all six active lines to the automated qualification
   contract.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

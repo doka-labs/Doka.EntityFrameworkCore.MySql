@@ -12,7 +12,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -75,6 +75,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
 
+        Exception? primaryFailure = null;
+        var released = false;
+
         try
         {
             await AssertLockingStatementStartedAsync(observer, store.TableName, pending, CancellationToken.None)
@@ -95,23 +98,30 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             await transaction
                 .CommitAsync(CancellationToken.None)
                 .ConfigureAwait(false);
-        }
-        catch
-        {
-            await transaction
-                .RollbackAsync(CancellationToken.None)
-                .ConfigureAwait(false);
+
+            released = true;
 
             await pending
                 .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                 .ConfigureAwait(false);
+        }
+        catch (Exception failure)
+        {
+            primaryFailure = failure;
 
             throw;
         }
-
-        await pending
-            .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
-            .ConfigureAwait(false);
+        finally
+        {
+            await CompleteLockProbeAsync(
+                    cancellation: null,
+                    () => released
+                        ? Task.CompletedTask
+                        : transaction.RollbackAsync(CancellationToken.None),
+                    pending,
+                    primaryFailure)
+                .ConfigureAwait(false);
+        }
 
         var entry = await store
             .ReadEntryAsync(key, CancellationToken.None)
@@ -143,7 +153,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -218,6 +228,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
             : cache.GetAsync(key, cancellation.Token);
 
         var released = false;
+        Exception? primaryFailure = null;
+        Task<byte[]?>? recovery = null;
+        var observedCancellation = false;
 
         try
         {
@@ -235,6 +248,8 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                         TimeSpan.FromSeconds(15),
                         CancellationToken.None))
                     .ConfigureAwait(false);
+
+                observedCancellation = failure is OperationCanceledException;
             }
             else
             {
@@ -262,34 +277,38 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ReadEntryAsync(key, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            recoveryMiss = await cache
-                .GetAsync("single-pool-recovered-miss", CancellationToken.None)
+            recovery = cache.GetAsync("single-pool-recovered-miss", CancellationToken.None);
+            recoveryMiss = await recovery
                 .WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None)
                 .ConfigureAwait(false);
         }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+
+            throw;
+        }
         finally
         {
-            await cancellation
-                .CancelAsync()
+            // WHY: A timed-out WaitAsync does not stop its underlying cache call.
+            // Drain both owned tasks before disposing their shared single-pool cache.
+            // Expected cancellation was already observed by the main oracle, not a cleanup failure.
+            var foreground = observedCancellation
+                ? Task.CompletedTask
+                : pending;
+
+            var ownedWork = recovery is null
+                ? foreground
+                : Task.WhenAll(foreground, recovery);
+
+            await CompleteLockProbeAsync(
+                    cancellation,
+                    () => released
+                        ? Task.CompletedTask
+                        : transaction.RollbackAsync(CancellationToken.None),
+                    ownedWork,
+                    primaryFailure)
                 .ConfigureAwait(false);
-
-            if (!released)
-            {
-                await transaction
-                    .RollbackAsync(CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-
-            if (!pending.IsCompleted)
-            {
-                // WHY: This teardown checkpoint must drain unfinished work before
-                // the pooled cache is disposed, even when an earlier step failed.
-                await Assert
-                    .ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(
-                        TimeSpan.FromSeconds(15),
-                        CancellationToken.None))
-                    .ConfigureAwait(false);
-            }
         }
 
         // Assert
@@ -328,7 +347,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -352,6 +371,8 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         using var cancellation = new CancellationTokenSource();
         Task? pending = null;
+        Exception? primaryFailure = null;
+        var observedCancellation = false;
 
         await store
             .ExecuteAsync($"LOCK TABLES {store.QualifiedTableName} WRITE;", CancellationToken.None)
@@ -377,26 +398,27 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                     TimeSpan.FromSeconds(15),
                     CancellationToken.None))
                 .ConfigureAwait(false);
+
+            observedCancellation = true;
+        }
+        catch (Exception failure)
+        {
+            primaryFailure = failure;
+
+            throw;
         }
         finally
         {
-            await cancellation
-                .CancelAsync()
+            // WHY: Unlocking can let a failed-to-cancel command finish normally.
+            // Observing that completion must not replace the original cancellation assertion.
+            await CompleteLockProbeAsync(
+                    cancellation,
+                    () => store.ExecuteAsync("UNLOCK TABLES;", CancellationToken.None),
+                    observedCancellation
+                        ? Task.CompletedTask
+                        : pending ?? Task.CompletedTask,
+                    primaryFailure)
                 .ConfigureAwait(false);
-
-            await store
-                .ExecuteAsync("UNLOCK TABLES;", CancellationToken.None)
-                .ConfigureAwait(false);
-
-            if (pending is not null
-                && !pending.IsCompleted)
-            {
-                await Assert
-                    .ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(
-                        TimeSpan.FromSeconds(15),
-                        CancellationToken.None))
-                    .ConfigureAwait(false);
-            }
         }
 
         Assert.Equal(

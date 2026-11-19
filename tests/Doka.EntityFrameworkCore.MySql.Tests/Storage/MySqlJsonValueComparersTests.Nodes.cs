@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class MySqlJsonValueComparersTests
@@ -332,7 +330,7 @@ public sealed partial class MySqlJsonValueComparersTests
     {
         // Arrange
         var customized = JsonValue.Create(CustomNumber.One)!;
-        var builtin = JsonValue.Create(1)!;
+        var builtin = JsonValue.Create(1);
 
         // Act
         var equal = MySqlJsonValueComparers.JsonNodeComparer.Equals(customized, builtin);

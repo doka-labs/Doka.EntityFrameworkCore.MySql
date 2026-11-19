@@ -183,6 +183,7 @@ public sealed partial class PerformanceGateTests
         // Arrange
         using var fixture = PerformanceGateFixture.Create(
             medianBudget: 4,
+            workloadAllocatedBytes: 1000,
             controlsJson: RatioControl(""" "maximumByTarget": {"mysql84": 1.5} """),
             controlObservations:
             [
@@ -202,7 +203,7 @@ public sealed partial class PerformanceGateTests
 
         Assert.Contains(
             result.Regressions,
-            error => error.Contains("medianNanoseconds", StringComparison.Ordinal));
+            error => error.Contains("allocatedBytes", StringComparison.Ordinal));
 
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
     }

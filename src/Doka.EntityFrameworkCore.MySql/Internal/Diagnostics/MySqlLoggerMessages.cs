@@ -1,5 +1,3 @@
-using System.Collections;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 internal static class MySqlLoggerMessages

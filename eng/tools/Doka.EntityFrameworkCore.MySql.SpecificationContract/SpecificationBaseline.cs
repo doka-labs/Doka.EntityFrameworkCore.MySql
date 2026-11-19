@@ -100,7 +100,7 @@ internal static class SpecificationBaseline
     [
         .. providerAssembly
             .GetTypes()
-            .Where(type => type.IsClass && !type.IsAbstract && (type.IsPublic || type.IsNestedPublic))
+            .Where(type => type is { IsClass: true, IsAbstract: false } && (type.IsPublic || type.IsNestedPublic))
             .OrderBy(type => type.FullName, StringComparer.Ordinal),
     ];
 

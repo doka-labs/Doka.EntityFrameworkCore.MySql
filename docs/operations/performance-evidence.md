@@ -14,28 +14,28 @@ flowchart LR
 Performance evidence is independent of release qualification. The release
 candidate neither invokes benchmarks nor consumes their artifacts.
 
-## Hosted Versus Local Enforcement
+## Hardware-Independent Enforcement
 
-`DOKA_BENCHMARK_EVALUATION` accepts exactly `full` or `allocations-only`.
-An unset local run defaults to `full`. GitHub Actions always resolves to
-`allocations-only`, even if `full` is requested; unknown values are rejected.
+Local and hosted runs use the same allocation/resource enforcement policy.
+`DOKA_BENCHMARK_EVALUATION` defaults to `allocations-only`; `full` remains an
+accepted compatibility spelling and resolves to the same policy. Unknown
+values are rejected.
 
-| Signal | GitHub Actions / `allocations-only` | Local `full` |
-| --- | --- | --- |
-| Allocation bytes and allocation ratios | Enforced | Enforced |
-| Correctness and explicit bounded-resource/cleanup invariants | Enforced | Enforced |
-| Median/p95/p99 time and timing ratios | Diagnostic | Enforced |
-| Gen2 collection frequency | Diagnostic | Enforced |
-| Working-set/managed-heap soak growth and throughput retention | Diagnostic | Enforced |
-| CPU-headroom admission before measurement | Not used | Required |
+| Signal | Local and hosted execution |
+| --- | --- |
+| Allocation bytes and allocation ratios | Enforced |
+| Correctness and explicit bounded-resource/cleanup invariants | Enforced |
+| Median/p95/p99 time and timing ratios | Diagnostic |
+| Gen2 collection frequency | Diagnostic |
+| Working-set/managed-heap soak growth and throughput retention | Diagnostic |
+| CPU-headroom admission before measurement | Not used |
 
-All modes require complete, valid raw evidence and successful execution.
-Hardware-sensitive metrics remain measured, validated and retained; only
-their threshold violations stop contributing to the hosted regression verdict.
-No `continue-on-error`, attempt selection or automatic budget relaxation is
-used. Allocation regressions and real resource-ownership/cleanup failures still
-fail. A genuine infrastructure outage or timeout can still fail a hosted run;
-this policy does not promise hardware can never prevent execution.
+Every run requires complete, valid raw evidence and successful execution.
+Hardware-sensitive metrics remain measured, validated and retained. Their
+threshold crossings are diagnostics, including when legacy callers explicitly
+request `full`. No attempt selection or automatic budget relaxation is used.
+Allocation regressions and real resource-ownership/cleanup failures still fail.
+A genuine infrastructure outage or execution failure can also fail a run.
 
 ## Choose the Right Document
 
@@ -46,6 +46,41 @@ this policy does not promise hardware can never prevent execution.
 | Understand why paired comparisons were retired | [Paired Performance Methodology](paired-performance-methodology.md) |
 | Review image and budget changes | [Performance Baseline Operations](performance-baseline-operations.md) |
 | Investigate enumeration costs with complete offline methods | [Enumeration Performance Measurements](enumeration-performance.md) |
+
+## Query and direct-write feature diagnostics
+
+The 10.7.0 feature diagnostics reuse the existing BenchmarkDotNet 0.15.8
+runner; they introduce no timing thresholds or new performance-contract rows.
+The normal profiles, allocation ceilings and hosted enforcement remain unchanged.
+These additional families are selected explicitly when investigating the new
+features:
+
+| Family | Measured work and setup controls |
+| --- | --- |
+| `QueryEnumerationBenchmark`, `compile-cte-*` | Complete uncached EF compilation for three references, six dependent definitions and a fifty-field model pruned to four shared columns. Setup verifies SQL shape and a closed connection. |
+| `QueryEnumerationBenchmark`, `compile-recursive-numeric` | Complete bounded recursive compilation, including its depth control and ordered payload. |
+| `QueryEnumerationBenchmark`, `compile-window-*` | Complete fluent-window, global indexed and grouped indexed compilation, with independent SQL-shape controls. |
+| `DirectWriteBenchmark` | Complete public UPSERT/INSERT SELECT operations for 1 row/3 mapped columns and 14,000 rows/50 mapped columns. Setup verifies every native value, affected count, data-command count, batching and transaction behavior. |
+
+Run a selected family from the Release benchmark output, for example:
+
+```bash
+dotnet artifacts/bin/Doka.EntityFrameworkCore.MySql.Benchmarks/release/Doka.EntityFrameworkCore.MySql.Benchmarks.dll \
+  --filter '*QueryEnumerationBenchmark*' --artifacts <fresh-results-directory>
+```
+
+For `DirectWriteBenchmark`, first start a qualified native target and set
+`DOKA_BENCHMARK_TARGET` and `DOKA_BENCHMARK_DATABASE_PORT` to its contract target
+and mapped port. Select `--filter '*DirectWriteBenchmark*'`. The fixture creates
+and removes only its uniquely named database. Inputs and schema setup stay
+outside measurement; public binding, batching, native execution and cleanup
+remain measured. INSERT SELECT uses server-side source rows. Target clearing
+occurs outside each measured operation with one invocation per iteration.
+
+Retain the exact runtime, engine, model width and complete raw reports when
+comparing revisions. Timing and allocation observations from one host or patch
+do not establish a general application speedup. SQL/value/control failures
+remain failures regardless of timing.
 
 ## Prerequisites
 
@@ -79,20 +114,18 @@ DOKA_BENCHMARK_PROFILE=scorecard \
 Use a unique `DOKA_BENCHMARK_RUN_ID` for every run. The wrapper rejects a
 non-empty run directory rather than mixing old and new measurements.
 
-To reproduce hosted enforcement locally, prefix the same command with
-`DOKA_BENCHMARK_EVALUATION=allocations-only`. Use local `full` only on a
-controlled host when a timing verdict is useful. Setting `full` inside GitHub
-Actions does not override the hosted policy.
+Local execution already uses the same policy as GitHub Actions. Legacy
+`DOKA_BENCHMARK_EVALUATION=full` invocations remain accepted without enabling
+timing, throughput or machine-load rejection.
 
 The wrapper performs these steps exactly once:
 
 1. Resolve and verify the target container and exact image.
 2. Build the benchmark project.
-3. In local full mode only, reject a contended host before measurement.
-4. Run the selected provider workloads and same-run controls through
+3. Run the selected provider workloads and same-run controls through
    BenchmarkDotNet.
-5. Run the six soak scenarios when the profile requires them.
-6. Validate all raw reports, enforce the selected budgets/invariants and report
+4. Run the six soak scenarios when the profile requires them.
+5. Validate all raw reports, enforce the resource budgets/invariants and report
    hardware-sensitive diagnostic threshold violations separately.
 
 The monthly and manual workflow uses one matrix job per required target. It
@@ -114,19 +147,16 @@ a provider regression.
 ### Exit code 1: regression
 
 The evidence is complete, but at least one **enforced** checked-in maximum or
-minimum was violated. In GitHub Actions this means an allocation or explicit
-correctness/resource invariant, not merely an elapsed-time, collection-frequency
-or process-memory-growth threshold. Local full mode additionally enforces those
-hardware-sensitive thresholds. Investigate the named workload/invariant before
+minimum was violated. This means an allocation or explicit correctness/resource
+invariant; elapsed-time, collection-frequency and process-memory-growth threshold
+crossings remain diagnostic both locally and in GitHub Actions. Investigate the named workload/invariant before
 changing a budget; no workflow promotes budgets automatically.
 
-### Host admission failure
+### Competing host load
 
-This admission check applies only to local full mode. Wait for competing work
-to finish or move that run to a representative host. The Shell preflight samples
-CPU utilization only before BenchmarkDotNet starts and owns no retry state.
-GitHub Actions skips CPU-headroom admission; it does not waive target, execution
-or evidence checks.
+Record competing work when interpreting time, throughput and process-memory
+observations. Comparable controlled-host measurements can help an investigation,
+but no CPU-headroom admission or speed threshold determines the run's verdict.
 
 ### BenchmarkDotNet failure
 
@@ -139,14 +169,16 @@ invalid evidence, not a zero or an ignored workload.
 Use the scenario ID to locate the resource owner. Bounded HiLo cache, returned
 pooled buffers, connections and migration-lock cleanup remain enforced in every
 mode. Working-set/managed-heap growth and concurrent throughput retention are
-diagnostic on hosted runners and enforced only in local full mode. Every
-required scenario and finite metric is still mandatory: missing or invalid
+diagnostic on local and hosted runners. Every required scenario and finite
+metric is still mandatory: missing or invalid
 soak evidence fails rather than becoming a diagnostic pass.
 
-The raw soak process can exit `1` for a measured threshold violation. The wrapper
-passes its complete report to the one combined evaluator, which classifies
-that threshold under the selected mode. This does not ignore crashes, missing
-reports or unexpected exit codes; those remain failures.
+The raw soak report retains the original threshold-based `Success` fields so
+the evaluator can detect contradictory evidence. The standalone soak exits `1`
+for resource or execution failures; diagnostic-only threshold crossings do not
+reject its process. The wrapper passes the complete report to the combined
+evaluator. Crashes, missing reports, non-finite observations and unexpected exit
+codes remain failures.
 
 ## Evidence Locations
 

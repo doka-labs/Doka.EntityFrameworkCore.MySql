@@ -13,7 +13,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
         MigrationsSqlGeneratorDependencies dependencies,
         IEnumerable<ISingletonOptions> singletonOptions,
         IEnumerable<IMySqlMigrationOperationHandler>? operationHandlers = null
-    ) : base(dependencies)
+    ) : base(CreateMigrationDependencies(dependencies))
     {
         ArgumentNullException.ThrowIfNull(singletonOptions);
 
@@ -52,6 +52,26 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     private ProviderProfile Profile => _mySqlSingletonOptions.Profile
         ?? throw new InvalidOperationException(
             "The provider profile must be initialized before migration SQL generation.");
+
+    private static MigrationsSqlGeneratorDependencies CreateMigrationDependencies(
+        MigrationsSqlGeneratorDependencies dependencies
+    )
+    {
+        ArgumentNullException.ThrowIfNull(dependencies);
+
+        if (dependencies.CommandBuilderFactory is not MySqlRelationalCommandBuilderFactory providerFactory)
+        {
+            return dependencies;
+        }
+
+        // WHY: Migration commands never carry query rental policies. The complete
+        // 256-scope allocation control measures avoidable typed-command wrappers here;
+        // a local dependency copy keeps EF's redaction and custom/global query factories intact.
+        return dependencies with
+        {
+            CommandBuilderFactory = providerFactory.CreateMigrationCommandBuilderFactory(),
+        };
+    }
 
     private string DelimitMigrationIdentifier(
         string identifier
@@ -129,13 +149,20 @@ internal sealed partial class MySqlMigrationsSqlGenerator : MigrationsSqlGenerat
     ) => RequiresDdlCommentSqlModeScope(operation.Comment)
         || operation.Columns.Any(column => RequiresDdlCommentSqlModeScope(column.Comment));
 
-    private sealed class DdlCommentSqlModeCommands(
-        IReadOnlyList<string> setup,
-        IReadOnlyList<string> cleanup
-    )
+    private sealed class DdlCommentSqlModeCommands
     {
-        public IReadOnlyList<string> Setup { get; } = setup;
+        /// <summary>Initializes the immutable dependencies for this operation.</summary>
+        public DdlCommentSqlModeCommands(
+            IReadOnlyList<string> setup,
+            IReadOnlyList<string> cleanup
+        )
+        {
+            Setup = setup;
+            Cleanup = cleanup;
+        }
 
-        public IReadOnlyList<string> Cleanup { get; } = cleanup;
+        public IReadOnlyList<string> Setup { get; }
+
+        public IReadOnlyList<string> Cleanup { get; }
     }
 }

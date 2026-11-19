@@ -34,6 +34,8 @@ public class ParameterizedCollectionBenchmark : IDisposable
         _filterIds = Enumerable
             .Range(1, FilterCount)
             .Select(CreateGuid)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToArray();
 
         using (var setupContext = BenchmarkEnvironment.CreateContext())

@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Design.Internal;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -100,13 +98,24 @@ public sealed class MySqlNetTopologySuiteScaffoldingAndMigrationsTests
             providerCodeBoundary);
 
         // Act
-        var mySqlTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
-            serviceProvider,
-            "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"));
+        // WHY: Both actors block at synchronous barriers, so each needs independent
+        // execution capacity even when the shared thread pool is busy. Neither actor
+        // may be canceled before starting; Task.WhenAll drains both owned operations.
+        var mySqlTask = Task.Factory.StartNew(
+            () => ScaffoldAndAssertStateConsumed(
+                serviceProvider,
+                "Server=localhost;Database=spatial_mysql;User ID=root;Password=secret;"),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
 
-        var mariaDbTask = Task.Run(() => ScaffoldAndAssertStateConsumed(
-            serviceProvider,
-            "Server=localhost;Database=plain_mariadb;User ID=root;Password=secret;"));
+        var mariaDbTask = Task.Factory.StartNew(
+            () => ScaffoldAndAssertStateConsumed(
+                serviceProvider,
+                "Server=localhost;Database=plain_mariadb;User ID=root;Password=secret;"),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
 
         var results = await Task.WhenAll(mySqlTask, mariaDbTask);
         var mySqlCode = results[0].ContextFile.Code;

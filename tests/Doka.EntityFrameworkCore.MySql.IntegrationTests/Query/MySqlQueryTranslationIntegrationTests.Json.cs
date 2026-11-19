@@ -65,6 +65,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         => RunJsonConstructorTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the json constructor test integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunJsonConstructorTest(
         IntegrationDatabaseTarget target,

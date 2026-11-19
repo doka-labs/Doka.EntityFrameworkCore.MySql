@@ -192,10 +192,10 @@ public sealed class MySqlDbContextOptionsBuilderExtensionsTests
         // Arrange
         var builder = new DbContextOptionsBuilder();
         var providerBuilder = new MySqlDbContextOptionsBuilder(builder);
-        var first = providerBuilder.RequireUserVariables();
-        var second = providerBuilder.RequireUserVariables();
 
         // Act
+        var first = providerBuilder.RequireUserVariables();
+        var second = providerBuilder.RequireUserVariables();
         var actual = builder.Options.FindExtension<MySqlOptionsExtension>();
 
         // Assert

@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests.Scaffolding;
 
 /// <summary>
@@ -102,8 +100,8 @@ public sealed class TableFilterTests
         Assert.Equal(2, bound);
         Assert.Contains("TABLE_NAME IN (@t0, @t1)", sql.ToString(), StringComparison.Ordinal);
         Assert.Equal(2, command.Parameters.Count);
-        Assert.Equal("@t0", command.Parameters[0]!.ParameterName);
-        Assert.Equal("@t1", command.Parameters[1]!.ParameterName);
+        Assert.Equal("@t0", command.Parameters[0].ParameterName);
+        Assert.Equal("@t1", command.Parameters[1].ParameterName);
     }
 
     /// <summary>

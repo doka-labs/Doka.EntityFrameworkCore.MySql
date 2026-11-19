@@ -117,6 +117,8 @@ The callback passed to `UseMySql(...)` exposes:
 | --- | --- |
 | `CommandTimeout(seconds)` | Positive timeout applied to provider commands, including migrations and advisory-lock acquisition. |
 | `DefaultGuidFormat(format)` | Default `Binary16`, `Char36`, or native `Uuid` mapping for GUID properties. |
+| `DefaultCharSet(charSet)` | Supplies a missing compatible model character-set default; explicit model/table/column and provider type contracts take precedence. Null removes only this fallback. |
+| `DefaultCollation(collation)` | Supplies a missing compatible model collation default through canonical schema metadata. Null removes only this fallback. |
 | `EnableRetryOnFailure(count, delay)` | Opts into the provider execution strategy for classified transient failures. |
 | `MaxBatchSize(count)` | Caps statements in one modification batch; packet and parameter ceilings can split it further. |
 | `MinBatchSize(count)` | Sets the minimum accumulated statement count for batched modification execution. |
@@ -124,6 +126,14 @@ The callback passed to `UseMySql(...)` exposes:
 | `RequireUserVariables()` | Requires MySqlConnector to pass `@name` tokens through as server-side user variables. Doka enables an omitted option for owned strings and validates borrowed inputs. |
 | `UseQuerySplittingBehavior(behavior)` | Selects EF Core single- or split-query behavior for collection includes. |
 | `UseNetTopologySuite()` | Activates services from the optional NetTopologySuite provider package. |
+
+`DefaultCharSet(...)` and `DefaultCollation(...)` are independently optional.
+They participate in model and service-provider identity; design time and runtime
+must use compatible settings. They do not run SET NAMES, rewrite session
+encoding, convert existing data or replace JSON, ASCII, GUID and other special
+type contracts. Existing column intent remains part of migration history.
+See [Application text defaults](default-text-options.md) for precedence,
+supplied/compiled models and the normal migration path for centralizing defaults.
 
 Use `RequireUserVariables()` when a library or application emits session-local
 MySQL or MariaDB variables, including a `PREPARE ... FROM @sql` program:

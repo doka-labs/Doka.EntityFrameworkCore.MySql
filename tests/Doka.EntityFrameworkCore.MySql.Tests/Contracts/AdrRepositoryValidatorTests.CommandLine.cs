@@ -1,3 +1,7 @@
+// WHY: Keep these CLI tests bound to the ADR entry point when benchmark types are also imported.
+
+using Program = Doka.EntityFrameworkCore.MySql.AdrValidator.Program;
+
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class AdrRepositoryValidatorTests

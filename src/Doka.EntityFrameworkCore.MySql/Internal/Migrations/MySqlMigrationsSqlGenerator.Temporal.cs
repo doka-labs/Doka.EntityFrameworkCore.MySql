@@ -427,6 +427,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
         // history table recomputes them from the copied historical base values.
         .Where(column => string.IsNullOrWhiteSpace(column.ComputedColumnSql))
         .Select(column => column.Name)
+
+        // WHY: Materialize the filtered trigger-column names once for the generated trigger definitions.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     private static string[] GetTemporalTriggerColumns(
@@ -434,6 +437,9 @@ internal sealed partial class MySqlMigrationsSqlGenerator
     ) => columns
         .Where(column => string.IsNullOrWhiteSpace(column.ComputedColumnSql))
         .Select(column => column.Name)
+
+        // WHY: Materialize the filtered mapped-column names once for the generated trigger definitions.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     private static ITable GetRequiredTemporalTable(
@@ -460,7 +466,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private void AppendTemporalHistoryColumnAddition(
         AddColumnOperation operation,
-        IModel? model,
         TemporalMigrationContract contract,
         MigrationCommandListBuilder builder
     )
@@ -505,7 +510,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
 
     private void AppendTemporalHistoryColumnAlteration(
         AlterColumnOperation operation,
-        IModel? model,
         TemporalMigrationContract contract,
         MigrationCommandListBuilder builder
     )

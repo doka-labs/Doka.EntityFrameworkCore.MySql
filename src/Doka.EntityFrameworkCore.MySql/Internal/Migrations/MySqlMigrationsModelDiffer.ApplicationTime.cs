@@ -65,6 +65,8 @@ internal sealed partial class MySqlMigrationsModelDiffer
                         Columns = targetPrimaryKey
                             .Columns
                             .Select(column => column.Name)
+                            // WHY: Capture the selected period-column names in the migration operation once.
+                            // ReSharper disable once UseCollectionExpression
                             .ToArray(),
                     });
             }

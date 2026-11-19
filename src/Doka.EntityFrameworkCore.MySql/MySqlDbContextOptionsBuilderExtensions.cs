@@ -18,6 +18,8 @@ public static class MySqlDbContextOptionsBuilderExtensions
         "RS0026:Do not add multiple overloads with optional parameters",
         Justification =
             "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static DbContextOptionsBuilder UseMySql(
         this DbContextOptionsBuilder optionsBuilder,
         string connectionString,
@@ -149,6 +151,8 @@ public static class MySqlDbContextOptionsBuilderExtensions
         "RS0026:Do not add multiple overloads with optional parameters",
         Justification =
             "EF Core community standard: provider UseXxx extensions carry the optional `mySqlOptionsAction = null` parameter as part of the documented public API. See ADR D-008.")]
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static DbContextOptionsBuilder<TContext> UseMySql<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder,
         string connectionString,

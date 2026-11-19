@@ -66,7 +66,9 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
 
         if (inner is not { Alias: not null }
             || inner.Tables.Count != 1
-            || (_flattenJsonTablesOnly && inner.Tables[0] is not MySqlJsonTableExpression)
+            || (_flattenJsonTablesOnly
+                && inner.Tables[0] is not MySqlJsonTableExpression
+                && !HasDirectRecursiveFrontier(outer))
             || inner.IsDistinct
             || inner.GroupBy.Count > 0
             || inner.Having is not null
@@ -150,6 +152,33 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
             limit);
     }
 
+    /// <summary>Identifies a direct typed frontier only after encountering a real non-JSON APPLY candidate.</summary>
+    private static bool HasDirectRecursiveFrontier(
+        SelectExpression select
+    )
+    {
+        // WHY: MySQL's ordinary LATERAL support does not extend the recursive frontier's native
+        // scope. Reuse the existing safe join rewrite there without scanning ordinary SELECTs.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = 0; index < select.Tables.Count; index++)
+        {
+            var table = select.Tables[index];
+
+            while (table is InnerJoinExpression or CrossJoinExpression)
+            {
+                table = ((JoinExpressionBase)table).Table;
+            }
+
+            if (table is MySqlRecursiveCteReferenceExpression)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Restricts APPLY flattening to the predicate forms accepted by EF Core's join
     /// nullability processor. Other predicates retain APPLY so the SQL generator can
@@ -198,6 +227,8 @@ internal sealed class MySqlApplyRewritingExpressionVisitor : MySqlShapedQueryTra
     {
         var projections = new Dictionary<string, SqlExpression>(StringComparer.Ordinal);
 
+        // WHY: Build the alias map in one pass and stop at the first missing or duplicate alias.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var projection in selectExpression.Projection)
         {
             if (string.IsNullOrEmpty(projection.Alias)

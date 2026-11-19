@@ -358,6 +358,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
 
         var columns = new List<MySqlJsonTableExpression.ColumnInfo>();
 
+        // WHY: Resolve mapped JSON columns and append their descriptors in one metadata traversal.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var prop in structuralType.GetPropertiesInHierarchy())
         {
             var jsonPropertyName = prop.GetJsonPropertyName();
@@ -412,6 +414,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 "JsonQueryExpression.StructuralType must be IEntityType or IComplexType."),
         };
 
+        // WHY: Consume deferred nested-property names once while appending to the existing descriptor list.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var name in nestedJsonPropertyNames)
         {
             columns.Add(
@@ -522,6 +526,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
             return type.GenericTypeArguments[0];
         }
 
+        // WHY: Inspect the reflected interface array directly and stop at the first supported sequence type.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var iface in type.GetInterfaces())
         {
             if (iface.IsGenericType

@@ -1,9 +1,9 @@
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
-/// <summary>Identifies which measured budgets may reject a benchmark run.</summary>
+/// <summary>Retains accepted evaluation identities for the common allocation/resource policy.</summary>
 internal enum PerformanceEvaluationMode
 {
-    /// <summary>Enforces every reviewed budget for controlled-host investigations.</summary>
+    /// <summary>Retains the legacy policy identity without enabling host-sensitive rejection.</summary>
     Full,
 
     /// <summary>Enforces allocations and resource correctness while retaining host-sensitive diagnostics.</summary>
@@ -15,29 +15,23 @@ internal static class PerformanceEvaluationPolicy
 {
     /// <summary>Resolves the policy shared by benchmark execution and report evaluation.</summary>
     internal static PerformanceEvaluationMode Current => Resolve(
-        Environment.GetEnvironmentVariable("DOKA_BENCHMARK_EVALUATION"),
-        Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+        Environment.GetEnvironmentVariable("DOKA_BENCHMARK_EVALUATION"));
 
-    /// <summary>Resolves the command-line process policy without permitting hosted timing gates.</summary>
+    /// <summary>Resolves legacy command-line inputs to the same hardware-independent enforcement.</summary>
     internal static PerformanceEvaluationMode Resolve(
-        string? requested,
-        string? githubActions
+        string? requested
     )
     {
-        var mode = requested switch
+        // WHY: Existing operator scripts may still request full. Keep that input
+        // compatible, but local CPU, scheduling and GC variance must not change
+        // the verdict any more than hosted variance may.
+        return requested switch
         {
-            null or "" or "full" => PerformanceEvaluationMode.Full,
-            "allocations-only" => PerformanceEvaluationMode.AllocationsOnly,
+            null or "" or "full" or "allocations-only" => PerformanceEvaluationMode.AllocationsOnly,
             _ => throw new ArgumentException(
                 "Benchmark evaluation must be full or allocations-only.",
                 nameof(requested)),
         };
-
-        // WHY: Hosted CPU, memory and scheduling characteristics vary even under
-        // one runner label. A full-mode override must not restore timing gates.
-        return string.Equals(githubActions, "true", StringComparison.OrdinalIgnoreCase)
-            ? PerformanceEvaluationMode.AllocationsOnly
-            : mode;
     }
 
     /// <summary>Determines whether a known metric is diagnostic rather than rejecting.</summary>
@@ -56,7 +50,11 @@ internal static class PerformanceEvaluationPolicy
             "allocatedBytes"
                 or "allocationRatio"
                 or "cacheEntries"
+                or "rentCount"
+                or "returnCount"
                 or "outstandingBuffers"
+                or "threadsConnectedBefore"
+                or "threadsConnectedAfter"
                 or "connectionDelta"
                 or "heldLocks" => false,
             "medianNanoseconds"
@@ -65,8 +63,14 @@ internal static class PerformanceEvaluationPolicy
                 or "meanRatio"
                 or "gen2CollectionsPer1000"
                 or "workingSetGrowthBytes"
+                or "workingSetFirstBytes"
+                or "workingSetLastBytes"
                 or "managedHeapGrowthBytes"
-                or "throughputRetentionRatio" => mode == PerformanceEvaluationMode.AllocationsOnly,
+                or "managedHeapFirstBytes"
+                or "managedHeapLastBytes"
+                or "initialOperationsPerSecond"
+                or "finalOperationsPerSecond"
+                or "throughputRetentionRatio" => true,
             _ => throw new InvalidDataException($"Performance metric '{metric}' has no evaluation policy."),
         };
     }

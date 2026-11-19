@@ -1,17 +1,13 @@
-using System.Text.RegularExpressions;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Doka.EntityFrameworkCore.MySql.SpecificationAdapters.Update;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
-
-[Trait("Category", "Spec")]
-[Collection(FunctionalDatabaseTestGroup.Name)]
 
 /// <summary>
 /// Runs the relational stored-procedure update contract against MySQL-family
 /// engines.
 /// </summary>
+[Trait("Category", "Spec")]
+[Collection(FunctionalDatabaseTestGroup.Name)]
 public sealed class StoredProcedureUpdateMySqlTest
     : StoredProcedureUpdateMySqlTestAdapter
 {

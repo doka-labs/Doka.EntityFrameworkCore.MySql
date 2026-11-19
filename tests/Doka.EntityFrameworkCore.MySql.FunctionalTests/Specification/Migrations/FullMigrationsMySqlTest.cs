@@ -1,6 +1,3 @@
-using System.Data;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Migrations;
 
 /// <summary>

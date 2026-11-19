@@ -1,5 +1,3 @@
-using System.Reflection;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using NameSpace1;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query;

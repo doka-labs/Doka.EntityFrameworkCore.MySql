@@ -241,6 +241,8 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
                 (List<string>)s_tpcDiscriminatorValuesProperty.GetValue(tpcTablesExpression)!,
             ]);
 
+            // WHY: Each annotation replaces the current rebuilt expression before the next annotation is applied.
+            // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var annotation in tpcTablesExpression.GetAnnotations())
             {
                 rebuiltExpression = rebuiltExpression.AddAnnotation(annotation.Name, annotation.Value);

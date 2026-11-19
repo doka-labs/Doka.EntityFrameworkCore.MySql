@@ -1,8 +1,3 @@
-using System.Data;
-using System.Data.Common;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore.Update;
 
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
@@ -267,6 +262,8 @@ public class StoredProcedureEnumerationBenchmark : IDisposable
                     : 2000 + ordinal);
         }
 
+        // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+        // ReSharper disable once UseCollectionExpression
         table.Rows.Add(values.ToArray());
 
         return table;

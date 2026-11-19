@@ -46,9 +46,12 @@ dynamic-offset rewrite emits EF Core's `RowNumberExpression`, and provider
 tests exercise that generated `ROW_NUMBER()` shape. The removed flag had no
 production consumer and controlled neither path.
 
-The separate public boundary is the absence of a general strongly typed LINQ
-API for arbitrary window expressions. Raw SQL remains available for native
-window expressions; the exact boundary is documented below.
+From 10.7.0, Doka also exposes a typed `EF.Functions.Window()` API for
+partitioning, ordering, frames and calculations; see
+[Window Functions](window-functions.md). The separate framework boundary is
+the absence of a provider-independent window API in EF Core 10, rather than
+the absence of a Doka window API. Raw SQL remains available for native forms
+outside the documented typed contract.
 
 Primary sources, retrieved 2026-08-11:
 

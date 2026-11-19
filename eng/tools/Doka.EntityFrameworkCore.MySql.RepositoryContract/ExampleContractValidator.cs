@@ -12,7 +12,7 @@ internal static class ExampleContractValidator
         new(
             "CharSetAndCollation",
             "CharSetAndCollation.csproj",
-            ["HasCharSet", "UseStorageEngine", "UseCollation", "HasPrefixLength"],
+            ["DefaultCharSet", "DefaultCollation", "UseStorageEngine", "UseCollation", "HasPrefixLength"],
             true),
         new(
             "CrudOperations",

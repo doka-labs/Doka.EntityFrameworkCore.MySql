@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Contains the infrastructure responsibility for MySqlMigrationDdlCoverageTests.</summary>

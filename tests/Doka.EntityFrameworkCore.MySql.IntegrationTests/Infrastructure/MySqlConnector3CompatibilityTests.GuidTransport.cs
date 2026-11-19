@@ -3,18 +3,22 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlConnector3CompatibilityTests
 {
     /// <summary>Separates prepared and ordinary binary-GUID commands, including escaped control bytes.</summary>
-    public static TheoryData<string, bool, Guid> GuidWireCases
+    public static TheoryData<string, bool, string> GuidWireCases
     {
         get
         {
-            var cases = new TheoryData<string, bool, Guid>();
-            var escapeRich = Guid.Parse("00275c1a-0a0d-1020-3040-5060708090a0");
+            // WHY: xUnit 2 serializes these descriptors so Rider can discover each native case.
+            var cases = new TheoryData<string, bool, string>();
+            const string empty = "00000000-0000-0000-0000-000000000000";
+            const string ascendingBytes = "00010203-0405-0607-0809-0a0b0c0d0e0f";
+            const string escapeRich = "00275c1a-0a0d-1020-3040-5060708090a0";
+
             foreach (var target in GetSelectedSupportedTargets())
             {
-                cases.Add(target.ToString(), false, Guid.Empty);
-                cases.Add(target.ToString(), true, Guid.Empty);
-                cases.Add(target.ToString(), false, Guid.Parse("00010203-0405-0607-0809-0a0b0c0d0e0f"));
-                cases.Add(target.ToString(), true, Guid.Parse("00010203-0405-0607-0809-0a0b0c0d0e0f"));
+                cases.Add(target.ToString(), false, empty);
+                cases.Add(target.ToString(), true, empty);
+                cases.Add(target.ToString(), false, ascendingBytes);
+                cases.Add(target.ToString(), true, ascendingBytes);
                 cases.Add(target.ToString(), true, escapeRich);
 
                 // WHY: Quote-rich unprepared values have a different legacy
@@ -33,16 +37,17 @@ public sealed partial class MySqlConnector3CompatibilityTests
     /// <summary>Requires the fixed unprepared wire path and retains the exact legacy failure control.</summary>
     /// <param name="target">The selected native database engine.</param>
     /// <param name="prepared">Whether the command uses the binary prepared protocol.</param>
-    /// <param name="value">The GUID whose stored bytes must be preserved.</param>
+    /// <param name="valueText">The canonical GUID text whose stored bytes must be preserved.</param>
     [RequiresSupportedDatabaseTargetTheory]
     [MemberData(nameof(GuidWireCases))]
     public async Task Binary_guid_wire_behavior_matches_the_qualified_driver(
         string target,
         bool prepared,
-        Guid value
+        string valueText
     )
     {
         // Arrange
+        var value = Guid.Parse(valueText);
         const string table = "C3GuidWire";
         var cancellationToken = CancellationToken.None;
         var settings = new MySqlConnectionStringBuilder(CreateConnectionString(target))
@@ -123,13 +128,18 @@ public sealed partial class MySqlConnector3CompatibilityTests
             cancellationToken);
 
         await using var context = new GuidTransportContext(
-            IntegrationTestDbContextOptions.Create<GuidTransportContext>()
+            IntegrationTestDbContextOptions
+                .Create<GuidTransportContext>()
                 .UseMySql(
                     connection,
                     IntegrationTestEnvironment.GetServerVersion(Enum.Parse<IntegrationDatabaseTarget>(target)))
                 .Options);
 
-        context.Add(new GuidTransportRow { Id = 1, Token = Guid.Empty });
+        context.Add(new GuidTransportRow
+        {
+            Id = 1,
+            Token = Guid.Empty,
+        });
 
         // Act
         var failure = await Record.ExceptionAsync(() => context.SaveChangesAsync(cancellationToken));
@@ -137,7 +147,8 @@ public sealed partial class MySqlConnector3CompatibilityTests
         if (failure is null)
         {
             context.ChangeTracker.Clear();
-            readBack = await context.Set<GuidTransportRow>()
+            readBack = await context
+                .Set<GuidTransportRow>()
                 .Select(row => row.Token)
                 .SingleAsync(cancellationToken);
         }
@@ -176,8 +187,13 @@ public sealed partial class MySqlConnector3CompatibilityTests
             var row = modelBuilder.Entity<GuidTransportRow>();
             row.ToTable("C3EfGuid");
             row.HasKey(entity => entity.Id);
-            row.Property(entity => entity.Id).ValueGeneratedNever();
-            row.Property(entity => entity.Token).HasColumnType("binary(16)");
+            row
+                .Property(entity => entity.Id)
+                .ValueGeneratedNever();
+
+            row
+                .Property(entity => entity.Token)
+                .HasColumnType("binary(16)");
         }
     }
 

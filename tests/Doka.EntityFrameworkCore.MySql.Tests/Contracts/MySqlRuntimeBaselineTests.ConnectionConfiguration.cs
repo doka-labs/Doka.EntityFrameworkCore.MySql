@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore.Storage.Internal;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 

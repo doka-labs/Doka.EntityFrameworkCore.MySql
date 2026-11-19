@@ -1,6 +1,3 @@
-using System.Text;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Update;
 
 /// <summary>

@@ -1,10 +1,10 @@
 ---
 id: D-020
 status: accepted
-date: 2026-07-27
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Integration and specification database lifecycle"
 supersedes: []
 superseded-by: []
@@ -138,6 +138,8 @@ Compose remains an operator-selected debugging and benchmark mechanism. `eng/tes
 - 2026-10-14: Moved integration server ownership to an assembly runner and
   isolated databases by test class so collection-level parallelism also works
   in IDE runs without multiplying containers.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

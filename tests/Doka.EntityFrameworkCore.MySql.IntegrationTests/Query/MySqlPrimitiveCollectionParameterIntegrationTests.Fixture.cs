@@ -143,6 +143,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         }
 
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,

@@ -1,8 +1,3 @@
-using System.Reflection;
-using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -625,6 +620,10 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     /// <param name="context">The context used for the database operation.</param>
     /// <param name="tableName">The table name.</param>
+    [SuppressMessage("Security",
+        "EF1002:Risk of vulnerability to SQL injection",
+        Justification = "WHY: DDL identifiers cannot be parameters; only fixture-owned table names"
+            + " reach this delimited identifier.")]
     private static async Task DropTableAsync(
         DbContext context,
         string tableName,
@@ -632,7 +631,7 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
     ) => await context
         .Database
         .ExecuteSqlRawAsync(
-            $"DROP TABLE IF EXISTS `{tableName}`;",
+            $"DROP TABLE IF EXISTS `{tableName.Replace("`", "``", StringComparison.Ordinal)}`;",
             cancellationToken)
         .ConfigureAwait(false);
 
@@ -643,8 +642,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         Async,
     }
 
-    private abstract class DiscriminatorContext(DbContextOptions options) : DbContext(options)
+    private abstract class DiscriminatorContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        protected DiscriminatorContext(
+            DbContextOptions options
+        ) : base(options) { }
+
         public DbSet<DiscriminatorEntity> Entities => Set<DiscriminatorEntity>();
 
         protected override void OnModelCreating(
@@ -672,10 +676,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         );
     }
 
-    private sealed class IncompleteDiscriminatorContext(
-        DbContextOptions<IncompleteDiscriminatorContext> options
-    ) : DiscriminatorContext(options)
+    private sealed class IncompleteDiscriminatorContext : DiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public IncompleteDiscriminatorContext(
+            DbContextOptions<IncompleteDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         )
@@ -692,10 +699,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         }
     }
 
-    private sealed class CompleteDiscriminatorContext(
-        DbContextOptions<CompleteDiscriminatorContext> options
-    ) : DiscriminatorContext(options)
+    private sealed class CompleteDiscriminatorContext : DiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public CompleteDiscriminatorContext(
+            DbContextOptions<CompleteDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         ) => modelBuilder
@@ -705,8 +715,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .IsComplete();
     }
 
-    private abstract class IntDiscriminatorContext(DbContextOptions options) : DbContext(options)
+    private abstract class IntDiscriminatorContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        protected IntDiscriminatorContext(
+            DbContextOptions options
+        ) : base(options) { }
+
         public DbSet<IntDiscriminatorEntity> Entities => Set<IntDiscriminatorEntity>();
 
         protected override void OnModelCreating(
@@ -734,10 +749,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         );
     }
 
-    private sealed class IncompleteIntDiscriminatorContext(
-        DbContextOptions<IncompleteIntDiscriminatorContext> options
-    ) : IntDiscriminatorContext(options)
+    private sealed class IncompleteIntDiscriminatorContext : IntDiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public IncompleteIntDiscriminatorContext(
+            DbContextOptions<IncompleteIntDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         ) => modelBuilder
@@ -747,10 +765,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .IsComplete(false);
     }
 
-    private sealed class CompleteIntDiscriminatorContext(
-        DbContextOptions<CompleteIntDiscriminatorContext> options
-    ) : IntDiscriminatorContext(options)
+    private sealed class CompleteIntDiscriminatorContext : IntDiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public CompleteIntDiscriminatorContext(
+            DbContextOptions<CompleteIntDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         ) => modelBuilder
@@ -760,8 +781,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .IsComplete();
     }
 
-    private abstract class ConvertedDiscriminatorContext(DbContextOptions options) : DbContext(options)
+    private abstract class ConvertedDiscriminatorContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        protected ConvertedDiscriminatorContext(
+            DbContextOptions options
+        ) : base(options) { }
+
         public DbSet<ConvertedDiscriminatorEntity> Entities => Set<ConvertedDiscriminatorEntity>();
 
         protected override void OnModelCreating(
@@ -795,10 +821,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
         );
     }
 
-    private sealed class IncompleteConvertedDiscriminatorContext(
-        DbContextOptions<IncompleteConvertedDiscriminatorContext> options
-    ) : ConvertedDiscriminatorContext(options)
+    private sealed class IncompleteConvertedDiscriminatorContext : ConvertedDiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public IncompleteConvertedDiscriminatorContext(
+            DbContextOptions<IncompleteConvertedDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         ) => modelBuilder
@@ -808,10 +837,13 @@ public sealed class MySqlIncompleteDiscriminatorIntegrationTests
             .IsComplete(false);
     }
 
-    private sealed class CompleteConvertedDiscriminatorContext(
-        DbContextOptions<CompleteConvertedDiscriminatorContext> options
-    ) : ConvertedDiscriminatorContext(options)
+    private sealed class CompleteConvertedDiscriminatorContext : ConvertedDiscriminatorContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public CompleteConvertedDiscriminatorContext(
+            DbContextOptions<CompleteConvertedDiscriminatorContext> options
+        ) : base(options) { }
+
         protected override void ConfigureDiscriminator(
             ModelBuilder modelBuilder
         ) => modelBuilder

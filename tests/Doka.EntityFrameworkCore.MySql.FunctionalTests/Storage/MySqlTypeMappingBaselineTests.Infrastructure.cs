@@ -1,6 +1,3 @@
-using System.Data;
-using System.Linq.Expressions;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Contains the infrastructure responsibility for MySqlTypeMappingBaselineTests.</summary>

@@ -25,6 +25,8 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         ServerVersion = copyFrom.ServerVersion;
         RetryOptions = copyFrom.RetryOptions;
         DefaultGuidFormat = copyFrom.DefaultGuidFormat;
+        DefaultCharSet = copyFrom.DefaultCharSet;
+        DefaultCollation = copyFrom.DefaultCollation;
         UserVariablesRequired = copyFrom.UserVariablesRequired;
     }
 
@@ -37,6 +39,10 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
     internal MySqlGuidFormat DefaultGuidFormat { get; private set; } = MySqlGuidFormat.Binary16;
 
     internal bool UserVariablesRequired { get; private set; }
+
+    internal string? DefaultCharSet { get; private set; }
+
+    internal string? DefaultCollation { get; private set; }
 
     /// <inheritdoc />
     public override DbContextOptionsExtensionInfo Info => _info ??= new MySqlOptionsExtensionInfo(this);
@@ -95,6 +101,19 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
         if (DefaultGuidFormat == MySqlGuidFormat.Uuid)
         {
             MySqlMariaDbUuidSupport.EnsureSupported(ServerVersion.Profile);
+        }
+
+        // WHY: Validate the completed snapshot so setting either facet first is equivalent.
+        MySqlTextDefaults.ValidatePair(DefaultCharSet, DefaultCollation, ServerVersion.Profile);
+
+        if (options.FindExtension<CoreOptionsExtension>()
+                ?.Model is { } suppliedModel)
+        {
+            MySqlTextDefaults.ValidateSuppliedModel(
+                suppliedModel,
+                DefaultCharSet,
+                DefaultCollation,
+                ServerVersion.Profile);
         }
 
         var configuredInputCount = 0;
@@ -239,6 +258,30 @@ public sealed partial class MySqlOptionsExtension : RelationalOptionsExtension
 
         var clone = (MySqlOptionsExtension)Clone();
         clone.UserVariablesRequired = true;
+
+        return clone;
+    }
+
+    internal MySqlOptionsExtension WithDefaultCharSet(
+        string? charSet
+    )
+    {
+        var clone = (MySqlOptionsExtension)Clone();
+        clone.DefaultCharSet = charSet is null
+            ? null
+            : MySqlSqlTokenValidator.ValidateIdentifier(charSet, nameof(DefaultCharSet));
+
+        return clone;
+    }
+
+    internal MySqlOptionsExtension WithDefaultCollation(
+        string? collation
+    )
+    {
+        var clone = (MySqlOptionsExtension)Clone();
+        clone.DefaultCollation = collation is null
+            ? null
+            : MySqlSqlTokenValidator.ValidateIdentifier(collation, nameof(DefaultCollation));
 
         return clone;
     }

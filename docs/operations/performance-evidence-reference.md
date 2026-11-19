@@ -6,26 +6,19 @@ returns one of three outcomes.
 
 ## Evaluation Policy
 
-Evaluation mode is selected separately from profile breadth:
+Profile breadth is independent of enforcement. Local and hosted execution
+share `allocations-only`: allocation budgets and explicit correctness/resource
+invariants can reject the run. Median/p95/p99 times, timing ratios, Gen2
+frequency, working-set/managed-heap growth and throughput retention are retained
+diagnostics. The default is `DOKA_BENCHMARK_EVALUATION=allocations-only`;
+`full` is a compatibility alias with the same policy. Unknown spellings fail.
+Neither spelling admits hardware- or load-dependent pass/fail thresholds or
+CPU-headroom admission.
 
-- `DOKA_BENCHMARK_EVALUATION=full` is the default for local execution. It
-  enforces allocation/resource and hardware-sensitive thresholds, with local
-  CPU-headroom admission before measurement.
-- `DOKA_BENCHMARK_EVALUATION=allocations-only` enforces allocations and explicit
-  correctness/resource-ownership invariants. Median/p95/p99 times, timing
-  ratios, Gen2 frequency, working-set/managed-heap soak growth and throughput
-  retention are retained diagnostics rather than regression reasons.
-- `GITHUB_ACTIONS=true` always resolves to `allocations-only`, including an
-  explicit `full` request. The workflow pins this mode and skips CPU-headroom
-  admission. Unknown selector spellings fail rather than selecting a default.
-
-Both modes validate the complete raw evidence, including diagnostic metrics.
-No report, scenario or failed execution is ignored; there is no
-`continue-on-error`. Allocation regressions and bounded-cache, pool-return,
-connection and migration-lock cleanup failures remain enforced on hosted
-runners. Process-memory growth alone is a noisy observation, not a substitute
-for those explicit resource-ownership assertions. Genuine infrastructure
-failures and timeouts can still fail either mode.
+Complete raw evidence remains mandatory, including diagnostic observations.
+No report, scenario or failed execution is ignored. Allocation regressions and
+bounded-cache, pool-return, connection and migration-lock cleanup failures stay
+enforced. Genuine infrastructure and execution failures can still fail a run.
 
 The integration scaffolding scale tests follow the same rule for elapsed time:
 the 128-table, least-privilege scenario records duration as a diagnostic, with
@@ -89,7 +82,7 @@ BenchmarkDotNet `OriginalValues`. It divides time and allocation by the
 contract-owned operation batch and compares the result with the workload
 family's absolute budgets. Allocation ceilings and allocation-ratio controls
 are enforced in both modes. Timing and Gen2-frequency threshold violations are
-diagnostic in hosted/allocations-only mode and enforced in local full mode;
+diagnostic in local and hosted execution;
 their raw values and evidence completeness are validated in both.
 
 Each control declares either one `maximum` for every engine target or a
@@ -121,8 +114,8 @@ rows with a 10,000-value GUID collection. It runs explicit `EF.Parameter(...)`
 and `Char36`. Setup and corpus creation occur outside the measured methods.
 
 The controls compare methods from the same BenchmarkDotNet run. Timing ratios
-are local full-mode thresholds only where both calibrated engine families show
-a material advantage; on hosted runners they are diagnostic. Allocation ratios
+are diagnostic thresholds calibrated where both engine families show a
+material advantage. They remain diagnostic locally and on hosted runners. Allocation ratios
 continue to guard the JSON opt-in against constant expansion in both modes. No
 absolute elapsed-time budget is used for these collection controls, because
 host CPU capacity is not a portable performance contract.
@@ -146,10 +139,10 @@ measurement iterations per method.
 
 Ratios are rounded to three decimals for documentation; the contract ceilings
 are reviewed values with headroom, not a statistical confidence bound. A red
-allocation ratio or local full-mode timing ratio requires diagnosis of the
-query shape, engine, runtime, and host before any ceiling changes. The time
-columns remain diagnostic on GitHub Actions; this historical calibration does
-not turn those timing ceilings back into hosted gates.
+allocation ratio requires diagnosis of the query shape, engine, runtime and
+host before any ceiling changes. Timing-ratio crossings likewise warrant
+investigation, but remain diagnostic locally and in GitHub Actions. This
+historical calibration does not make timing ceilings into automatic gates.
 
 ### Selective Membership Check
 
@@ -227,7 +220,7 @@ unit. The displayed ratios are rounded to six decimal places. These are
 reviewed contract values, not a statistical confidence bound or an automatic
 budget-update rule.
 
-All eighteen retained normal ratios pass the full-mode threshold. Doubling only the sliding mean,
+All eighteen retained normal ratios remain below the diagnostic threshold. Doubling only the sliding mean,
 while leaving the absolute-read mean and allocation unchanged, exceeds the
 target ceiling in every retained run. This is an arithmetic sensitivity
 analysis of measured data, not an injected lock-delay experiment or proof
@@ -235,8 +228,8 @@ that every real slowdown will be detected. The ratio measures end-to-end
 refresh overhead, not pure lock duration; shared slowdowns can cancel out.
 It is not hardware independent. Hosted Ubuntu/x64 evidence remains a separate
 diagnostic surface from these local Arm64 runs. Exceeding this timing ceiling
-does not fail hosted allocations-only evaluation; allocation/resource checks
-remain enforced independently.
+does not fail local or hosted evaluation; allocation/resource checks remain
+enforced independently.
 
 The original evidence is retained under
 `artifacts/benchmarks/cache-followup-20260826/<target>/run-<1..3>/`.
@@ -379,8 +372,7 @@ from the scenario metrics and the current contract. All six scenarios and all
 finite metrics remain required in both evaluation modes. Bounded HiLo cache,
 pooled-buffer return, connection cleanup and migration-lock cleanup are enforced
 resource invariants in both modes. Working-set growth, managed-heap growth and
-concurrent throughput retention are diagnostic on GitHub Actions and enforced
-only in local full mode.
+concurrent throughput retention remain diagnostic locally and in GitHub Actions.
 
 An omitted or non-finite metric is invalid evidence even when its threshold
 would be diagnostic. A finite violation is a regression only for an enforced

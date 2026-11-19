@@ -488,14 +488,8 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             return;
         }
 
-        var separator = collation.IndexOf('_');
-        var collationCharSet = separator > 0
-            ? collation[..separator]
-            : collation;
-
-        if (string.Equals(charSet, collationCharSet, StringComparison.OrdinalIgnoreCase)
-            || IsUtf8Mb3AliasPair(charSet, collationCharSet)
-            || IsMariaDbSharedUca1400Pair(charSet, collation))
+        // WHY: Options and DDL must accept the same qualified charset aliases and shared collations.
+        if (MySqlTextDefaults.IsCompatible(charSet, collation, Profile))
         {
             return;
         }
@@ -504,35 +498,6 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             $"The configured '{MySqlAnnotationNames.CharSet}' and '{RelationalAnnotationNames.Collation}' "
             + "values do not identify the same MySQL character set.");
     }
-
-    private bool IsMariaDbSharedUca1400Pair(
-        string charSet,
-        string collation
-    )
-    {
-        if (!Profile.Engine.Has(EngineCapability.SharedUca1400Collations)
-            || !collation.StartsWith("uca1400_", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        // MariaDB exposes unprefixed UCA-14 collations with no single Charset
-        // because the same collation is available to multiple Unicode sets.
-        return charSet.Equals("ucs2", StringComparison.OrdinalIgnoreCase)
-            || charSet.Equals("utf8", StringComparison.OrdinalIgnoreCase)
-            || charSet.Equals("utf8mb3", StringComparison.OrdinalIgnoreCase)
-            || charSet.Equals("utf8mb4", StringComparison.OrdinalIgnoreCase)
-            || charSet.Equals("utf16", StringComparison.OrdinalIgnoreCase)
-            || charSet.Equals("utf32", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsUtf8Mb3AliasPair(
-        string charSet,
-        string collationCharSet
-    ) => (string.Equals(charSet, "utf8", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(collationCharSet, "utf8mb3", StringComparison.OrdinalIgnoreCase))
-        || (string.Equals(charSet, "utf8mb3", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(collationCharSet, "utf8", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Generates MySQL-specific RENAME TABLE syntax.

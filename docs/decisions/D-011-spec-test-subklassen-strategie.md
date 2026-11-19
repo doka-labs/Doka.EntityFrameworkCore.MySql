@@ -1,10 +1,10 @@
 ---
 id: D-011
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "EF Core relational specification test adoption"
 supersedes: []
 superseded-by: []
@@ -216,6 +216,8 @@ probes, and re-evaluation triggers.
 - 2026-09-10: Added the EF Core 10.0.12 inventory and six-target discovery
   contract. The complete inventory and discovered provider IDs are unchanged
   from 10.0.11.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

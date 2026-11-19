@@ -1,4 +1,3 @@
-using System.IO;
 using System.Security;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;

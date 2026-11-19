@@ -148,8 +148,6 @@ public sealed partial class MySqlRuntimeBaselineTests
 
         public List<AsyncAwareDbConnection> ServerConnections { get; } = new();
 
-        public string DriverName => "AsyncAware";
-
         public DbConnection CreateConnection(
             string connectionString
         )

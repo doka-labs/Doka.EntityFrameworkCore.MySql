@@ -1,7 +1,3 @@
-using System.Data.Common;
-using System.Globalization;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
 /// <summary>
@@ -13,6 +9,7 @@ internal sealed class MigrationWorkflowPauseInterceptor : DbCommandInterceptor
 {
     private const string MigrationCommandMarker =
         "CREATE TABLE `" + MigrationWorkflowOperationHandlerExtensions.EvidenceTableName + "`";
+
     private readonly string _pauseFile;
     private int _pauseSignaled;
 

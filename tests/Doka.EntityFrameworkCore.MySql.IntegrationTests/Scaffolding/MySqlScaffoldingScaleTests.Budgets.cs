@@ -1,5 +1,3 @@
-using Xunit.Sdk;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies resource budgets independently of host speed and load.</summary>

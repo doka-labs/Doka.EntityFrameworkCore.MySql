@@ -1,6 +1,3 @@
-using System.Linq.Expressions;
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>Protects boxed scalar string conversions from losing their projected CLR type.</summary>
@@ -197,8 +194,13 @@ public sealed class MySqlBoxedStringConversionTests
         return new ConversionContext(builder.Options);
     }
 
-    private sealed class ConversionContext(DbContextOptions<ConversionContext> options) : DbContext(options)
+    private sealed class ConversionContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public ConversionContext(
+            DbContextOptions<ConversionContext> options
+        ) : base(options) { }
+
         public DbSet<ConversionRow> Rows => Set<ConversionRow>();
 
         protected override void OnModelCreating(

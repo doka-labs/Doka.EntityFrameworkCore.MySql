@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 public sealed partial class MySqlMigrationOperationHandlerTests

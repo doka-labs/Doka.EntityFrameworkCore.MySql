@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Doka.EntityFrameworkCore.MySql;
 
 namespace ConsumerMigrationTests;

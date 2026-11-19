@@ -1,10 +1,10 @@
 ---
 id: D-026
 status: implemented
-date: 2026-08-09
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Which pull-request evidence qualifies a release and how publication remains bound"
 supersedes: []
 superseded-by: []
@@ -15,6 +15,22 @@ doka-profile-version: "1.0"
 ---
 
 # D-026 -- Qualify releases from PR-bound, tree-exact evidence
+
+## 2026-11-19 Amendment: One hardware-independent benchmark policy
+
+The independent benchmark path now uses the same allocation/resource policy
+locally and in GitHub Actions. The legacy `full` selector is a compatibility
+alias; it cannot enable timing, throughput, GC-frequency or process-memory
+rejection. CPU-headroom admission is retired. Raw observations and diagnostic
+threshold crossings remain available for controlled investigations.
+
+The existing evidence validator and allocation/resource invariants remain
+enforced. A diagnostic-only soak threshold does not reject its standalone
+process; actual execution/resource failures still do. Raw success fields are
+preserved and checked against the complete observations, rather than rewritten
+to manufacture passing evidence. Benchmarks retain no release authority. This
+amendment replaces the older local full-mode policy below, whose historical
+measurements and original conclusions remain recorded.
 
 ## 2026-11-03 Amendment: Shared complete qualification
 
@@ -1554,6 +1570,7 @@ manifest verification.
 
 ### Decision History
 
+
 - 2026-08-09: Decision recorded with status proposed.
 - 2026-08-10: Removed the separate manual qualification workflow, assigned
   commit-exact evidence per gate, and bound packaging to the
@@ -1580,12 +1597,6 @@ manifest verification.
 - 2026-08-14: Bound scorecard reuse invalidation to the extracted target
   workflow and sensitivity assurance, and corrected release provenance to the
   workflow that uploads qualified performance artifacts.
-- 2026-08-17: Corrected GitHub draft discovery to use the authenticated,
-  paginated release inventory and added bounded readback after draft creation
-  and asset upload.
-- 2026-08-17: Bound every workflow artifact to the repository's thirty-day
-  retention maximum and replaced the calendar-coupled drift trigger with a
-  digest-bound confirmation from two fresh hosted jobs in one scorecard cycle.
 - 2026-08-14: Bound scorecard reuse invalidation to the paired endpoint
   estimator and bounded attempt selector, with a structural contract that
   covers every module imported by the supported performance CLI.
@@ -1603,6 +1614,12 @@ manifest verification.
   measurement quality, and made sparse Gen2 ratios observational while
   retaining their absolute candidate ceiling. Paired verdict schema 6 records
   the resource role and its corresponding state vocabulary.
+- 2026-08-17: Corrected GitHub draft discovery to use the authenticated,
+  paginated release inventory and added bounded readback after draft creation
+  and asset upload.
+- 2026-08-17: Bound every workflow artifact to the repository's thirty-day
+  retention maximum and replaced the calendar-coupled drift trigger with a
+  digest-bound confirmation from two fresh hosted jobs in one scorecard cycle.
 - 2026-08-17: Made publication readiness self-contained on the clean
   finalization runner, bound it to exact matrix-resolved dependency patches,
   isolated its build and lock files, and added the same boundary to repository
@@ -1631,6 +1648,9 @@ manifest verification.
   resolution only in scheduled and manually dispatched drift detection.
 - 2026-11-03: D-030 unifies complete PR and candidate qualification without
   changing release-only authority, same-run recovery or performance independence.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
+- 2026-11-19: Applied the common local/hosted diagnostic-only hardware policy while preserving evidence and resource checks.
 
 ### Implementation References
 

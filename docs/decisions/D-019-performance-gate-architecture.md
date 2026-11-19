@@ -1,10 +1,10 @@
 ---
 id: D-019
 status: implemented
-date: 2026-05-18
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Named performance workloads, raw BenchmarkDotNet evidence, budgets, and soak gates"
 supersedes: []
 superseded-by: []
@@ -15,6 +15,22 @@ doka-profile-version: "1.0"
 ---
 
 # D-019 -- Gate performance from direct BenchmarkDotNet evidence
+
+## 2026-11-19 Amendment: Local measurements have no hardware-speed verdict
+
+Local and hosted benchmark execution enforce the same allocation/resource and
+raw-evidence contracts. Timing, throughput, GC-frequency and process-memory
+observations remain diagnostic; their threshold crossings cannot reject a run.
+The legacy `full` spelling remains accepted for existing operator commands, but
+does not restore speed-dependent enforcement or CPU-headroom admission.
+
+Standalone soak execution follows the same boundary while preserving the raw
+threshold-based success flags for evidence consistency checks. Actual execution
+failures, missing/non-finite observations, allocation regressions and explicit
+resource-ownership failures remain rejecting. The
+[performance runbook](../operations/performance-evidence.md) defines invocation
+and interpretation. Earlier descriptions of local full-mode rejection below
+remain historical; this amendment supersedes that enforcement policy.
 
 ## 2026-08-23 Amendment: Use one BenchmarkDotNet measurement path
 
@@ -601,6 +617,7 @@ A baseline update requires:
 
 ### Decision History
 
+
 - 2026-05-18: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0.
 - 2026-07-29: Expanded the translation corpus and enforced its allocation
@@ -634,10 +651,6 @@ A baseline update requires:
 - 2026-08-07: Enabled squash auto-merge for the validated baseline proposal.
   Independent maintainer approval and every protected check remain mandatory;
   the workflow has no review or administrative-bypass command.
-- 2026-08-14: Moved squash auto-merge authority from `GITHUB_TOKEN` to a
-  private, repository-scoped GitHub App. The App token is short-lived and
-  permission-restricted, never approves or bypasses the proposal, and lets the
-  resulting `main` push produce commit-exact release qualification evidence.
 - 2026-08-07: Isolated the measured scorecard in a reusable workflow. The
   parent benchmark workflow and its event resolver are now an explicitly cheap
   control plane, so orchestration-only changes cannot allocate the hosted
@@ -657,24 +670,32 @@ A baseline update requires:
   target matrix derived from the performance contract. Registered a fixed
   ten-block paired population with executable power assurance and removed
   result-driven statistical retries.
+- 2026-08-14: Moved squash auto-merge authority from `GITHUB_TOKEN` to a
+  private, repository-scoped GitHub App. The App token is short-lived and
+  permission-restricted, never approves or bypasses the proposal, and lets the
+  resulting `main` push produce commit-exact release qualification evidence.
 - 2026-08-15: Retained the complete benchmark evidence architecture as an
   independent engineering system and removed all release-candidate and
   publication authority under the D-026 amendment.
 - 2026-08-23: Retired the Python evidence platform, paired comparisons,
   historical baselines, attempts, confirmations, receipts, checkpoints, and
   promotion workflow in favor of one C# gate over raw BenchmarkDotNet reports.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
+- 2026-11-19: Applied the common local/hosted diagnostic-only hardware policy while preserving evidence and resource checks.
 
 ### Implementation References
 
 - `benchmarks/performance-contract.json`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceGate.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceEvaluationPolicy.cs`
+- `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceSoakRunner.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/PerformanceMeasurement.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/ProviderWorkloadBenchmarks.cs`
 - `benchmarks/Doka.EntityFrameworkCore.MySql.Benchmarks/Program.cs`
 - `eng/benchmark.sh`
 - `eng/performance/benchmark.sh`
 - `eng/performance/check-benchmark-ratios.sh`
-- `eng/performance/host-preflight.sh`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Performance/PerformanceGateTests.cs`
 - `.github/workflows/benchmark.yml`
 - `docs/operations/performance-evidence.md`

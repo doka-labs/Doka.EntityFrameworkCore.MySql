@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies the changed parameters contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertChangedParametersAsync(
         IntegrationDatabaseTarget target,
@@ -35,6 +36,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the repeated enumeration contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRepeatedEnumerationAsync(
         IntegrationDatabaseTarget target,
@@ -64,6 +66,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the compiled query contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCompiledQueryAsync(
         IntegrationDatabaseTarget target,
@@ -88,6 +91,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Executes the read database scenario.</summary>
+    /// <param name="source">The asynchronous query results to materialize.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> ReadAsync(
         IAsyncEnumerable<int> source,
@@ -105,6 +109,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the entity tracking contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertEntityTrackingAsync(
         IntegrationDatabaseTarget target,
@@ -149,6 +154,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the collection results contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCollectionResultsAsync(
         IntegrationDatabaseTarget target,
@@ -185,6 +191,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the cancellation contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCancellationAsync(
         IntegrationDatabaseTarget target,
@@ -210,6 +217,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the construction contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertConstructionAsync(
         IntegrationDatabaseTarget target,
@@ -238,6 +246,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the client projection rejected contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertClientProjectionRejectedAsync(
         IntegrationDatabaseTarget target,
@@ -265,6 +274,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     ) => $"client:{value}";
 
     /// <summary>Verifies the collection source rejected contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCollectionSourceRejectedAsync(
         IntegrationDatabaseTarget target,
@@ -295,6 +305,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the foreign context rejected contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertForeignContextRejectedAsync(
         IntegrationDatabaseTarget target,

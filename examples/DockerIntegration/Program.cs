@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 var database = ExampleDatabaseConfiguration.Create("doka_example_docker_integration");
 var cancellationToken = CancellationToken.None;
 var options = new DbContextOptionsBuilder<DockerContext>()
@@ -26,15 +22,23 @@ try
     await context.SaveChangesAsync(cancellationToken);
 
     await context.Database.OpenConnectionAsync(cancellationToken);
-    await using var command = context.Database.GetDbConnection().CreateCommand();
+    await using var command = context
+        .Database
+        .GetDbConnection()
+        .CreateCommand();
+
     command.CommandText = "SELECT VERSION()";
     var detectedVersion = Convert.ToString(
         await command.ExecuteScalarAsync(cancellationToken),
-        System.Globalization.CultureInfo.InvariantCulture);
+        CultureInfo.InvariantCulture);
 
-    var probeCount = await context.Probes.AsNoTracking().CountAsync(cancellationToken);
+    var probeCount = await context
+        .Probes
+        .AsNoTracking()
+        .CountAsync(cancellationToken);
 
-    if (string.IsNullOrWhiteSpace(detectedVersion) || probeCount != 1)
+    if (string.IsNullOrWhiteSpace(detectedVersion)
+        || probeCount != 1)
     {
         throw new InvalidOperationException("The container round-trip did not return the expected values.");
     }

@@ -11,7 +11,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -49,7 +49,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -113,7 +113,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -157,7 +157,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -213,7 +213,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -276,7 +276,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -311,7 +311,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -348,7 +348,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -390,7 +390,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -418,7 +418,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetExpirationStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 

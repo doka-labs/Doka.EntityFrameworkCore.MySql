@@ -1,5 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.Benchmarks;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class GenericLikeBenchmarkTests

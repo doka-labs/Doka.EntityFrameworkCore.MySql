@@ -1,10 +1,10 @@
 ---
 id: D-028
 status: implemented
-date: 2026-08-21
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "How generated schema changes choose or transform existing data"
 supersedes: []
 superseded-by: []
@@ -211,6 +211,8 @@ for changing existing application data.
   columns and provider-owned `Char36`/`Binary16` data transformations.
 - 2026-08-29: Covered one-sided application/provider transitions and retained
   model CLR types across every generated column-operation surface.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

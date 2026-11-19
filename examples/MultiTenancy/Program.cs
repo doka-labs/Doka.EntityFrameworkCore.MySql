@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 var database = ExampleDatabaseConfiguration.Create("doka_example_multi_tenancy");
 var cancellationToken = CancellationToken.None;
 var options = new DbContextOptionsBuilder<TenantContext>()
@@ -22,25 +18,45 @@ try
     // is scoped to a tenant rather than accidentally becoming global.
     using (var syncDefault = new TenantContext(options, "tenant-a"))
     {
-        syncDefault.Documents.Add(new TenantDocument { ExternalId = "sync", Title = "Tenant A sync" });
+        syncDefault.Documents.Add(new TenantDocument
+        {
+            ExternalId = "sync",
+            Title = "Tenant A sync",
+        });
+
         syncDefault.SaveChanges();
     }
 
     using (var syncBoolean = new TenantContext(options, "tenant-b"))
     {
-        syncBoolean.Documents.Add(new TenantDocument { ExternalId = "sync", Title = "Tenant B sync" });
+        syncBoolean.Documents.Add(new TenantDocument
+        {
+            ExternalId = "sync",
+            Title = "Tenant B sync",
+        });
+
         syncBoolean.SaveChanges(acceptAllChangesOnSuccess: true);
     }
 
     await using (var asyncDefault = new TenantContext(options, "tenant-a"))
     {
-        asyncDefault.Documents.Add(new TenantDocument { ExternalId = "async", Title = "Tenant A async" });
+        asyncDefault.Documents.Add(new TenantDocument
+        {
+            ExternalId = "async",
+            Title = "Tenant A async",
+        });
+
         await asyncDefault.SaveChangesAsync(cancellationToken);
     }
 
     await using (var asyncBoolean = new TenantContext(options, "tenant-b"))
     {
-        asyncBoolean.Documents.Add(new TenantDocument { ExternalId = "async", Title = "Tenant B async" });
+        asyncBoolean.Documents.Add(new TenantDocument
+        {
+            ExternalId = "async",
+            Title = "Tenant B async",
+        });
+
         await asyncBoolean.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
     }
 
@@ -48,27 +64,32 @@ try
     AssertMismatchedTenantRejected(
         options,
         context => context.SaveChanges(acceptAllChangesOnSuccess: true));
+
     await AssertMismatchedTenantRejectedAsync(
         options,
         (context, token) => context.SaveChangesAsync(token),
         cancellationToken);
+
     await AssertMismatchedTenantRejectedAsync(
         options,
         (context, token) => context.SaveChangesAsync(acceptAllChangesOnSuccess: true, token),
         cancellationToken);
 
     await using var verificationContext = new TenantContext(options, "tenant-a");
-    var visibleDocuments = await verificationContext.Documents
+    var visibleDocuments = await verificationContext
+        .Documents
         .AsNoTracking()
         .Select(document => document.Title)
         .ToListAsync(cancellationToken);
 
-    var totalDocuments = await verificationContext.Documents
+    var totalDocuments = await verificationContext
+        .Documents
         .IgnoreQueryFilters()
         .AsNoTracking()
         .CountAsync(cancellationToken);
 
-    if (visibleDocuments.Count != 2 || totalDocuments != 4)
+    if (visibleDocuments.Count != 2
+        || totalDocuments != 4)
     {
         throw new InvalidOperationException("The tenant query filter did not isolate the expected row.");
     }
@@ -129,7 +150,9 @@ static TenantContext CreateMismatchedTenantContext(
         new TenantDocument
         {
             TenantId = "tenant-b",
-            ExternalId = Guid.NewGuid().ToString("N"),
+            ExternalId = Guid
+                .NewGuid()
+                .ToString("N"),
             Title = "Rejected cross-tenant write",
         });
 
@@ -177,6 +200,7 @@ internal sealed class TenantContext : DbContext
         // Query filters protect reads only. Validate writes separately so an
         // attached entity cannot cross the tenant boundary unnoticed.
         EnforceTenantOwnership();
+
         // Bypass the convenience overload for the same single-scan guarantee
         // as the synchronous path.
         return base.SaveChangesAsync(
@@ -204,12 +228,26 @@ internal sealed class TenantContext : DbContext
         {
             entity.ToTable("TenantDocuments");
             entity.HasKey(document => document.Id);
-            entity.Property(document => document.TenantId).HasMaxLength(64);
-            entity.Property(document => document.ExternalId).HasMaxLength(128);
-            entity.Property(document => document.Title).HasMaxLength(200);
+            entity
+                .Property(document => document.TenantId)
+                .HasMaxLength(64);
+
+            entity
+                .Property(document => document.ExternalId)
+                .HasMaxLength(128);
+
+            entity
+                .Property(document => document.Title)
+                .HasMaxLength(200);
 
             // Customer-visible IDs need to be unique only inside one tenant.
-            entity.HasIndex(document => new { document.TenantId, document.ExternalId }).IsUnique();
+            entity
+                .HasIndex(document => new
+                {
+                    document.TenantId,
+                    document.ExternalId,
+                })
+                .IsUnique();
 
             // EF parameterizes the context-bound tenant value, allowing the
             // model and query shape to remain reusable between tenants.
@@ -223,7 +261,8 @@ internal sealed class TenantContext : DbContext
         {
             // Assign an omitted tenant, but never overwrite an explicit
             // mismatch because doing so would conceal a boundary violation.
-            if (entry.State == EntityState.Added && string.IsNullOrEmpty(entry.Entity.TenantId))
+            if (entry.State == EntityState.Added
+                && string.IsNullOrEmpty(entry.Entity.TenantId))
             {
                 entry.Entity.TenantId = _tenantId;
             }
@@ -247,8 +286,7 @@ internal sealed class TenantBoundaryViolationException : InvalidOperationExcepti
     /// Initializes the exception with the stable tenant-boundary diagnostic.
     /// </summary>
     public TenantBoundaryViolationException()
-        : base("A tenant context cannot write another tenant's row.")
-    { }
+        : base("A tenant context cannot write another tenant's row.") { }
 }
 
 internal sealed class TenantDocument

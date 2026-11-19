@@ -208,6 +208,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
     }
 
     /// <summary>Seeds string items data for subsequent integration queries.</summary>
+    /// <param name="context">The context receiving the scenario's seed rows.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SeedStringItemsAsync(
         QueryContext context,

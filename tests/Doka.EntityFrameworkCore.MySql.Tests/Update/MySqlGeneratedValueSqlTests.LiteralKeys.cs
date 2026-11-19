@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.EntityFrameworkCore.Update;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;

@@ -4,8 +4,8 @@
     <RootNamespace>Doka.EntityFrameworkCore.MySql</RootNamespace>
     <PackageId>Doka.EntityFrameworkCore.MySql</PackageId>
     <Title>Doka.EntityFrameworkCore.MySql</Title>
-    <Description>Entity Framework Core 10 provider for MySQL 8.4 / 9.7 LTS and MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS. Native JSON, HiLo and sequences, advisory-lock-protected migrations, GUID Binary16/Char36 and opt-in MariaDB UUID support, full query translation (REGEXP, MATCH/AGAINST, GROUP_CONCAT, JSON functions), trim- and AOT-aware.</Description>
-    <PackageTags>entityframeworkcore;efcore;ef;orm;mysql;mariadb;mysqlconnector;database;provider</PackageTags>
+    <Description>Entity Framework Core 10 provider for MySQL 8.4 / 9.7 LTS and MariaDB 10.11 / 11.4 / 11.8 / 12.3 LTS. Native JSON, typed and recursive CTEs, window functions, locking reads, INSERT SELECT, bounded UPSERT, HiLo and sequences, advisory-lock-protected migrations, GUID Binary16/Char36 and opt-in MariaDB UUID support. Trim- and AOT-aware with documented execution boundaries.</Description>
+    <PackageTags>entityframeworkcore;efcore;ef;orm;mysql;mariadb;mysqlconnector;database;provider;cte;window-functions;upsert</PackageTags>
     <GenerateDependencyFile>false</GenerateDependencyFile>
     <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
     <IsTrimmable>true</IsTrimmable>
@@ -35,6 +35,36 @@
 
   <ItemGroup>
     <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Internal/Infrastructure/MySqlRelationalCommand.*.cs">
+      <DependentUpon>MySqlRelationalCommand.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Infrastructure/MySqlRecursiveDataReader.*.cs">
+      <DependentUpon>MySqlRecursiveDataReader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/Processing/MySqlIndexedSelectLowering.*.cs">
+      <DependentUpon>MySqlIndexedSelectLowering.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/Processing/MySqlMaterializedSourceBinding.*.cs">
+      <DependentUpon>MySqlMaterializedSourceBinding.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/Processing/MySqlCteColumnPruner.*.cs">
+      <DependentUpon>MySqlCteColumnPruner.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Query/Translation/MySqlSqlTranslatingExpressionVisitor.*.cs">
+      <DependentUpon>MySqlSqlTranslatingExpressionVisitor.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Update/MySqlUpsertCommandBuilder.*.cs">
+      <DependentUpon>MySqlUpsertCommandBuilder.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Update/MySqlUpsertExecutor.*.cs">
+      <DependentUpon>MySqlUpsertExecutor.cs</DependentUpon>
+    </Compile>
+    <Compile Update="MySqlDbFunctionsExtensions.*.cs">
+      <DependentUpon>MySqlDbFunctionsExtensions.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Internal/Infrastructure/MySqlRelationalConnection.*.cs">
+      <DependentUpon>MySqlRelationalConnection.cs</DependentUpon>
+    </Compile>
     <Compile Update="Internal/Metadata/Validation/MySqlModelValidator.*.cs">
       <DependentUpon>MySqlModelValidator.cs</DependentUpon>
     </Compile>

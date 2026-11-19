@@ -7,9 +7,6 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
-  </ItemGroup>
 
   <ItemGroup>
     <!-- One wildcard keeps topic partials nested without per-file maintenance. -->

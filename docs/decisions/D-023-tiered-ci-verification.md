@@ -1,10 +1,10 @@
 ---
 id: D-023
 status: superseded
-date: 2026-07-31
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "GitHub Actions verification lanes, cadence, and runner-minute budget"
 supersedes: []
 superseded-by: [D-025]
@@ -228,6 +228,8 @@ bypassed.
 - 2026-08-08: Replaced by D-025. The repository became public, firing the
   re-evaluation trigger that named public standard runners and removing the
   runner-minute premise this decision rationed against.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

@@ -1,6 +1,6 @@
 namespace Doka.EntityFrameworkCore.MySql.AdrValidator;
 
-internal sealed class AdrRepositoryValidator
+internal static class AdrRepositoryValidator
 {
     private const string DecisionsRelativePath = "docs/decisions";
 

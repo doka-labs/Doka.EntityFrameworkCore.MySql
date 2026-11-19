@@ -1,5 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.TestModels.SpatialModel;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.Query.Fixtures;

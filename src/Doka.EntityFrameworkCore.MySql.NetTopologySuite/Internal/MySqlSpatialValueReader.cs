@@ -45,6 +45,8 @@ internal static class MySqlSpatialValueReader
     {
         MySqlSpatialInputGuard.ValidateWkb(wkb);
 
+        // WHY: WKBReader requires an owned byte array rather than the borrowed input span.
+        // ReSharper disable once UseCollectionExpression
         return new WKBReader().Read(wkb.ToArray());
     }
 }

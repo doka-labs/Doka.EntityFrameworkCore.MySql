@@ -14,8 +14,6 @@ public sealed partial class MySqlDatabaseModelFactoryTests
 
     private sealed class StubDriverFacade : IMySqlDriverFacade
     {
-        public string DriverName => "Stub";
-
         public DbConnection CreateConnection(
             string connectionString
         ) => throw new NotSupportedException("This test uses the DbConnection overload directly.");

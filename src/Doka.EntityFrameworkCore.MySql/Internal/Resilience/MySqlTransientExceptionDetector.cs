@@ -16,7 +16,9 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         Exception exception
     )
     {
-        if (ContainsMigrationSessionCleanupFailure(exception))
+        // WHY: A NOWAIT conflict keeps its original native exception, but must remain a single
+        // attempt after command/connection cleanup. Ordinary lock-wait timeouts retain their policy.
+        if (ContainsNonRetryableFailure(exception))
         {
             return false;
         }
@@ -66,7 +68,7 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
         return false;
     }
 
-    private static bool ContainsMigrationSessionCleanupFailure(
+    private static bool ContainsNonRetryableFailure(
         Exception exception
     )
     {
@@ -78,7 +80,8 @@ internal sealed class MySqlTransientExceptionDetector : IMySqlTransientException
             && depth < MaxInnerExceptionDepth
             && visited.Add(current))
         {
-            if (current is MySqlMigrationSessionCleanupException)
+            if (current is MySqlMigrationSessionCleanupException
+                || (current is MySqlException && MySqlLockingReadMetadata.IsNoWaitConflict(current)))
             {
                 return true;
             }

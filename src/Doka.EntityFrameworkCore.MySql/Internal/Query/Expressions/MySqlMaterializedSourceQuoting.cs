@@ -5,7 +5,9 @@ namespace Doka.EntityFrameworkCore.MySql;
 internal static class MySqlMaterializedSourceQuoting
 {
     private static readonly ConstructorInfo s_definitionConstructor =
-        typeof(MySqlMaterializedSourceDefinition).GetConstructor([typeof(SelectExpression)])!;
+        typeof(MySqlMaterializedSourceDefinition).GetConstructor([
+            typeof(SelectExpression), typeof(MySqlSourceBindingKind),
+        ])!;
 
     private static readonly ConstructorInfo s_referenceConstructor =
         typeof(MySqlMaterializedSourceExpression).GetConstructor(
@@ -63,7 +65,12 @@ internal static class MySqlMaterializedSourceQuoting
                 _definitions.Add(expression.Definition, definition);
                 Variables.Add(variable);
                 var source = (SelectExpression)Visit(expression.Source);
-                Initializers.Add(Expression.Assign(variable, Expression.New(s_definitionConstructor, source.Quote())));
+                Initializers.Add(Expression.Assign(variable,
+                    Expression.New(
+                        s_definitionConstructor,
+                        source.Quote(),
+                        Expression.Constant(expression.Kind))));
+
                 definition.Initialized = true;
             }
             else if (!definition.Initialized)
@@ -92,10 +99,18 @@ internal static class MySqlMaterializedSourceQuoting
     }
 
     /// <summary>Tracks initialization so invalid cyclic inputs cannot reference an unassigned definition.</summary>
-    private sealed class DefinitionVariable(ParameterExpression variable)
+    private sealed class DefinitionVariable
     {
+        /// <summary>Initializes the immutable dependencies for this operation.</summary>
+        public DefinitionVariable(
+            ParameterExpression variable
+        )
+        {
+            Variable = variable;
+        }
+
         /// <summary>Gets the definition's local variable.</summary>
-        public ParameterExpression Variable { get; } = variable;
+        public ParameterExpression Variable { get; }
 
         /// <summary>Gets or sets whether all dependency initializers have been emitted.</summary>
         public bool Initialized { get; set; }

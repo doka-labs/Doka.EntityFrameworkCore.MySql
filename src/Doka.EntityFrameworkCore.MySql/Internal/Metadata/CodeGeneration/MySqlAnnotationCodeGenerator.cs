@@ -428,6 +428,8 @@ internal sealed class MySqlAnnotationCodeGenerator : AnnotationCodeGenerator
                     nameof(MySqlIndexBuilderExtensions.HasPrefixLength),
                     prefixLengths
                         .Cast<object>()
+                        // WHY: Materialize the annotation arguments explicitly for the generated fluent call.
+                        // ReSharper disable once UseCollectionExpression
                         .ToArray()));
         }
 

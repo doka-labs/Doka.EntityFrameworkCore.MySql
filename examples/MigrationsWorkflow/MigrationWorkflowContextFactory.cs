@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
 /// <summary>
@@ -24,9 +21,11 @@ internal static class MigrationWorkflowContextFactory
     private const string ConnectionStringEnvironmentVariable = "DOKA_MIGRATION_CONNECTION_STRING";
     private const string ServerVersionEnvironmentVariable = "DOKA_MIGRATION_SERVER_VERSION";
     private const string PauseFileEnvironmentVariable = "DOKA_MIGRATION_PAUSE_FILE";
+
     private const string DefaultConnectionString =
         "Server=127.0.0.1;Port=33068;Database=doka_migration_workflow;"
         + "User ID=root;Password=root_password;";
+
     private const string DefaultServerVersion = "mysql:8.4";
 
     /// <summary>

@@ -23,7 +23,9 @@ internal sealed class MySqlStraightJoinLowering : ExpressionVisitor
         }
 
         var definition = node.Method.GetGenericMethodDefinition();
-        ContainsMaterializedSource |= definition == MySqlQueryableExtensions.WithMaterializedSourceMethod;
+        ContainsMaterializedSource |= definition == MySqlQueryableExtensions.WithMaterializedSourceMethod
+            || definition == MySqlQueryableExtensions.WithCteMethod
+            || definition == MySqlQueryableExtensions.WithRecursiveCteMethod;
 
         if (definition != MySqlQueryableExtensions.StraightJoinMethod)
         {
@@ -78,6 +80,7 @@ internal sealed class MySqlStraightJoinLowering : ExpressionVisitor
     // WHY: EF's navigation expansion passes this marker through only for the exact
     // static unary IQueryable<T> -> IQueryable<T> shape with one generic type argument.
     private static IQueryable<T> MarkInner<T>(
+        // ReSharper disable once UnusedParameter.Local
         IQueryable<T> source
     ) => throw new InvalidOperationException("A StraightJoin input marker is only valid during Doka SQL translation.");
 }

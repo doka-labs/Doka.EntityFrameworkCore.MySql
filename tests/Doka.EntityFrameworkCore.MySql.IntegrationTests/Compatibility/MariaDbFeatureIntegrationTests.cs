@@ -208,13 +208,27 @@ public sealed class MariaDbFeatureIntegrationTests
         catch
         {
             // Cleanup on failure.
-            await context.Database.ExecuteSqlRawAsync(
-                $"DROP SEQUENCE IF EXISTS `{quotedSeqName}`;",
-                CancellationToken.None);
+            await DropSequenceAsync(context, seqName);
 
             throw;
         }
     }
+
+    /// <summary>Drops the fixture-owned sequence after a failed native sequence scenario.</summary>
+    /// <param name="context">The context that owns the fixture connection.</param>
+    /// <param name="sequenceName">The unquoted sequence identifier to delimit.</param>
+    [SuppressMessage("Security",
+        "EF1002:Risk of vulnerability to SQL injection",
+        Justification = "WHY: DDL identifiers cannot be parameters; this helper doubles backticks"
+            + " before delimiting the fixture-owned sequence name.")]
+    private static Task<int> DropSequenceAsync(
+        DbContext context,
+        string sequenceName
+    ) => context.Database.ExecuteSqlRawAsync(
+        $"DROP SEQUENCE IF EXISTS `{sequenceName.Replace("`", "``", StringComparison.Ordinal)}`;",
+
+        // WHY: Failure cleanup must still drop the sequence after an operation is cancelled.
+        CancellationToken.None);
 
     // -- MariaDB 11.4 CRUD Baseline --
 
@@ -434,30 +448,6 @@ public sealed class MariaDbFeatureIntegrationTests
                 new Version(8, 0, 0),
                 MySqlServerVersionCompatibilityMode.AllowUnsupported)
             : IntegrationTestEnvironment.GetServerVersion(target);
-    }
-
-    private static string ReplaceDatabase(
-        string connectionString,
-        string newDatabase
-    )
-    {
-        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = newDatabase };
-
-        return csb.ConnectionString;
-    }
-
-    private static async Task DropDatabaseIfExistsAsync(
-        string connectionString,
-        string databaseName,
-        CancellationToken cancellationToken
-    )
-    {
-        var csb = new MySqlConnectionStringBuilder(connectionString) { Database = string.Empty };
-        await using var connection = new MySqlConnection(csb.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     // -- Entities / Contexts --

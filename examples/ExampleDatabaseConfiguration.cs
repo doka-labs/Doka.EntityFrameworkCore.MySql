@@ -1,5 +1,3 @@
-using MySqlConnector;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples;
 
 /// <summary>

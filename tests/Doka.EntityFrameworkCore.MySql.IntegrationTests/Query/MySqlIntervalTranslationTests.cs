@@ -45,6 +45,7 @@ public sealed class MySqlIntervalTranslationTests
         => await RunConstantAddDaysAsync(IntegrationDatabaseTarget.MySql84, CancellationToken.None);
 
     /// <summary>Runs the parametrized add days integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunParametrizedAddDaysAsync(
         IntegrationDatabaseTarget target,
@@ -100,6 +101,7 @@ public sealed class MySqlIntervalTranslationTests
     }
 
     /// <summary>Runs the parametrized add hours integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunParametrizedAddHoursAsync(
         IntegrationDatabaseTarget target,
@@ -155,6 +157,7 @@ public sealed class MySqlIntervalTranslationTests
     }
 
     /// <summary>Runs the constant add days integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunConstantAddDaysAsync(
         IntegrationDatabaseTarget target,
@@ -222,6 +225,7 @@ public sealed class MySqlIntervalTranslationTests
     }
 
     /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="context">The context whose mapped schema and seed rows are prepared.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
         IntervalContext context,

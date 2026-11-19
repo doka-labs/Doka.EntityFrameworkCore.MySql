@@ -193,11 +193,10 @@ public sealed partial class MySqlRuntimeBaselineTests
                 providerOptions => providerOptions.RequireUserVariables()));
 
         var originalConnection = context.Database.GetDbConnection();
-        using var replacement = new RecordingDbConnection
-        {
-            ConnectionString =
-                $"Server=replacement;Database=doka;Password=secret-canary;{options}",
-        };
+        using var replacement = new RecordingDbConnection();
+
+        // WHY: Establish disposal ownership before applying the connection settings.
+        replacement.ConnectionString = $"Server=replacement;Database=doka;Password=secret-canary;{options}";
 
         var act = () =>
             context.Database.SetDbConnection(replacement, contextOwnsConnection: false);

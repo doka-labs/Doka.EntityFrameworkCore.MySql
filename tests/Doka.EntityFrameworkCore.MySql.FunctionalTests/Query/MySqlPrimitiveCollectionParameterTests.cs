@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>
@@ -394,8 +392,16 @@ public sealed partial class MySqlPrimitiveCollectionParameterTests
             .ToQueryString();
 
         // Assert
-        Assert.Contains("JSON_UNQUOTE(JSON_QUOTE(`s`.`value`))", sql, StringComparison.Ordinal);
+        // WHY: Identity document projections collapse to native membership; only parameter
+        // transport needs Base64 decoding, while this candidate remains the original JSON string.
+        Assert.Contains(
+            "WHERE JSON_CONTAINS(`i`.`StringValues`, JSON_EXTRACT(JSON_ARRAY(CONVERT('alpha' USING utf8mb4)), '$[0]'))",
+            sql,
+            StringComparison.Ordinal);
+
         Assert.DoesNotContain("FROM_BASE64", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("JSON_TABLE", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("YWxwaGE=", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

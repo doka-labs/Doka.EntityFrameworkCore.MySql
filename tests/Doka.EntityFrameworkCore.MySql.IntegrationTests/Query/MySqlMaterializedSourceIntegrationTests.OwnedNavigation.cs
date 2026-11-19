@@ -6,6 +6,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string OptionalOwnedProfileTable = "IntBoundOptionalProfiles";
 
     /// <summary>Verifies the optional separate owned materialization contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertOptionalSeparateOwnedMaterializationAsync(
         IntegrationDatabaseTarget target,
@@ -47,6 +48,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Creates the optional owned fixture with cancellable database work.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<OptionalOwnedFixture> CreateOptionalOwnedFixtureAsync(
         IntegrationDatabaseTarget target,
@@ -110,6 +112,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Drops the optional owned tables using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropOptionalOwnedTablesAsync(
         OptionalOwnedContext context,

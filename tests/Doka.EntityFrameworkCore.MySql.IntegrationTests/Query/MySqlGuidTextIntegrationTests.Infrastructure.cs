@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlGuidTextIntegrationTests
@@ -66,6 +64,8 @@ public sealed partial class MySqlGuidTextIntegrationTests
         /// <summary>
         /// Seeds one selected engine/format pair once and returns a fresh context.
         /// </summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
+        /// <param name="format">The GUID storage representation used by the context and schema.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         internal async Task<GuidContext> CreateContextAsync(
             IntegrationDatabaseTarget target,
@@ -87,6 +87,8 @@ public sealed partial class MySqlGuidTextIntegrationTests
         }
 
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
+        /// <param name="format">The GUID storage representation used by the context and schema.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,
@@ -165,6 +167,7 @@ public sealed partial class MySqlGuidTextIntegrationTests
         }
 
         /// <summary>Drops the table using the caller's cancellation policy.</summary>
+        /// <param name="context">The context whose mapped test tables are removed.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static Task<int> DropTableAsync(
             GuidContext context,

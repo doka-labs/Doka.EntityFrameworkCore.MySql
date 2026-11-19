@@ -28,7 +28,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <c>JSON_ARRAY</c> and <c>JSON_OBJECT</c> function contract in its server JSON
 /// function reference. Sources retrieved 2026-08-18.
 /// </remarks>
-internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTranslatingExpressionVisitor
+internal sealed partial class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTranslatingExpressionVisitor
 {
     private static readonly MethodInfo s_stringJoinArrayMethod = typeof(string).GetRuntimeMethod(
         nameof(string.Join),
@@ -150,13 +150,13 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
     }
 
     /// <inheritdoc />
-    public override SqlExpression? GenerateGreatest(
+    public override SqlExpression GenerateGreatest(
         IReadOnlyList<SqlExpression> expressions,
         Type resultType
     ) => GenerateComparisonFunction("GREATEST", expressions, resultType);
 
     /// <inheritdoc />
-    public override SqlExpression? GenerateLeast(
+    public override SqlExpression GenerateLeast(
         IReadOnlyList<SqlExpression> expressions,
         Type resultType
     ) => GenerateComparisonFunction("LEAST", expressions, resultType);
@@ -297,6 +297,11 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
         MethodCallExpression methodCallExpression
     )
     {
+        if (TryTranslateWindow(methodCallExpression, out var window))
+        {
+            return window!;
+        }
+
         if (methodCallExpression.Method == s_jsonArrayMethod)
         {
             return TranslateJsonConstruction(methodCallExpression, "JSON_ARRAY", requirePairs: false);
@@ -523,7 +528,7 @@ internal sealed class MySqlSqlTranslatingExpressionVisitor : RelationalSqlTransl
 
         var runtimeParameter = _queryCompilationContext.RegisterRuntimeParameter($"{parameter.Name}_enum_name", lambda);
 
-        return new SqlParameterExpression(runtimeParameter.Name!, runtimeParameter.Type, stringMapping);
+        return new SqlParameterExpression(runtimeParameter.Name, runtimeParameter.Type, stringMapping);
     }
 
     private static string? ConvertEnumParameterToString(

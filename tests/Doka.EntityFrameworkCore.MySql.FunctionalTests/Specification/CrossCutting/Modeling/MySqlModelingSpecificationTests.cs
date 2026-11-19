@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.TransportationModel;
 using Xunit.Abstractions;
 

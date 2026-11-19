@@ -184,7 +184,7 @@ public sealed partial class AdrRepositoryValidatorTests
     [InlineData("status: implemented", "status: unknown", "Unsupported status")]
     [InlineData("date: 2026-07-27", "date: 2026-13-40", "Date must use YYYY-MM-DD")]
     [InlineData(
-        "decision-makers: [Doka maintainers]",
+        "decision-makers: [Dominic Kalkbrenner]",
         "decision-makers: []",
         "Metadata list 'decision-makers' must not be empty")]
     [InlineData("consulted: []", "consulted: Reviewer", "must use inline YAML list syntax")]

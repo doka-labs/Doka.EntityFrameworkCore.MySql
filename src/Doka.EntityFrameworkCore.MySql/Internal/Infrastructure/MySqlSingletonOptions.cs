@@ -15,6 +15,10 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
     public bool UsesDataSource { get; private set; }
 
+    public string? DefaultCharSet { get; private set; }
+
+    public string? DefaultCollation { get; private set; }
+
     /// <summary>
     /// Materializes the configuration snapshot from the supplied options. Idempotent
     /// and thread-safe: under <c>AddDbContextPool</c> the framework can resolve
@@ -54,6 +58,8 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
             ServerVersion = serverVersion;
             RetryOptions = extension.RetryOptions;
             DefaultGuidFormat = extension.DefaultGuidFormat;
+            DefaultCharSet = extension.DefaultCharSet;
+            DefaultCollation = extension.DefaultCollation;
             UsesDataSource = extension.DataSource is not null;
 
             activity?.SetTag(MySqlDiagnosticTags.EngineFamilyName, Profile.Engine.Family.ToString());
@@ -140,6 +146,13 @@ internal sealed class MySqlSingletonOptions : ISingletonOptions
 
             throw new InvalidOperationException(
                 "The configured MySQL connection path changed for the shared service provider.");
+        }
+
+        if (!string.Equals(DefaultCharSet, extension.DefaultCharSet, StringComparison.Ordinal)
+            || !string.Equals(DefaultCollation, extension.DefaultCollation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The configured MySQL text defaults changed for the shared service provider.");
         }
     }
 

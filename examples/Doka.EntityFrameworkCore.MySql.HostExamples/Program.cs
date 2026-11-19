@@ -1,4 +1,3 @@
-using System.Globalization;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace Doka.EntityFrameworkCore.MySql.HostExamples;

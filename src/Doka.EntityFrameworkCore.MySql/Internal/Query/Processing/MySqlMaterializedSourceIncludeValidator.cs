@@ -30,14 +30,23 @@ internal sealed class MySqlMaterializedSourceIncludeValidator : MySqlShapedQuery
         Expression entity
     )
     {
-        while (entity is IncludeExpression include)
+        // WHY: Includes and conversions may alternate; peeling both wrappers here
+        // preserves the same entity lookup without recursive conversion frames.
+        while (true)
         {
-            entity = include.EntityExpression;
-        }
+            if (entity is IncludeExpression include)
+            {
+                entity = include.EntityExpression;
+                continue;
+            }
 
-        if (entity is UnaryExpression { NodeType: ExpressionType.Convert } conversion)
-        {
-            return IsBoundEntity(conversion.Operand);
+            if (entity is UnaryExpression { NodeType: ExpressionType.Convert } conversion)
+            {
+                entity = conversion.Operand;
+                continue;
+            }
+
+            break;
         }
 
         if (entity is not StructuralTypeShaperExpression

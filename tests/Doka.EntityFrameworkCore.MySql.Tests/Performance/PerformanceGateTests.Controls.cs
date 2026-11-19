@@ -1,5 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.Benchmarks;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class PerformanceGateTests
@@ -9,7 +7,7 @@ public sealed partial class PerformanceGateTests
     /// </summary>
     /// <param name="target">The target whose control maximum applies.</param>
     /// <param name="measuredMean">The measured control mean.</param>
-    /// <param name="expectedExitCode">The expected gate result.</param>
+    /// <param name="expectedDiagnosticCount">The expected diagnostic threshold count.</param>
     [Theory]
     [InlineData("mysql84", 3, 0)]
     [InlineData("mysql84", 3.01, 1)]
@@ -20,7 +18,7 @@ public sealed partial class PerformanceGateTests
     public void Gate_uses_the_selected_target_maximum_and_accepts_its_boundary(
         string target,
         double measuredMean,
-        int expectedExitCode
+        int expectedDiagnosticCount
     )
     {
         // Arrange
@@ -40,21 +38,22 @@ public sealed partial class PerformanceGateTests
 
         // Assert
         Assert.Empty(result.InvalidEvidence);
-        Assert.Equal(expectedExitCode, result.Regressions.Count);
-        Assert.Equal(expectedExitCode, exitCode);
+        Assert.Empty(result.Regressions);
+        Assert.Equal(expectedDiagnosticCount, result.Diagnostics.Count);
+        Assert.Equal(0, exitCode);
     }
 
     /// <summary>
-    /// Verifies gate detects slower execution without any allocation change.
+    /// Verifies slower execution stays visible without rejecting unchanged allocations.
     /// </summary>
     /// <param name="measuredMean">The measured control mean with unchanged allocation evidence.</param>
-    /// <param name="expectedExitCode">The expected gate result.</param>
+    /// <param name="expectedDiagnosticCount">The expected diagnostic threshold count.</param>
     [Theory]
     [InlineData(3, 0)]
     [InlineData(6, 1)]
     public void Gate_detects_slower_execution_without_any_allocation_change(
         double measuredMean,
-        int expectedExitCode
+        int expectedDiagnosticCount
     )
     {
         // Arrange
@@ -93,23 +92,24 @@ public sealed partial class PerformanceGateTests
         // Assert
         Assert.Empty(result.InvalidEvidence);
         Assert.Equal(2, result.ControlCount);
-        Assert.Equal(expectedExitCode, result.Regressions.Count);
-        Assert.All(result.Regressions, error => Assert.Contains("ratio-control meanRatio", error));
-        Assert.Equal(expectedExitCode, exitCode);
+        Assert.Empty(result.Regressions);
+        Assert.Equal(expectedDiagnosticCount, result.Diagnostics.Count);
+        Assert.All(result.Diagnostics, error => Assert.Contains("ratio-control meanRatio", error));
+        Assert.Equal(0, exitCode);
     }
 
     /// <summary>
-    /// Verifies the checked-in sliding-cache controls enforce one engine's time budget independently of allocations.
+    /// Verifies sliding-cache controls retain target-specific timing diagnostics without allocation changes.
     /// </summary>
     /// <param name="target">The target selected from the checked-in contract.</param>
     /// <param name="meanMultiplier">The measured mean relative to the exact target maximum.</param>
-    /// <param name="expectedExitCode">The expected gate result.</param>
+    /// <param name="expectedDiagnosticCount">The expected diagnostic threshold count.</param>
     [Theory]
     [MemberData(nameof(CacheSlidingControlCases))]
     public void Cache_sliding_controls_enforce_checked_in_target_time_budgets_without_allocation_changes(
         string target,
         double meanMultiplier,
-        int expectedExitCode
+        int expectedDiagnosticCount
     )
     {
         // Arrange
@@ -205,9 +205,10 @@ public sealed partial class PerformanceGateTests
 
         Assert.Empty(result.InvalidEvidence);
         Assert.Equal(2, result.ControlCount);
-        Assert.Equal(expectedExitCode, result.Regressions.Count);
-        Assert.All(result.Regressions, error => Assert.Contains("cache-parallel-sliding-buffer-throughput", error));
-        Assert.Equal(expectedExitCode, exitCode);
+        Assert.Empty(result.Regressions);
+        Assert.Equal(expectedDiagnosticCount, result.Diagnostics.Count);
+        Assert.All(result.Diagnostics, error => Assert.Contains("cache-parallel-sliding-buffer-throughput", error));
+        Assert.Equal(0, exitCode);
     }
 
     /// <summary>
@@ -236,7 +237,7 @@ public sealed partial class PerformanceGateTests
     }
 
     /// <summary>
-    /// Verifies parameterized collection controls reject a binary16 throughput regression.
+    /// Verifies parameterized collection controls retain a binary16 throughput diagnostic.
     /// </summary>
     [Fact]
     public void Parameterized_collection_controls_reject_a_binary16_throughput_regression()
@@ -255,9 +256,10 @@ public sealed partial class PerformanceGateTests
         var result = fixture.Evaluate();
 
         // Assert
-        var regression = Assert.Single(result.Regressions);
+        var diagnostic = Assert.Single(result.Diagnostics);
         Assert.Empty(result.InvalidEvidence);
-        Assert.Contains("parameterized-collection-binary16-multiple-throughput", regression);
+        Assert.Empty(result.Regressions);
+        Assert.Contains("parameterized-collection-binary16-multiple-throughput", diagnostic);
     }
 
     /// <summary>

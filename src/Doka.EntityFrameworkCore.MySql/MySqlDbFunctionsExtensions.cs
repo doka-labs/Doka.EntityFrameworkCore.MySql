@@ -3,7 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Provider-specific extension methods for <see cref="DbFunctions" />.
 /// </summary>
-public static class MySqlDbFunctionsExtensions
+public static partial class MySqlDbFunctionsExtensions
 {
     /// <summary>
     /// Translates a supported scalar value to the MySQL <c>LIKE</c> operator.
@@ -18,6 +18,8 @@ public static class MySqlDbFunctionsExtensions
     /// <see cref="Guid" />, and their nullable value-type forms. This method has
     /// no in-memory implementation and may only be used in EF Core queries.
     /// </remarks>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static bool Like<T>(
         this DbFunctions functions,
         T matchExpression,

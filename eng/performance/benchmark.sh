@@ -13,7 +13,7 @@ benchmark_assembly="${repo_root}/artifacts/bin/Doka.EntityFrameworkCore.MySql.Be
 compose_file="${repo_root}/docker/compose.yml"
 target="${DOKA_BENCHMARK_TARGET:-mysql84}"
 profile="${DOKA_BENCHMARK_PROFILE:-smoke}"
-evaluation="${DOKA_BENCHMARK_EVALUATION:-full}"
+evaluation="${DOKA_BENCHMARK_EVALUATION:-allocations-only}"
 run_id="${DOKA_BENCHMARK_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 runner_class="${DOKA_BENCHMARK_RUNNER_CLASS:-local-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)}"
 commit="${DOKA_BENCHMARK_COMMIT:-$(git -C "${repo_root}" rev-parse HEAD)}"
@@ -38,7 +38,7 @@ Usage:
 Environment:
   DOKA_BENCHMARK_TARGET=<requiredTargets key; local default mysql84>
   DOKA_BENCHMARK_PROFILE=smoke|scorecard|stress
-  DOKA_BENCHMARK_EVALUATION=full|allocations-only (Actions always allocations-only)
+  DOKA_BENCHMARK_EVALUATION=allocations-only|full (full is a compatibility alias)
   DOKA_BENCHMARK_RUN_ID=<unique artifact identity>
   DOKA_BENCHMARK_PORT=<published target port; use 0 for a dynamic port>
 EOF
@@ -95,11 +95,9 @@ case "${evaluation}" in
         ;;
 esac
 
-# WHY: Hosted runner labels do not pin CPU or memory performance. Neither an
-# environment override nor a manual dispatch may restore hardware-sensitive gates.
-if [[ "${GITHUB_ACTIONS:-false}" == [Tt][Rr][Uu][Ee] ]]; then
-    evaluation="allocations-only"
-fi
+# WHY: CPU, GC and competing work vary locally as well as on hosted runners.
+# Retain the legacy full spelling, but never let it enable speed-dependent gates.
+evaluation="allocations-only"
 export DOKA_BENCHMARK_EVALUATION="${evaluation}"
 
 if [[ ! "${run_id}" =~ ^[0-9A-Za-z._-]+$ ]]; then
@@ -197,11 +195,6 @@ mkdir -p "${report_directory}"
 dotnet restore "${benchmark_project}" --tl:off
 dotnet build "${benchmark_project}" --configuration Release --no-restore --tl:off -m:1
 
-# shellcheck source=eng/performance/host-preflight.sh
-source "${repo_root}/eng/performance/host-preflight.sh"
-if [[ "${evaluation}" == "full" ]] && ! require_benchmark_host_headroom "${contract}"; then
-    exit 78
-fi
 echo "Benchmark evaluation policy: ${evaluation}."
 
 export DOKA_BENCHMARK_TARGET="${target}"

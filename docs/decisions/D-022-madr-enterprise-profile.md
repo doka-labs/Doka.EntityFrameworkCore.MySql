@@ -1,10 +1,10 @@
 ---
 id: D-022
 status: implemented
-date: 2026-07-27
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Repository architecture decision governance"
 supersedes: []
 superseded-by: []
@@ -109,6 +109,8 @@ MADR remains the structural basis rather than a locally forked replacement.
 - 2026-07-27: Decision recorded with status implemented.
 - 2026-07-27: MADR 4.0.0 and Doka enterprise profile 1.0 adopted.
 - 2026-07-27: D-001 through D-021 migrated and deterministic validation enabled.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

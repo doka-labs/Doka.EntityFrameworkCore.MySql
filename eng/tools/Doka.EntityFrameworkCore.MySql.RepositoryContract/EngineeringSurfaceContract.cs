@@ -761,7 +761,7 @@ internal static partial class EngineeringSurfaceContract
                 .Descendants("PackageReference")
                 .ToArray();
 
-            if (!references.Any(reference => (string?)reference.Attribute("Include") == specification)
+            if (references.All(reference => (string?)reference.Attribute("Include") != specification)
                 || string.Equals(
                     document
                         .Descendants("IsTestProject")

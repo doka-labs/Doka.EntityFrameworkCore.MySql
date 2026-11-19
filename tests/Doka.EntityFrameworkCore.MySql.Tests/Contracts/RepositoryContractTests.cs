@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Verifies repository contracts fail precisely at their public engineering boundaries.</summary>
@@ -22,6 +20,40 @@ public sealed class RepositoryContractTests
         Assert.Equal(17, report.ExampleCount);
         Assert.True(report.MarkdownDocumentCount > 0);
         Assert.True(report.LocalLinkCount > 0);
+    }
+
+    /// <summary>Each application text default remains independently required by the runnable scenario contract.</summary>
+    /// <param name="missingToken">The one default-setting call removed from the otherwise unchanged example.</param>
+    [Theory]
+    [InlineData("DefaultCharSet")]
+    [InlineData("DefaultCollation")]
+    public void Text_default_example_contract_rejects_a_missing_default_option(
+        string missingToken
+    )
+    {
+        // Arrange
+        var repositoryRoot = FindRepositoryRoot();
+        using var directory = new TemporaryDirectory();
+        var relativeExample = "examples/CharSetAndCollation";
+        var exampleDirectory = Path.Combine(directory.Path, relativeExample);
+        Directory.CreateDirectory(exampleDirectory);
+
+        foreach (var file in new[] { "CharSetAndCollation.csproj", "README.md", "Program.cs" })
+        {
+            File.Copy(Path.Combine(repositoryRoot, relativeExample, file), Path.Combine(exampleDirectory, file));
+        }
+
+        var sourcePath = Path.Combine(exampleDirectory, "Program.cs");
+        var source = File.ReadAllText(sourcePath);
+        File.WriteAllText(sourcePath, source.Replace(missingToken, "RemovedTextOption", StringComparison.Ordinal));
+
+        // Act
+        var report = ExampleContractValidator.Validate(directory.Path);
+
+        // Assert
+        // WHY: This minimal fixture owns one scenario; other absent examples have distinct paths and cannot satisfy its exact error oracle.
+        var error = Assert.Single(report.Errors, error => error.RelativePath == relativeExample);
+        Assert.Equal($"Required scenario token is missing: {missingToken}.", error.Message);
     }
 
     /// <summary>

@@ -10,6 +10,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string TemporalEndColumn = "ValidTo";
 
     /// <summary>Creates the temporal lineage fixture with cancellable database work.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<TemporalLineageFixture> CreateTemporalLineageFixtureAsync(
         IntegrationDatabaseTarget target,
@@ -117,6 +118,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Creates the temporal lineage tables with cancellable database work.</summary>
+    /// <param name="context">The context that supplies the temporal table schema.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CreateTemporalLineageTablesAsync(
         TemporalLineageContext context,
@@ -141,6 +143,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Drops the temporal lineage tables using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropTemporalLineageTablesAsync(
         TemporalLineageContext context,

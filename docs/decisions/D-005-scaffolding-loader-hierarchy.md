@@ -1,10 +1,10 @@
 ---
 id: D-005
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Database-model reverse-engineering architecture"
 supersedes: []
 superseded-by: []
@@ -186,6 +186,8 @@ The test strategy splits into two tiers:
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
 - 2026-09-09: Clarified ownership of MariaDB's intrinsic JSON-alias CHECK
   during reverse engineering and schema reconstruction.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

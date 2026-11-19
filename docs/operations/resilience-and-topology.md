@@ -55,11 +55,11 @@ therefore requires the 10.6.7 compatibility release
 and an explicit application driver reference. The default remains 2.6.1;
 the extension does not force existing applications onto 3.x.
 
-After 10.6.7 is published, an application can select the qualified 3.0.0
+After 10.7.0 is published, an application can select the qualified 3.0.0
 driver explicitly:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0
 dotnet package add MySqlConnector --version 3.0.0
 ```
 

@@ -41,7 +41,8 @@ public sealed partial class MySqlGeneratedValueReadbackTests
 
         try
         {
-            await secondReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            // WHY: Cancellation is the operation under test after this boundary; the wait only bounds a stalled test.
+            await secondReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
 
             // WHY: The provider propagates the first result before requesting
             // the second. EF may defer writing the generated value back to the

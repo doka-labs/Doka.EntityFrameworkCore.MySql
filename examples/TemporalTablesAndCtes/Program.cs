@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 var database = ExampleDatabaseConfiguration.Create("doka_example_temporal_ctes");
 var cancellationToken = CancellationToken.None;
 var options = new DbContextOptionsBuilder<TemporalCteContext>()
@@ -17,9 +13,22 @@ try
 
     context.Documents.Add(new TemporalDocument { Name = "draft" });
     context.CteItems.AddRange(
-        new CteItem { Name = "one", Score = 10 },
-        new CteItem { Name = "two", Score = 20 },
-        new CteItem { Name = "three", Score = 30 });
+        new CteItem
+        {
+            Name = "one",
+            Score = 10,
+        },
+        new CteItem
+        {
+            Name = "two",
+            Score = 20,
+        },
+        new CteItem
+        {
+            Name = "three",
+            Score = 30,
+        });
+
     await context.SaveChangesAsync(cancellationToken);
 
     await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
@@ -34,7 +43,8 @@ try
     await context.SaveChangesAsync(cancellationToken);
     context.ChangeTracker.Clear();
 
-    var versions = await context.Documents
+    var versions = await context
+        .Documents
         .TemporalAll()
         .OrderBy(version => EF.Property<DateTime>(version, "ValidFrom"))
         .Select(version => new TemporalDocumentVersion(
@@ -46,7 +56,10 @@ try
     if (versions.Count != 2
         || versions[0].Name != "draft"
         || versions[1].Name != "published"
-        || context.ChangeTracker.Entries<TemporalDocument>().Any())
+        || context
+            .ChangeTracker
+            .Entries<TemporalDocument>()
+            .Any())
     {
         throw new InvalidOperationException(
             "TemporalAll did not return both historical versions without tracking them.");
@@ -57,7 +70,8 @@ try
     var firstVersionMidpoint = firstVersionStart.AddTicks(
         (firstVersionEnd - firstVersionStart).Ticks / 2);
 
-    var asOfName = await context.Documents
+    var asOfName = await context
+        .Documents
         .TemporalAsOf(firstVersionMidpoint)
         .Select(version => version.Name)
         .SingleAsync(cancellationToken);
@@ -74,7 +88,8 @@ try
     // is interpolated, so EF Core binds it as a database parameter. The returned
     // query remains composable and the additional LINQ predicate executes on the
     // server instead of materializing the CTE first.
-    var cteItems = await context.CteItems
+    var cteItems = await context
+        .CteItems
         .FromSqlInterpolated($"""
             WITH RECURSIVE `numbers` (`Value`) AS (
                 SELECT 1
@@ -94,7 +109,10 @@ try
         .ToListAsync(cancellationToken);
 
     if (!cteItems.SequenceEqual(["two", "three"])
-        || context.ChangeTracker.Entries().Any())
+        || context
+            .ChangeTracker
+            .Entries()
+            .Any())
     {
         throw new InvalidOperationException(
             "The recursive CTE did not compose, parameterize, and execute without tracking.");
@@ -135,18 +153,28 @@ internal sealed class TemporalCteContext : DbContext
                 table => table.IsTemporal(temporal =>
                 {
                     temporal.UseHistoryTable("TemporalDocumentHistory");
-                    temporal.HasPeriodStart("ValidFrom").HasColumnName("ValidFrom");
-                    temporal.HasPeriodEnd("ValidTo").HasColumnName("ValidTo");
+                    temporal
+                        .HasPeriodStart("ValidFrom")
+                        .HasColumnName("ValidFrom");
+
+                    temporal
+                        .HasPeriodEnd("ValidTo")
+                        .HasColumnName("ValidTo");
                 }));
+
             entity.HasKey(document => document.Id);
-            entity.Property(document => document.Name).HasMaxLength(200);
+            entity
+                .Property(document => document.Name)
+                .HasMaxLength(200);
         });
 
         modelBuilder.Entity<CteItem>(entity =>
         {
             entity.ToTable("CteItems");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.Name).HasMaxLength(200);
+            entity
+                .Property(item => item.Name)
+                .HasMaxLength(200);
         });
     }
 }
@@ -170,4 +198,5 @@ internal sealed class CteItem
 internal sealed record TemporalDocumentVersion(
     string Name,
     DateTime ValidFrom,
-    DateTime ValidTo);
+    DateTime ValidTo
+);

@@ -41,6 +41,7 @@ public sealed class TemporalTableIntegrationTests
         => RunTemporalContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the temporal contract integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunTemporalContractAsync(
         IntegrationDatabaseTarget target,
@@ -75,6 +76,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Runs the initial create and drop integration scenario.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunInitialCreateAndDropAsync(
         MySqlConnection connection,
@@ -107,6 +110,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Runs the rollback lifecycle integration scenario.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunRollbackLifecycleAsync(
         MySqlConnection connection,
@@ -156,6 +161,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Runs the concurrency lifecycle integration scenario.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunConcurrencyLifecycleAsync(
         MySqlConnection connection,
@@ -216,6 +223,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Runs the transition lifecycle integration scenario.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunTransitionLifecycleAsync(
         MySqlConnection connection,
@@ -264,6 +273,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Executes the write versions database scenario.</summary>
+    /// <param name="context">The context used to persist the successive temporal versions.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task WriteVersionsAsync(
         TemporalContext context,
@@ -287,6 +297,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Verifies the temporal queries contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertTemporalQueriesAsync(
         IntegrationDatabaseTarget target,
@@ -401,6 +412,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Verifies the cancellation contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCancellationContractAsync(
         IntegrationDatabaseTarget target,
@@ -516,6 +528,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Reads the names from the current database.</summary>
+    /// <param name="query">The temporal query whose ordered names are materialized.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<List<string>> ReadNamesAsync(
         IQueryable<TemporalItem> query,
@@ -529,6 +542,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Verifies the physical contract against the live database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertPhysicalContractAsync(
         MySqlConnection connection,
@@ -611,6 +626,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Verifies the removed contract against the live database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertRemovedAsync(
         MySqlConnection connection,
@@ -634,6 +650,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Verifies the non temporal contract against the live database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertNonTemporalContractAsync(
         MySqlConnection connection,
@@ -674,6 +691,9 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Executes the operations with the caller's cancellation token.</summary>
+    /// <param name="context">The context supplying the migration generator and design-time model.</param>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="operations">The ordered migration operations to generate and execute.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task ExecuteOperationsAsync(
         DbContext context,
@@ -766,6 +786,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Counts the tables in the current database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="tableName">The mapped table whose schema metadata is read.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> CountTablesAsync(
         MySqlConnection connection,
@@ -786,6 +808,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Reads the session state from the current database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<TemporalSessionState> ReadSessionStateAsync(
         MySqlConnection connection,
@@ -816,6 +840,8 @@ public sealed class TemporalTableIntegrationTests
         .IsMariaDb;
 
     /// <summary>Counts the columns in the current database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="tableName">The mapped table whose schema metadata is read.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> CountColumnsAsync(
         MySqlConnection connection,
@@ -836,7 +862,10 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Reads a count using a parameterized SQL command.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="commandText">The SQL command text to execute.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+    /// <param name="parameters">The named parameter values bound to the scalar command.</param>
     private static async Task<int> CountAsync(
         MySqlConnection connection,
         string commandText,
@@ -850,6 +879,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Reads the table type from the current database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="tableName">The mapped table whose schema metadata is read.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<string> ReadTableTypeAsync(
         MySqlConnection connection,
@@ -871,6 +902,8 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Reads the table engine from the current database.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="tableName">The mapped table whose schema metadata is read.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<string> ReadTableEngineAsync(
         MySqlConnection connection,
@@ -892,7 +925,10 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Executes the scalar with the caller's cancellation token.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
+    /// <param name="commandText">The SQL command text to execute.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+    /// <param name="parameters">The named parameter values bound to the scalar command.</param>
     private static async Task<object?> ExecuteScalarAsync(
         MySqlConnection connection,
         string commandText,
@@ -912,6 +948,7 @@ public sealed class TemporalTableIntegrationTests
     }
 
     /// <summary>Removes integration tables using the caller's cancellation policy.</summary>
+    /// <param name="connection">The open connection used for schema commands and readback.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task CleanupAsync(
         MySqlConnection connection,

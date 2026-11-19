@@ -1,10 +1,10 @@
 ---
 id: D-012
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "NetTopologySuite spatial translation and materialization"
 supersedes: []
 superseded-by: []
@@ -216,6 +216,8 @@ Three structural improvements:
 - 2026-08-19: Corrected MariaDB Crosses null propagation before the
   dimension-based DE-9IM dispatch and bound both nullable operands on every
   supported MariaDB LTS line.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

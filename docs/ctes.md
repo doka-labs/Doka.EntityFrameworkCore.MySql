@@ -1,11 +1,14 @@
 # Common Table Expressions
 
-Common table expressions use EF Core's composable SQL query roots. A narrow
-`WithMaterializedSource` LINQ operator additionally binds one complete source
-when multiple query references must share its selected rows and computed
-values. A separate `StraightJoin` operator retains the direction of one inner
-join edge. Neither API is a general named-CTE or recursion language. Both
-supported engine families execute non-recursive and recursive read CTEs natively.
+`WithCte` and `WithRecursiveCte` are available from Doka 10.7.0 on .NET 10 /
+EF Core 10. The separate `WithMaterializedSource` and `StraightJoin` APIs
+described below have been available since 10.6.0.
+
+Doka provides scoped, typed `WithCte` and bounded `WithRecursiveCte` LINQ
+operators alongside EF Core's composable SQL query roots. The separate
+`WithMaterializedSource` operator binds selected occurrences and computed
+values when several references must share them. `StraightJoin` directs one
+inner join edge; it does not create a source binding.
 
 ## Support Matrix
 
@@ -17,16 +20,240 @@ supported engine families execute non-recursive and recursive read CTEs natively
 | Directed `StraightJoin` LINQ edge | Native `STRAIGHT_JOIN` | Native `STRAIGHT_JOIN` | Native `STRAIGHT_JOIN` |
 | CTE `UPDATE` / `DELETE` engine SQL | Native | Unsupported by engine | Native |
 
-CTE data modification on MariaDB is an engine-version boundary: the MariaDB
-documentation introduces CTE-enabled `UPDATE` in 12.3. The provider therefore
-executes that contract on 12.3 while preserving the explicit engine boundary
-for 10.11, 11.4, and 11.8.
+CTE data modification on MariaDB is an engine-version boundary: the syntax
+first shipped in 12.3.1. Doka checks that exact minimum, including rejection of
+12.3.0, while preserving the boundary for 10.11, 11.4, and 11.8. Engine syntax
+support does not by itself qualify every typed write shape; see
+[Typed CTE writes](#typed-cte-writes).
+
+## Bind an Ordinary Typed CTE
+
+Import `Doka.EntityFrameworkCore.MySql` and `Microsoft.EntityFrameworkCore`.
+`WithCte` accepts a completed source and an expression composing its
+statement-local references:
+
+```csharp
+public static IQueryable<TResult> WithCte<TSource, TResult>(
+    this IQueryable<TSource> source,
+    Expression<Func<IQueryable<TSource>, IQueryable<TResult>>> compose);
+```
+
+For nodes with a `Guid` key and nullable `Guid` parent key:
+
+```csharp
+var selected = context.Nodes
+    .AsNoTracking()
+    .Where(node => node.TreeId == treeId)
+    .Select(node => new { node.Id, node.ParentId, node.Name });
+
+var query = selected.WithCte(shared => shared.Join(
+    shared,
+    parent => parent.Id,
+    child => child.ParentId,
+    (parent, child) => new
+    {
+        ParentName = parent.Name,
+        ChildName = child.Name,
+        ChildId = child.Id,
+    }));
+
+var pairs = await query
+    .OrderBy(pair => pair.ChildId)
+    .ToListAsync(cancellationToken);
+```
+
+Construction performs no I/O. The expression parameter is a lexical relation,
+not an executed callback or a collection of loaded entities. It belongs to
+that composition; it cannot escape into another query or context. Nesting
+bindings can express independent or dependent definitions. Every occurrence
+of one binding shares its definition identity; separate calls remain separate
+bindings even when their source expressions are equal.
+
+The source includes its filters, duplicates, projection and source page.
+`OrderBy` / `Skip` / `Take` before binding select that page, but only an outer
+`OrderBy` promises result order. Joins retain duplicate multiplication;
+`Concat` retains `UNION ALL`; no implicit `Distinct` is added. Global source,
+outer-root and navigated-target filters retain their normal scopes. Explicit
+`IgnoreQueryFilters` remains an explicit opt-out.
+
+Doka unions the column demand of all references before pruning a shared
+ordinary definition. A field needed by another reference, a predicate or a
+duplicate-discriminating `Distinct` remains present. This is a schema
+correctness rule, not a promise that introducing a CTE makes a query faster.
+
+An ordinary CTE leaves merging, materialization and repeated evaluation to the
+native optimizer. In particular, repeated references to volatile expressions
+need not share their computed values. Use
+[WithMaterializedSource](#bind-one-source-for-several-references) when that
+sharing is required. Neither operator promises a particular count or order of
+SQL function calls, and neither is an API for SELECT side effects.
+
+## Traverse a Bounded Recursive CTE
+
+```csharp
+public static IQueryable<TResult> WithRecursiveCte<TSource, TResult>(
+    this IQueryable<TSource> anchor,
+    Expression<Func<IQueryable<TSource>, IQueryable<TSource>>> recursiveStep,
+    Expression<Func<IQueryable<TSource>, IQueryable<TResult>>> compose,
+    int maximumDepth);
+```
+
+The anchor has depth zero. The step reads exactly one previous-iteration
+frontier; `compose` reads the complete bounded relation. For the same node
+mapping:
+
+```csharp
+var descendants = await context.Nodes
+    .AsNoTracking()
+    .Where(node => node.Id == rootId && node.TreeId == treeId)
+    .WithRecursiveCte(
+        frontier => frontier.Join(
+            context.Nodes.Where(node => node.TreeId == treeId),
+            parent => parent.Id,
+            child => child.ParentId,
+            (_, child) => child),
+        rows => rows.OrderBy(node => node.Id),
+        maximumDepth: 8)
+    .ToListAsync(cancellationToken);
+```
+
+Depth zero selects only the anchor; depth one includes one step. The relation
+uses real native `UNION ALL` recursion in one data statement. Repeated paths
+and cycles remain repeated occurrences through the selected depth. There is
+no implicit visited set, cycle removal or completeness promise beyond that
+depth. A depth limit also does not bound the number of rows in a branching
+graph. Apply an explicit outer `Distinct` only when that is the intended
+result semantics.
+
+The provider carries a hidden depth column independently of the EF model,
+keys and visible projection. It preserves fields used only by recursive joins
+or predicates when pruning other payload columns. An application which needs
+to return a depth value must include its own value in a compatible flat
+projection; the hidden column is not a public result property.
+
+### Native Limits and Result Consumption
+
+`maximumDepth` must be nonnegative and strictly below the current session's
+native recursion ceiling: `cte_max_recursion_depth` on MySQL or
+`max_recursive_iterations` on MariaDB. Equality is rejected because the
+qualified native execution requires a final empty iteration. The guard is
+conservative even when a particular anchor or step would terminate earlier.
+Doka does not change either setting.
+
+The same data statement carries the native-limit control. It remains present
+for an empty result and is checked before a successful visible result is
+exposed. Unsafe limits fail visibly instead of returning a successful partial
+result. The engine may itself fail during materialization before its control
+row is read. No separate metadata query, source preload, extra connection or
+session-setting command implements this protection.
+
+Current depth parameters are also validated on each cached-command execution;
+a previous valid execution cannot authorize a later negative compiled-query
+parameter. Ordinary query construction retains the chosen depth as a
+structural input. Explicit compiled queries remain subject to EF's normal
+translation constraints; this API does not add a general NativeAOT guarantee.
+
+Use the caller's cancellation token for materialization, as in the examples.
+Early enumeration disposal and failures must dispose the reader normally;
+the operator does not commit, roll back or dispose a caller-owned transaction.
+
+### Recursive Text Capacity
+
+Matching CLR string types or a `longtext` type name does not prove that a
+recursive expression can grow safely. A permissive server can truncate a
+narrow anchor or return NULL after a packet limit is exceeded. Doka therefore
+requires a proved capacity for transformed recursive text.
+
+The qualified widening form is a scalar or flat projection with an explicit
+supported charset-prefixed collation, an actual bounded physical or literal
+anchor, finite constant depth, and provable constant concatenation growth.
+For example, assume `Name` is physically mapped as compatible
+`varchar(80)` / `utf8mb4` text:
+
+```csharp
+var values = await context.Nodes
+    .Where(node => node.Id == rootId)
+    .Select(node => EF.Functions.Collate(node.Name, "utf8mb4_unicode_ci"))
+    .WithRecursiveCte(
+        frontier => frontier.Select(value => value + "/"),
+        rows => rows.OrderBy(value => value),
+        maximumDepth: 3)
+    .ToListAsync(cancellationToken);
+```
+
+The proved maximum here is 83 characters. Its mapping is propagated through
+the frontier and outer parameters before SQL generation. The native statement
+also requires the per-string capacity times the known charset's maximum byte
+width to fit `max_allowed_packet`; this conservative check is not a bound on
+the whole result size or a multi-column protocol row.
+
+The original `COLLATE` stays inside the added cast as well as after it.
+Widening does not silently convert an incompatible source charset before the
+database validates that original comparison. There is no invented fallback
+width or automatic choice of collation.
+
+Unproved dynamic text growth, transformed unbounded `longtext`, incompatible
+physical mappings or converters, and unsupported capacity expressions are
+rejected. Identity recursion and compatible physical-column copies are not
+string-growth transformations. Numeric recursion can use a qualified compiled
+depth parameter; finite text widening requires its schema-defining constant
+bound. A nominal string mapping alone does not establish native capacity.
+
+### Recursive Shape Boundaries
+
+Both arms must have the same mapped entity identity or compatible flat SQL
+shape, including actual store facets and converters. The step has exactly
+one direct frontier and may use qualified inner joins. A simple correlated
+`SelectMany` is lowered to that direct join only when the existing safe APPLY
+rewrite applies; ordinary MySQL LATERAL support does not qualify arbitrary
+recursive derived scopes.
+
+Inside the step, multiple self-references, mutual or nested bindings,
+outer-joined frontiers, grouping, window calculations, sorting, paging, and set
+operations are outside this contract. Sorting, paging and
+deduplication belong to a separately translatable outer composition. A
+recursive outer `Distinct` must project its outer ordering keys. Deferred
+client/collection sources and split-query execution remain rejected.
+
+Locking-read operators cannot target a bound CTE. Their separate contract
+requires a qualified direct physical-table query; the CTE API does not move
+that lock scope into its definition.
+
+## Typed CTE Writes
+
+Typed read composition does not make a CTE alias a writable mapped table.
+The current boundaries are:
+
+| Operation | Qualified boundary |
+| --- | --- |
+| Ordinary CTE with `ExecuteUpdateAsync` / `ExecuteDeleteAsync` | A uniquely mapped physical target; MySQL 8.4/9.7 or MariaDB 12.3.1 and later within the supported policy. |
+| Recursive CTE with `ExecuteUpdateAsync` / `ExecuteDeleteAsync` | Rejected; the SELECT reader guard cannot protect an already executed write. |
+| Ordinary or bounded recursive source with `ExecuteInsertFromQueryAsync` | A compatible typed physical target and positional assignments; native `INSERT INTO ... WITH ... SELECT` placement. |
+| Any mutation containing `WithMaterializedSource` | Rejected, including a nested materialized dependency. |
+
+Self-referencing ordinary CTE updates/deletes are additionally rejected where
+the engine requires the provider's separate target-isolation emulation.
+Foreign contexts, ambiguous targets and unsupported engine versions do not
+fall back to a different write path.
+
+Recursive INSERT uses its own native failure arm, not the SELECT reader's
+control columns. An unsafe depth or text-capacity budget fails even when the
+source is empty, filtered out or limited to zero rows. Its UNION metadata is
+not used to materialize EF results. The typed insert still follows its normal
+assignment, default, transaction, cancellation and native affected-row-count
+contracts; it does not preload source rows or synchronize tracked entities.
+
+Native failure or cancellation is not a general promise that an autocommitted
+write, or an engine-aborted caller transaction, can be recovered by the provider.
 
 ## Query CTEs Safely
 
 Use `FromSql` / `FromSqlInterpolated` for entity query roots and `SqlQuery` for
 unmapped scalar or result types. Interpolated values are database parameters;
 do not concatenate untrusted identifiers or SQL fragments.
+
+Raw SQL does not attach the typed recursive API's depth and text-capacity
+controls. Its author remains responsible for those SQL limits and expressions.
 
 ```csharp
 var maximumDepth = 8;
@@ -308,7 +535,7 @@ var parents = context.Nodes.Where(node => node.TreeId == treeId);
 var children = context.Nodes.Where(node => node.TreeId == treeId);
 var query = parents.StraightJoin(
     children,
-    parent => (Guid?)parent.Id,
+    parent => parent.Id,
     child => child.ParentId,
     (parent, child) => new
     {
@@ -378,6 +605,8 @@ only the exact documented shapes; read CTEs remain supported.
 The original raw SQL sources were retrieved on 2026-08-11. The source-binding
 references below were checked on 2026-10-18. Directed-join and generated-C#
 references were checked on 2026-10-19.
+The typed recursive capacity and comparison references were checked on
+2026-11-17 alongside the native qualification controls.
 
 - [MySQL 8.4 common table expressions](https://dev.mysql.com/doc/refman/8.4/en/with.html)
 - [MySQL 8.4 `SELECT`](https://dev.mysql.com/doc/refman/8.4/en/select.html)
@@ -386,6 +615,11 @@ references were checked on 2026-10-19.
 - [MySQL 9.7 `DELETE`](https://dev.mysql.com/doc/refman/9.7/en/delete.html)
 - [MariaDB common table expressions](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/with)
 - [MariaDB recursive CTEs](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/recursive-common-table-expressions-overview)
+- [MariaDB 12.3.1 release notes](https://mariadb.com/docs/release-notes/community-server/12.3/12.3.1)
+- [MySQL packet and intermediate-string limit](https://dev.mysql.com/doc/refman/8.4/en/server-system-variables.html#sysvar_max_allowed_packet)
+- [MariaDB packet and intermediate-string limit](https://mariadb.com/docs/server/server-management/variables-and-modes/server-system-variables#max_allowed_packet)
+- [MySQL charset/collation compatibility](https://dev.mysql.com/doc/refman/8.4/en/charset-collation-compatibility.html)
+- [MySQL COLLATE expressions](https://dev.mysql.com/doc/refman/8.4/en/charset-collate.html)
 - [MariaDB 12.3 `WITH`](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/common-table-expressions/with)
 - [MariaDB `UPDATE`](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/changing-deleting-data/update)
 - [EF Core SQL queries](https://learn.microsoft.com/en-us/ef/core/querying/sql-queries)

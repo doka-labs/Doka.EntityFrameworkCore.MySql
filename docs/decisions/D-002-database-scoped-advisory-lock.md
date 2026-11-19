@@ -1,10 +1,10 @@
 ---
 id: D-002
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Migration serialization and advisory-lock naming"
 supersedes: []
 superseded-by: []
@@ -125,6 +125,8 @@ In addition, both `GET_LOCK` and `RELEASE_LOCK` are now invoked with parameteriz
 
 - 2026-05-16: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

@@ -27,6 +27,8 @@ public class DistributedCacheBenchmark : IDisposable
     private readonly FixedBufferWriter[] _parallelWriters = Enumerable
         .Range(0, ParallelReaders)
         .Select(static _ => new FixedBufferWriter(SmallValueSize))
+        // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     private readonly byte[] _smallValue = new byte[SmallValueSize];

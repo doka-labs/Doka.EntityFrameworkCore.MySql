@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Protects complete JSON SQL generation and parameter-dependent limit traversal.</summary>

@@ -1,9 +1,3 @@
-using System.Linq.Expressions;
-using System.Security.Cryptography;
-using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.EntityFrameworkCore.Query.Internal;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
-
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 /// <summary>
@@ -38,6 +32,13 @@ public partial class QueryEnumerationBenchmark : IDisposable
         "compile-includes-union",
         "compile-member-init-lineage",
         "compile-materialized-include",
+        "compile-cte-multi-reference",
+        "compile-cte-deep-graph",
+        "compile-cte-wide-pruned",
+        "compile-recursive-numeric",
+        "compile-window-fluent",
+        "compile-window-index-global",
+        "compile-window-index-grouped",
         "guard-union-all-overlap",
         "guard-union-all-disjoint")]
     public string Scenario { get; set; } = "json-static-single";
@@ -174,6 +175,15 @@ public partial class QueryEnumerationBenchmark : IDisposable
 
             case "compile-materialized-include":
                 return CreateMaterializedIncludeOperation();
+
+            case "compile-cte-multi-reference":
+            case "compile-cte-deep-graph":
+            case "compile-cte-wide-pruned":
+            case "compile-recursive-numeric":
+            case "compile-window-fluent":
+            case "compile-window-index-global":
+            case "compile-window-index-grouped":
+                return CreateFeatureOperation();
 
             case "guard-union-all-overlap":
             case "guard-union-all-disjoint":

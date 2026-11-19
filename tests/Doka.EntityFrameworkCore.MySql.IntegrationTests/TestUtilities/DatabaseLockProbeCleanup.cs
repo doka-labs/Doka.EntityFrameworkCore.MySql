@@ -1,5 +1,3 @@
-using System.Runtime.ExceptionServices;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Completes test-owned database lock work before resource reuse without masking its primary failure.</summary>

@@ -1,10 +1,10 @@
 ---
 id: D-015
 status: implemented
-date: 2026-05-17
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "JSON specification fixture warning policy"
 supersedes: []
 superseded-by: []
@@ -162,6 +162,8 @@ The trigger is mechanically verifiable via the meta-test pattern (not yet implem
 
 - 2026-05-17: Decision recorded with status implemented.
 - 2026-07-27: Migrated to Doka MADR profile 1.0 without changing the decision outcome.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

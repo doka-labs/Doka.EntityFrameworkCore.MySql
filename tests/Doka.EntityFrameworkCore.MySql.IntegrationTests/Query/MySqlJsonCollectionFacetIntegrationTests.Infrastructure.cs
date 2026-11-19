@@ -1,5 +1,3 @@
-using System.Linq.Expressions;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlJsonCollectionFacetIntegrationTests
@@ -22,6 +20,8 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
     }
 
     /// <summary>Selects the markers from the integration table.</summary>
+    /// <param name="context">The context providing the owned JSON collection query.</param>
+    /// <param name="predicate">The element predicate applied to the JSON collection query.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> SelectMarkersAsync(
         JsonCollectionFacetContext context,
@@ -36,6 +36,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
         .ToArrayAsync(cancellationToken);
 
     /// <summary>Drops the table using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTableAsync(
         JsonCollectionFacetContext context,
@@ -99,6 +100,7 @@ public sealed partial class MySqlJsonCollectionFacetIntegrationTests
         }
 
         /// <summary>Seeds the integration tables with cancellable database work.</summary>
+        /// <param name="target">The database engine selected for this scenario.</param>
         /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
         private static async Task SeedAsync(
             IntegrationDatabaseTarget target,
