@@ -213,6 +213,12 @@ class ManifestTests(unittest.TestCase):
     def setUp(self) -> None:
         """Build a complete eligible result set for every declared gate."""
         self.policy = qualification.load_policy()
+        # WHY: These main and historical manifest fixtures must not inherit
+        # the maintenance checkout's own-base binding before digest creation.
+        for gate in self.policy["gates"]:
+            if gate["id"] in self.policy["requiredProtectedChecks"]:
+                gate["requiredBaseBranch"] = "main"
+
         self.digest = qualification.policy_digest(self.policy)
         self.results = []
         for index, gate in enumerate(self.policy["gates"], start=1):

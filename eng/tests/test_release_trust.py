@@ -40,6 +40,18 @@ GPG_OUTPUT = (
 )
 
 
+def historical_main_policy() -> dict[str, object]:
+    """Bind historical main-only fixtures independently of the checkout line."""
+    policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    # WHY: Schema-two evidence predates release lines and cannot inherit the
+    # maintenance checkout's PR base without invalidating the fixture itself.
+    for gate in policy["gates"]:
+        if gate["id"] in policy["requiredProtectedChecks"]:
+            gate["requiredBaseBranch"] = "main"
+
+    return policy
+
+
 def git(repo: Path, *arguments: str) -> None:
     """Run one git command in a scratch repository.
 
@@ -465,8 +477,8 @@ def qualification_manifest(
     tree_id: str = TREE,
     release_tag: str = "v10.0.0-rc.1",
 ) -> tuple[dict[str, object], dict[str, object]]:
-    """Return a complete manifest whose protected entry binds ``receipt``."""
-    policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    """Return a historical main manifest whose protected entry binds ``receipt``."""
+    policy = historical_main_policy()
     digest = trust.release_qualification.policy_digest(policy)
     entries: list[dict[str, object]] = []
     for index, gate in enumerate(policy["gates"], start=1):
@@ -1295,7 +1307,7 @@ class TrustRootCompletionTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Build a repository with a signed tag on a protected branch."""
-        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        self.policy = historical_main_policy()
         self.directory = tempfile.TemporaryDirectory()
         self.repo = Path(self.directory.name) / "repository"
         self.repo.mkdir()
@@ -1496,8 +1508,8 @@ class TrustRootOrderTests(unittest.TestCase):
     """Prove the cheapest check decides first."""
 
     def setUp(self) -> None:
-        """Load the shipped policy for the orchestration cases."""
-        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        """Bind the main-only historical orchestration cases explicitly."""
+        self.policy = historical_main_policy()
 
     def test_an_unverified_signature_fails_before_local_work(self) -> None:
         """Reject on the remote verdict without touching the repository.

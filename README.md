@@ -51,6 +51,27 @@ with [Migrating from Pomelo][migrating-from-pomelo]. Amazon Aurora MySQL and
 Azure Database for MySQL are not advertised compatibility targets; see
 [Compatibility Boundaries](#compatibility-boundaries).
 
+## Supported release lines
+
+| Doka line | .NET / EF Core | Branch | Current status |
+| --- | --- | --- | --- |
+| 10.x | .NET 10 / EF Core 10 | [`main`](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/tree/main) | Supported stable line; 10.7.0 is published. The .NET 11 cutover has not happened. |
+| 10.x maintenance | .NET 10 / EF Core 10 | [`maintenance/10.x`](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/tree/maintenance/10.x) | Branch created for continued 10.x servicing; own-base qualification is in progress and maintenance publication is not yet activated. |
+| 11.x development | .NET 11 / EF Core 11 | [`feature/dotnet-11`](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/tree/feature/dotnet-11) | Upgrade in development; no supported Doka 11.x package has been published. |
+
+The EF Core version applies to the provider and spatial extension; the
+standalone cache has no EF Core dependency. A newer main line does not by
+itself end servicing of an older supported line.
+
+Doka servicing for each package major ends no later than the official end of
+support for its corresponding .NET major. There is no extended Doka support
+after that .NET version reaches end of support. Microsoft's current
+[.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+lists **2028-11-14** for both .NET 10 (LTS) and .NET 11 (STS), verified on
+2026-11-19. Supported applications must use serviced .NET patches; see the
+[support policy][support] for maintenance scope and
+[release lines][release-lines] for qualification and activation.
+
 ## Packages
 
 | Package | Purpose |
@@ -89,12 +110,6 @@ signed tags and publication remain separate. See the
 [workflow overview][workflow-overview] for the shared checks
 and the meaning of a green PR.
 
-The maintained stable line remains .NET 10. The release-line contract prepares
-`maintenance/10.x` for later 10.x servicing; optional `preview/11.x` remains
-inactive for independently qualified platform RCs. Preparation does not create
-or activate the maintenance branch, authorize .NET 11 publication, or change
-application requirements. Those operations require the separately approved
-cutover and hosted qualification.
 The same release workflow selects an authorized branch and canonical version;
 personal signed tags, single-maintainer approval and administrator bypass stay
 unchanged, using the existing `nuget` environment. Ordinary releases need
@@ -142,9 +157,9 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Next Stable Release: 10.7.0
+### Stable Release: 10.7.0
 
-`10.7.0` prepares the six additive provider features above for all three
+`10.7.0` adds the six additive provider features above for all three
 coordinated packages. Existing applications retain their current defaults;
 using text fallbacks changes the canonical model through the normal migration
 route. Locking reads and direct writes have explicit transaction, query-shape
@@ -157,9 +172,8 @@ required to build this repository, not to consume its packages. Coverage floors
 and allocation ceilings remain unchanged; hardware-dependent timings remain
 diagnostic.
 
-These preparation notes do not assert NuGet availability or hosted release
-qualification. After publication, pin the version explicitly when validating
-an application:
+Version [10.7.0](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.7.0)
+is published. Pin the version explicitly when validating an application:
 
 ```bash
 dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0

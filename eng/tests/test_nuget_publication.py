@@ -945,7 +945,7 @@ class NuGetPublicationTests(unittest.TestCase):
                     "repository": self._REPOSITORY,
                     "tag": release_tag,
                     "commit": source_commit,
-                    "policyDigest": policy["policyDigest"],
+                    "policyDigest": nuget_publication.release_qualification.policy_digest(policy),
                     "qualification": qualification_receipt,
                 }
             ),
@@ -963,6 +963,11 @@ class NuGetPublicationTests(unittest.TestCase):
         )
         with (
             mock.patch.object(nuget_publication.release_evidence, "verify_manifest"),
+            # WHY: Bind the historical main fixture with the same explicit
+            # policy used to freeze it, independently of the checkout line.
+            mock.patch.object(
+                nuget_publication.release_qualification, "load_policy", return_value=policy,
+            ),
             mock.patch.dict(
                 os.environ,
                 {
@@ -1143,8 +1148,13 @@ class NuGetPublicationTests(unittest.TestCase):
         tree_id: str,
         release_tag: str,
     ) -> tuple[dict[str, object], dict[str, object]]:
-        """Return complete frozen qualification for the publication fixture."""
+        """Return complete historical main qualification and its fixture policy."""
         policy = nuget_publication.release_qualification.load_policy()
+        # WHY: Historical schema-two evidence is main-only on every branch.
+        for gate in policy["gates"]:
+            if gate["id"] in policy["requiredProtectedChecks"]:
+                gate["requiredBaseBranch"] = "main"
+
         policy_digest = nuget_publication.release_qualification.policy_digest(policy)
         entries: list[dict[str, object]] = []
         for index, gate in enumerate(policy["gates"], start=1):
@@ -1202,7 +1212,7 @@ class NuGetPublicationTests(unittest.TestCase):
             "gates": entries,
         }
 
-        return manifest, {"policyDigest": policy_digest}
+        return manifest, policy
 
     def _symbol_manifest(self) -> tuple[dict[str, object], dict[str, bytes]]:
         """Return exact public symbol probes and their candidate payloads."""
