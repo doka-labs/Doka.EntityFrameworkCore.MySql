@@ -113,10 +113,14 @@ DOKA_INTEGRATION_TARGETS=mysql84,mariadb118 ./eng/test-integration.sh
 Use `./eng/test-integration.sh --up-test-down` only when an explicit Compose stack is useful for debugging. That mode exposes the documented host ports and removes the stack plus its volumes after the run. External targets remain available through the `DOKA_<TARGET>_CONNECTION_STRING` variables. MySQL 8.0 is not part of the supported release matrix; its retained legacy tests require both an explicit `mysql80` selection and an external connection string.
 
 Specification and standalone live functional tests execute exactly one target
-per test-host process. The functional-test project references the versioned
-`LocalMariaDb123.runsettings`, so Rider and a direct unconfigured `dotnet test`
-use the visible repository default `mariadb123` on every workstation. An
-explicit `DOKA_SPEC_TEST_TARGET` overrides that local default:
+per test-host process. The shared C# target resolver selects `mariadb123` when
+`DOKA_SPEC_TEST_TARGET` is absent locally, so Rider and native MTP `dotnet test`
+use the same repository default without VSTest `.runsettings`. An explicit
+target overrides that local default; blank or unsupported values remain errors.
+CI requires an explicit target. See the
+[local specification-test target](docs/ide-integration.md#local-specification-test-target).
+
+For example, select MySQL 8.4 explicitly:
 
 ```bash
 DOKA_SPEC_TEST_TARGET=mysql84 dotnet test \
@@ -152,8 +156,8 @@ configure Rider to use that external endpoint. For MariaDB 12.3, for example:
 docker compose -f docker/compose.yml up -d --wait mariadb123
 ```
 
-Set the endpoint and version in Rider for that service. The checked-in run
-settings already supply the matching `mariadb123` target; list it explicitly only
+Set the endpoint and version in Rider for that service. The shared resolver
+already supplies the matching `mariadb123` target locally; include it explicitly
 when a saved configuration should be self-contained:
 
 ```text
@@ -169,12 +173,11 @@ experimental Testcontainers reuse mode is not part of the repository test
 contract because it disables Resource Reaper cleanup.
 
 Rider documents both project-stored run configurations and per-configuration
-environment variables. JetBrains documents `.runsettings` plus the project
-`RunSettingsFilePath` as the supported project-specific test-runner mechanism:
+environment variables. Use these environment overrides with the shared target
+resolver on this native MTP line; VSTest `.runsettings` do not supply its defaults:
 
 - <https://www.jetbrains.com/help/rider/Run_Debug_Configuration.html>
 - <https://youtrack.jetbrains.com/projects/MPS/articles/SUPPORT-A-2390/How-to-configure-Test-Runner-Environment-Variables-for-Unit-Test-projct-in-JetBrains-Rider>
-- <https://learn.microsoft.com/visualstudio/test/configure-unit-tests-by-using-a-dot-runsettings-file>
 - <https://dotnet.testcontainers.org/api/resource_reaper/>
 - <https://dotnet.testcontainers.org/api/resource_reuse/>
 

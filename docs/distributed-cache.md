@@ -10,15 +10,15 @@ This package is available from
 `10.0.0` release. The tested database lines are listed in
 [Supported Databases](supported-databases.md).
 
-Install the latest stable package:
+Once published, install the stable 11.0.0 version prepared by this branch:
 
 ```bash
-dotnet package add Doka.Caching.MySql
+dotnet package add Doka.Caching.MySql --version 11.0.0
 ```
 
-Use `--version 10.7.0` after publication to pin the coordinated stable release.
-It permits MySqlConnector `>= 2.6.1` and `< 4.0.0`; the cache API and schema are
-unchanged.
+For .NET 10 applications, use the independently maintained, published
+`10.7.0` version instead. Both lines permit MySqlConnector `>= 2.6.1` and
+`< 4.0.0`; the cache API and schema are unchanged by the framework upgrade.
 See the [security upgrade guidance](security/dependency-audits.md#mysqlconnector-security-floor).
 
 Version 10.6.7 adds the 3.x driver line alongside 2.x

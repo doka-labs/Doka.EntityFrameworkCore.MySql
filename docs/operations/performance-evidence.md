@@ -49,10 +49,16 @@ A genuine infrastructure outage or execution failure can also fail a run.
 
 ## Query and direct-write feature diagnostics
 
-The 10.7.0 feature diagnostics reuse the existing BenchmarkDotNet 0.15.8
-runner; they introduce no timing thresholds or new performance-contract rows.
-The normal profiles, allocation ceilings and hosted enforcement remain unchanged.
-These additional families are selected explicitly when investigating the new
+The feature diagnostics introduced with 10.7.0 reuse the existing benchmark
+runner. This 11.0.0 / .NET 11 line pins BenchmarkDotNet `0.16.0-preview.2` in
+`Directory.Packages.props`; the .NET 10 line uses `0.15.8`. The temporary
+preview is benchmark/test-only, as described in the
+[runner compatibility policy](performance-baseline-operations.md#net-11-benchmark-tooling).
+Historical .NET 10 measurements retain their original runtime and tool identities.
+
+These diagnostics introduce no timing thresholds or new performance-contract
+rows. The normal profiles, allocation ceilings and hosted enforcement remain
+unchanged. Select these additional families explicitly when investigating the
 features:
 
 | Family | Measured work and setup controls |

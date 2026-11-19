@@ -165,7 +165,8 @@ Unless noted otherwise, sources were retrieved on 2026-09-19.
 
 - [EF Core 11 complex-type improvements](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-11.0/whatsnew)
 - [EF Core 11 RC.1 relational specification source](https://github.com/dotnet/efcore/tree/c22dd77aa7f7392f997cf779f0c23e0b9aab1988/test/EFCore.Relational.Specification.Tests)
-- [EF Core 11 GA relational specification package](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.3.26522.148) (retrieved 2026-11-03)
+- [EF Core 11 RC.3 relational specification package](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0-rc.3.26522.148) (historical source; retrieved 2026-11-03)
+- [EF Core 11 GA relational specification package](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Relational.Specification.Tests/11.0.0) (verified 2026-11-19; current specification package)
 - [EF Core JSON columns](https://learn.microsoft.com/en-us/ef/core/modeling/json)
 - [EF Core NativeAOT and precompiled queries](https://learn.microsoft.com/en-us/ef/core/performance/nativeaot-and-precompiled-queries)
 - [MySQL 8.4 JSON data type](https://dev.mysql.com/doc/refman/8.4/en/json.html)

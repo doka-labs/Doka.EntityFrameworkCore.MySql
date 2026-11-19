@@ -43,13 +43,15 @@ defined by released packages, the support matrix, and release notes.
 - Continue to publish checksums, SBOMs, signed tags, immutable releases, NuGet
   repository signatures, and portable SLSA provenance for releases.
 
-### Deliver the 10.7.0 feature set on EF Core 10
+<a id="deliver-the-1070-feature-set-on-ef-core-10"></a>
 
-- Deliver application character-set/collation fallbacks, explicit locking
-  reads, typed ordinary/recursive CTEs, window functions, typed INSERT SELECT
-  and native single/range UPSERT in the .NET 10 line.
-- Preserve existing contracts and qualify supported feature combinations on
-  all supported MySQL and MariaDB profiles before publication.
+### Maintain the published 10.7.0 feature set
+
+- Version 10.7.0 published application character-set/collation fallbacks,
+  explicit locking reads, typed ordinary/recursive CTEs, window functions,
+  typed INSERT SELECT and native single/range UPSERT in the .NET 10 line.
+- Maintain these opt-in contracts and qualify affected feature combinations on
+  all supported MySQL and MariaDB profiles for subsequent releases.
 - Keep database-native timing measurements diagnostic and retain deterministic
   semantic controls and existing allocation ceilings.
 
@@ -67,15 +69,20 @@ defined by released packages, the support matrix, and release notes.
   separate operator decisions. The maintenance branch name does not establish
   an automatic feature freeze for the supported .NET 10 line.
 
-### Complete the first 11.0.0 feature set
+<a id="complete-the-first-1100-feature-set"></a>
 
-- Implement application character-set/collation fallbacks, explicit locking
-  reads, typed ordinary/recursive CTEs, window functions, typed INSERT SELECT
-  and native single/range UPSERT before the first stable 11.0.0 publication.
-- Preserve existing contracts and validate the supported feature combinations
-  on the qualified MySQL and MariaDB profiles.
+### Retain the implemented 11.0.0 feature set
+
+- The 11.0.0 source implements the same six contracts already published in
+  10.7.0, adapted to .NET 11 / EF Core 11. Their implementation is complete;
+  they are not pending feature work.
+- Preserve these contracts and require source-bound qualification of the
+  supported combinations on the qualified MySQL and MariaDB profiles before
+  the first 11.0.0 publication. Implementation does not establish publication
+  or completed hosted qualification for a later source revision.
 - Keep publication, hosted authorization and the maintenance/main cutover as
-  separate operator decisions. No automatic 10.x feature backport is implied.
+  separate operator decisions. Review future changes for each supported line;
+  no automatic backport is implied.
 
 ## Explicit Non-Goals Through July 2027
 
