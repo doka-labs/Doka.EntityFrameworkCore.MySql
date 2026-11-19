@@ -12,12 +12,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 from eng.release import evidence as release_evidence, lines
-from eng.tests.test_release_lines import ga_specification_baseline, initial_policy
+from eng.tests.test_release_lines import ga_specification_baseline, initial_policy, prepared_policy
 
 
 def release_line(source_ref: str = "refs/heads/main") -> dict[str, object]:
@@ -45,11 +47,18 @@ class ReleaseEvidenceTests(unittest.TestCase):
     cannot be accidentally mocked into agreement with the manifest.
     """
 
+    # WHY: Local fixtures own their admission; disabling GitHub identity alone
+    # does not stop discovery of the enclosing RC job's frozen line file.
     _LOCAL_RELEASE_ENVIRONMENT = {
         "GITHUB_ACTIONS": "false",
         "GITHUB_REF": "",
         "GITHUB_SHA": "",
+        "DOKA_RELEASE_LINE_FILE": "",
+        "DOKA_RELEASE_LINES_POLICY": "",
+        "DOKA_RELEASE_LINE_AUTHORITY": "",
+        "DOKA_RELEASE_WORKFLOW_PATH": "",
     }
+
     def setUp(self) -> None:
         """Create an untagged repository with an ignored evidence fixture."""
         self._temporary_directory = tempfile.TemporaryDirectory(
@@ -934,6 +943,57 @@ class ReleaseEvidenceTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(1, result)
+
+    def test_local_source_check_cli_ignores_ambient_rc_admission(self) -> None:
+        """Keep the local stable fixture independent of its hosting RC run."""
+        # Arrange
+        environment, _ = self._admission_fixture()
+        snapshot = lines.freeze_line(
+            prepared_policy(), "refs/heads/maintenance/10.x", "10.7.1-rc.1"
+        )
+
+        Path(environment["DOKA_RELEASE_LINE_FILE"]).write_text(
+            json.dumps(snapshot), encoding="ascii"
+        )
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/main", "--release-version", "10.2.3",
+        ]
+
+        # Act
+        with mock.patch.dict("os.environ", environment):
+            with mock.patch.dict("os.environ", self._LOCAL_RELEASE_ENVIRONMENT):
+                with (
+                    mock.patch.object(sys, "argv", arguments),
+                    mock.patch.object(lines, "load_policy", return_value=initial_policy()),
+                ):
+                    result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(0, result)
+
+    def test_hosted_source_check_cli_rejects_a_mismatched_admitted_channel(self) -> None:
+        """Retain channel enforcement when the caller intentionally uses admission."""
+        # Arrange
+        environment, snapshot = self._admission_fixture()
+        snapshot["channel"] = "prerelease"
+        Path(environment["DOKA_RELEASE_LINE_FILE"]).write_text(
+            json.dumps(snapshot), encoding="ascii"
+        )
+        arguments = [
+            "evidence.py", "source-check", "--repo", str(self.repo),
+            "--source-ref", "refs/heads/main", "--release-version", "10.2.3",
+        ]
+        error = StringIO()
+
+        # Act
+        with mock.patch.dict("os.environ", environment):
+            with mock.patch.object(sys, "argv", arguments), redirect_stderr(error):
+                result = release_evidence.main()
+
+        # Assert
+        self.assertEqual(1, result)
+        self.assertIn("Frozen release-line channel does not match", error.getvalue())
 
     def _generate(self) -> None:
         """Generate untagged release evidence under an explicit local identity."""
