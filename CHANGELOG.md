@@ -10,8 +10,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Additive feature release for the .NET 10 / EF Core 10 line. All three packages
 use the same version. The EF Core 10.0.8 minimum, MySqlConnector range,
 supported engines, GUID/collection defaults and cache schema remain unchanged.
-Existing models and writes retain their behavior unless an application opts
-into a new feature. These notes prepare the release; publication and hosted
+Existing configuration and storage defaults remain unchanged; the new feature
+APIs are opt-in. These notes prepare the release; publication and hosted
 qualification remain separate.
 
 ```bash
@@ -59,6 +59,12 @@ dotnet package add Doka.Caching.MySql --version 10.7.0
 - Document the shared engineering baseline and project exceptions. Align
   constructors, imports and assembly declarations, validate ADR history
   metadata, and scope trusted test-DDL diagnostic exceptions to their methods.
+- Traverse linear expression wrappers iteratively while preserving clause
+  order, origin resolution and rejection boundaries, with focused deep-wrapper
+  regression coverage.
+- Synchronize migration-lock tests through actual native lock ownership and
+  pending requests instead of fixed delays, detached release tasks or elapsed
+  time assertions. Observe pending work before releasing test resources.
 
 ### Fixed
 

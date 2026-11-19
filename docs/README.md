@@ -12,10 +12,11 @@ window calculations, typed INSERT SELECT and native UPSERT on .NET 10 / EF Core 
 Each feature guide defines its opt-in behavior, examples and failure boundaries.
 
 The EF Core 10.0.8 minimum, supported engines, existing GUID/collection defaults,
-cache schema and MySqlConnector range remain unchanged. The APIs are additive;
-existing applications retain their behavior without opting in. Text defaults
-participate in the normal model, migration and snapshot workflow. Direct writes
-have explicit transaction, affected-count and change-tracker boundaries.
+cache schema and MySqlConnector range remain unchanged. The new APIs are
+additive and opt-in; the release also includes the corrections listed in the
+changelog. Text defaults participate in the normal model, migration and snapshot
+workflow. Direct writes have explicit transaction, affected-count and
+change-tracker boundaries.
 
 Coverage floors and allocation ceilings remain unchanged. Timing observations
 remain diagnostic. This preparation does not activate `maintenance/10.x` or

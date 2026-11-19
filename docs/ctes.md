@@ -1,6 +1,8 @@
 # Common Table Expressions
 
-The typed APIs described here are available from Doka 10.7.0 on .NET 10 / EF Core 10.
+`WithCte` and `WithRecursiveCte` are available from Doka 10.7.0 on .NET 10 /
+EF Core 10. The separate `WithMaterializedSource` and `StraightJoin` APIs
+described below have been available since 10.6.0.
 
 Doka provides scoped, typed `WithCte` and bounded `WithRecursiveCte` LINQ
 operators alongside EF Core's composable SQL query roots. The separate

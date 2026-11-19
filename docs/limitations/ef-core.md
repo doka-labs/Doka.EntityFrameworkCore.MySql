@@ -260,15 +260,17 @@ disposition represents them.
 
 ### General LINQ window-function API
 
-- **Unavailable contract:** A general strongly typed LINQ API for expressing
-  arbitrary window partitions, ordering, and frames.
-- **Available contracts:** Engine-native window expressions can be issued
-  through EF Core raw SQL. Provider-owned query rewrites that require
-  `ROW_NUMBER()` continue to emit and test that SQL shape.
-- **Responsibility:** EF Core has not defined the public LINQ expression
-  contract. The upstream API-design issue remains open and in the backlog.
-  This is not an engine limitation and did not result from removing the
-  unconsumed D-004 flag.
+- **Unavailable contract:** An EF Core 10 provider-independent strongly typed
+  LINQ API for window partitions, ordering, and frames.
+- **Available contracts:** Doka 10.7.0 provides its own typed
+  [`EF.Functions.Window()` API](../window-functions.md), including supported
+  calculations, partitions, ordering and frames. Engine-native window forms
+  outside that contract can be issued through EF Core raw SQL. Provider-owned
+  query rewrites that require `ROW_NUMBER()` also retain their SQL shape.
+- **Responsibility:** The consumed EF Core 10 public API does not define a
+  provider-independent window expression contract. Doka's API is an explicit
+  provider extension. This is not an engine limitation and did not result
+  from removing the unconsumed D-004 flag.
 - **Targets:** Every supported LTS target.
 - **Primary sources:** [dotnet/efcore window-function API
   epic][efcore-window-functions] and [EF Core SQL Queries][efcore-sql-queries],

@@ -55,8 +55,9 @@ a shared column and missing required physical columns are rejected. Concrete
 one-table TPH targets use their model discriminator automatically; explicitly
 assigning another discriminator is rejected. Complete, unambiguous one-table
 shared/owned scalar mappings can target the same physical column. Multitable
-TPT/entity splitting, view-only mappings, keyless targets and navigation graph writes are not
-implicit insertion strategies.
+TPT/entity splitting, view-only mappings, keyless targets and navigation graph
+writes are not implicit insertion strategies. Targets with an insert
+stored-procedure mapping are rejected rather than bypassing that mapping.
 
 ## Source semantics
 

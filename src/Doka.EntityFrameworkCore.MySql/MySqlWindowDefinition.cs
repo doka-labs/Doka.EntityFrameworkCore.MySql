@@ -256,7 +256,7 @@ public abstract class MySqlWindowDefinition
     /// <summary>Returns the least non-NULL frame value.</summary>
     /// <typeparam name="T">The mapped scalar type.</typeparam>
     /// <param name="value">The mapped scalar value.</param>
-    /// <returns>The mapped value, or NULL for a missing position or NULL-valued row.</returns>
+    /// <returns>The least non-NULL value, or NULL for an empty or all-NULL frame.</returns>
     public abstract T? Min<T>(
         T? value
     )
@@ -265,7 +265,7 @@ public abstract class MySqlWindowDefinition
     /// <summary>Returns the least non-NULL frame value.</summary>
     /// <typeparam name="T">The mapped scalar type.</typeparam>
     /// <param name="value">The mapped scalar value.</param>
-    /// <returns>The mapped value, or NULL for a missing position or NULL-valued row.</returns>
+    /// <returns>The least non-NULL value, or NULL for an empty or all-NULL frame.</returns>
     public abstract T? Min<T>(
         T? value
     )
@@ -274,7 +274,7 @@ public abstract class MySqlWindowDefinition
     /// <summary>Returns the greatest non-NULL frame value.</summary>
     /// <typeparam name="T">The mapped scalar type.</typeparam>
     /// <param name="value">The mapped scalar value.</param>
-    /// <returns>The mapped value, or NULL for a missing position or NULL-valued row.</returns>
+    /// <returns>The greatest non-NULL value, or NULL for an empty or all-NULL frame.</returns>
     public abstract T? Max<T>(
         T? value
     )
@@ -283,7 +283,7 @@ public abstract class MySqlWindowDefinition
     /// <summary>Returns the greatest non-NULL frame value.</summary>
     /// <typeparam name="T">The mapped scalar type.</typeparam>
     /// <param name="value">The mapped scalar value.</param>
-    /// <returns>The mapped value, or NULL for a missing position or NULL-valued row.</returns>
+    /// <returns>The greatest non-NULL value, or NULL for an empty or all-NULL frame.</returns>
     public abstract T? Max<T>(
         T? value
     )

@@ -88,8 +88,9 @@ These findings support the regular migration route rather than a heuristic
 that discards column differences. Supported per-column collation overrides use
 UseCollation; a raw provider annotation is not an additional property-charset
 API. Scaffolding and native facts remain the evidence for physical exceptions.
-The planned and executed controls are traced by DTC-P23 through DTC-P28 and
-DTC-N18 through DTC-N25 in the acceptance catalog.
+See the [model-difference regression tests](../tests/Doka.EntityFrameworkCore.MySql.Tests/Migrations/MySqlDefaultTextMigrationTests.cs)
+and [native centralization and scaffolding tests](../tests/Doka.EntityFrameworkCore.MySql.IntegrationTests/Migrations/MySqlDefaultTextOptionsIntegrationTests.cs)
+for the explicit/inherited transitions and their positive and negative controls.
 
 Scaffolding records the actual database/schema facts. It must preserve real
 table and column exceptions, including JSON, rather than replacing them with
