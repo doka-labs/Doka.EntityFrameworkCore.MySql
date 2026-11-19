@@ -51,6 +51,29 @@ with [Migrating from Pomelo][migrating-from-pomelo]. Amazon Aurora MySQL and
 Azure Database for MySQL are not advertised compatibility targets; see
 [Compatibility Boundaries](#compatibility-boundaries).
 
+## Supported release lines
+
+| Doka line | .NET / EF Core | Branch | Maintenance scope |
+| --- | --- | --- | --- |
+| 11.x | .NET 11 / EF Core 11 | [`main`](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/tree/main) | Primary development and release line. |
+| 10.x | .NET 10 / EF Core 10 | [`maintenance/10.x`](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/tree/maintenance/10.x) | Compatible bug fixes, security fixes and supported dependency servicing. |
+
+The EF Core version applies to the provider and spatial extension; the
+standalone cache has no EF Core dependency. A newer main line does not by
+itself end servicing of an older supported line. Available package versions
+and prerelease status are listed in
+[GitHub Releases](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
+and on the NuGet package pages above.
+
+Doka servicing for each package major ends no later than the official end of
+support for its corresponding .NET major. There is no extended Doka support
+after that .NET version reaches end of support. Microsoft's current
+[.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+lists **2028-11-14** for both .NET 10 (LTS) and .NET 11 (STS), verified on
+2026-11-19. Supported applications must use serviced .NET patches; see the
+[support policy][support] for maintenance scope and
+[release lines][release-lines] for qualification and publication.
+
 ## Packages
 
 | Package | Purpose |
@@ -88,11 +111,8 @@ signed tags and publication remain separate. See the
 [workflow overview][workflow-overview] for the shared checks
 and the meaning of a green PR.
 
-This checkout prepares Doka 11.0.0 for .NET 11 GA. The future protected-main
-policy enables main/11 and `maintenance/10.x`; `preview/11.x` remains inactive.
-This development branch grants no publication authority. Complete the separate
-[cutover procedure](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/release-lines.md#prepared-ga-cutover)
-before merging that policy into protected main.
+See [release lines][release-lines] for branch selection, qualification and
+publication.
 
 ### Provider Features in 10.7.0 and 11.0.0
 
@@ -111,8 +131,7 @@ contracts forward. Existing applications opt into these APIs explicitly.
 
 ## Install
 
-The following .NET 11 command installs the exact provider stable version
-prepared by this branch once the package is published:
+Install the provider for .NET 11 with an explicit package version:
 
 ```bash
 dotnet package add Doka.EntityFrameworkCore.MySql --version 11.0.0
@@ -135,13 +154,11 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Prepared Stable Release
+### Release 11.0.0
 
-`11.0.0` prepares the isolated .NET 11 and EF Core 11 GA line. It targets
-`net11.0`, uses SDK `11.0.100` and EF Core `[11.0.0, 11.1.0)`, and does not change
-the supported MySQL, MariaDB, or MySqlConnector ranges. The stable 10.x line
-remains available for .NET 10 applications. Preparation is not evidence that
-11.0.0 has already been published.
+`11.0.0` targets `net11.0`, uses SDK `11.0.100` and EF Core
+`[11.0.0, 11.1.0)`, and retains the supported MySQL, MariaDB and MySqlConnector
+ranges. The stable 10.x line remains available for .NET 10 applications.
 
 The shared servicing fixes preserve boxed `Convert.ToString(object)` scalar,
 enum and GUID formatting, including empty-string results for boxed nulls.
@@ -178,7 +195,7 @@ The .NET 10 requirement, EF Core 10.0.8 minimum, MySqlConnector range
 `>= 2.6.1` and `< 4.0.0`, supported engines, GUID storage defaults, cache schema
 and multiple-parameter collection default remain unchanged. The .NET 10
 checkout requires SDK 10.0.404 to build, not to consume its packages. This
-GA preparation checkout uses the .NET 11 SDK pinned in `global.json`. Coverage floors
+checkout uses the .NET 11 SDK pinned in `global.json`. Coverage floors
 and allocation ceilings remain unchanged; hardware-dependent timings remain
 diagnostic.
 
@@ -187,9 +204,6 @@ major proposals remain reviewable. Coverlet 10.1.1 stays test-only, and C#
 checkouts retain LF to keep raw-string values consistent across platforms.
 Coverage floors and allocation ceilings remain unchanged; hardware-dependent
 timings remain diagnostic. See the [changelog][changelog].
-These .NET 10 release notes do not establish hosted qualification or
-publication of this .NET 11 development branch.
-
 To consume the published .NET 10 line, pin its version explicitly:
 
 ```bash
