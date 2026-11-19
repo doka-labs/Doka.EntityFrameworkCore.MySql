@@ -20,10 +20,14 @@ public class EnumerationControlBenchmark : IDisposable
 
     private readonly string[] _wideCleanup = Enumerable
         .Repeat("SET @doka_probe = NULL;", 32)
+        // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     private readonly string[] _wideSetup = Enumerable
         .Repeat("SET @doka_probe = 1;", 32)
+        // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     /// <summary>Releases the document owned by this benchmark fixture.</summary>

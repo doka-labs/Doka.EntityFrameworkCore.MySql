@@ -18,6 +18,8 @@ public static class MySqlDbSetExtensions
     /// <param name="from">The inclusive start of the affected valid-time portion.</param>
     /// <param name="to">The exclusive end of the affected valid-time portion.</param>
     /// <returns>A query root for an application-time update or delete.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static IQueryable<TEntity> ForPortionOf<TEntity>(
         this DbSet<TEntity> source,
         DateTime from,

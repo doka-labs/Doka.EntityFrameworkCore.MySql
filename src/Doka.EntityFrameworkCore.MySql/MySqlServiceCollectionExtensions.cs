@@ -1,9 +1,3 @@
-// File-local using: ICSharpRuntimeAnnotationCodeGenerator is registered via the Design.Internal
-// service-pair below; the rest of this file's surface stays on the public EF Core API.
-
-using Microsoft.EntityFrameworkCore.Design.Internal;
-using Microsoft.EntityFrameworkCore.Migrations.Design;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
@@ -16,6 +10,9 @@ public static class MySqlServiceCollectionExtensions
     /// </summary>
     /// <param name="serviceCollection">The target service collection.</param>
     /// <returns>The same <see cref="IServiceCollection" /> instance.</returns>
+
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static IServiceCollection AddEntityFrameworkDokaMySql(
         this IServiceCollection serviceCollection
     )
@@ -30,6 +27,7 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<ISingletonOptions, MySqlSingletonOptions>()
             .TryAdd<LoggingDefinitions, MySqlLoggingDefinitions>()
             .TryAdd<IRelationalConnection, MySqlRelationalConnection>()
+            .TryAdd<IRelationalCommandBuilderFactory, MySqlRelationalCommandBuilderFactory>()
             .TryAdd<IRelationalTransactionFactory, MySqlRelationalTransactionFactory>()
             .TryAdd<IRelationalDatabaseCreator, MySqlRelationalDatabaseCreator>()
             .TryAdd<IDatabaseCreator>(p => p.GetRequiredService<IRelationalDatabaseCreator>())
@@ -45,6 +43,7 @@ public static class MySqlServiceCollectionExtensions
             .TryAdd<IProviderConventionSetBuilder, MySqlConventionSetBuilder>()
             .TryAdd<IQueryTranslationPreprocessorFactory, MySqlQueryTranslationPreprocessorFactory>()
             .TryAdd<IQueryCompilationContextFactory, MySqlQueryCompilationContextFactory>()
+            .TryAdd<IShapedQueryCompilingExpressionVisitorFactory, MySqlShapedQueryCompilingExpressionVisitorFactory>()
             .TryAdd<INavigationExpansionExtensibilityHelper,
                 MySqlNavigationExpansionExtensibilityHelper>()
             .TryAdd<IQuerySqlGeneratorFactory, MySqlQuerySqlGeneratorFactory>()
@@ -67,6 +66,9 @@ public static class MySqlServiceCollectionExtensions
                 .TryAddSingleton<IMySqlDriverFacade, MySqlConnectorDriverFacade>()
                 .TryAddSingleton<IMySqlTransientExceptionDetector, MySqlTransientExceptionDetector>());
 
+#pragma warning disable EF1001 // EF10 rewrites DbSet arguments before provider preprocessing; this adapter only prepares the compiled INSERT root.
+        builder.TryAdd<IQueryCompiler, MySqlQueryCompiler>();
+#pragma warning restore EF1001
         builder.TryAddCoreServices();
 #pragma warning disable EF1001 // IMigrationsModelDiffer is EF Core internal; wrapping is documented in ADR D-001.
         EfCoreServiceDecorator.Decorate<IMigrationsModelDiffer, MySqlMigrationsModelDiffer>(
@@ -83,6 +85,11 @@ public static class MySqlServiceCollectionExtensions
     /// <param name="serviceCollection">The target design-time service collection.</param>
     /// <param name="configure">An optional reverse-engineering configuration callback.</param>
     /// <returns>The same <see cref="IServiceCollection" /> instance.</returns>
+    /// <remarks>
+    /// The root provider owns the design-time logger factory across operation scopes.
+    /// Register a custom <see cref="ILoggerFactory" /> afterward to override that factory;
+    /// externally supplied instances retain caller ownership under normal DI rules.
+    /// </remarks>
     public static IServiceCollection AddEntityFrameworkDokaMySqlDesignTime(
         this IServiceCollection serviceCollection,
         Action<MySqlReverseEngineeringOptionsBuilder>? configure = null
@@ -108,7 +115,50 @@ public static class MySqlServiceCollectionExtensions
         // through DesignTimeServicesBuilder before invoking the provider; standalone
         // consumers (integration tests, custom scaffolders) skip the tooling path, so we
         // run the helper here to make this method self-contained.
-        serviceCollection.AddEntityFrameworkDesignTimeServices();
+        // WHY: EF10 tooling registers its reporter instance before provider services.
+        // Reuse that exact reporter so the repeated helper does not capture a new,
+        // silent default reporter in its logger-factory closure.
+#pragma warning disable EF1001 // EF10 exposes the configured design-time reporter only through this tooling contract.
+        IOperationReporter? designTimeReporter = null;
+
+        // WHY: Only the last unkeyed registration determines ordinary DI resolution;
+        // a keyed service or an earlier shadowed reporter must not change that result.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = serviceCollection.Count - 1; index >= 0; index--)
+        {
+            var descriptor = serviceCollection[index];
+
+            if (!descriptor.IsKeyedService
+                && descriptor.ServiceType == typeof(IOperationReporter))
+            {
+                designTimeReporter = descriptor.ImplementationInstance as IOperationReporter;
+
+                break;
+            }
+        }
+
+        var designTimeServiceStart = serviceCollection.Count;
+        serviceCollection.AddEntityFrameworkDesignTimeServices(designTimeReporter);
+#pragma warning restore EF1001
+
+        // WHY: EF10 creates one LoggerFactory and returns it from a scoped factory.
+        // A completed scope would dispose the shared instance while another scaffold
+        // operation still needs it. Preserve EF's exact factory, but let the root own it.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = designTimeServiceStart; index < serviceCollection.Count; index++)
+        {
+            var descriptor = serviceCollection[index];
+
+            if (!descriptor.IsKeyedService
+                && descriptor.ServiceType == typeof(ILoggerFactory)
+                && descriptor is { Lifetime: ServiceLifetime.Scoped, ImplementationFactory: { } factory })
+            {
+                serviceCollection[index] = ServiceDescriptor.Singleton(typeof(ILoggerFactory), factory);
+            }
+        }
+
         serviceCollection.Replace(
             ServiceDescriptor.Singleton<ICSharpSnapshotGenerator, MySqlCSharpSnapshotGenerator>());
 

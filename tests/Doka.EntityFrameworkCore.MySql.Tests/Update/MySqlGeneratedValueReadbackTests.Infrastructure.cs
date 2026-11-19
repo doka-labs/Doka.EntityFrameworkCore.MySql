@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.EntityFrameworkCore.Update;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;

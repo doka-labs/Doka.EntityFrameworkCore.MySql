@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
 /// <summary>
@@ -14,9 +12,7 @@ public sealed class MigrationWorkflowContext : DbContext
     /// <param name="options">Configured provider options.</param>
     public MigrationWorkflowContext(
         DbContextOptions<MigrationWorkflowContext> options
-    ) : base(options)
-    {
-    }
+    ) : base(options) { }
 
     /// <summary>
     /// Gets the rows managed by the migration workflow model.
@@ -35,17 +31,21 @@ public sealed class MigrationWorkflowContext : DbContext
             entity
                 .Property(item => item.Name)
                 .HasMaxLength(200);
+
             entity
                 .Property(item => item.EffectiveDate)
                 .HasDefaultValue(new DateOnly(2028, 2, 3));
+
             entity
                 .Property(item => item.EffectiveTime)
                 .HasPrecision(6)
                 .HasDefaultValue(new TimeOnly(4, 5, 6, 654, 321));
+
             entity
                 .Property(item => item.OccurredAt)
                 .HasColumnType("timestamp(6)")
                 .HasDefaultValueSql("'2026-08-21 12:34:56.000000'");
+
             entity.HasData(
                 new MigrationWorkflowItem
                 {

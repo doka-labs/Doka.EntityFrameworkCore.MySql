@@ -1,6 +1,3 @@
-using System.Linq.Expressions;
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies boxed scalar formatting and null materialization on every supported engine.</summary>

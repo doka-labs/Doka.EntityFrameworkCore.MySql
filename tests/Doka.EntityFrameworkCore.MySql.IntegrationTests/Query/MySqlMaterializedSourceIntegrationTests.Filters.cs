@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies the distinct global filter parameters contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDistinctGlobalFilterParametersAsync(
         IntegrationDatabaseTarget target,
@@ -30,6 +31,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     /// <summary>
     /// Verifies the cached global filters use current context values contract against the live database.
     /// </summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCachedGlobalFiltersUseCurrentContextValuesAsync(
         IntegrationDatabaseTarget target,
@@ -108,6 +110,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the paged global filter applied only to source contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertPagedGlobalFilterAppliedOnlyToSourceAsync(
         IntegrationDatabaseTarget target,
@@ -148,6 +151,8 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the ignored filters keep query wide semantics contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
+    /// <param name="ignoreOnSource">Whether the bound source opts out of filters before composition.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertIgnoredFiltersKeepQueryWideSemanticsAsync(
         IntegrationDatabaseTarget target,

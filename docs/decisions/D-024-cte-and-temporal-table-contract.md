@@ -1,15 +1,15 @@
 ---
 id: D-024
 status: accepted
-date: 2026-08-04
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Common-table-expression, directed-join, and temporal-table provider contracts"
 supersedes: []
 superseded-by: []
 amends: [D-004]
-amended-by: []
+amended-by: [D-031]
 madr-version: "4.0.0"
 doka-profile-version: "1.0"
 ---
@@ -59,8 +59,9 @@ its index policy in the provider.
 - Bound entity references must preserve exact named mapping identity and the
   original temporal/application-time root semantics through navigation and
   entity set-operation validation.
-- A consumed source-binding capability must not grow into a general CTE DSL,
-  application data cache, session-table protocol, or domain-specific query API.
+- Source binding and recursive traversal have distinct, explicit contracts;
+  neither introduces public SQL-alias management, an application data cache,
+  a session-table protocol, or a domain-specific query API.
 - One consumed join direction must remain local to its selected SQL edge,
   without a global join-order modifier or a second join/shaping implementation.
 - Temporal queries need one public, engine-independent EF-style contract.
@@ -92,10 +93,10 @@ For the concrete shared-source requirement, add one source-binding operator:
 `MySqlQueryableExtensions.WithMaterializedSource<TSource, TResult>(
 IQueryable<TSource>, Expression<Func<IQueryable<TSource>, IQueryable<TResult>>>)`.
 The expression parameter gives references lexical identity without public CTE
-names, arbitrary recursion, or a second query language. The original decision
-against a general LINQ-to-named-CTE DSL remains: the added operator implements
-a demonstrated evaluation contract that repeating an ordinary IQueryable does
-not provide, rather than duplicating EF's query-shaping operators.
+names, arbitrary recursion, or a second query language. This operator implements
+an evaluation contract that repeating an ordinary IQueryable does not provide.
+The later scoped CTE operators below add separate ordinary-binding and bounded
+traversal contracts; they do not change this materialization guarantee.
 
 The source is a completed, flat SQL relation, including its filters, duplicate
 occurrences, projected SQL values, and ordered page. Mapped entities and flat
@@ -351,10 +352,36 @@ semantics instead of normalizing them into one approximate range operation.
 
 ### Source-Binding Alternatives and Framework Seams
 
-A general named-CTE/recursive LINQ DSL remains rejected. It would introduce
-consumer alias management and recursive query semantics that neither active
-consumer needs. Repeating the source or using a normal/window-fenced CTE is
-also rejected for this contract: the MariaDB native counterexample changes
+A public SQL-alias registry and unbounded recursive LINQ language remain
+rejected. The selected 10.7.0 contract instead adds lexical `WithCte` and
+explicitly bounded `WithRecursiveCte` operators. They reuse the existing
+definition/reference graph, EF query composition and generated local names.
+They do not add a separate query cache or change ordinary-query execution.
+
+`WithCte(source, compose)` preserves the completed source bag and page, but
+does not promise once-only evaluation of volatile expressions. Native optimizer
+rules govern ordinary CTE merging, materialization and repeated evaluation.
+`WithMaterializedSource` remains the explicit choice when its selected source
+values must be shared across references.
+
+`WithRecursiveCte(anchor, step, compose, maximumDepth)` uses `UNION ALL` and
+an explicit depth, with the anchor at depth zero. Repeated paths and cycles
+retain bag semantics; no implicit visited set or deduplication is added. The
+step consumes one previous-iteration frontier and compatible physical scalar
+columns. A depth bound does not bound a branching result's cardinality.
+Runtime server-ceiling and proved recursive-text-capacity guards fail visibly,
+including for an empty composed result. They neither mutate session settings
+nor add a diagnostic query. INSERT SELECT uses its native write-error boundary
+instead of exposing private read-control columns as target values.
+
+Existing materialization evidence alone does not qualify every new CTE form. Reader
+buffering, cancellation, cleanup and pooled reuse require separate tests;
+provider-node quotation alone does not establish NativeAOT execution support.
+The compiler, reader and indexed-window extension points and their replacement
+triggers are recorded in [D-031](D-031-query-and-direct-write-seams.md).
+
+Repeating the source or using a normal/window-fenced CTE is still rejected for
+the materialized-source contract: the MariaDB native counterexample changes
 volatile values between references. A key-only rejoin cannot preserve an
 arbitrary projection or identical duplicate occurrences. Client preloading and
 session temporary tables change command count, snapshot/lifetime, cancellation,
@@ -616,6 +643,13 @@ annotation quotation helper.
   dictionary construction over single-argument pair initializers; recorded
   actual generated-C# compilation/execution under the existing friend identity
   separately from earlier syntax checks and the unchanged D-017 AOT boundary.
+- 2026-11-17: Extended the selected query contract with lexical ordinary CTEs
+  and explicitly bounded recursive CTEs, superseding the previous blanket
+  rejection of recursive LINQ composition. Retained the separate materialized
+  source evaluation guarantee, generated-name ownership, bag semantics and
+  independent runtime/quotation qualification boundaries.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 
@@ -636,6 +670,7 @@ annotation quotation helper.
 - `tests/Doka.EntityFrameworkCore.MySql.FunctionalTests/Query/MySqlMaterializedSourceTranslationTests.Names.cs`
 - `tests/Doka.EntityFrameworkCore.MySql.Tests/Query/MySqlMaterializedSourceExpressionTests.cs`
 - `src/Doka.EntityFrameworkCore.MySql/MySqlQueryableExtensions.StraightJoin.cs`
+- `src/Doka.EntityFrameworkCore.MySql/MySqlQueryableExtensions.Ctes.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Processing/MySqlStraightJoinLowering.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Translation/MySqlQueryableMethodTranslatingExpressionVisitor.StraightJoins.cs`
 - `src/Doka.EntityFrameworkCore.MySql/Internal/Query/Expressions/MySqlStraightJoinExpression.cs`

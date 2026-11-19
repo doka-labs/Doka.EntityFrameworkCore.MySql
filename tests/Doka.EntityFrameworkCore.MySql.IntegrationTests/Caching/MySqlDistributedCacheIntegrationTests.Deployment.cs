@@ -80,7 +80,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -123,7 +123,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var store = await fixture
+        var store = await _fixture
             .GetStoreAsync(ParseTarget(targetName), CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -170,7 +170,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture
+        var previousStore = await _fixture
             .GetStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -241,7 +241,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture
+        var previousStore = await _fixture
             .GetStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -316,7 +316,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture
+        var previousStore = await _fixture
             .GetStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -380,7 +380,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // Arrange
         var target = ParseTarget(targetName);
-        var previousStore = await fixture
+        var previousStore = await _fixture
             .GetStoreAsync(target, CancellationToken.None)
             .ConfigureAwait(false);
 

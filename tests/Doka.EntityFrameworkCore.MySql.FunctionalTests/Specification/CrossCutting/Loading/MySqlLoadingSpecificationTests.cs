@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestModels.ManyToManyModel;
 using JoinOneSelfPayload = Microsoft.EntityFrameworkCore.TestModels.ManyToManyFieldsModel.JoinOneSelfPayload;
 using JoinOneToThreePayloadFull =

@@ -9,10 +9,5 @@ dotnet_diagnostic.CS1591.severity = none
 # tests. The few LINQ call sites that legitimately rely on server-side translation
 # suppress them per-line with rationale.
 
-# EF1002 (raw-SQL injection risk) stays enforced in unit and functional tests so
-# that any new helper introducing non-parameterized SQL surfaces immediately.
-# Integration tests rely on fixture-controlled DDL (DROP/CREATE TABLE, migration
-# generator output) that EF1002 would flag as false-positives; suppression is
-# scoped to that project only.
-[Doka.EntityFrameworkCore.MySql.IntegrationTests/**.cs]
-dotnet_diagnostic.EF1002.severity = none
+# EF1002 remains enabled in every test project. Fixture-controlled SQL needs a
+# narrowly documented exception at the call that cannot use value parameters.

@@ -1,10 +1,10 @@
 ---
 id: D-007
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Modification batching and generated-value read-back"
 supersedes: []
 superseded-by: []
@@ -330,6 +330,8 @@ verifies exception-entry attribution for a failed multi-row insert.
   model/schema-consistency prerequisites, including explicit engine DDL and
   the nontransactional-table counterexample. Preserved MariaDB RETURNING and
   unsupported-shape fallback behavior.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

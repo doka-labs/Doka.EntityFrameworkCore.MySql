@@ -1,10 +1,19 @@
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Verifies the conservative parameter-rowset inference boundary.</summary>
-public sealed class MySqlValuesTypeMappingNormalizationTests
+public sealed class MySqlValuesTypeMappingNormalizationTests : IDisposable
 {
+    private readonly ServiceProvider _services = new ServiceCollection()
+        .AddEntityFrameworkDokaMySql()
+        .BuildServiceProvider();
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _services.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     /// <summary>Recognizes the fallback mapping and equivalent plain-string clones.</summary>
     [Theory]
     [InlineData("parameter")]
@@ -427,16 +436,24 @@ public sealed class MySqlValuesTypeMappingNormalizationTests
         value => "db-" + value,
         value => value.Substring(3));
 
-    private static NormalizationContext CreateContext() => new(
+    private NormalizationContext CreateContext() => new(
         new DbContextOptionsBuilder<NormalizationContext>()
-            .EnableServiceProviderCaching(false)
+
+            // WHY: Disabling caching still evaluates EF's process-wide provider count.
+            // An explicitly owned graph isolates this SQL-tree test without weakening diagnostics.
+            .UseInternalServiceProvider(_services)
             .UseMySql(
                 "Server=localhost;Database=unused;User ID=root;Password=unused;",
                 MySqlServerVersion.MySql(new Version(8, 4, 0)))
             .Options);
 
-    private sealed class NormalizationContext(DbContextOptions<NormalizationContext> options) : DbContext(options)
+    private sealed class NormalizationContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public NormalizationContext(
+            DbContextOptions<NormalizationContext> options
+        ) : base(options) { }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         ) => modelBuilder

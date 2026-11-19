@@ -184,7 +184,7 @@ public sealed partial class MySqlIndexKeyIntegrationTests
 
             // Assert
             Assert.Contains("server code 1071", exception.Message, StringComparison.Ordinal);
-            Assert.Empty(context.Database.GetAppliedMigrations());
+            Assert.Empty(await context.Database.GetAppliedMigrationsAsync(CancellationToken.None));
             Assert.Equal(
                 768L,
                 await ReadIndexPrefixLengthAsync(

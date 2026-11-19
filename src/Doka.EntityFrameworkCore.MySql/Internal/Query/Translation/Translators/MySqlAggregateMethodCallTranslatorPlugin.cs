@@ -91,6 +91,8 @@ internal sealed class MySqlStringAggregateTranslator : IAggregateMethodCallTrans
             separator,
         };
 
+        // WHY: Append native ordering descriptors directly after the selector and separator arguments.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var ordering in source.Orderings)
         {
             functionArguments.Add(

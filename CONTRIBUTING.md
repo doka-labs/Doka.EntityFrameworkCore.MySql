@@ -5,6 +5,9 @@ Contributions are welcome. Please read this document and the
 questions and private reporting channels are routed through
 [SUPPORT.md](SUPPORT.md).
 
+The applied [engineering standards](docs/engineering-standards.md) define the
+shared rules and this project's explicit test, audit and release baselines.
+
 ## Prerequisites
 
 - The exact [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)

@@ -32,6 +32,24 @@
 
   <ItemGroup>
     <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Query/MySqlCteIntegrationTests.*.cs">
+      <DependentUpon>MySqlCteIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlCteGraphIntegrationTests.*.cs">
+      <DependentUpon>MySqlCteGraphIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlWindowFunctionIntegrationTests.*.cs">
+      <DependentUpon>MySqlWindowFunctionIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlInsertSelectIntegrationTests.*.cs">
+      <DependentUpon>MySqlInsertSelectIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Update/MySqlUpsertIntegrationTests.*.cs">
+      <DependentUpon>MySqlUpsertIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Migrations/MySqlDefaultTextOptionsIntegrationTests.*.cs">
+      <DependentUpon>MySqlDefaultTextOptionsIntegrationTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Infrastructure/MySqlConnector3CompatibilityTests.*.cs">
       <DependentUpon>MySqlConnector3CompatibilityTests.cs</DependentUpon>
     </Compile>
@@ -77,6 +95,9 @@
     <Compile Update="Query/MySqlPrimitiveCollectionFacetIntegrationTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionFacetIntegrationTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="Query/MySqlLockingReadIntegrationTests.*.cs">
+      <DependentUpon>MySqlLockingReadIntegrationTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Query/MySqlPrimitiveCollectionParameterIntegrationTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionParameterIntegrationTests.cs</DependentUpon>
     </Compile>
@@ -91,6 +112,9 @@
     </Compile>
     <Compile Update="Spatial/MySqlNetTopologySuiteContractIntegrationTests.*.cs">
       <DependentUpon>MySqlNetTopologySuiteContractIntegrationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Spatial/MySqlInsertSelectSpatialIntegrationTests.*.cs">
+      <DependentUpon>MySqlInsertSelectSpatialIntegrationTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Storage/MySqlMariaDbUuidIntegrationTests.*.cs">
       <DependentUpon>MySqlMariaDbUuidIntegrationTests.cs</DependentUpon>

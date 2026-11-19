@@ -87,12 +87,18 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
         var rankedProjections = new List<ProjectionExpression>(
             selectExpression.Projection.Count + split.Correlations.Count + 1);
 
+        // WHY: Keep projection expressions paired with their corresponding indexed aliases.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < selectExpression.Projection.Count; index++)
         {
             rankedProjections.Add(
                 new ProjectionExpression(selectExpression.Projection[index].Expression, projectionAliases[index]));
         }
 
+        // WHY: The correlation index defines each partition alias while projections are appended in order.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < split.Correlations.Count; index++)
         {
             rankedProjections.Add(new ProjectionExpression(split.Correlations[index].Inner, GetPartitionAlias(index)));
@@ -259,11 +265,12 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
             ICollection<SqlExpression> clauses
         )
         {
-            if (candidate is SqlBinaryExpression { OperatorType: ExpressionType.AndAlso } conjunction)
+            // WHY: The left branch is visited first; the right spine has no pending
+            // work and can continue without another stack frame or reordered clauses.
+            while (candidate is SqlBinaryExpression { OperatorType: ExpressionType.AndAlso } conjunction)
             {
                 AddClauses(conjunction.Left, clauses);
-                AddClauses(conjunction.Right, clauses);
-                return;
+                candidate = conjunction.Right;
             }
 
             clauses.Add(candidate);
@@ -276,6 +283,8 @@ internal sealed class MySqlDynamicOffsetRewritingExpressionVisitor : MySqlShaped
     {
         SqlExpression? combined = null;
 
+        // WHY: Fold predicates in source order without constructing a separate aggregation pipeline.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var expression in expressions)
         {
             combined = AndAlso(combined, expression);

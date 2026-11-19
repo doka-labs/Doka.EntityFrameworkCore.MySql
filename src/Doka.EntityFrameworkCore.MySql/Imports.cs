@@ -1,5 +1,6 @@
 global using System;
 global using System.Buffers;
+global using System.Collections;
 global using System.Collections.Concurrent;
 global using System.Collections.Frozen;
 global using System.Collections.Generic;
@@ -25,9 +26,15 @@ global using System.Text.Json.Nodes;
 global using System.Text.RegularExpressions;
 global using System.Threading;
 global using System.Threading.Tasks;
+global using System.Transactions;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.ChangeTracking;
+global using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 global using Microsoft.EntityFrameworkCore.Design;
+
+// WHY: EF10 design-time reporting and runtime annotation generation share this
+// namespace; their version-sensitive type usage keeps its local EF1001 boundary.
+global using Microsoft.EntityFrameworkCore.Design.Internal;
 global using Microsoft.EntityFrameworkCore.Diagnostics;
 global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Microsoft.EntityFrameworkCore.Metadata;
@@ -35,8 +42,10 @@ global using Microsoft.EntityFrameworkCore.Metadata.Builders;
 global using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 global using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 global using Microsoft.EntityFrameworkCore.Migrations;
+global using Microsoft.EntityFrameworkCore.Migrations.Design;
 global using Microsoft.EntityFrameworkCore.Migrations.Operations;
 global using Microsoft.EntityFrameworkCore.Query;
+global using Microsoft.EntityFrameworkCore.Query.Internal;
 global using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 global using Microsoft.EntityFrameworkCore.Scaffolding;
 global using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
@@ -49,3 +58,4 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Logging;
 global using MySqlConnector;
+global using IsolationLevel = System.Data.IsolationLevel;

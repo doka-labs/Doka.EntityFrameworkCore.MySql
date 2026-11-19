@@ -87,33 +87,26 @@ public sealed partial class AdrRepositoryValidatorTests
             benchmarkScript,
             StringComparison.Ordinal);
 
-        Assert.Contains(
-            "source \"${repo_root}/eng/performance/host-preflight.sh\"",
-            benchmarkScript,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("host-preflight.sh", benchmarkScript, StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies benchmark headroom is checked before measurements start.</summary>
+    /// <summary>Verifies benchmark execution has no CPU-headroom admission or unused admission contract.</summary>
     [Fact]
     public void Benchmark_host_preflight_checks_cpu_headroom()
     {
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
+        var contractPath = Path.Combine(repositoryRoot, "benchmarks", "performance-contract.json");
+        var scriptPath = Path.Combine(repositoryRoot, "eng", "performance", "benchmark.sh");
 
         // Act
-        var hostPreflightScript = File.ReadAllText(
-            Path.Combine(repositoryRoot, "eng", "performance", "host-preflight.sh"));
+        using var contract = JsonDocument.Parse(File.ReadAllText(contractPath));
+        var benchmarkScript = File.ReadAllText(scriptPath);
 
         // Assert
-        Assert.Contains(
-            "require_benchmark_host_headroom()",
-            hostPreflightScript,
-            StringComparison.Ordinal);
-
-        Assert.Contains(
-            "maximumCpuUtilization",
-            hostPreflightScript,
-            StringComparison.Ordinal);
+        Assert.False(contract.RootElement.TryGetProperty("hostPreconditions", out _));
+        Assert.DoesNotContain("require_benchmark_host_headroom", benchmarkScript, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(repositoryRoot, "eng", "performance", "host-preflight.sh")));
     }
 
     /// <summary>Verifies one benchmark assembly executes both workload and evidence validation.</summary>

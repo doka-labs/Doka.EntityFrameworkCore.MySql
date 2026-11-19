@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow;
 
 /// <summary>
@@ -37,10 +33,14 @@ internal static class MigrationWorkflowCommand
 
         return command switch
         {
-            "migrate" => await MigrateAsync(cancellationToken).ConfigureAwait(false),
-            "migrate-direct" => await MigrateDirectAsync(cancellationToken).ConfigureAwait(false),
-            "verify-latest" => await VerifyLatestAsync(cancellationToken).ConfigureAwait(false),
-            "verify-rolled-back" => await VerifyRolledBackAsync(cancellationToken).ConfigureAwait(false),
+            "migrate" => await MigrateAsync(cancellationToken)
+                .ConfigureAwait(false),
+            "migrate-direct" => await MigrateDirectAsync(cancellationToken)
+                .ConfigureAwait(false),
+            "verify-latest" => await VerifyLatestAsync(cancellationToken)
+                .ConfigureAwait(false),
+            "verify-rolled-back" => await VerifyRolledBackAsync(cancellationToken)
+                .ConfigureAwait(false),
             _ => throw new ArgumentException(
                 $"Unsupported migration workflow command '{command}'. "
                 + "Supported commands are: migrate, migrate-direct, verify-latest, verify-rolled-back.",
@@ -60,7 +60,8 @@ internal static class MigrationWorkflowCommand
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: true);
 
-        await context.Database
+        await context
+            .Database
             .MigrateAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -105,17 +106,20 @@ internal static class MigrationWorkflowCommand
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: false);
 
-        var appliedMigrations = (await context.Database
-            .GetAppliedMigrationsAsync(cancellationToken)
-            .ConfigureAwait(false))
+        var appliedMigrations = (await context
+                .Database
+                .GetAppliedMigrationsAsync(cancellationToken)
+                .ConfigureAwait(false))
             .ToArray();
 
-        var pendingMigrations = (await context.Database
-            .GetPendingMigrationsAsync(cancellationToken)
-            .ConfigureAwait(false))
+        var pendingMigrations = (await context
+                .Database
+                .GetPendingMigrationsAsync(cancellationToken)
+                .ConfigureAwait(false))
             .ToArray();
 
-        var items = await context.Items
+        var items = await context
+            .Items
             .OrderBy(item => item.Id)
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -189,7 +193,8 @@ internal static class MigrationWorkflowCommand
         await using var context = MigrationWorkflowContextFactory.Create(
             enableMigrationPause: false);
 
-        var appliedMigrations = await context.Database
+        var appliedMigrations = await context
+            .Database
             .GetAppliedMigrationsAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -234,7 +239,8 @@ internal static class MigrationWorkflowCommand
         // The names are repository-owned constants. Keeping this readback
         // query separate from provider SQL generation makes it an independent
         // observation that the custom handler actually ran.
-        return context.Database
+        return context
+            .Database
             .SqlQueryRaw<long>(
                 "SELECT COUNT(*) AS `Value` "
                 + "FROM `information_schema`.`tables` "

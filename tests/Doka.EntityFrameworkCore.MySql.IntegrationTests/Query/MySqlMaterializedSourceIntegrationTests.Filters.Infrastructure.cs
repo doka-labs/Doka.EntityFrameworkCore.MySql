@@ -7,6 +7,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     private const string FilterSourceCTable = "IntBoundFilterC";
 
     /// <summary>Creates the filter fixture with cancellable database work.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<FilterFixture> CreateFilterFixtureAsync(
         IntegrationDatabaseTarget target,
@@ -51,6 +52,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Drops the filter tables using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static Task<int> DropFilterTablesAsync(
         FilterContext context,

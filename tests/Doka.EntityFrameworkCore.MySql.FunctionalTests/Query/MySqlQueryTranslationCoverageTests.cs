@@ -1,5 +1,3 @@
-using System.Linq.Expressions;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>

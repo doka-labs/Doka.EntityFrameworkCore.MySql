@@ -184,15 +184,13 @@ internal static partial class DocumentationContract
     )
     {
         var localLinks = ValidateLocalLinks(repositoryRoot);
-        var errors = new List<ContractError>(localLinks.Errors);
+        List<ContractError> errors = [.. localLinks.Errors];
         errors.AddRange(ValidatePackageReadme(repositoryRoot));
         errors.AddRange(ValidateCanonicalSections(repositoryRoot));
         errors.AddRange(ValidatePublicApiDocumentation(repositoryRoot));
         errors.AddRange(ValidateNavigation(repositoryRoot));
-        return new DocumentationValidationResult(
-            localLinks.DocumentCount,
-            localLinks.LinkCount,
-            errors);
+
+        return localLinks with { Errors = errors };
     }
 
     internal static DocumentationValidationResult ValidateLocalLinks(
@@ -244,6 +242,9 @@ internal static partial class DocumentationContract
         return documents
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
+
+            // WHY: Keep the eager array snapshot explicit at this validation boundary.
+            // ReSharper disable once UseCollectionExpression
             .ToArray();
     }
 

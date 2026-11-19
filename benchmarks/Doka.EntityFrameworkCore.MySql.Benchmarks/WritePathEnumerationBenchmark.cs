@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore.Update;
 
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;

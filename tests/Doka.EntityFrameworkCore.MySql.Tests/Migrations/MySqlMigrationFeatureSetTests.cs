@@ -6,23 +6,21 @@ namespace Doka.EntityFrameworkCore.MySql.Tests;
 /// </summary>
 public sealed class MySqlMigrationFeatureSetTests
 {
-    public static TheoryData<
-        MySqlServerVersion, IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>> ActiveProfiles
+    /// <summary>Identifies each native profile with serializable family and version values.</summary>
+    public static TheoryData<bool, string> ActiveProfiles
     {
         get
         {
-            var data =
-                new
-                    TheoryData<MySqlServerVersion,
-                        IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport>>
-                    {
-                        { MySqlServerVersion.MySql(new Version(8, 4, 11)), MySqlExpected() },
-                        { MySqlServerVersion.MySql(new Version(9, 7, 2)), MySqlExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(10, 11, 18)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(11, 4, 12)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(11, 8, 8)), MariaDbExpected() },
-                        { MySqlServerVersion.MariaDb(new Version(12, 3, 2)), MariaDbExpected() },
-                    };
+            // WHY: Rebuild provider objects in Arrange so xUnit 2 can serialize every discovered row.
+            var data = new TheoryData<bool, string>
+            {
+                { false, "8.4.11" },
+                { false, "9.7.2" },
+                { true, "10.11.18" },
+                { true, "11.4.12" },
+                { true, "11.8.8" },
+                { true, "12.3.2" },
+            };
 
             return data;
         }
@@ -31,14 +29,25 @@ public sealed class MySqlMigrationFeatureSetTests
     /// <summary>
     /// Verifies active lts profile exposes every feature exactly once.
     /// </summary>
+    /// <param name="isMariaDb">Whether the profile belongs to the MariaDB engine family.</param>
+    /// <param name="version">The server version reconstructed for this profile.</param>
     [Theory]
     [MemberData(nameof(ActiveProfiles))]
     public void Active_lts_profile_exposes_every_feature_exactly_once(
-        MySqlServerVersion serverVersion,
-        IReadOnlyDictionary<MySqlMigrationFeature, MySqlMigrationFeatureSupport> expected
+        bool isMariaDb,
+        string version
     )
     {
         // Arrange
+        var parsedVersion = Version.Parse(version);
+        var serverVersion = isMariaDb
+            ? MySqlServerVersion.MariaDb(parsedVersion)
+            : MySqlServerVersion.MySql(parsedVersion);
+
+        var expected = isMariaDb
+            ? MariaDbExpected()
+            : MySqlExpected();
+
         var features = new MySqlMigrationFeatureSet(serverVersion.Profile);
 
         // Act

@@ -138,20 +138,20 @@ remain fatal. Ordinary qualification retains the reviewed dependency recipe.
 
 ### Benchmark Failures Versus Hardware Diagnostics
 
-GitHub Actions always uses `DOKA_BENCHMARK_EVALUATION=allocations-only`:
+Local runs and GitHub Actions use `DOKA_BENCHMARK_EVALUATION=allocations-only`:
 allocation ceilings/ratios, correctness and explicit resource-ownership
 invariants remain enforced. Median/p95/p99 time, timing ratios, Gen2 frequency,
 working-set/managed-heap growth and throughput retention remain recorded and
-validated, but their threshold violations are **diagnostics**, not hosted
-regressions. CPU-headroom admission is local full-mode only. A slower or busier
-CPU is therefore not itself a timing-budget reason for a red hosted benchmark.
+validated, but their threshold violations are **diagnostics** in both environments.
+No CPU-headroom admission applies. A slower or busier CPU is therefore not
+itself a timing-budget reason for a red benchmark.
 
 This is not `continue-on-error`: failed execution, invalid or incomplete
 evidence, allocation regressions, and real bounded-resource/cleanup failures
 still fail. Hardware can still cause a genuine timeout or infrastructure
 outage. All produced raw reports and diagnostics are retained for diagnosis.
-Local runs default to `full`, which can enforce timing thresholds on a
-controlled host; `GITHUB_ACTIONS=true` cannot opt into full enforcement.
+The legacy `full` spelling is accepted as a compatibility alias for the same
+allocation/resource policy; it cannot enable hardware-sensitive rejection.
 See [Performance and Memory Evidence](performance-evidence.md).
 
 ## 3. Explicit Releases: Qualify Once, Then Publish Approved Bytes

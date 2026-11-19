@@ -18,7 +18,7 @@ internal static class SpecificationInventory
     {
         var probe = new RelationalComplianceProbe();
         var baseTypes = probe
-            .BaseTestClasses()
+            .EnumerateBaseTestClasses()
             .Distinct()
             .OrderBy(TypeId, StringComparer.Ordinal)
             .ToArray();
@@ -102,7 +102,7 @@ internal static class SpecificationInventory
     internal static IReadOnlyList<Type> BaseTestClasses() =>
     [
         .. new RelationalComplianceProbe()
-            .BaseTestClasses()
+            .EnumerateBaseTestClasses()
             .Distinct()
             .OrderBy(TypeId, StringComparer.Ordinal),
     ];
@@ -352,7 +352,7 @@ internal static class SpecificationInventory
     {
         protected override Assembly TargetAssembly => typeof(RelationalComplianceProbe).Assembly;
 
-        internal IEnumerable<Type> BaseTestClasses() => GetBaseTestClasses();
+        internal IEnumerable<Type> EnumerateBaseTestClasses() => GetBaseTestClasses();
     }
 
     private sealed record TestMethodSets(

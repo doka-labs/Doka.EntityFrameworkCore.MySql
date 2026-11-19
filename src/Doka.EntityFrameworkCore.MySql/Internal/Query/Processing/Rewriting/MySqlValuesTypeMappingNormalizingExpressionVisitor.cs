@@ -312,7 +312,7 @@ internal static class MySqlValuesTypeMappingNormalizingExpressionVisitor
         {
             if (_jsonParameters is not null
                 && node is TableExpressionBase { Alias: { } consumerAlias }
-                && node is not (MySqlJsonTableExpression or ValuesExpression))
+                    and not (MySqlJsonTableExpression or ValuesExpression))
             {
                 // WHY: Typed consumer columns keep their mapping after EF pushes
                 // pagination into a derived table. Local JSON/VALUES rowsets must

@@ -171,9 +171,9 @@ public sealed partial class AdrRepositoryValidatorTests
                 id: {{id}}
                 status: implemented
                 date: 2026-07-27
-                decision-makers: [Doka maintainers]
+                decision-makers: [Dominic Kalkbrenner]
                 consulted: []
-                informed: [Provider contributors]
+                informed: ["@doka-labs/core-maintainers"]
                 scope: "Test scope"
                 supersedes: {{RenderList(supersedes)}}
                 superseded-by: {{RenderList(supersededBy)}}

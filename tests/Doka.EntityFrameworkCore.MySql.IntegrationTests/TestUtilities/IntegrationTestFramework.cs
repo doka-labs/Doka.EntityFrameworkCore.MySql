@@ -1,7 +1,3 @@
-using System.Reflection;
-using Xunit.Abstractions;
-using Xunit.Sdk;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>

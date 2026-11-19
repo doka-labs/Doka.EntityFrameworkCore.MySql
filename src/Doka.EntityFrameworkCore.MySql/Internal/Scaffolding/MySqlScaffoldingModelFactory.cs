@@ -58,6 +58,12 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
             modelBuilder.Model.SetMySqlCharSet(modelCharSet);
         }
 
+        if (!string.IsNullOrWhiteSpace(databaseModel.Collation))
+        {
+            // WHY: Database and table defaults are independent schema facts; preserve both for code generation.
+            modelBuilder.UseCollation(databaseModel.Collation);
+        }
+
         // Pre-sort tables once to avoid redundant OrderBy allocations in each pass.
         var sortedTables = databaseModel
             .Tables
@@ -266,6 +272,8 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
                 if (index.IsDescending is { Count: > 0 }
                     && index.IsDescending.Any(isDescending => isDescending))
                 {
+                    // WHY: Snapshot descending flags before passing them to the mutable model builder.
+                    // ReSharper disable once UseCollectionExpression
                     indexBuilder.IsDescending(index.IsDescending.ToArray());
                 }
 
@@ -431,6 +439,8 @@ internal sealed partial class MySqlScaffoldingModelFactory : IScaffoldingModelFa
     {
         return columns
             .Select(column => propertyBuilders[(table, column)].Metadata.Name)
+            // WHY: Materialize mapped property names in their key-column order.
+            // ReSharper disable once UseCollectionExpression
             .ToArray();
     }
 

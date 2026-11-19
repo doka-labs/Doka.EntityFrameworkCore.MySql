@@ -119,6 +119,8 @@ internal sealed partial class MySqlModificationCommandBatch
         }
 
         var readColumnCount = 0;
+        // WHY: Count read columns directly before validating the native reader shape.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var modification in ModificationCommands[startCommandIndex].ColumnModifications)
         {
             if (modification.IsRead)
@@ -191,6 +193,8 @@ internal sealed partial class MySqlModificationCommandBatch
         var commandIndex = startCommandIndex;
         do
         {
+            // WHY: Add first-seen entries in command order while deduplicating by reference identity.
+            // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var entry in ModificationCommands[commandIndex].Entries)
             {
                 if (seenEntries.Add(entry))

@@ -1,10 +1,10 @@
 ---
 id: D-025
 status: accepted
-date: 2026-08-08
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "CI verification lanes, workflow security posture, and lint contract for a public repository"
 supersedes: [D-023]
 superseded-by: []
@@ -437,6 +437,8 @@ version control. They are documented in
   pull-request merge ref and froze its attempt-qualified artifact identity.
 - 2026-11-03: D-030 assigns complete PR and candidate qualification to one
   read-only reusable workflow while preserving the caller's merge-tree receipt.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

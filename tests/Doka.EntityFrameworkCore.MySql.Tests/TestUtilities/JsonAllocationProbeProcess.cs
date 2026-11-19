@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using BenchmarkProgram = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;

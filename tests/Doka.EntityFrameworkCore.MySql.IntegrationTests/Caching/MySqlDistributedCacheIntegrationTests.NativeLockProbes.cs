@@ -60,7 +60,9 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     )
     {
         // Arrange
-        var statementBytes = statement is null ? null : Encoding.ASCII.GetBytes(statement);
+        var statementBytes = statement is null
+            ? null
+            : Encoding.ASCII.GetBytes(statement);
 
         // Act
         var actual = IsCurrentNativeProbeSnapshot(statementBytes, "current-native-probe"u8, tableLock, state);
@@ -177,9 +179,15 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 ? GetWaitingForTableLockProbeSql(processSource)
                 : GetLockingStatementProbeSql(processSource);
 
-            probe.Parameters.Add("@worker", MySqlDbType.Int64).Value = nativeProcess.Id;
-            probe.Parameters.Add("@statement", MySqlDbType.LongBlob).Value = nativeProcess.Statement;
-            probe.Parameters.Add("@state", MySqlDbType.VarChar).Value = (object?)nativeProcess.State ?? DBNull.Value;
+            probe.Parameters.Add("@worker", MySqlDbType.Int64)
+                .Value = nativeProcess.Id;
+
+            probe.Parameters.Add("@statement", MySqlDbType.LongBlob)
+                .Value = nativeProcess.Statement;
+
+            probe.Parameters.Add("@state", MySqlDbType.VarChar)
+                .Value = (object?)nativeProcess.State ?? DBNull.Value;
+
             probe.Parameters.AddWithValue(
                 "@tableName",
                 matchingTable
@@ -214,9 +222,14 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
         }
 
         // Assert
-        Assert.Equal((long)worker.ServerThread, nativeProcess.Id);
-        Assert.NotEqual((long)observer.ServerThread, nativeProcess.Id);
-        Assert.True(nativeProcess.Statement.AsSpan().IndexOf(markerBytes) >= 0);
+        Assert.Equal(worker.ServerThread, nativeProcess.Id);
+        Assert.NotEqual(observer.ServerThread, nativeProcess.Id);
+        Assert.True(nativeProcess
+                .Statement
+                .AsSpan()
+                .IndexOf(markerBytes)
+            >= 0);
+
         Assert.True(
             remainedBlocked,
             "The binary command must still be waiting while its native metadata is inspected.");
@@ -261,7 +274,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     {
         // WHY: MariaDB's cached INNODB_TRX can still describe a previous command on a pooled session.
         // Observe this invocation's marker in the real native source while the independently held lock blocks it.
-        var source = GetNativeProcessListSource(observer);
+        var source = MySqlNativeProcessMetadata.GetProcessListSource(observer);
         var commandText = $"SELECT ID, CAST(INFO AS BINARY), STATE FROM {source} WHERE ID = @worker;";
 
         await using var command = new MySqlCommand(commandText, observer);
@@ -274,15 +287,21 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
                 .ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false))
             {
-                if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                if (await reader
+                    .ReadAsync(cancellationToken)
+                    .ConfigureAwait(false))
                 {
                     // WHY: These values belong to the already buffered row; reading them performs no I/O.
                     // ReSharper disable once MethodHasAsyncOverload
-                    var statement = reader.IsDBNull(1) ? null : reader.GetFieldValue<byte[]>(1);
+                    var statement = reader.IsDBNull(1)
+                        ? null
+                        : reader.GetFieldValue<byte[]>(1);
 
                     // WHY: Read STATE from the same buffered snapshot instead of another live metadata query.
                     // ReSharper disable once MethodHasAsyncOverload
-                    var state = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    var state = reader.IsDBNull(2)
+                        ? null
+                        : reader.GetString(2);
 
                     if (IsCurrentNativeProbeSnapshot(statement, statementMarker, tableLock, state))
                     {
@@ -299,7 +318,7 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
 
         await pending.ConfigureAwait(false);
 
-        throw new Xunit.Sdk.XunitException(
+        throw new XunitException(
             "The binary UPDATE completed before the observer could inspect its native lock state.");
     }
 
@@ -309,11 +328,14 @@ public sealed partial class MySqlDistributedCacheIntegrationTests
     /// <param name="tableLock">Whether native metadata must also report a table-lock wait.</param>
     /// <param name="state">The unmodified state from the same native row.</param>
     private static bool IsCurrentNativeProbeSnapshot(
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] byte[]? statement,
+        [NotNullWhen(true)] byte[]? statement,
         ReadOnlySpan<byte> statementMarker,
         bool tableLock,
         string? state
     ) => statement is not null
-        && statement.AsSpan().IndexOf(statementMarker) >= 0
+        && statement
+            .AsSpan()
+            .IndexOf(statementMarker)
+        >= 0
         && (!tableLock || state?.Contains("lock", StringComparison.OrdinalIgnoreCase) == true);
 }

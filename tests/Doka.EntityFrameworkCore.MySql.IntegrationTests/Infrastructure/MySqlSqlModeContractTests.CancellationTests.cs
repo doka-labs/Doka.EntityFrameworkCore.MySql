@@ -352,7 +352,7 @@ public sealed partial class MySqlSqlModeContractTests
         CancellationToken cancellationToken
     )
     {
-        var source = GetMetadataProcessSource(observer);
+        var source = MySqlNativeProcessMetadata.GetProcessListSource(observer);
 
         await using var command = observer.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM {source} WHERE ID = @workerId AND COMMAND = 'Query';";

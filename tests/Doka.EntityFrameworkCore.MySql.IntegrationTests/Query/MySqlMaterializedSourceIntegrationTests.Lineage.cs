@@ -3,6 +3,8 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies the named navigation lineage contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
+    /// <param name="mappingName">The named entity mapping used as the bound query root.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertNamedNavigationLineageAsync(
         IntegrationDatabaseTarget target,
@@ -34,6 +36,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the join result preserves named lineage contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertJoinResultPreservesNamedLineageAsync(
         IntegrationDatabaseTarget target,
@@ -62,6 +65,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the owned navigation after binding contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertOwnedNavigationAfterBindingAsync(
         IntegrationDatabaseTarget target,

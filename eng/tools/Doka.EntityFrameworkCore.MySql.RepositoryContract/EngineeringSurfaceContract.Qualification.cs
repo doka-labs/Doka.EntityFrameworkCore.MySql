@@ -129,6 +129,8 @@ internal static partial class EngineeringSurfaceContract
             : Regex
                 .Matches(required, "^      - ([a-z][a-z0-9-]*)$", RegexOptions.Multiline)
                 .Select(static match => match.Groups[1].Value)
+                // WHY: Keep the eager array snapshot explicit at this validation boundary.
+                // ReSharper disable once UseCollectionExpression
                 .ToArray();
 
         var aggregate = string.Join(" ", required.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));

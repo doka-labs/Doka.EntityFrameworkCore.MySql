@@ -1,6 +1,3 @@
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore.Query;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Verifies composed string rowsets against immutable bounded-column data.</summary>

@@ -25,11 +25,6 @@
     <PackageReference Include="MySqlConnector" />
   </ItemGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.IntegrationTests" />
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Benchmarks" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

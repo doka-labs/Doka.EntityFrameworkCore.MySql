@@ -1,10 +1,3 @@
-// File-local using: RelationalCSharpRuntimeAnnotationCodeGenerator and its dependencies live
-// in the Design.Internal namespace and are referenced by only two src files (this one plus
-// MySqlServiceCollectionExtensions). Keeping the import file-local avoids polluting the
-// global-using surface with a namespace the rest of the codebase does not touch.
-
-using Microsoft.EntityFrameworkCore.Design.Internal;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 #pragma warning disable EF1001
@@ -14,5 +7,51 @@ internal sealed class MySqlCSharpRuntimeAnnotationCodeGenerator : RelationalCSha
         CSharpRuntimeAnnotationCodeGeneratorDependencies dependencies,
         RelationalCSharpRuntimeAnnotationCodeGeneratorDependencies relationalDependencies
     ) : base(dependencies, relationalDependencies) { }
+
+    /// <inheritdoc />
+    public override void Generate(
+        IProperty property,
+        CSharpRuntimeAnnotationCodeGeneratorParameters parameters
+    )
+    {
+        if (!parameters.IsRuntime)
+        {
+            MySqlRuntimeColumnTextFacets.AddRuntimeAnnotations(parameters.Annotations, property, property);
+        }
+
+        base.Generate(property, parameters);
+    }
+
+    /// <inheritdoc />
+    public override void Generate(
+        IRelationalPropertyOverrides propertyOverrides,
+        CSharpRuntimeAnnotationCodeGeneratorParameters parameters
+    )
+    {
+        if (!parameters.IsRuntime)
+        {
+            MySqlRuntimeColumnTextFacets.AddRuntimeAnnotations(parameters.Annotations,
+                propertyOverrides,
+                propertyOverrides.Property);
+        }
+
+        base.Generate(propertyOverrides, parameters);
+    }
+
+    /// <inheritdoc />
+    public override void Generate(
+        IModel model,
+        CSharpRuntimeAnnotationCodeGeneratorParameters parameters
+    )
+    {
+        // WHY: Compiled-model generation starts from design metadata rather than executing
+        // runtime conventions; emit the same primitive compatibility receipt on this path.
+        if (!parameters.IsRuntime)
+        {
+            MySqlTextDefaults.AddRuntimeAnnotations(parameters.Annotations, model);
+        }
+
+        base.Generate(model, parameters);
+    }
 }
 #pragma warning restore EF1001

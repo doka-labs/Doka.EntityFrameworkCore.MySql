@@ -42,6 +42,7 @@
     <Compile Remove="EnumerationControlBenchmark.cs" />
     <Compile Remove="WritePathEnumerationBenchmark*.cs" />
     <Compile Remove="QueryEnumerationBenchmark*.cs" />
+    <Compile Remove="DirectWriteBenchmark*.cs" />
     <Compile Remove="StoredProcedureEnumerationBenchmark.cs" />
   </ItemGroup>
 
@@ -52,11 +53,13 @@
     <Compile Update="QueryEnumerationBenchmark.*.cs">
       <DependentUpon>QueryEnumerationBenchmark.cs</DependentUpon>
     </Compile>
+    <Compile Update="DirectWriteBenchmark.*.cs">
+      <DependentUpon>DirectWriteBenchmark.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DokaBenchmarkUsesPackagedProvider)' == 'false'">

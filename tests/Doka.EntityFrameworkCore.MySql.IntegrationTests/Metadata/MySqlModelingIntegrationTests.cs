@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>
@@ -375,6 +373,10 @@ public sealed class MySqlModelingIntegrationTests
     /// <param name="cancellationToken">The token used to cancel setup and execution.</param>
     /// <param name="context">The context used for the database operation.</param>
     /// <param name="tables">The tables.</param>
+    [SuppressMessage("Security",
+        "EF1002:Risk of vulnerability to SQL injection",
+        Justification = "WHY: DDL identifiers cannot be parameters; this helper doubles backticks"
+            + " before delimiting each fixture-owned table name.")]
     private static async Task CleanupAsync(
         DbContext context,
         CancellationToken cancellationToken,

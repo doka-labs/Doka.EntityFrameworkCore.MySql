@@ -1,10 +1,10 @@
 ---
 id: D-001
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Runtime and design-time EF Core service composition"
 supersedes: []
 superseded-by: []
@@ -211,6 +211,8 @@ migration.
   row-version mappings in snapshots, designers, and migration operations.
 - 2026-08-29: Extended GUID operation normalization to explicit `Binary16`
   mappings under a `Char36` default.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

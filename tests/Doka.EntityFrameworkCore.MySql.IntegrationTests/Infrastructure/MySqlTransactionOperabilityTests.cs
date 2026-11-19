@@ -1,4 +1,3 @@
-using System.Transactions;
 using IsolationLevel = System.Data.IsolationLevel;
 
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;

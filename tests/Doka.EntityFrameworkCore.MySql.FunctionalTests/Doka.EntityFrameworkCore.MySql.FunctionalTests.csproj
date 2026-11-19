@@ -36,11 +36,23 @@
 
   <ItemGroup>
     <!-- One wildcard per family keeps new topic partials nested without per-file maintenance. -->
+    <Compile Update="Query/MySqlIndexedSelectTests.*.cs">
+      <DependentUpon>MySqlIndexedSelectTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlInsertSelectTranslationTests.*.cs">
+      <DependentUpon>MySqlInsertSelectTranslationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlWindowFunctionTests.*.cs">
+      <DependentUpon>MySqlWindowFunctionTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="Capabilities/MySqlNewFeatureTests.*.cs">
       <DependentUpon>MySqlNewFeatureTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Metadata/MySqlIndexByteBudgetTests.*.cs">
       <DependentUpon>MySqlIndexByteBudgetTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Metadata/MySqlDefaultTextModelTests.*.cs">
+      <DependentUpon>MySqlDefaultTextModelTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Metadata/MySqlModelValidatorAndDdlTests.*.cs">
       <DependentUpon>MySqlModelValidatorAndDdlTests.cs</DependentUpon>
@@ -68,6 +80,12 @@
     </Compile>
     <Compile Update="Query/MySqlMaterializedSourceTranslationTests.*.cs">
       <DependentUpon>MySqlMaterializedSourceTranslationTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlLockingReadTests.*.cs">
+      <DependentUpon>MySqlLockingReadTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Query/MySqlCteTranslationTests.*.cs">
+      <DependentUpon>MySqlCteTranslationTests.cs</DependentUpon>
     </Compile>
     <Compile Update="Query/MySqlPrimitiveCollectionParameterTests.*.cs">
       <DependentUpon>MySqlPrimitiveCollectionParameterTests.cs</DependentUpon>

@@ -1,10 +1,10 @@
 ---
 id: D-021
 status: implemented
-date: 2026-07-27
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Specification coverage, skips, and engine limitation evidence"
 supersedes: []
 superseded-by: []
@@ -344,6 +344,8 @@ specification corpus; D-021 governs how exceptions are classified and enforced.
 - 2026-08-18: Bound spatial validity, buffer strategies, and collection
   aggregates to their exact engine-version capabilities, and implemented the
   NetTopologySuite Crosses relation through MariaDB DE-9IM predicates.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

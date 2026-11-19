@@ -75,6 +75,7 @@ public sealed class CommonTableExpressionIntegrationTests
         => RunUpdateContractAsync(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the update contract integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunUpdateContractAsync(
         IntegrationDatabaseTarget target,
@@ -111,6 +112,7 @@ public sealed class CommonTableExpressionIntegrationTests
     }
 
     /// <summary>Runs the query contract integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunQueryContractAsync(
         IntegrationDatabaseTarget target,
@@ -171,6 +173,7 @@ public sealed class CommonTableExpressionIntegrationTests
     }
 
     /// <summary>Verifies the cancellation contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCancellationContractAsync(
         IntegrationDatabaseTarget target,
@@ -204,6 +207,7 @@ public sealed class CommonTableExpressionIntegrationTests
         // SQL identifiers are deliberately fixed in the trusted command text.
         // Only runtime data is parameterized; relational providers cannot bind
         // table or column names through database parameters.
+        // ReSharper disable once FormatStringProblem
         context.Items.FromSqlRaw(ComposedCteSql, new MySqlParameter("@upperBound", upperBound));
 
     private static CteContext CreateContext(
@@ -226,6 +230,7 @@ public sealed class CommonTableExpressionIntegrationTests
     }
 
     /// <summary>Creates the integration tables with cancellable database work.</summary>
+    /// <param name="context">The context whose mapped schema and seed rows are prepared.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetupAsync(
         CteContext context,
@@ -250,6 +255,7 @@ public sealed class CommonTableExpressionIntegrationTests
     }
 
     /// <summary>Seeds the integration tables with cancellable database work.</summary>
+    /// <param name="context">The context receiving the scenario's seed rows.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SeedAsync(
         CteContext context,

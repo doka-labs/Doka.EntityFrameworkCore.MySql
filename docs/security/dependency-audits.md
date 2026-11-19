@@ -6,7 +6,7 @@ maintenance dependency can therefore be vulnerable even while main is clean.
 Version-update ignore rules and a later version's existence are not proof
 that a maintained graph is safe.
 
-Version 10.6.7 retains the serviced .NET 10.0.15 dependencies and repository
+Version 10.7.0 retains the serviced .NET 10.0.15 dependencies and repository
 SDK 10.0.404 introduced in 10.6.6, with the provider/spatial EF Core range
 `>= 10.0.8` and `< 10.1.0` and the MySqlConnector security floor below. The
 standalone cache's Microsoft.Extensions dependencies are serviced independently

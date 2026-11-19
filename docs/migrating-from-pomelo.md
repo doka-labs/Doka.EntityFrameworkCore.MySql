@@ -19,10 +19,10 @@ disposable database or a restored copy, not production.
 Replace the `Pomelo.EntityFrameworkCore.MySql` package reference with
 `Doka.EntityFrameworkCore.MySql` and remove Pomelo namespaces. Install the
 stable package explicitly so the migration uses the documented version. The
-following command targets 10.6.7 once that version has been published:
+following command targets 10.7.0 once that version has been published:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0
 ```
 
 Use:

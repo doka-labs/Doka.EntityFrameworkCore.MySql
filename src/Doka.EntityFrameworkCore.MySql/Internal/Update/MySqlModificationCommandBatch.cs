@@ -50,7 +50,7 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
     private readonly IRelationalConnection _connection;
     private readonly ILogger _logger;
 
-    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = new();
+    private readonly List<IReadOnlyModificationCommand> _pendingBulkInsertCommands = [];
     private long _additionalReadbackPacketBytes;
     private int _currentParameterCount;
     private bool _packetSizeWarningEmitted;
@@ -487,6 +487,8 @@ internal sealed partial class MySqlModificationCommandBatch : AffectedCountModif
         var modifications = modificationCommand.ColumnModifications;
 
         // WHY: Generated read columns need not have parameters. Reuse this traversal to bypass inactive readback work.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < modifications.Count; index++)
         {
             var modification = modifications[index];

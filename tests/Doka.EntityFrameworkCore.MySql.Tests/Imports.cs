@@ -5,43 +5,68 @@ global using System.Collections.Concurrent;
 global using System.Collections.Generic;
 global using System.Data;
 global using System.Data.Common;
+global using System.Diagnostics;
 global using System.Diagnostics.CodeAnalysis;
+global using System.Globalization;
 global using System.IO;
 global using System.IO.Compression;
 global using System.Linq;
 global using System.Linq.Expressions;
 global using System.Net;
 global using System.Net.Sockets;
+global using System.Reflection;
 global using System.Runtime.InteropServices;
+global using System.Text;
 global using System.Text.Json;
+global using System.Text.Json.Nodes;
 global using System.Text.RegularExpressions;
 global using System.Threading;
 global using System.Threading.Tasks;
 global using BenchmarkDotNet.Reports;
 global using Doka.EntityFrameworkCore.MySql.AdrValidator;
+global using Doka.EntityFrameworkCore.MySql.Benchmarks;
 global using Doka.EntityFrameworkCore.MySql.TestUtilities;
+global using Microsoft.CodeAnalysis;
+global using Microsoft.CodeAnalysis.CSharp;
 global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Design.Internal;
 global using Microsoft.EntityFrameworkCore.Diagnostics;
 global using Microsoft.EntityFrameworkCore.Infrastructure;
 global using Microsoft.EntityFrameworkCore.Metadata;
 global using Microsoft.EntityFrameworkCore.Migrations;
+global using Microsoft.EntityFrameworkCore.Migrations.Design;
 global using Microsoft.EntityFrameworkCore.Migrations.Operations;
 global using Microsoft.EntityFrameworkCore.Query;
+global using Microsoft.EntityFrameworkCore.Query.Internal;
 global using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 global using Microsoft.EntityFrameworkCore.Storage;
+global using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 global using Microsoft.EntityFrameworkCore.ValueGeneration;
 global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Logging;
 global using MySqlConnector;
 global using NetTopologySuite.Geometries;
 global using NetTopologySuite.IO;
 global using Xunit;
+
+// WHY: Keep the repository contract's existing identity type unambiguous after importing Roslyn.
+global using AssemblyIdentity = Doka.EntityFrameworkCore.MySql.SpecificationContract.AssemblyIdentity;
 global using BenchmarkPerformanceGate = Doka.EntityFrameworkCore.MySql.Benchmarks.PerformanceGate;
+
+// WHY: Named ambient-transaction imports keep System.Data.IsolationLevel unambiguous.
+global using CommittableTransaction = System.Transactions.CommittableTransaction;
 global using CoverageContract = Doka.EntityFrameworkCore.MySql.CoverageGate.CoverageContract;
 global using DocumentationContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.DocumentationContract;
 global using EngineeringSurfaceContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.EngineeringSurfaceContract;
+global using ExampleContractValidator = Doka.EntityFrameworkCore.MySql.RepositoryContract.ExampleContractValidator;
 global using ImagePinContract = Doka.EntityFrameworkCore.MySql.RepositoryContract.ImagePinContract;
 global using NuGetSymbolReadbackManifestBuilder =
     Doka.EntityFrameworkCore.MySql.NuGetSymbolReadback.SymbolReadbackManifestBuilder;
 global using RepositoryContractValidator =
     Doka.EntityFrameworkCore.MySql.RepositoryContract.RepositoryContractValidator;
+global using Transaction = System.Transactions.Transaction;
+global using TransactionScope = System.Transactions.TransactionScope;
+global using TransactionScopeAsyncFlowOption = System.Transactions.TransactionScopeAsyncFlowOption;
+global using TransactionScopeOption = System.Transactions.TransactionScopeOption;
+global using TransactionStatus = System.Transactions.TransactionStatus;

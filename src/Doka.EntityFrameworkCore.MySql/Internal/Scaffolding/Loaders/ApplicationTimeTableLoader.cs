@@ -124,6 +124,8 @@ internal static class ApplicationTimeTableLoader
         // keeps that canonical output independent of the caller's SQL mode.
         // Clearing ANSI_QUOTES is also a parser safety property: identifiers
         // remain backtick-quoted instead of looking like string literals.
+        // WHY: Each selected table owns and disposes its command and reader before the next database round trip.
+        // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
         foreach (var table in context.TableLookup.Values)
         {
             if (table is DatabaseView)

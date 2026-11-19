@@ -1,10 +1,10 @@
 ---
 id: D-030
 status: implemented
-date: 2026-10-22
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Exact framework release lines, current publication authority and monotonic Latest"
 supersedes: []
 superseded-by: []
@@ -304,6 +304,8 @@ operations remain separately approved and observed.
 - 2026-11-14: Make normal branch instructions explicit, separate GitHub
   publication visibility waiting and add protected completion of original
   fully uploaded publications without rebuilding or changing hosted settings.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

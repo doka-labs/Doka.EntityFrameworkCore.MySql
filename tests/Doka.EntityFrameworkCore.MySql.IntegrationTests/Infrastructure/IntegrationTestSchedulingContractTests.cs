@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>

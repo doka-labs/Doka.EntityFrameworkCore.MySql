@@ -10,6 +10,11 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         MethodCallExpression methodCallExpression
     )
     {
+        if (TranslateWindowBoundary(methodCallExpression) is { } windowBoundary)
+        {
+            return windowBoundary;
+        }
+
         if (methodCallExpression.Method.DeclaringType == typeof(MySqlStraightJoinLowering)
             && methodCallExpression.Method.IsGenericMethod
             && methodCallExpression.Method.GetGenericMethodDefinition() == MySqlStraightJoinLowering.MarkInnerMethod)
@@ -38,6 +43,9 @@ internal sealed partial class MySqlQueryableMethodTranslatingExpressionVisitor
         LambdaExpression resultSelector
     )
     {
+        PrepareWindowComposition(outer);
+        PrepareWindowComposition(inner);
+
         var directed = (_straightJoinOwner ?? this)._straightJoinInputs?.Remove((SelectExpression)inner.QueryExpression)
             == true;
 

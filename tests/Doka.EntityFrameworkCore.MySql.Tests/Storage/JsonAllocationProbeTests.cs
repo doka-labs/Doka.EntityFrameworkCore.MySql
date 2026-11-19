@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Protects the isolated allocation counter against false zero and incomplete proof.</summary>

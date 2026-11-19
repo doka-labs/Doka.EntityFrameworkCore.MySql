@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Shares the indexes responsibility without changing the test fixture.</summary>

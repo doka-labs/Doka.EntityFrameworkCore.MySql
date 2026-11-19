@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>Qualifies the driver behaviors that differ between supported Connector 2.x and 3.x.</summary>

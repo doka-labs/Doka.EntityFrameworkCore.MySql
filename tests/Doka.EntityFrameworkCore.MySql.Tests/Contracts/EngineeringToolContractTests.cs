@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Globalization;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>
@@ -128,11 +125,11 @@ public sealed class EngineeringToolContractTests
         Assert.Equal(expectedExitCode, result.ExitCode);
     }
 
-    /// <summary>Verifies only local full-mode measurements depend on preflight CPU headroom.</summary>
+    /// <summary>Verifies neither supported spelling admits a CPU-headroom rejection.</summary>
     /// <param name="evaluation">The resolved enforcement policy.</param>
     /// <param name="expectedExitCode">The expected result on a contended host.</param>
     [Theory]
-    [InlineData("full", 78)]
+    [InlineData("full", 0)]
     [InlineData("allocations-only", 0)]
     public void Benchmark_cpu_headroom_admission_is_local_full_mode_only(
         string evaluation,
@@ -142,8 +139,9 @@ public sealed class EngineeringToolContractTests
         // Arrange
         var repositoryRoot = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(repositoryRoot, "eng/performance/benchmark.sh"));
-        var start = script.IndexOf("if [[ \"${evaluation}\" == \"full\" ]]", StringComparison.Ordinal);
-        var end = script.IndexOf("\necho \"Benchmark evaluation policy:", start, StringComparison.Ordinal);
+        var start = script.IndexOf("dotnet build ", StringComparison.Ordinal);
+        start = script.IndexOf('\n', start);
+        var end = script.IndexOf("export DOKA_BENCHMARK_TARGET=", start, StringComparison.Ordinal);
 
         // Act
         var result = Run(
@@ -152,15 +150,14 @@ public sealed class EngineeringToolContractTests
             default,
             "set -euo pipefail\nevaluation=\"$1\"\ncontract=unused\n"
             + "require_benchmark_host_headroom() { echo admission-called; return 1; }\n"
+            + "source() { :; }\n"
             + script[start..end],
             "benchmark-admission",
             evaluation);
 
         // Assert
         Assert.Equal(expectedExitCode, result.ExitCode);
-        Assert.Equal(
-            evaluation == "full",
-            result.StandardOutput.Contains("admission-called", StringComparison.Ordinal));
+        Assert.DoesNotContain("admission-called", result.StandardOutput, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies the shell and executable agree on hosted enforcement, including explicit overrides.</summary>
@@ -170,7 +167,7 @@ public sealed class EngineeringToolContractTests
     [Theory]
     [InlineData("full", "true", "allocations-only")]
     [InlineData("full", "TRUE", "allocations-only")]
-    [InlineData("full", "false", "full")]
+    [InlineData("full", "false", "allocations-only")]
     [InlineData("allocations-only", "false", "allocations-only")]
     [InlineData("typo", "true", null)]
     public void Benchmark_shell_policy_cannot_enable_hosted_timing_gates(

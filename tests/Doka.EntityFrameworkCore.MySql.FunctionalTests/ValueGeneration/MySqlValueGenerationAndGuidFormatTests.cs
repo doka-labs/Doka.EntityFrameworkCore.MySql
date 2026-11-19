@@ -1,7 +1,3 @@
-using System.Data;
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;
 
 /// <summary>

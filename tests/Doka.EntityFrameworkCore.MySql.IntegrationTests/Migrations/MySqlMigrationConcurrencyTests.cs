@@ -38,19 +38,18 @@ public sealed class MySqlMigrationConcurrencyTests
 
             var historyA = contextA.GetService<IHistoryRepository>();
             var historyB = contextB.GetService<IHistoryRepository>();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
             // Act
-            var acquireA = historyA.AcquireDatabaseLockAsync();
-            var acquireB = historyB.AcquireDatabaseLockAsync();
-
-            await Task
-                .WhenAll(acquireA, acquireB)
-                .WaitAsync(TimeSpan.FromSeconds(5))
+            // WHY: Retaining the first lock while acquiring the second proves independent
+            // scopes without leaving a successful acquisition unowned if the other fails.
+            await using var lockA = await historyA
+                .AcquireDatabaseLockAsync(cancellation.Token)
                 .ConfigureAwait(false);
 
-            await using var lockA = await acquireA.ConfigureAwait(false);
-
-            await using var lockB = await acquireB.ConfigureAwait(false);
+            await using var lockB = await historyB
+                .AcquireDatabaseLockAsync(cancellation.Token)
+                .ConfigureAwait(false);
 
             // Assert
             Assert.NotNull(lockA);
@@ -125,8 +124,8 @@ public sealed class MySqlMigrationConcurrencyTests
     /// <summary>
     /// Wait-and-acquire check: when one session already holds the migration lock, a
     /// concurrent acquire on the same database waits until the holder releases rather
-    /// than proceeding into a parallel migration. The waiter's observed acquire latency
-    /// must reflect the holder's hold duration (within scheduler jitter).
+    /// than proceeding into a parallel migration. The server must witness the pending
+    /// request before the holder releases; elapsed time is not an assertion.
     /// </summary>
     [RequiresDatabaseTargetFact(IntegrationDatabaseTarget.MySql84)]
     public async Task Migration_lock_acquire_waits_when_held_by_another_session()
@@ -134,7 +133,6 @@ public sealed class MySqlMigrationConcurrencyTests
         // Arrange
         var baseConnectionString = IntegrationTestEnvironment.GetConnectionString(IntegrationDatabaseTarget.MySql84);
         var dbName = $"doka_lock_w_{Guid.NewGuid():N}"[..30];
-        var holdDuration = TimeSpan.FromSeconds(2);
 
         await CreateDatabaseAsync(baseConnectionString, dbName, CancellationToken.None)
             .ConfigureAwait(false);
@@ -147,38 +145,49 @@ public sealed class MySqlMigrationConcurrencyTests
             await using var waiterContext = new LockContext(CreateOptions(scopedConnectionString));
             var holderHistory = holderContext.GetService<IHistoryRepository>();
             var waiterHistory = waiterContext.GetService<IHistoryRepository>();
+            var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
             await using var heldLock = await holderHistory
-                .AcquireDatabaseLockAsync()
+                .AcquireDatabaseLockAsync(cancellation.Token)
                 .ConfigureAwait(false);
 
-            var releaseHolderTask = Task.Run(async () =>
-            {
-                await Task
-                    .Delay(holdDuration)
-                    .ConfigureAwait(false);
-
-                await heldLock
-                    .DisposeAsync()
-                    .ConfigureAwait(false);
-            });
-
-            var acquireStopwatch = Stopwatch.StartNew();
+            IMigrationsDatabaseLock acquiredLock;
+            bool completedBeforeRelease;
 
             // Act
-            await using var waitedLock = await waiterHistory
-                .AcquireDatabaseLockAsync()
-                .ConfigureAwait(false);
+            var pendingAcquire = waiterHistory.AcquireDatabaseLockAsync(cancellation.Token);
 
-            acquireStopwatch.Stop();
+            try
+            {
+                await WaitForPendingLockAsync(scopedConnectionString, lockName, pendingAcquire, cancellation.Token)
+                    .ConfigureAwait(false);
 
-            await releaseHolderTask.ConfigureAwait(false);
+                completedBeforeRelease = pendingAcquire.IsCompleted;
+            }
+            finally
+            {
+                try
+                {
+                    // WHY: Early release permits the waiter to finish. The await-using owner
+                    // still covers earlier failures; migration-lock disposal is idempotent.
+                    // ReSharper disable once DisposeOnUsingVariable
+                    await heldLock
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    // WHY: Always observe and release the pending acquisition before either
+                    // context leaves scope, including a failed server-wait observation.
+                    await using var waitedLock = await pendingAcquire.ConfigureAwait(false);
+                    acquiredLock = waitedLock;
+                }
+            }
 
             // Assert
-            Assert.NotNull(waitedLock);
-            Assert.True(
-                acquireStopwatch.Elapsed >= holdDuration - TimeSpan.FromMilliseconds(250),
-                $"Expected acquire to wait at least {holdDuration - TimeSpan.FromMilliseconds(250):c}; actual {acquireStopwatch.Elapsed:c}.");
+            Assert.False(completedBeforeRelease);
+            Assert.NotNull(acquiredLock);
         }
         finally
         {
@@ -240,16 +249,12 @@ public sealed class MySqlMigrationConcurrencyTests
                     .ConfigureAwait(false);
             }
 
-            // KILL is asynchronous on the server side; give the reaper a beat before
-            // the verification acquire to keep the test deterministic on slow runners.
-            await Task
-                .Delay(TimeSpan.FromMilliseconds(250))
-                .ConfigureAwait(false);
-
             await using var verifier = new LockContext(CreateOptions(scopedConnectionString));
             var verifierHistory = verifier.GetService<IHistoryRepository>();
 
             // Act
+            // WHY: GET_LOCK itself waits for the killed session's lock to be reaped;
+            // a fixed delay neither proves release nor accommodates every scheduler.
             await using var reAcquired = await verifierHistory
                 .AcquireDatabaseLockAsync()
                 .ConfigureAwait(false);
@@ -293,16 +298,15 @@ public sealed class MySqlMigrationConcurrencyTests
                 .ConfigureAwait(false);
 
             // Act
-            var stopwatch = Stopwatch.StartNew();
-
-            await Assert.ThrowsAsync<TimeoutException>(() => contenderHistory.AcquireDatabaseLockAsync());
-            stopwatch.Stop();
+            var recordedException = await Record.ExceptionAsync(() =>
+                contenderHistory.AcquireDatabaseLockAsync(CancellationToken.None));
 
             // Assert
-            Assert.InRange(
-                stopwatch.Elapsed,
-                TimeSpan.FromMilliseconds(750),
-                TimeSpan.FromSeconds(5));
+            var timeout = Assert.IsType<TimeoutException>(recordedException);
+
+            // WHY: The configured native/provider deadline must survive normalization;
+            // elapsed scheduler time is not evidence of which deadline was applied.
+            Assert.Contains("within 1 seconds.", timeout.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -338,18 +342,13 @@ public sealed class MySqlMigrationConcurrencyTests
                 .ConfigureAwait(false);
 
             // Act
-            var stopwatch = Stopwatch.StartNew();
-
             // WHY: The synchronous advisory-lock path must enforce the same deadline independently.
             // ReSharper disable once MethodHasAsyncOverload
-            Assert.Throws<TimeoutException>(contenderHistory.AcquireDatabaseLock);
-            stopwatch.Stop();
+            var recordedException = Record.Exception(() => contenderHistory.AcquireDatabaseLock());
 
             // Assert
-            Assert.InRange(
-                stopwatch.Elapsed,
-                TimeSpan.FromMilliseconds(750),
-                TimeSpan.FromSeconds(5));
+            var timeout = Assert.IsType<TimeoutException>(recordedException);
+            Assert.Contains("within 1 seconds.", timeout.Message, StringComparison.Ordinal);
         }
         finally
         {
@@ -381,27 +380,49 @@ public sealed class MySqlMigrationConcurrencyTests
 
             var holderHistory = holderContext.GetService<IHistoryRepository>();
             var contenderHistory = contenderContext.GetService<IHistoryRepository>();
+            var lockName = MySqlAdvisoryLockNaming.BuildLockName(scopedConnectionString);
+            Exception? cancellationException;
 
             await using (var heldLock = await holderHistory
                 .AcquireDatabaseLockAsync()
                 .ConfigureAwait(false))
             {
-                using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+                using var cancellation = new CancellationTokenSource();
+                using var observationCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                    contenderHistory.AcquireDatabaseLockAsync(cancellation.Token));
+                // Act
+                var pendingAcquire = contenderHistory.AcquireDatabaseLockAsync(cancellation.Token);
+
+                try
+                {
+                    await WaitForPendingLockAsync(scopedConnectionString,
+                            lockName,
+                            pendingAcquire,
+                            observationCancellation.Token)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    // WHY: Cancel only after the server witnesses contention, and always
+                    // drain the operation before releasing the holder or its contexts.
+                    cancellation.Cancel();
+                    cancellationException = await Record.ExceptionAsync(async () =>
+                    {
+                        await using var unexpectedLock = await pendingAcquire.ConfigureAwait(false);
+                    });
+                }
             }
 
             await using var verifierContext = new LockContext(CreateOptions(scopedConnectionString));
+            using var verificationCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(1));
 
-            // Act
             await using var verifierLock = await verifierContext
                 .GetService<IHistoryRepository>()
-                .AcquireDatabaseLockAsync()
-                .WaitAsync(TimeSpan.FromSeconds(5))
+                .AcquireDatabaseLockAsync(verificationCancellation.Token)
                 .ConfigureAwait(false);
 
             // Assert
+            Assert.IsAssignableFrom<OperationCanceledException>(cancellationException);
             Assert.NotNull(verifierLock);
         }
         finally
@@ -431,49 +452,132 @@ public sealed class MySqlMigrationConcurrencyTests
         {
             await using var dataSource = new MySqlDataSourceBuilder(scopedConnectionString).Build();
             await using var context = new LockContext(CreateOptions(dataSource));
-            var lockInstance = await context
+            await using var lockInstance = await context
                 .GetService<IHistoryRepository>()
                 .AcquireDatabaseLockAsync()
                 .ConfigureAwait(false);
 
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+
+            // Act
             var reacquireTask = Task.Run(async () =>
             {
                 try
                 {
+                    // WHY: This test deliberately races reacquisition against disposal;
+                    // both operations finish before the await-using owner leaves scope.
+                    // ReSharper disable once AccessToDisposedClosure
                     _ = await lockInstance
-                        .ReacquireIfNeededAsync(connectionReopened: true, transactionRestarted: null)
+                        .ReacquireIfNeededAsync(connectionReopened: true,
+                            transactionRestarted: null,
+                            cancellation.Token)
                         .ConfigureAwait(false);
                 }
                 catch (ObjectDisposedException)
                 {
                     // Disposal won the lifecycle gate; terminal disposal is expected.
                 }
-            });
+            }, CancellationToken.None);
 
-            var disposeTask = Task.Run(async () => await lockInstance
-                .DisposeAsync()
-                .ConfigureAwait(false));
+            var disposeTask = Task.Run(async () =>
+            {
+                // WHY: The race intentionally disposes the borrowed instance early;
+                // its await-using owner still covers setup and task-launch failures.
+                // ReSharper disable once AccessToDisposedClosure
+                // ReSharper disable once DisposeOnUsingVariable
+                await lockInstance
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+            }, CancellationToken.None);
 
             await Task
                 .WhenAll(reacquireTask, disposeTask)
-                .WaitAsync(TimeSpan.FromSeconds(10))
                 .ConfigureAwait(false);
 
-            await AssertLockIsFreeAsync(scopedConnectionString, lockName, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            // Act
             await using var verificationConnection = await dataSource
-                .OpenConnectionAsync()
+                .OpenConnectionAsync(CancellationToken.None)
                 .ConfigureAwait(false);
 
             // Assert
+            await AssertLockIsFreeAsync(scopedConnectionString, lockName, CancellationToken.None)
+                .ConfigureAwait(false);
+
             Assert.Equal(ConnectionState.Open, verificationConnection.State);
         }
         finally
         {
             await DropDatabaseAsync(baseConnectionString, dbName)
                 .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Waits for the server to expose this exact advisory-lock request as blocked.</summary>
+    /// <param name="connectionString">The database connection string used by the observer.</param>
+    /// <param name="lockName">The unique advisory-lock name shared by the holder and contender.</param>
+    /// <param name="pendingAcquire">The contender operation that must remain incomplete while blocked.</param>
+    /// <param name="cancellationToken">The safety token for stalled server observation.</param>
+    private static async Task WaitForPendingLockAsync(
+        string connectionString,
+        string lockName,
+        Task<IMigrationsDatabaseLock> pendingAcquire,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var connection = new MySqlConnection(connectionString);
+        await connection
+            .OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.Parameters.AddWithValue("@name", lockName);
+        command.CommandText = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM performance_schema.metadata_locks
+            WHERE OBJECT_TYPE = 'USER LEVEL LOCK'
+              AND OBJECT_NAME = @name
+              AND LOCK_STATUS = 'GRANTED'
+        );
+        """;
+
+        if (Convert.ToInt64(await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture)
+            != 1)
+        {
+            throw new InvalidOperationException(
+                "The held advisory lock must be visible in MySQL's default metadata-lock instrumentation.");
+        }
+
+        // WHY: MySQL exposes blocked GET_LOCK requests as PENDING user-level metadata
+        // locks. The unique lock name witnesses native contention independently of
+        // scheduler delay; the dedicated provider session is not the context session.
+        command.CommandText = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM performance_schema.metadata_locks
+            WHERE OBJECT_TYPE = 'USER LEVEL LOCK'
+              AND OBJECT_NAME = @name
+              AND LOCK_STATUS = 'PENDING'
+        );
+        """;
+
+        while (Convert.ToInt64(await command
+                    .ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture)
+            != 1)
+        {
+            if (pendingAcquire.IsCompleted)
+            {
+                // Observe a native acquire failure now; the caller retains ownership
+                // of any unexpectedly successful acquisition and disposes it in finally.
+                await pendingAcquire.ConfigureAwait(false);
+
+                throw new InvalidOperationException(
+                    "The contender completed before the server witnessed a pending advisory-lock request.");
+            }
         }
     }
 

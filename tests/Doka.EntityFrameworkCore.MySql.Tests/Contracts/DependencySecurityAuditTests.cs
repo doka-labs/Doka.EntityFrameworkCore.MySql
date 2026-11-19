@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>

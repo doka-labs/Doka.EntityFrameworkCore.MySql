@@ -26,7 +26,9 @@ public sealed partial class MySqlOptionsExtension
             _extension.DefaultGuidFormat,
             _extension.ParameterizedCollectionMode,
             _extension.Connection is not null,
-            _extension.DataSource is not null);
+            _extension.DataSource is not null,
+            _extension.DefaultCharSet,
+            _extension.DefaultCollation);
 
         public override void PopulateDebugInfo(
             IDictionary<string, string> debugInfo
@@ -45,6 +47,10 @@ public sealed partial class MySqlOptionsExtension
             && Equals(_extension.RetryOptions, otherInfo._extension.RetryOptions)
             && _extension.DefaultGuidFormat == otherInfo._extension.DefaultGuidFormat
             && _extension.ParameterizedCollectionMode == otherInfo._extension.ParameterizedCollectionMode
+            && string.Equals(_extension.DefaultCharSet, otherInfo._extension.DefaultCharSet, StringComparison.Ordinal)
+            && string.Equals(_extension.DefaultCollation,
+                otherInfo._extension.DefaultCollation,
+                StringComparison.Ordinal)
             && _extension.Connection is not null == otherInfo._extension.Connection is not null
             && _extension.DataSource is not null == otherInfo._extension.DataSource is not null;
     }

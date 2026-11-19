@@ -218,6 +218,8 @@ internal static partial class ImagePinContract
         return AnyReferencePattern()
             .Matches(File.ReadAllText(path))
             .Select(static match => match.Value)
+            // WHY: Keep the eager array snapshot explicit at this validation boundary.
+            // ReSharper disable once UseCollectionExpression
             .ToArray();
     }
 

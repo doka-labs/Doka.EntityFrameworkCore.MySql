@@ -12,7 +12,7 @@ internal static class PerformanceGate
     /// <param name="target">The exact engine target in the contract.</param>
     /// <param name="profile">The required measurement profile.</param>
     /// <param name="soakPath">Optional soak evidence required by the selected profile.</param>
-    /// <param name="mode">The resolved policy controlling which valid budget violations reject the run.</param>
+    /// <param name="mode">The accepted policy identity; hardware-sensitive thresholds remain diagnostic.</param>
     /// <returns>Zero on success, one for a regression, or 78 for invalid evidence.</returns>
     public static int Run(
         string contractPath,
@@ -20,7 +20,7 @@ internal static class PerformanceGate
         string target,
         string profile,
         string? soakPath,
-        PerformanceEvaluationMode mode = PerformanceEvaluationMode.Full
+        PerformanceEvaluationMode mode = PerformanceEvaluationMode.AllocationsOnly
     )
     {
         var result = Evaluate(contractPath, reportsDirectory, target, profile, soakPath, mode);
@@ -60,13 +60,13 @@ internal static class PerformanceGate
         return 0;
     }
 
-    /// <summary>Validates complete evidence before applying the selected budget policy.</summary>
+    /// <summary>Validates complete evidence before enforcing allocation and resource budgets.</summary>
     /// <param name="contractPath">The reviewed performance contract.</param>
     /// <param name="reportsDirectory">The raw BenchmarkDotNet report directory.</param>
     /// <param name="target">The exact engine target in the contract.</param>
     /// <param name="profile">The required measurement profile.</param>
     /// <param name="soakPath">Optional soak evidence required by the selected profile.</param>
-    /// <param name="mode">The resolved policy; diagnostic violations do not hide invalid evidence.</param>
+    /// <param name="mode">The accepted policy identity; diagnostic violations do not hide invalid evidence.</param>
     /// <returns>Measured coverage, invalid evidence, enforced regressions and nonrejecting diagnostics.</returns>
     public static PerformanceGateResult Evaluate(
         string contractPath,
@@ -74,7 +74,7 @@ internal static class PerformanceGate
         string target,
         string profile,
         string? soakPath,
-        PerformanceEvaluationMode mode = PerformanceEvaluationMode.Full
+        PerformanceEvaluationMode mode = PerformanceEvaluationMode.AllocationsOnly
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractPath);

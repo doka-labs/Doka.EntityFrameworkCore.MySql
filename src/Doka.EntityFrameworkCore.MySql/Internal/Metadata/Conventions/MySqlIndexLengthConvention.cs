@@ -131,6 +131,8 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
             return;
         }
 
+        // WHY: Each physical table needs its own charset-width vector and directly appended constraint.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var table in MySqlIndexByteBudget.GetPhysicalIndexTables(entityType, properties))
         {
             var widths = properties
@@ -264,6 +266,8 @@ internal sealed class MySqlIndexLengthConvention(IRelationalTypeMappingSource ty
 
             // WHY: Separate model properties can name one physical column. All of
             // their indexes constrain that same column, including an unindexed alias.
+            // WHY: Resolve each alias mapping and update its shared candidate in the same pass.
+            // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
             foreach (var alias in aliases)
             {
                 var mapping = typeMappingSource.FindMapping((IProperty)alias)!;

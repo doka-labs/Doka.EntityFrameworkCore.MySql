@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.Benchmarks;
 using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -86,7 +85,7 @@ public sealed partial class PerformanceGateTests
     public void Gate_reports_a_budget_regression_separately_from_invalid_evidence()
     {
         // Arrange
-        using var fixture = PerformanceGateFixture.Create(medianBudget: 4);
+        using var fixture = PerformanceGateFixture.Create(workloadAllocatedBytes: 1000);
 
         // Act
         var result = BenchmarkPerformanceGate.Evaluate(
@@ -98,7 +97,7 @@ public sealed partial class PerformanceGateTests
 
         // Assert
         Assert.Empty(result.InvalidEvidence);
-        Assert.Contains(result.Regressions, error => error.Contains("medianNanoseconds", StringComparison.Ordinal));
+        Assert.Contains(result.Regressions, error => error.Contains("allocatedBytes", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -167,7 +166,9 @@ public sealed partial class PerformanceGateTests
         // Assert
         Assert.Empty(result.InvalidEvidence);
         Assert.Contains(
-            result.Regressions,
+            result.Diagnostics,
             error => error.Contains("managedHeapGrowthBytes", StringComparison.Ordinal));
+
+        Assert.Empty(result.Regressions);
     }
 }

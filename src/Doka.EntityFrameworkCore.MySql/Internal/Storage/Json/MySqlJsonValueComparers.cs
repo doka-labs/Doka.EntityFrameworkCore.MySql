@@ -228,6 +228,9 @@ internal static class MySqlJsonValueComparers
             return false;
         }
 
+        // WHY: Compare corresponding JSON array positions and stop at the first unequal node.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < left.Count; index++)
         {
             if (!JsonNodeEqualsCore(left[index], right[index]))
@@ -371,6 +374,9 @@ internal static class MySqlJsonValueComparers
         hash.Add(JsonValueKind.Array);
         hash.Add(jsonArray.Count);
 
+        // WHY: Hash indexed JSON nodes in order without adding a query pipeline to recursive hashing.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < jsonArray.Count; index++)
         {
             hash.Add(HashNullableJsonNode(jsonArray[index]));

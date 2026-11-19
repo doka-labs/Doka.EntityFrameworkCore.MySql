@@ -48,6 +48,34 @@ public sealed class MySqlDbContextOptionsBuilder
         : throw new ArgumentOutOfRangeException(nameof(format));
 
     /// <summary>
+    /// Configures a fallback database character set for models without an explicit character set.
+    /// </summary>
+    /// <param name="charSet">The character-set identifier, or <see langword="null" /> to remove this fallback.</param>
+    /// <returns>The current builder instance.</returns>
+    /// <remarks>
+    /// Explicit model, table and column settings and specialized type contracts retain precedence.
+    /// This option affects model and migration defaults; it does not change connection encoding,
+    /// convert existing columns or rewrite historical migrations.
+    /// </remarks>
+    public MySqlDbContextOptionsBuilder DefaultCharSet(
+        string? charSet
+    ) => WithOption(currentExtension => currentExtension.WithDefaultCharSet(charSet));
+
+    /// <summary>
+    /// Configures a fallback database collation for models without an explicit collation.
+    /// </summary>
+    /// <param name="collation">The collation identifier, or <see langword="null" /> to remove this fallback.</param>
+    /// <returns>The current builder instance.</returns>
+    /// <remarks>
+    /// Explicit model, table and column settings retain precedence, including MariaDB JSON's
+    /// binary collation. The final charset/collation option pair must be compatible. Removing
+    /// this option does not remove an explicit model setting or select an inferred server default.
+    /// </remarks>
+    public MySqlDbContextOptionsBuilder DefaultCollation(
+        string? collation
+    ) => WithOption(currentExtension => currentExtension.WithDefaultCollation(collation));
+
+    /// <summary>
     /// Requires every connection used by this context to support server-side
     /// user-defined variables.
     /// </summary>

@@ -2,9 +2,9 @@
 id: D-NNN
 status: proposed
 date: YYYY-MM-DD
-decision-makers: [Doka maintainers]
+decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Bounded decision scope"
 supersedes: []
 superseded-by: []

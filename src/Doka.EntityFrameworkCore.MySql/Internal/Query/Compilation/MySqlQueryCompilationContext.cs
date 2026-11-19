@@ -8,6 +8,7 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
     private const string LazyLoadingProxyAnnotation = "Proxies:LazyLoading";
     private Dictionary<int, Expression>? _materializedSourceQueries;
     private Dictionary<int, ShapedQueryExpression>? _materializedSources;
+    private Dictionary<int, ShapedQueryExpression>? _recursiveCteFrontiers;
 
     /// <summary>
     /// Initializes a context for a regular query compilation.
@@ -44,8 +45,20 @@ internal sealed class MySqlQueryCompilationContext : RelationalQueryCompilationC
     /// </summary>
     internal Dictionary<int, ShapedQueryExpression> MaterializedSources => _materializedSources ??= [];
 
+    /// <summary>Gets provisional frontier shapes only while their owning recursive step is translated.</summary>
+    internal Dictionary<int, ShapedQueryExpression> RecursiveCteFrontiers => _recursiveCteFrontiers ??= [];
+
+    /// <summary>Gets or sets whether an actually translated ordinary or recursive source needs global column-demand analysis.</summary>
+    internal bool HasPrunableSources { get; set; }
+
     /// <summary>Gets or sets the narrow navigation-expansion scope of an already filtered entity source.</summary>
     internal bool VisitingMaterializedEntityRoot { get; set; }
+
+    /// <summary>Gets or sets the one locking policy for this compilation's final direct SELECT.</summary>
+    internal MySqlLockingReadMode LockingReadMode { get; set; }
+
+    /// <summary>Gets or sets whether this compilation has explicit windows or indexed selectors.</summary>
+    internal bool UsesWindowFunctions { get; set; }
 
     /// <inheritdoc />
     public override bool IgnoreQueryFilters => VisitingMaterializedEntityRoot || base.IgnoreQueryFilters;

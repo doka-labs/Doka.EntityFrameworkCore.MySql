@@ -7,7 +7,4 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Doka.EntityFrameworkCore.MySql.Tests" />
-  </ItemGroup>
 </Project>

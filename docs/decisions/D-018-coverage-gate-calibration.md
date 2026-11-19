@@ -1,10 +1,10 @@
 ---
 id: D-018
 status: implemented
-date: 2026-05-18
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Source coverage union, assembly floors, and risk-critical class floors"
 supersedes: []
 superseded-by: []
@@ -263,6 +263,8 @@ The 2026-07-29 accepted union measured:
   instrumentable dimension at 100%.
 - 2026-08-23: Moved coverage evaluation from Python to the compiled C# owner
   without changing the policy, thresholds, or evidence contract.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

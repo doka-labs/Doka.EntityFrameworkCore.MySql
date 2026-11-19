@@ -34,7 +34,14 @@ internal sealed class MySqlConventionSetBuilder : RelationalConventionSetBuilder
         conventionSet.EntityTypeAnnotationChangedConventions.Add(temporalConvention);
         conventionSet.SkipNavigationForeignKeyChangedConventions.Add(temporalConvention);
         conventionSet.ModelFinalizingConventions.Add(temporalConvention);
+        var defaultTextConvention = new MySqlDefaultTextConvention(_singletonOptions);
+
+        conventionSet.ModelAnnotationChangedConventions.Add(defaultTextConvention);
+        conventionSet.ModelFinalizingConventions.Add(defaultTextConvention);
         conventionSet.ModelFinalizingConventions.Add(new MySqlValueGenerationConvention(_singletonOptions));
+
+        conventionSet.Replace<RuntimeModelConvention>(
+            new MySqlTextRuntimeModelConvention(Dependencies, RelationalDependencies));
 
         // WHY: GUID normalization determines the physical key width used by the budget.
         conventionSet.ModelFinalizingConventions.Add(

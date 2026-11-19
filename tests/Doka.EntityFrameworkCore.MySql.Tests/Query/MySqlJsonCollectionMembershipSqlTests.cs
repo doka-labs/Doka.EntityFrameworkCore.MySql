@@ -83,7 +83,7 @@ public sealed class MySqlJsonCollectionMembershipSqlTests
         // Assert
         Assert.Contains("SELECT COUNT(*)", sql, StringComparison.Ordinal);
         Assert.Contains("WHERE (", sql, StringComparison.Ordinal);
-        Assert.Contains(") AND `values_rows`.`value` <=> 3", sql, StringComparison.Ordinal);
+        Assert.Contains(") AND (`values_rows`.`value`) <=> (3)", sql, StringComparison.Ordinal);
         Assert.Contains(
             negated
                 ? ") = 0"

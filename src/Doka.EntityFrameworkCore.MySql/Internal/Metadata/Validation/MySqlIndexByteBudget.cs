@@ -156,7 +156,7 @@ internal static class MySqlIndexByteBudget
                 ? strategy != RelationalAnnotationNames.TpcMappingStrategy
                 : null;
 
-            for (var mappedType = (IReadOnlyEntityType?)entityType;
+            for (var mappedType = entityType;
                 mappedType is not null;
                 mappedType = mappedType.BaseType)
             {
@@ -314,6 +314,14 @@ internal static class MySqlIndexByteBudget
             ?? defaults.CharSet
             ?? GetCharSetFromCollation(entityType.Model.GetCollation()) ?? entityType.Model.GetMySqlCharSet();
 
+        return GetBytesPerCharacter(charSet);
+    }
+
+    /// <summary>Gets the known native maximum encoded width without assuming a session character set.</summary>
+    internal static int? GetBytesPerCharacter(
+        string? charSet
+    )
+    {
         return charSet
                 ?.Trim()
                 .ToLowerInvariant() switch

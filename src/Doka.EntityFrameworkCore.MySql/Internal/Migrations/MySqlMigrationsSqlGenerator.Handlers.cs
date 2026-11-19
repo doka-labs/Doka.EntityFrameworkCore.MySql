@@ -260,6 +260,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             // expose a mutable or stateful IReadOnlyList, so validating one
             // enumeration and appending another would be a time-of-check to
             // time-of-use boundary violation.
+            // ReSharper disable once UseCollectionExpression
             commands = result.Commands.ToArray();
         }
         catch (Exception exception)
@@ -297,7 +298,7 @@ internal sealed partial class MySqlMigrationsSqlGenerator
             throw CreateInvalidResultException(registration);
         }
 
-        return Array.Empty<MySqlMigrationCommandSpec>();
+        return [];
     }
 
     private MySqlMigrationOperationHandlerException CreateInvalidResultException(

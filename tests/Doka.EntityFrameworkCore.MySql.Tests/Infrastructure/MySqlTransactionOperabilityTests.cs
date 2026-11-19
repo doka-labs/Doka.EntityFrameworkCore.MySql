@@ -12,8 +12,18 @@ public sealed class MySqlTransactionOperabilityTests
     public void Provider_transactions_expose_and_execute_savepoint_commands()
     {
         // Arrange
+        using var services = new ServiceCollection()
+            .AddEntityFrameworkDokaMySql()
+            .BuildServiceProvider();
+
         using var connection = new RecordingDbConnection();
-        using var context = new TransactionOperabilityContext(CreateOptions(connection));
+
+        // WHY: Savepoint execution does not test global cache reuse. Own this graph
+        // independently of the separate singleton/logger cache regression below.
+        using var context = new TransactionOperabilityContext(
+            new DbContextOptionsBuilder<TransactionOperabilityContext>(CreateOptions(connection))
+                .UseInternalServiceProvider(services)
+                .Options);
 
         using var transaction = context.Database.BeginTransaction();
 

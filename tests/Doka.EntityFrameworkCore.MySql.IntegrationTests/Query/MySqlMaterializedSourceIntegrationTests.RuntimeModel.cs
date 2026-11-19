@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies source metadata and navigation shaping with a supplied runtime model.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertSuppliedRuntimeModelPreservesSourceMetadataAsync(
         IntegrationDatabaseTarget target,

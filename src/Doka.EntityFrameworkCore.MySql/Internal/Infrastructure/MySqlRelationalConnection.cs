@@ -1,9 +1,6 @@
-using System.Transactions;
-using IsolationLevel = System.Data.IsolationLevel;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
-internal sealed class MySqlRelationalConnection : RelationalConnection
+internal sealed partial class MySqlRelationalConnection : RelationalConnection
 {
     private readonly IMySqlDriverFacade _driverFacade;
     private readonly MySqlOptionsExtension _optionsExtension;
@@ -135,6 +132,8 @@ internal sealed class MySqlRelationalConnection : RelationalConnection
         }
 
         base.SetDbConnection(value, contextOwnsConnection);
+
+        ClearLockingReadEnlistment();
 
         _activeConnectionPathIsBorrowed = value is not null
             || _optionsExtension.Connection is not null

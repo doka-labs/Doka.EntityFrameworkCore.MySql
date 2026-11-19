@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 public sealed partial class MySqlStraightJoinTests

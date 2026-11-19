@@ -36,7 +36,9 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
         MaterializedSourceExecutionValidator.Validate(processed);
         MySqlMaterializedSourceIncludeValidator.Validate(processed);
 
-        return processed;
+        return MySqlLockingReadQueryValidator.Validate(
+            processed,
+            (MySqlQueryCompilationContext)RelationalQueryCompilationContext);
     }
 
     /// <summary>
@@ -67,7 +69,9 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
         Expression query
     )
     {
-        var pruned = new MySqlMaterializedSourcePruner().Prune(query);
+        var pruned = new MySqlMaterializedSourcePruner(
+            ((MySqlQueryCompilationContext)RelationalQueryCompilationContext).HasPrunableSources).Prune(query);
+
         var dynamicOffsets = new MySqlDynamicOffsetRewritingExpressionVisitor(
                 RelationalDependencies.SqlExpressionFactory,
                 RelationalDependencies.TypeMappingSource,
@@ -105,8 +109,7 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
             var visitor = new MaterializedSourceExecutionValidator();
             visitor.Visit(expression);
 
-            if (visitor._hasBinding
-                && visitor._hasSplitCollection)
+            if (visitor is { _hasBinding: true, _hasSplitCollection: true })
             {
                 throw new InvalidOperationException(
                     "Materialized sources require a single SQL statement; split collection queries cannot be bound.");
@@ -202,29 +205,37 @@ internal sealed class MySqlQueryTranslationPostprocessor : RelationalQueryTransl
             ISet<(string? Schema, string Name)> physicalTables
         )
         {
-            while (table is JoinExpressionBase joinExpression)
+            // WHY: Retain left-before-right set traversal while continuing the right
+            // branch without an extra frame. Nested select branches still recurse.
+            while (true)
             {
-                table = joinExpression.Table;
-            }
+                while (table is JoinExpressionBase joinExpression)
+                {
+                    table = joinExpression.Table;
+                }
 
-            switch (table)
-            {
-                case TableExpression tableExpression:
-                    physicalTables.Add((tableExpression.Schema, tableExpression.Name));
-                    break;
+                switch (table)
+                {
+                    case TableExpression tableExpression:
+                        physicalTables.Add((tableExpression.Schema, tableExpression.Name));
+                        return;
 
-                case SelectExpression selectExpression:
-                    foreach (var nestedTable in selectExpression.Tables)
-                    {
-                        AddPhysicalTables(nestedTable, physicalTables);
-                    }
+                    case SelectExpression selectExpression:
+                        foreach (var nestedTable in selectExpression.Tables)
+                        {
+                            AddPhysicalTables(nestedTable, physicalTables);
+                        }
 
-                    break;
+                        return;
 
-                case SetOperationBase setOperation:
-                    AddPhysicalTables(setOperation.Source1, physicalTables);
-                    AddPhysicalTables(setOperation.Source2, physicalTables);
-                    break;
+                    case SetOperationBase setOperation:
+                        AddPhysicalTables(setOperation.Source1, physicalTables);
+                        table = setOperation.Source2;
+                        continue;
+
+                    default:
+                        return;
+                }
             }
         }
 

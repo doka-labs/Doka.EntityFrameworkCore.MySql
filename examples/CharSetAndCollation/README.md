@@ -1,14 +1,25 @@
 # Character Sets and Collations
 
-Demonstrates provider-specific model metadata for:
+Demonstrates the application defaults added in Doka 10.7.0 on .NET 10 / EF Core 10
+and explicit provider metadata:
 
-- model and table `utf8mb4` character sets
+- `DefaultCharSet("utf8mb4")` and `DefaultCollation("utf8mb4_unicode_ci")`
+  configured once through `UseMySql`
 - the `InnoDB` storage engine
 - binary and case-insensitive column collations
 - prefix-length indexes on long text keys
 
-The live assertions prove that `utf8mb4_bin` distinguishes `Alpha` from
-`alpha`, while `utf8mb4_unicode_ci` matches `DOKA` with `doka`.
+The example checks both canonical model defaults and actual native column
+charset/collation facts. The unconfigured `FallbackText` property inherits
+`utf8mb4_unicode_ci`: querying `alpha` matches both `Alpha` and `alpha`.
+Explicit column overrides remain effective: binary `Title` matches only one
+`alpha` and no `ALPHA`, while case-insensitive `SearchCode` matches `DOKA`
+with `doka`. The assertions do not rely on the server's inherited default.
+
+These options configure model/schema fallbacks. They do not change connection
+encoding or convert existing text columns. See
+[application text defaults](../../docs/default-text-options.md) for migration
+and override boundaries.
 
 ```bash
 dotnet run --project examples/CharSetAndCollation/CharSetAndCollation.csproj

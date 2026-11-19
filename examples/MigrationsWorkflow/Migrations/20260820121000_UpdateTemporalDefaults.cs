@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Migrations;
-
 #nullable disable
 
 namespace Doka.EntityFrameworkCore.MySql.Examples.MigrationsWorkflow.Migrations;

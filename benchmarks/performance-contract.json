@@ -45,13 +45,6 @@
       "serverImage": "mariadb:12.3.3@sha256:4ebbcf100a3ba320766dfa0e1af008df12261301db6ef72798c7650f70794aed"
     }
   },
-  "hostPreconditions": {
-    "admissionMetric": "interval-host-cpu-utilization",
-    "maximumCpuUtilization": 0.9,
-    "sampleIntervalMilliseconds": 1000,
-    "requiredConsecutivePassingSamples": 2,
-    "maximumSampleAttempts": 5
-  },
   "profiles": {
     "smoke": {
       "soakIterations": 64,

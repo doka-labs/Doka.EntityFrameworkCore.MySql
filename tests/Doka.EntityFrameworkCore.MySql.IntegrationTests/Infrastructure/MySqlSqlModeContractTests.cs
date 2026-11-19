@@ -1,6 +1,3 @@
-using System.Reflection;
-using Microsoft.EntityFrameworkCore.Query;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 /// <summary>

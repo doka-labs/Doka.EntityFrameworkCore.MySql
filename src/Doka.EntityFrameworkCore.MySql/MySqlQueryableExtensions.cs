@@ -1,7 +1,7 @@
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
-/// Composes statement-local sources using the Doka MySQL provider.
+/// Provides explicit query-composition and locking-read operators for the Doka MySQL provider.
 /// </summary>
 public static partial class MySqlQueryableExtensions
 {

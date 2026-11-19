@@ -200,6 +200,8 @@ internal static class TemporalTableLoader
         var tableMetadata = LoadPhysicalTables(context, candidates);
         var columnMetadata = LoadPhysicalColumns(context, candidates);
 
+        // WHY: Apply annotations and remove history tables only after each candidate passes its physical checks.
+        // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
         foreach (var candidate in candidates)
         {
             if (!HasValidPhysicalContract(context, candidate, tableMetadata, columnMetadata))
@@ -648,6 +650,8 @@ internal static class TemporalTableLoader
     ) => candidates
         .SelectMany(candidate => new[] { candidate.SourceIdentity, candidate.HistoryIdentity })
         .Distinct()
+        // WHY: Materialize the distinct identities once for the physical metadata lookup.
+        // ReSharper disable once UseCollectionExpression
         .ToArray();
 
     private static void AppendIdentityPredicate(

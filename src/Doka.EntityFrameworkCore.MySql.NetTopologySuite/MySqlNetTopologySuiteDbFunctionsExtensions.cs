@@ -8,6 +8,8 @@ public static class MySqlNetTopologySuiteDbFunctionsExtensions
     /// <summary>
     /// Translates to the server-side spherical distance helper for long/latitude point scenarios.
     /// </summary>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static double DistanceSphere(
         this DbFunctions _,
         Point left,

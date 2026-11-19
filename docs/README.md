@@ -5,26 +5,28 @@ path by the task you need to complete. Architecture records explain why a
 decision exists, while feature guides and runbooks explain supported behavior
 and operational procedures.
 
-For the 10.6.7 stable preparation, see the [changelog](../CHANGELOG.md#1067---2026-11-16)
-and [shared qualification overview](operations/workflow-overview.md). It adds
-optional MySqlConnector 3.x support alongside 2.x, retains the patched 2.6.1
-minimum and default, and extends the existing driver matrix and same-package
-runtime readback. Review the
-[driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)
-before selecting 3.0.0 explicitly.
+For the 10.7.0 stable preparation, see the [changelog](../CHANGELOG.md#1070---2026-11-18)
+and [shared qualification overview](operations/workflow-overview.md). This release
+adds application text defaults, locking reads, scoped ordinary/recursive CTEs,
+window calculations, typed INSERT SELECT and native UPSERT on .NET 10 / EF Core 10.
+Each feature guide defines its opt-in behavior, examples and failure boundaries.
 
-The release also corrects Dependabot's framework-major boundaries, updates the
-private Coverlet collector to 10.1.1 and preserves LF in C# raw-string sources.
-Coverage floors and allocation ceilings remain unchanged. It does not activate
-maintenance/10.x or preview/11.x, authorize publication, or assert hosted
-qualification or NuGet availability.
-Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
-minimum, supported engines and storage defaults remain unchanged.
-When upgrading from a version before 10.6.4, regenerate existing compiled models
-to adopt the corrected [fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
+The EF Core 10.0.8 minimum, supported engines, existing GUID/collection defaults,
+cache schema and MySqlConnector range remain unchanged. The APIs are additive;
+existing applications retain their behavior without opting in. Text defaults
+participate in the normal model, migration and snapshot workflow. Direct writes
+have explicit transaction, affected-count and change-tracker boundaries.
+
+Coverage floors and allocation ceilings remain unchanged. Timing observations
+remain diagnostic. This preparation does not activate `maintenance/10.x` or
+`preview/11.x`, authorize publication, or assert hosted qualification or NuGet
+availability. When upgrading from a version before 10.6.4, regenerate existing
+compiled models to adopt the corrected
+[fixed-binary byte-array reader](provider-configuration.md#fixed-binary-byte-arrays).
 The [MySqlConnector security floor](security/dependency-audits.md#mysqlconnector-security-floor)
-remains 2.6.1; the 10.6.7 upper boundary is `< 4.0.0`. Published 10.6.6
-retains its original `< 3.0.0` boundary.
+remains 2.6.1 with upper boundary `< 4.0.0`. Review the
+[driver compatibility notes](operations/resilience-and-topology.md#mysqlconnector-3)
+before selecting 3.x explicitly.
 
 ## Use the Provider
 
@@ -40,23 +42,33 @@ retains its original `< 3.0.0` boundary.
 - [Provider Configuration](provider-configuration.md) maps connection,
   context-option, model, reverse-engineering, and optional-package setup,
   including index-key byte budgets and generated-value readback.
+- [Application Text Defaults](default-text-options.md) describes the 10.7.0
+  charset/collation fallbacks, explicit overrides and normal migration route.
 - [Migrating from Pomelo](migrating-from-pomelo.md) maps the known configuration,
   query, cache, migration, designer, and snapshot changes without claiming an
   exhaustive inventory of consumer applications.
 - [Distributed Cache](distributed-cache.md) covers the standalone
   `Doka.Caching.MySql` package, explicit table deployment, expiration,
   low-allocation buffers, and bounded cleanup.
-- [Query Functions](query-functions.md) defines every provider-specific
-  `EF.Functions` translation, activation rule, and failure boundary.
+- [Query Functions](query-functions.md) defines provider-specific scalar and
+  aggregate translations, activation rules and failure boundaries.
+- [Window Functions](window-functions.md) describes the 10.7.0
+  fluent calculations, frame and indexed-LINQ composition contracts.
+- [Locking Reads](locking-reads.md) defines explicit read policies, final-query
+  scope, transaction ownership, contention behavior and initial shape limits.
 - [Complex Types](complex-types.md) covers mapping, querying, updates, JSON,
   compiled models, and exact EF Core boundaries.
 - [Temporal Tables](temporal-tables.md) covers portable system-versioned
   storage, query operators, migrations, reverse engineering,
   application-time periods, and bitemporal storage.
-- [CTEs and Query Composition](ctes.md) covers recursive and non-recursive
-  query roots, statement-local materialized LINQ sources, directed
+- [CTEs and Query Composition](ctes.md) covers scoped ordinary and bounded
+  recursive LINQ sources, raw query roots, materialized sources, directed
   `StraightJoin` edges, parameterization, composability, and data-modification
   boundaries.
+- [INSERT SELECT](insert-select.md) describes the 10.7.0 typed
+  assignment language, direct writes and transaction ownership.
+- [UPSERT](upsert.md) describes the 10.7.0 native conflict handling,
+  bounded batches, affected counts and explicit write boundaries.
 - [Migration Operation Handlers](migration-operation-handlers.md) defines the
   additive custom-operation SPI, registration boundary, capability projection,
   failure contract, and package-author verification matrix.
@@ -110,6 +122,8 @@ retains its original `< 3.0.0` boundary.
   decision corpus.
 - [Contributing](../CONTRIBUTING.md) covers local setup, test tiers, code style,
   pull requests, and public API changes.
+- [Engineering Standards](engineering-standards.md) records the adopted shared
+  rules, source snapshot identities and explicit .NET 10 project baselines.
 - [Support](../SUPPORT.md) defines supported requests and issue routing.
 - [Security Policy](../SECURITY.md) defines private vulnerability reporting and
   coordinated disclosure.

@@ -43,20 +43,18 @@ manual dispatch run the current tree and upload raw artifacts. A workflow job
 may be rerun after invalid infrastructure evidence, but the repository does
 not select among attempts or convert a rerun into an accepted baseline.
 
-GitHub Actions always enforces `DOKA_BENCHMARK_EVALUATION=allocations-only`.
+Local execution and GitHub Actions use the same allocation/resource policy.
 Allocation ceilings/ratios and correctness/resource-ownership invariants remain
 gates. Median/p95/p99 time, timing ratios, Gen2 frequency, working-set/managed-heap
 soak growth and throughput retention remain validated diagnostics. Their
-threshold violations do not make a slower or busier hosted CPU a performance
-regression. CPU-headroom admission is local full-mode only.
+threshold crossings do not reject a slower or busier machine, and no CPU-headroom
+admission applies.
 
-Local runs default to `full` and can enforce the hardware-sensitive thresholds
-on a controlled host. Use `DOKA_BENCHMARK_EVALUATION=allocations-only` locally to
-reproduce hosted enforcement; `GITHUB_ACTIONS=true` cannot opt into full mode.
-Unknown selector values are rejected. This is not `continue-on-error`: failed
-execution, invalid/incomplete evidence, allocation regressions and explicit
-resource leaks still fail, and genuine infrastructure outages/timeouts remain
-possible. All produced raw reports and diagnostics are retained.
+`DOKA_BENCHMARK_EVALUATION` defaults to `allocations-only`. The legacy `full`
+spelling is accepted as an alias without enabling hardware-sensitive rejection.
+Unknown selector values are rejected. Failed execution, invalid/incomplete
+evidence, allocation regressions and explicit resource leaks still fail. All
+produced raw reports and diagnostic threshold crossings are retained.
 
 ## Budget Review Rules
 
@@ -64,11 +62,12 @@ possible. All produced raw reports and diagnostics are retained.
 - Keep workload IDs and family ownership explicit.
 - Treat exit `78` as an infrastructure or evidence defect and exit `1` as a
   measured violation of an enforced budget/invariant. A diagnostic timing or
-  process-memory threshold is not an exit-`1` reason in hosted mode.
+  process-memory threshold is not an exit-`1` reason locally or in hosted mode.
 - Review the raw BenchmarkDotNet samples, allocation statistics, target image,
   and soak metrics with every budget change.
-- Do not turn allocation/resource regression gates into diagnostics to hide
-  failures, or tighten local timing limits from incomparable hosted hardware.
+- Keep allocation/resource regression gates enforced. Review timing thresholds
+  as diagnostic references using comparable measurements; they never become
+  automatic local or hosted rejection limits.
 
 ## Large Cache Write Allocation Samples
 

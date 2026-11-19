@@ -1,10 +1,10 @@
 ---
 id: D-009
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "EF Core package range and compatibility verification"
 supersedes: []
 superseded-by: []
@@ -250,6 +250,8 @@ missing, swapped, widened, or non-exact row.
   qualification. Retain explicit non-qualification evidence without failing
   solely on publication; strict admission, producer failures and release
   evidence requirements remain unchanged.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

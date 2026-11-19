@@ -24,7 +24,7 @@ public sealed partial class MySqlReverseEngineeringBaselineTests
         Assert.DoesNotContain("= null!;", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains(".UseMySql(", scaffoldedModel.ContextFile.Code, StringComparison.Ordinal);
         Assert.Contains(
-            "modelBuilder.HasCharSet(\"utf8mb4\")",
+            ".UseCollation(\"utf8mb4_0900_ai_ci\")",
             scaffoldedModel.ContextFile.Code,
             StringComparison.Ordinal);
 

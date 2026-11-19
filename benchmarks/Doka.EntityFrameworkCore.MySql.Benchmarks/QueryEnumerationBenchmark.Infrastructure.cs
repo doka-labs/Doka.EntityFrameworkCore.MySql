@@ -1,8 +1,3 @@
-using System.Linq.Expressions;
-using System.Reflection;
-using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
-
 namespace Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 public partial class QueryEnumerationBenchmark
@@ -330,10 +325,16 @@ public partial class QueryEnumerationBenchmark
 #pragma warning restore EF1001
     }
 
-    private sealed class QueryContext(DbContextOptions<QueryContext> options) : DbContext(options)
+    private sealed class QueryContext : DbContext
     {
+        /// <summary>Initializes the context with its supplied options and model settings.</summary>
+        public QueryContext(
+            DbContextOptions<QueryContext> options
+        ) : base(options) { }
+
         public DbSet<Row> Rows => Set<Row>();
         public DbSet<PlainRow> PlainRows => Set<PlainRow>();
+        public DbSet<FeatureWideRow> FeatureWideRows => Set<FeatureWideRow>();
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
@@ -354,6 +355,21 @@ public partial class QueryEnumerationBenchmark
                         owned.ToJson();
                         owned.OwnsMany(document => document.Items);
                     });
+            });
+
+            modelBuilder.Entity<FeatureWideRow>(entity =>
+            {
+                entity.ToTable("EnumerationFeatureWideRows");
+                entity.HasKey(row => row.Id);
+
+                // WHY: Two CLR fields and 48 shadow fields reproduce the actual 50-column
+                // metadata source; the CTE must prune it by shared reference demand.
+                // ReSharper disable once ForCanBeConvertedToForeach
+                // ReSharper disable once LoopCanBeConvertedToQuery
+                for (var index = 1; index <= 48; index++)
+                {
+                    entity.Property<int>("Payload" + index.ToString("D2", CultureInfo.InvariantCulture));
+                }
             });
 
             // WHY: The Include/UNION control isolates relational identity scans;
@@ -382,6 +398,12 @@ public partial class QueryEnumerationBenchmark
     {
         public int Id { get; set; }
         public List<Child> Children { get; set; } = [];
+    }
+
+    private sealed class FeatureWideRow
+    {
+        public int Id { get; set; }
+        public int? ParentId { get; set; }
     }
 
     private sealed class Child

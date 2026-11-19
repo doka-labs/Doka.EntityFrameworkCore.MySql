@@ -34,6 +34,8 @@ public class MigrationOperationHandlerGenerationBenchmark
     {
         _operationPopulations = s_operationCounts
             .Select(CreateOperations)
+            // WHY: Keep this benchmark's explicit eager materialization and allocation path.
+            // ReSharper disable once UseCollectionExpression
             .ToArray();
 
         _sqlModeScopeOperations = CreateSqlModeScopeOperations(operationCount: 256);

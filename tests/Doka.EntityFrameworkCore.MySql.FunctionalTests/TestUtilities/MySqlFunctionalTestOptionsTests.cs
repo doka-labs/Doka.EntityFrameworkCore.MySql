@@ -1,6 +1,4 @@
 using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.CrossCutting.Infrastructure;
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;

@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 // -- CRUD Operations with Doka.EntityFrameworkCore.MySql --
 //
 // Demonstrates: Add, Update, Delete, Query with filtering, sorting, and pagination.
@@ -17,28 +13,58 @@ context.Database.EnsureCreated();
 
 // -- CREATE --
 context.Tasks.AddRange(
-    new TaskItem { Title = "Buy groceries", Priority = 1, IsCompleted = false },
-    new TaskItem { Title = "Write documentation", Priority = 3, IsCompleted = false },
-    new TaskItem { Title = "Fix bug #42", Priority = 2, IsCompleted = true },
-    new TaskItem { Title = "Deploy release", Priority = 1, IsCompleted = false },
-    new TaskItem { Title = "Review PR", Priority = 2, IsCompleted = true }
+    new TaskItem
+    {
+        Title = "Buy groceries",
+        Priority = 1,
+        IsCompleted = false,
+    },
+    new TaskItem
+    {
+        Title = "Write documentation",
+        Priority = 3,
+        IsCompleted = false,
+    },
+    new TaskItem
+    {
+        Title = "Fix bug #42",
+        Priority = 2,
+        IsCompleted = true,
+    },
+    new TaskItem
+    {
+        Title = "Deploy release",
+        Priority = 1,
+        IsCompleted = false,
+    },
+    new TaskItem
+    {
+        Title = "Review PR",
+        Priority = 2,
+        IsCompleted = true,
+    }
 );
+
 context.SaveChanges();
 Console.WriteLine($"Created {context.Tasks.Count()} tasks.");
 
 // -- READ with filtering --
-var openTasks = context.Tasks
+var openTasks = context
+    .Tasks
     .Where(t => !t.IsCompleted)
     .OrderBy(t => t.Priority)
     .ToList();
+
 Console.WriteLine($"Open tasks (sorted by priority): {openTasks.Count}");
 
 // -- READ with pagination --
-var page = context.Tasks
+var page = context
+    .Tasks
     .OrderBy(t => t.Id)
     .Skip(2)
     .Take(2)
     .ToList();
+
 Console.WriteLine($"Page 2 (2 items): {string.Join(", ", page.Select(t => t.Title))}");
 
 // -- UPDATE --
@@ -61,16 +87,23 @@ Console.WriteLine("CRUD operations example completed successfully.");
 
 public class CrudContext : DbContext
 {
-    public CrudContext(DbContextOptions<CrudContext> options) : base(options) { }
+    public CrudContext(
+        DbContextOptions<CrudContext> options
+    ) : base(options) { }
+
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
     {
         modelBuilder.Entity<TaskItem>(entity =>
         {
             entity.ToTable("Tasks");
             entity.HasKey(t => t.Id);
-            entity.Property(t => t.Title).HasMaxLength(200);
+            entity
+                .Property(t => t.Title)
+                .HasMaxLength(200);
         });
     }
 }

@@ -183,6 +183,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     }
 
     /// <summary>Reads the sql mode from the current database.</summary>
+    /// <param name="connection">The open connection whose session SQL mode is inspected.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<string> ReadSqlModeAsync(
         DbConnection connection,
@@ -197,6 +198,8 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     }
 
     /// <summary>Sets the sql mode for the current connection.</summary>
+    /// <param name="connection">The open connection whose session SQL mode is updated.</param>
+    /// <param name="sqlMode">The SQL mode value assigned to the current database session.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task SetSqlModeAsync(
         DbConnection connection,
@@ -215,6 +218,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     }
 
     /// <summary>Reads the string decode coercibility from the current database.</summary>
+    /// <param name="context">The context used to inspect the translated string's collation coercibility.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int> ReadStringDecodeCoercibilityAsync(
         PrimitiveCollectionContext context,

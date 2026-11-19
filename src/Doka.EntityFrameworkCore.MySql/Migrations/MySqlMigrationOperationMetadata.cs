@@ -162,6 +162,8 @@ public sealed class MySqlMigrationOperationMetadata
                 + $"'{operation.GetType().FullName}' must contain one entry per index key.");
         }
 
+        // WHY: Own the prefix-length snapshot before exposing its read-only wrapper.
+        // ReSharper disable once UseCollectionExpression
         return Array.AsReadOnly(prefixLengths.ToArray());
     }
 

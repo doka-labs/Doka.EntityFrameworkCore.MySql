@@ -86,19 +86,25 @@ public sealed partial class MySqlDesignTimeRoundTripTests
             .OfType<InsertDataOperation>()
             .ToLookup(operation => operation.Table, StringComparer.Ordinal);
 
+        // WHY: ToLookup owns materialized groups; each pass inspects the same migration snapshot.
         var principals = inserts["GuidSeedDesignRecords"];
 
+        // ReSharper disable once PossibleMultipleEnumeration
         Assert.Equal(2, principals.Sum(operation => operation.Values.GetLength(0)));
+        // ReSharper disable once PossibleMultipleEnumeration
         Assert.All(GetColumnValues(principals, nameof(GuidSeedDesignRecord.Id)), value => Assert.IsType<string>(value));
         Assert.All(
+            // ReSharper disable once PossibleMultipleEnumeration
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.ExplicitChar36)),
             value => Assert.IsType<string>(value));
 
         Assert.All(
+            // ReSharper disable once PossibleMultipleEnumeration
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.Binary16)),
             value => Assert.IsType<Guid>(value));
 
         AssertNullableProviderGuidValues(
+            // ReSharper disable once PossibleMultipleEnumeration
             GetColumnValues(principals, nameof(GuidSeedDesignRecord.OptionalChar36)));
 
         var principalTable = Assert.Single(
@@ -133,13 +139,17 @@ public sealed partial class MySqlDesignTimeRoundTripTests
                     column => column.Name == nameof(GuidSeedDesignRecord.EmptyDefaultChar36))
                 .DefaultValue);
 
+        // WHY: This dependent group is also a repeatable, materialized lookup rather than a deferred source.
         var dependents = inserts["GuidSeedDependentRecords"];
+        // ReSharper disable once PossibleMultipleEnumeration
         Assert.Equal(2, dependents.Sum(operation => operation.Values.GetLength(0)));
         Assert.All(
+            // ReSharper disable once PossibleMultipleEnumeration
             GetColumnValues(dependents, nameof(GuidSeedDependentRecord.PrincipalId)),
             value => Assert.IsType<string>(value));
 
         AssertNullableProviderGuidValues(
+            // ReSharper disable once PossibleMultipleEnumeration
             GetColumnValues(dependents, nameof(GuidSeedDependentRecord.OptionalPrincipalId)));
 
         Assert.Contains("migrationBuilder.InsertData(", migrationCode, StringComparison.Ordinal);

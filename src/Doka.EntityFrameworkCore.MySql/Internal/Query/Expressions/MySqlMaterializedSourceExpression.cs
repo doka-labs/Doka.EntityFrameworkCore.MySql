@@ -29,8 +29,18 @@ internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
     /// <summary>Gets the shared definition identity used by local DAG reconstruction.</summary>
     internal MySqlMaterializedSourceDefinition Definition { get; }
 
+    /// <summary>Gets the definition's explicit ordinary or shared-value evaluation contract.</summary>
+    public MySqlSourceBindingKind Kind => Definition.Kind;
+
     /// <summary>Gets the completed source with its common column schema.</summary>
     public SelectExpression Source => Definition.Source;
+
+    /// <summary>Copies a globally rewritten definition while preserving this reference's own alias and annotations.</summary>
+    internal MySqlMaterializedSourceExpression UpdateDefinition(
+        MySqlMaterializedSourceDefinition definition
+    ) => ReferenceEquals(definition, Definition)
+        ? this
+        : new MySqlMaterializedSourceExpression(Alias!, BindingId, definition, Annotations);
 
     protected override Expression VisitChildren(
         ExpressionVisitor visitor
@@ -63,7 +73,12 @@ internal sealed class MySqlMaterializedSourceExpression : TableExpressionBase
     protected override void Print(
         ExpressionPrinter expressionPrinter
     ) => expressionPrinter
-        .Append("MaterializedSource(")
+        .Append(Kind switch
+        {
+            MySqlSourceBindingKind.Ordinary => "CommonTableExpression(",
+            MySqlSourceBindingKind.Recursive => "RecursiveCommonTableExpression(",
+            _ => "MaterializedSource(",
+        })
         .Append(BindingId.ToString(CultureInfo.InvariantCulture))
         .Append(") AS ")
         .Append(Alias!);

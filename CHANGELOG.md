@@ -5,7 +5,79 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [10.7.0] - 2026-11-18
+
+Additive feature release for the .NET 10 / EF Core 10 line. All three packages
+use the same version. The EF Core 10.0.8 minimum, MySqlConnector range,
+supported engines, GUID/collection defaults and cache schema remain unchanged.
+Existing models and writes retain their behavior unless an application opts
+into a new feature. These notes prepare the release; publication and hosted
+qualification remain separate.
+
+```bash
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0
+dotnet package add Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.7.0
+dotnet package add Doka.Caching.MySql --version 10.7.0
+```
+
+### Added
+
+- Add application-wide `DefaultCharSet` and `DefaultCollation` fallbacks with
+  explicit mapping precedence, unchanged JSON contracts and normal migration
+  semantics; no session or per-query collation rewrite.
+- Add typed locking reads through `ForUpdate`, `ForShare`, `ForUpdateNoWait`
+  and `ForUpdateSkipLocked`, with current transaction checks and explicit
+  final-query-block scope. Unsupported query forms remain guarded.
+- Add lexical `WithCte` and bounded `WithRecursiveCte` composition, preserving
+  duplicate paths, native mappings and relational scope. Ordinary CTEs do not
+  inherit the separate `WithMaterializedSource` sharing guarantee.
+- Add expression-only `EF.Functions.Window()` calculations and frames, plus
+  qualified ordered indexed LINQ. Native one-based row numbering remains
+  distinct from checked zero-based LINQ indices.
+- Add `ExecuteInsertFromQueryAsync` with one typed `SetProperty` assignment
+  language, including mapped shadow and field properties. Source rows remain
+  server-side; direct writes do not silently retry or synchronize tracked data.
+- Add `ExecuteUpsertAsync` and `ExecuteUpsertRangeAsync` with bounded native
+  batches, explicit update-property names and native Int64 affected-count
+  aggregation. No generated-value readback or optimistic-concurrency behavior
+  is inferred from the direct-write result.
+- Add feature-specific translation, native execution and failure controls,
+  including complete public-method benchmark scenarios with prepared inputs.
+  Timing measurements remain diagnostic; existing allocation ceilings and
+  semantic controls retain their role.
+
+### Changed
+
+- Keep the .NET 10 SDK, EF Core compatibility range and xUnit/VSTest tooling
+  while adapting the new feature contracts to the actual EF10 extension seams.
+- Version the shared Rider formatting profile and use typed xUnit test data,
+  reused assertion results and reviewed pattern/collection simplifications.
+  Preserve parameterized query variables and explicit cancellation contracts.
+- Keep measured timing and throughput diagnostic in both local and hosted
+  benchmark runs, including the legacy `full` spelling. Preserve strict
+  allocation, resource, execution and raw-evidence validation.
+- Document the shared engineering baseline and project exceptions. Align
+  constructors, imports and assembly declarations, validate ADR history
+  metadata, and scope trusted test-DDL diagnostic exceptions to their methods.
+
+### Fixed
+
+- Preserve representation decoders and model converters in JSON collection
+  membership. Keep independent decoded parameter/constant collections as
+  `IN` subqueries and retain correlated/composed query safeguards; model JSON
+  strings use native membership or the qualified escape-safe fallback.
+  Preserve mapped user functions with builtin-looking names, arithmetic,
+  temporal and logical projections instead of treating transformations as
+  identity decoders. Keep comparison grouping and aggregate/window boundaries.
+- Keep ordinary migration SQL commands on EF's normal command builder while
+  retaining typed query execution policies and application-provided factories.
+  Preserve generated SQL, redaction and the existing allocation ceiling.
+- Keep each recursive reader's private presence/depth controls outside the
+  visible result schema and preserve ADO.NET missing-name/ordinal errors.
+  Cleanup retains primary failures, releases its acquired connection reference
+  once and preserves separately owned caller references.
+- Preserve design-time logger ownership across successive or overlapping
+  scaffolding scopes instead of disposing the shared logger with one scope.
 
 ## [10.6.7] - 2026-11-16
 
@@ -1887,7 +1959,7 @@ dotnet add package Doka.EntityFrameworkCore.MySql.NetTopologySuite --version 10.
   baseline
 - Representative dual-engine benchmark smoke and scorecard runs
 
-[Unreleased]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.7...HEAD
+[10.7.0]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/compare/v10.6.7...v10.7.0
 [10.6.7]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.7
 [10.6.6]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.6
 [10.6.5]: https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases/tag/v10.6.5

@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using Doka.EntityFrameworkCore.MySql.Benchmarks;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 

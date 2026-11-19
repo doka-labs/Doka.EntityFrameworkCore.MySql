@@ -117,7 +117,9 @@ public sealed class MySqlCollectionDefaultIntegrationTests
             useJsonParameter: true);
 
     /// <summary>Verifies the collection membership with split include contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
+    /// <param name="useJsonParameter">Whether to opt into JSON collection-parameter translation.</param>
     private static async Task AssertCollectionMembershipWithSplitIncludeAsync(
         IntegrationDatabaseTarget target,
         CancellationToken cancellationToken,
@@ -227,6 +229,7 @@ public sealed class MySqlCollectionDefaultIntegrationTests
     }
 
     /// <summary>Drops the tables using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTablesAsync(
         CollectionDefaultContext context,

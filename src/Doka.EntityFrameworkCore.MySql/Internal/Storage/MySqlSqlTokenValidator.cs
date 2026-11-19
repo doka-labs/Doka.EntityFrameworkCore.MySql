@@ -21,6 +21,8 @@ internal static class MySqlSqlTokenValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenName);
 
+        // WHY: Validate the token directly and stop before an invalid character can reach generated SQL.
+        // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
         foreach (var character in value)
         {
             if (!char.IsAsciiLetterOrDigit(character)

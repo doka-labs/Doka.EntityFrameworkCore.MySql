@@ -1,21 +1,41 @@
-using Microsoft.EntityFrameworkCore.Query.Internal;
-
 namespace Doka.EntityFrameworkCore.MySql;
 
 /// <summary>
 /// Processes each complete source once while preserving EF's ordinary navigation and query semantics.
 /// </summary>
-internal sealed class MySqlQueryTranslationPreprocessor(
-    QueryTranslationPreprocessorDependencies dependencies,
-    RelationalQueryTranslationPreprocessorDependencies relationalDependencies,
-    QueryCompilationContext queryCompilationContext
-) : RelationalQueryTranslationPreprocessor(dependencies, relationalDependencies, queryCompilationContext)
+internal sealed class MySqlQueryTranslationPreprocessor : RelationalQueryTranslationPreprocessor
 {
+    /// <summary>Initializes the immutable dependencies for this operation.</summary>
+    public MySqlQueryTranslationPreprocessor(
+        QueryTranslationPreprocessorDependencies dependencies,
+        RelationalQueryTranslationPreprocessorDependencies relationalDependencies,
+        QueryCompilationContext queryCompilationContext
+    ) : base(dependencies, relationalDependencies, queryCompilationContext) { }
+
+    /// <inheritdoc />
+    public override Expression NormalizeQueryableMethod(
+        Expression expression
+    )
+    {
+        var normalized =
+            MySqlIndexedSelectLowering.Lower(base.NormalizeQueryableMethod(expression), out var containsWindows);
+
+        ((MySqlQueryCompilationContext)QueryCompilationContext).UsesWindowFunctions |= containsWindows;
+
+        return normalized;
+    }
+
     /// <inheritdoc />
     public override Expression Process(
         Expression query
     )
     {
+        if (query is MySqlInsertSelectQueryExpression insert)
+        {
+            return insert.Update(Process(insert.Source));
+        }
+
+        query = MySqlLockingReadLowering.Process(query, (MySqlQueryCompilationContext)QueryCompilationContext);
         var operators = new MySqlStraightJoinLowering();
         query = operators.Visit(query);
 
@@ -43,7 +63,16 @@ internal sealed class MySqlQueryTranslationPreprocessor(
         {
             try
             {
-                compilation.MaterializedSourceQueries.Add(bindingId, ProcessCore(source, navigationVisitor));
+                // WHY: A recursive step contains a typed frontier leaf, not the anchor's source tree.
+                // Expand each finite arm once with the same filter-parameter namespace before translation.
+                var processedSource = source is MySqlRecursiveSourceQueryExpression recursive
+                    ? recursive.Update(
+                        ProcessCore(recursive.Anchor, navigationVisitor),
+                        ProcessCore(recursive.RecursiveStep, navigationVisitor),
+                        recursive.MaximumDepth)
+                    : ProcessCore(source, navigationVisitor);
+
+                compilation.MaterializedSourceQueries.Add(bindingId, processedSource);
             }
             catch (InvalidOperationException error)
             {
@@ -66,9 +95,10 @@ internal sealed class MySqlQueryTranslationPreprocessor(
         BoundNavigationExpandingExpressionVisitor navigationVisitor
     )
     {
-        // WHY: EF constructs its navigation visitor inside Process without a factory hook. This
-        // sequence mirrors EF 10 so bound entity roots can retain navigation metadata without
-        // reapplying a global filter to occurrences already selected by their completed source.
+        // WHY: EF Core 10 creates its navigation visitor inside Process without a factory hook.
+        // Preserve its visitor order and inherited relational metadata/root normalization,
+        // but reuse one bound-root visitor so completed sources keep navigation metadata
+        // without applying their root filters twice.
 #pragma warning disable EF1001 // Narrow provider preprocessing seam, qualified on the EF patch matrix; see D-024.
         query = new InvocationExpressionRemovingExpressionVisitor().Visit(query);
         query = NormalizeQueryableMethod(query);

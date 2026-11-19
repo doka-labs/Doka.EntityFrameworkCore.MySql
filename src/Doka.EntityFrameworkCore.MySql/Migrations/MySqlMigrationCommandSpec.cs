@@ -182,6 +182,7 @@ public sealed class MySqlMigrationCommandSpec
             // without limit before validation runs.
             snapshot = commands
                 .Take(maximumCount + 1)
+                // ReSharper disable once UseCollectionExpression
                 .ToArray();
         }
         catch (Exception exception)
@@ -223,11 +224,13 @@ public sealed class MySqlMigrationCommandSpec
     {
         var totalLength = (long)bodyCommand.Length;
 
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var command in setupCommands)
         {
             totalLength += command.Length;
         }
 
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var command in cleanupCommands)
         {
             totalLength += command.Length;

@@ -1,10 +1,10 @@
 ---
 id: D-029
 status: implemented
-date: 2026-08-30
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "How provider connection invariants cross owned and borrowed configuration boundaries"
 supersedes: []
 superseded-by: []
@@ -177,6 +177,8 @@ or broaden that preexisting lease contract.
 - 2026-08-30: Decision recorded with status implemented.
 - 2026-08-30: The live owned, borrowed-connection, and
   borrowed-data-source matrices selected the single `Binary16` transport.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

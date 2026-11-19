@@ -15,6 +15,9 @@ internal static class MySqlTableExpressionHelper
     {
         var aliases = new HashSet<string>(tables.Count, StringComparer.Ordinal);
 
+        // WHY: Index the supplied read-only tables while unwrapping joins and collecting distinct aliases.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < tables.Count; index++)
         {
             var table = tables[index];

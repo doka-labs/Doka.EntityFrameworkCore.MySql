@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Doka.EntityFrameworkCore.MySql.Tests;
 
 /// <summary>Protects complete reusable qualification and its read-only caller boundary.</summary>

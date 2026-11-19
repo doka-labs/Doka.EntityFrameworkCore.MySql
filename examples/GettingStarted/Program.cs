@@ -1,7 +1,3 @@
-using Doka.EntityFrameworkCore.MySql;
-using Doka.EntityFrameworkCore.MySql.Examples;
-using Microsoft.EntityFrameworkCore;
-
 // -- Getting Started with Doka.EntityFrameworkCore.MySql --
 //
 // This example demonstrates the minimal setup for using the Doka MySQL provider:
@@ -22,7 +18,12 @@ using var context = new AppDbContext(optionsBuilder.Options);
 context.Database.EnsureCreated();
 
 // Insert a new entity.
-context.Products.Add(new Product { Name = "Widget", Price = 9.99m });
+context.Products.Add(new Product
+{
+    Name = "Widget",
+    Price = 9.99m,
+});
+
 context.SaveChanges();
 
 // Query all products.
@@ -41,18 +42,27 @@ Console.WriteLine("Getting started example completed successfully.");
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options
+    ) : base(options) { }
 
     public DbSet<Product> Products => Set<Product>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(
+        ModelBuilder modelBuilder
+    )
     {
         modelBuilder.Entity<Product>(entity =>
         {
             entity.ToTable("Products");
             entity.HasKey(p => p.Id);
-            entity.Property(p => p.Name).HasMaxLength(100);
-            entity.Property(p => p.Price).HasPrecision(18, 2);
+            entity
+                .Property(p => p.Name)
+                .HasMaxLength(100);
+
+            entity
+                .Property(p => p.Price)
+                .HasPrecision(18, 2);
         });
     }
 }

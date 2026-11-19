@@ -82,6 +82,8 @@ internal sealed partial class MySqlQuerySqlGenerator
                 continue;
             }
 
+            // WHY: Copy the table list lazily before replacing a derived-table ordering.
+            // ReSharper disable once UseCollectionExpression
             rewrittenTables ??= selectExpression.Tables.ToArray();
             rewrittenTables[index] = WithOrdering(parent, parent.Projection[0].Expression);
         }

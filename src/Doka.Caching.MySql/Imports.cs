@@ -5,6 +5,7 @@ global using System.Collections.Generic;
 global using System.Data;
 global using System.Globalization;
 global using System.IO;
+global using System.Runtime.CompilerServices;
 global using System.Security.Cryptography;
 global using System.Text;
 global using System.Threading;

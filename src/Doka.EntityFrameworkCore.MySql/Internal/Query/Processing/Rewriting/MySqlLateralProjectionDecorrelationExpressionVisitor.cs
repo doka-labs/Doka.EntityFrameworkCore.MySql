@@ -52,6 +52,8 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
                 continue;
             }
 
+            // WHY: Copy the table list lazily before replacing an APPLY entry.
+            // ReSharper disable once UseCollectionExpression
             rewrittenTables ??= selectExpression.Tables.ToArray();
             rewrittenTables[index] = table switch
             {
@@ -125,11 +127,12 @@ internal sealed class MySqlLateralProjectionDecorrelationExpressionVisitor
         ISet<(string TableAlias, string Name)> conflicts
     )
     {
-        if (expression is SqlBinaryExpression { OperatorType: ExpressionType.AndAlso } conjunction)
+        // WHY: Conflicts depend on left-to-right visitation. Only the right spine
+        // becomes iterative; each left branch keeps its existing recursive ordering.
+        while (expression is SqlBinaryExpression { OperatorType: ExpressionType.AndAlso } conjunction)
         {
             CollectEquivalentInnerColumns(conjunction.Left, innerAliases, replacements, conflicts);
-            CollectEquivalentInnerColumns(conjunction.Right, innerAliases, replacements, conflicts);
-            return;
+            expression = conjunction.Right;
         }
 
         if (expression is not SqlBinaryExpression

@@ -15,6 +15,7 @@ internal sealed class MySqlMethodCallTranslatorProvider : RelationalMethodCallTr
             new IMethodCallTranslator[]
             {
                 new MySqlByteArrayMethodTranslator(sqlExpressionFactory),
+                new MySqlInsertProjectionMarkerTranslator(),
                 new MySqlConvertMethodTranslator(sqlExpressionFactory, typeMappingSource, objectToStringTranslator),
                 new MySqlGuidMethodTranslator(sqlExpressionFactory, typeMappingSource, guidTextExpressionFactory),
                 new MySqlLikeMethodTranslator(sqlExpressionFactory, typeMappingSource, guidTextExpressionFactory),

@@ -1,5 +1,3 @@
-using System.Transactions;
-
 namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 
 public sealed partial class MySqlConnector3CompatibilityTests

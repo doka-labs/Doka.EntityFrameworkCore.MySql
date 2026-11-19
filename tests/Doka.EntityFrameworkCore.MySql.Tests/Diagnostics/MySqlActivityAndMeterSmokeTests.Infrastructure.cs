@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -11,7 +10,10 @@ public sealed partial class MySqlActivityAndMeterSmokeTests
         string tagName = MySqlDiagnosticTags.Engine
     )
     {
+        // WHY: Callers supply repeatable captured metric collections for both assertions.
+        // ReSharper disable once PossibleMultipleEnumeration
         Assert.NotEmpty(tagSets);
+        // ReSharper disable once PossibleMultipleEnumeration
         Assert.All(tagSets, tags => Assert.Equal(expectedEngine, tags[tagName]));
     }
 

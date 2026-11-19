@@ -22,13 +22,16 @@ internal static class EngineProfileTable
     private static readonly Version s_mySql578 = new(5, 7, 8);
     private static readonly Version s_mySql800 = new(8, 0, 0);
     private static readonly Version s_mySql801 = new(8, 0, 1);
+    private static readonly Version s_mySql802 = new(8, 0, 2);
     private static readonly Version s_mySql803 = new(8, 0, 3);
     private static readonly Version s_mySql804 = new(8, 0, 4);
     private static readonly Version s_mySql8013 = new(8, 0, 13);
     private static readonly Version s_mySql8014 = new(8, 0, 14);
     private static readonly Version s_mySql8016 = new(8, 0, 16);
+    private static readonly Version s_mySql8019 = new(8, 0, 19);
     private static readonly Version s_mySql8024 = new(8, 0, 24);
     private static readonly Version s_mariaDb52 = new(5, 2, 0);
+    private static readonly Version s_mariaDb102 = new(10, 2, 0);
     private static readonly Version s_mariaDb1021 = new(10, 2, 1);
     private static readonly Version s_mariaDb1022 = new(10, 2, 2);
     private static readonly Version s_mariaDb1023 = new(10, 2, 3);
@@ -38,6 +41,7 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb105 = new(10, 5, 0);
     private static readonly Version s_mariaDb1052 = new(10, 5, 2);
     private static readonly Version s_mariaDb1053 = new(10, 5, 3);
+    private static readonly Version s_mariaDb106 = new(10, 6, 0);
     private static readonly Version s_mariaDb1061 = new(10, 6, 1);
     private static readonly Version s_mariaDb1062 = new(10, 6, 2);
     private static readonly Version s_mariaDb107 = new(10, 7, 0);
@@ -45,6 +49,9 @@ internal static class EngineProfileTable
     private static readonly Version s_mariaDb10101 = new(10, 10, 1);
     private static readonly Version s_mariaDb114 = new(11, 4, 0);
     private static readonly Version s_mariaDb120 = new(12, 0, 0);
+    private static readonly Version s_mariaDb1231 = new(12, 3, 1);
+    private static readonly Version s_mariaDb1233 = new(12, 3, 3);
+    private static readonly Version s_mariaDb1302 = new(13, 0, 2);
 
     // EF Core's options graph requires stable profile references for repeated
     // versions. Resolution is configuration-time work, so one short critical
@@ -162,6 +169,7 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mySql578))
         {
             capabilities.Add(EngineCapability.NativeJsonType);
+            capabilities.Add(EngineCapability.JsonContainsComparesDecodedStrings);
         }
 
         if (IsAtLeast(version, s_mySql800))
@@ -172,14 +180,37 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mySql801))
         {
             capabilities.Add(EngineCapability.CommonTableExpressions);
+            capabilities.Add(EngineCapability.CteUpdateDelete);
             capabilities.Add(EngineCapability.DescendingIndexes);
             capabilities.Add(EngineCapability.SpatialWktAxisOrderOptions);
+
+            // WHY: Runtime behavior consumes syntax facts, not family identity. MySQL added
+            // these locking clauses together in 8.0.1, independently of provider support policy.
+            // Source: https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-1.html
+            capabilities.Add(EngineCapability.ForShareClause);
+            capabilities.Add(EngineCapability.ForUpdateNoWaitClause);
+            capabilities.Add(EngineCapability.ForUpdateSkipLockedClause);
+        }
+
+        if (IsAtLeast(version, s_mySql802))
+        {
+            // WHY: The original 8.0.2 window grammar already accepts the third LAG/LEAD
+            // argument and parameter markers in both ROWS and RANGE frame bounds.
+            // Source: https://github.com/mysql/mysql-server/blob/mysql-8.0.2/sql/sql_yacc.yy
+            capabilities.Add(EngineCapability.WindowFunctions);
+            capabilities.Add(EngineCapability.WindowNavigationDefaultArgument);
+            capabilities.Add(EngineCapability.WindowFrameParameterOffsets);
         }
 
         if (IsAtLeast(version, s_mySql803))
         {
             capabilities.Add(EngineCapability.RenameColumnSyntax);
             capabilities.Add(EngineCapability.SpatialColumnSridAttribute);
+
+            // WHY: CTE syntax arrived in 8.0.1, but its native ceiling variable
+            // was added separately in 8.0.3. Bounded recursion must check both facts.
+            // Source: https://dev.mysql.com/doc/relnotes/mysql/8.0/en/news-8-0-3.html
+            capabilities.Add(EngineCapability.RecursiveCteLimitUsesCteMaxRecursionDepth);
         }
 
         if (IsAtLeast(version, s_mySql804))
@@ -205,6 +236,11 @@ internal static class EngineProfileTable
             capabilities.Add(EngineCapability.CheckConstraints);
         }
 
+        if (IsAtLeast(version, s_mySql8019))
+        {
+            capabilities.Add(EngineCapability.InsertRowAlias);
+        }
+
         if (IsAtLeast(version, s_mySql8024))
         {
             capabilities.Add(EngineCapability.SpatialCollectAggregate);
@@ -221,12 +257,26 @@ internal static class EngineProfileTable
         capabilities.Add(EngineCapability.MariaDbSpatialSemantics);
         capabilities.Add(EngineCapability.ColumnCommentPrecedesVisibilityAttribute);
         capabilities.Add(EngineCapability.CheckConstraintCatalogIncludesTableName);
+        capabilities.Add(EngineCapability.SharedLockingReadUsesLockInShareMode);
+
+        // WHY: This is the selected MariaDB incoming-row dialect. MySQL uses the
+        // row-alias capability instead, without falling back to deprecated VALUES.
+        capabilities.Add(EngineCapability.OnDuplicateKeyValuesFunction);
 
         if (IsAtLeast(version, s_mariaDb52))
         {
             capabilities.Add(EngineCapability.VirtualGeneratedColumns);
             capabilities.Add(EngineCapability.StoredGeneratedColumns);
             capabilities.Add(EngineCapability.IndexPrefixLengths);
+        }
+
+        if (IsAtLeast(version, s_mariaDb102))
+        {
+            // WHY: The qualified MariaDB LAG_SYM/LEAD_SYM productions omit defaults;
+            // window_frame_start/window_frame_bound accept literals instead of parameter markers.
+            // Keep both optional capabilities unset until that syntax is qualified.
+            // Source: https://github.com/MariaDB/server/blob/mariadb-12.3.3/sql/sql_yacc.yy
+            capabilities.Add(EngineCapability.WindowFunctions);
         }
 
         if (IsAtLeast(version, s_mariaDb1021))
@@ -245,6 +295,7 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb1022))
         {
             capabilities.Add(EngineCapability.CommonTableExpressions);
+            capabilities.Add(EngineCapability.RecursiveCteLimitUsesMaxRecursiveIterations);
         }
 
         if (IsAtLeast(version, s_mariaDb1023))
@@ -257,6 +308,7 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb103))
         {
             capabilities.Add(EngineCapability.NativeSequences);
+            capabilities.Add(EngineCapability.ForUpdateNoWaitClause);
         }
 
         if (IsAtLeast(version, s_mariaDb1034))
@@ -283,6 +335,13 @@ internal static class EngineProfileTable
         if (IsAtLeast(version, s_mariaDb1053))
         {
             capabilities.Add(EngineCapability.ApplicationTimeWithoutOverlaps);
+        }
+
+        if (IsAtLeast(version, s_mariaDb106))
+        {
+            // WHY: SKIP LOCKED predates the separate 10.6.1 atomic-DDL boundary.
+            // Source: https://mariadb.com/docs/release-notes/community-server/10.6/10.6.0
+            capabilities.Add(EngineCapability.ForUpdateSkipLockedClause);
         }
 
         if (IsAtLeast(version, s_mariaDb1061))
@@ -319,6 +378,22 @@ internal static class EngineProfileTable
         {
             capabilities.Add(EngineCapability.SpatialIsValidFunction);
             capabilities.Add(EngineCapability.SpatialCollectAggregate);
+        }
+
+        if (IsAtLeast(version, s_mariaDb1231))
+        {
+            // WHY: The manual's 12.3 series shorthand first shipped in 12.3.1.
+            // Source: https://mariadb.com/docs/release-notes/community-server/12.3/12.3.1
+            capabilities.Add(EngineCapability.CteUpdateDelete);
+        }
+
+        // WHY: MDEV-39995 was fixed separately in 12.3.3 and 13.0.2; a single
+        // monotone threshold would incorrectly enable the native path for 13.0.0/1.
+        if ((version.Major == 12 && IsAtLeast(version, s_mariaDb1233))
+            || (version.Major == 13 && IsAtLeast(version, s_mariaDb1302))
+            || version.Major > 13)
+        {
+            capabilities.Add(EngineCapability.JsonContainsComparesDecodedStrings);
         }
     }
 

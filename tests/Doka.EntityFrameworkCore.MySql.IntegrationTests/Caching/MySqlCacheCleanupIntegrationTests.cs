@@ -692,15 +692,7 @@ public sealed class MySqlCacheCleanupIntegrationTests
                 .ConfigureAwait(false);
         }
 
-        command.CommandText = """
-        SELECT GROUP_CONCAT(CONCAT_WS(' | ', p.ID, p.STATE, t.TRX_STATE, t.TRX_OPERATION_STATE,
-            CONVERT(CAST(p.INFO AS BINARY) USING latin1))
-            SEPARATOR '\n')
-        FROM information_schema.PROCESSLIST AS p
-        LEFT JOIN information_schema.INNODB_TRX AS t ON t.TRX_MYSQL_THREAD_ID = p.ID
-        WHERE p.ID <> CONNECTION_ID()
-            AND LOCATE(@tableName, COALESCE(CONVERT(CAST(p.INFO AS BINARY) USING latin1), '')) > 0;
-        """;
+        command.CommandText = MySqlNativeProcessMetadata.GetActiveStatementsCommandText(observer);
 
         // Act
         var diagnostics = await command

@@ -54,6 +54,15 @@ The implementation is divided by EF Core responsibility:
 | `Internal/Resilience` | Classify transient failures and coordinate retry semantics |
 | `Internal/Diagnostics` | Emit bounded logs, metrics, activities, and stable event identifiers |
 
+The opt-in query and direct-write paths reuse EF's extraction, cache, diagnostics
+and connection ownership. Typed policies carry locking, bounded recursive-reader
+and direct-write behavior through the specific execution seam that consumes it.
+Ordinary queries retain the base pipeline; direct writes do not silently adopt
+retry or tracked-entity synchronization. See
+[D-031](decisions/D-031-query-and-direct-write-seams.md) for the bounded adapters,
+ownership controls and EF-version requalification triggers, and the
+[feature guides](README.md#use-the-provider) for their public contracts.
+
 ### Spatial extension
 
 `src/Doka.EntityFrameworkCore.MySql.NetTopologySuite` is optional. Activating

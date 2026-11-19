@@ -248,6 +248,8 @@ internal sealed partial class MySqlUpdateSqlGenerator
                 table.FindAnnotation(MySqlAnnotationNames.StorageEngine)
                     ?.Value);
 
+        // WHY: Accumulate the eligibility of every physical entity mapping in the existing traversal.
+        // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var mapping in table.EntityTypeMappings)
         {
             eligible &= HasTransactionalEngine(

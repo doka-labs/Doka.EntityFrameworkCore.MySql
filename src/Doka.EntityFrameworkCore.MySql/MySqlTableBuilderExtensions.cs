@@ -12,6 +12,8 @@ public static class MySqlTableBuilderExtensions
     /// </summary>
     /// <param name="tableBuilder">The table builder.</param>
     /// <returns>A builder for configuring the temporal table.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlTemporalTableBuilder IsTemporal(
         this TableBuilder tableBuilder
     ) => tableBuilder.IsTemporal(true);
@@ -60,6 +62,8 @@ public static class MySqlTableBuilderExtensions
     /// <typeparam name="TEntity">The entity CLR type.</typeparam>
     /// <param name="tableBuilder">The table builder.</param>
     /// <returns>A builder for configuring the temporal table.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlTemporalTableBuilder<TEntity> IsTemporal<
         [DynamicallyAccessedMembers(MySqlTrimmingConstants.EntityType)] TEntity>(
         this TableBuilder<TEntity> tableBuilder
@@ -116,6 +120,8 @@ public static class MySqlTableBuilderExtensions
     /// </summary>
     /// <param name="tableBuilder">The owned table builder.</param>
     /// <returns>A builder for configuring the temporal table.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlOwnedNavigationTemporalTableBuilder IsTemporal(
         this OwnedNavigationTableBuilder tableBuilder
     ) => tableBuilder.IsTemporal(true);
@@ -165,6 +171,8 @@ public static class MySqlTableBuilderExtensions
     /// <typeparam name="TDependentEntity">The owned CLR type.</typeparam>
     /// <param name="tableBuilder">The owned table builder.</param>
     /// <returns>A builder for configuring the temporal table.</returns>
+    // WHY: Preserve the public extension metadata and XML member layout; C#14 blocks add exported marker types.
+    // ReSharper disable once ConvertToExtensionBlock
     public static MySqlOwnedNavigationTemporalTableBuilder<TOwnerEntity, TDependentEntity> IsTemporal<
         [DynamicallyAccessedMembers(MySqlTrimmingConstants.EntityType)] TOwnerEntity,
         [DynamicallyAccessedMembers(MySqlTrimmingConstants.EntityType)] TDependentEntity>(

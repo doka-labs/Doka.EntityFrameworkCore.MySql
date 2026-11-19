@@ -13,6 +13,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         => await RunGroupConcatTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the group concat test integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunGroupConcatTest(
         IntegrationDatabaseTarget target,
@@ -91,6 +92,7 @@ public sealed partial class MySqlQueryTranslationIntegrationTests
         => await RunRegexpTest(IntegrationDatabaseTarget.MariaDb118, CancellationToken.None);
 
     /// <summary>Runs the regexp test integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunRegexpTest(
         IntegrationDatabaseTarget target,

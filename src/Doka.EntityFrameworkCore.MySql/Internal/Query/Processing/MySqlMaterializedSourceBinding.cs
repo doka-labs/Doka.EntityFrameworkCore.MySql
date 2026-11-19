@@ -3,23 +3,49 @@ namespace Doka.EntityFrameworkCore.MySql;
 /// <summary>
 /// Extracts completed sources once and substitutes lexical leaf references before navigation expansion.
 /// </summary>
-internal sealed class MySqlMaterializedSourceBinding(
-    IModel model,
-    IDictionary<int, Expression> definitions
-) : ExpressionVisitor
+internal sealed partial class MySqlMaterializedSourceBinding : ExpressionVisitor
 {
+    private readonly IDictionary<int, Expression> _definitions;
+    private readonly IModel _model;
+
     private int _nextBindingId;
+
+    /// <summary>Binds lexical source extraction to the current model and definition registry.</summary>
+    public MySqlMaterializedSourceBinding(
+        IModel model,
+        IDictionary<int, Expression> definitions
+    )
+    {
+        _model = model;
+        _definitions = definitions;
+    }
 
     /// <inheritdoc />
     protected override Expression VisitMethodCall(
         MethodCallExpression node
     )
     {
-        if (!node.Method.IsGenericMethod
-            || node.Method.GetGenericMethodDefinition() != MySqlQueryableExtensions.WithMaterializedSourceMethod)
+        if (!node.Method.IsGenericMethod)
         {
             return base.VisitMethodCall(node);
         }
+
+        var method = node.Method.GetGenericMethodDefinition();
+
+        if (method == MySqlQueryableExtensions.WithRecursiveCteMethod)
+        {
+            return BindRecursiveSource(node);
+        }
+
+        if (method != MySqlQueryableExtensions.WithMaterializedSourceMethod
+            && method != MySqlQueryableExtensions.WithCteMethod)
+        {
+            return base.VisitMethodCall(node);
+        }
+
+        var kind = method == MySqlQueryableExtensions.WithCteMethod
+            ? MySqlSourceBindingKind.Ordinary
+            : MySqlSourceBindingKind.Materialized;
 
         var source = Visit(node.Arguments[0]);
         var compose = (LambdaExpression)((UnaryExpression)node.Arguments[1]).Operand;
@@ -37,12 +63,12 @@ internal sealed class MySqlMaterializedSourceBinding(
         }
 
         Expression reference = origin is not null
-            ? new MySqlMaterializedEntityQueryRootExpression(origin, bindingId)
-            : new MySqlMaterializedQueryRootExpression(sourceType, bindingId);
+            ? new MySqlMaterializedEntityQueryRootExpression(origin, bindingId, kind)
+            : new MySqlMaterializedQueryRootExpression(sourceType, bindingId, kind);
 
         // WHY: References must not embed their source. Re-expanding the same input at every use
         // makes a short nested query exponential before relational translation even begins.
-        definitions.Add(bindingId, source);
+        _definitions.Add(bindingId, source);
         var body = ReplacingExpressionVisitor.Replace(compose.Parameters[0], reference, compose.Body);
 
         return Visit(body);
@@ -54,91 +80,99 @@ internal sealed class MySqlMaterializedSourceBinding(
         Stack<string> members
     )
     {
-        if (source is MySqlMaterializedEntityQueryRootExpression bound)
+        // WHY: Identity operators retain the same origin and navigation stack; peel them
+        // iteratively while selectors and set branches keep their original resolution order.
+        while (true)
         {
-            return FollowNavigations(bound.SourceOrigin, members);
-        }
-
-        if (source is EntityQueryRootExpression root)
-        {
-            return ReferenceEquals(model.FindEntityType(root.EntityType.Name), root.EntityType)
-                ? FollowNavigations(WithEntityType(root, root.EntityType), members)
-                : null;
-        }
-
-        if (source is not MethodCallExpression call
-            || !call.Method.IsGenericMethod)
-        {
-            return null;
-        }
-
-        if (call.Method.DeclaringType == typeof(Queryable))
-        {
-            switch (call.Method.Name)
+            if (source is MySqlMaterializedEntityQueryRootExpression bound)
             {
-                case nameof(Queryable.Select):
-                case nameof(Queryable.Join):
-                case nameof(Queryable.GroupJoin):
-                    var selector = UnwrapLambda(call.Arguments[^1]);
-
-                    return ResolveProjection(selector.Body, members, selector.Parameters, call.Arguments);
-
-                case nameof(Queryable.SelectMany):
-                    var collection = UnwrapLambda(call.Arguments[1]);
-                    var inner = ResolveProjection(
-                        collection.Body,
-                        new Stack<string>(),
-                        collection.Parameters,
-                        [call.Arguments[0]]);
-
-                    if (call.Arguments.Count == 2)
-                    {
-                        return inner is null
-                            ? null
-                            : FollowNavigations(inner, members);
-                    }
-
-                    var result = UnwrapLambda(call.Arguments[2]);
-
-                    return ResolveProjection(
-                        result.Body,
-                        members,
-                        result.Parameters,
-                        [call.Arguments[0], (Expression?)inner ?? Expression.Empty()]);
-
-                case nameof(Queryable.Cast):
-                case nameof(Queryable.OfType):
-                    var parent = ResolveOrigin(call.Arguments[0], new Stack<string>());
-                    var refined = parent is null
-                        ? null
-                        : RefineEntityType(
-                            parent,
-                            call
-                                .Method
-                                .GetGenericArguments()[0]);
-
-                    return refined is null
-                        ? null
-                        : FollowNavigations(refined, members);
-
-                case nameof(Queryable.Concat):
-                case nameof(Queryable.Union):
-                case nameof(Queryable.Intersect):
-                case nameof(Queryable.Except):
-                    var first = ResolveOrigin(call.Arguments[0], members);
-                    var second = ResolveOrigin(call.Arguments[1], members);
-
-                    // WHY: A source with conflicting origins cannot lend one branch's temporal or named
-                    // identity to the other. EF validates the original set operation independently.
-                    return first is not null && first.Equals(second)
-                        ? first
-                        : null;
+                return FollowNavigations(bound.SourceOrigin, members);
             }
-        }
 
-        return IsIdentityOperator(call)
-            ? ResolveOrigin(call.Arguments[0], members)
-            : null;
+            if (source is EntityQueryRootExpression root)
+            {
+                return ReferenceEquals(_model.FindEntityType(root.EntityType.Name), root.EntityType)
+                    ? FollowNavigations(WithEntityType(root, root.EntityType), members)
+                    : null;
+            }
+
+            if (source is not MethodCallExpression call
+                || !call.Method.IsGenericMethod)
+            {
+                return null;
+            }
+
+            if (call.Method.DeclaringType == typeof(Queryable))
+            {
+                switch (call.Method.Name)
+                {
+                    case nameof(Queryable.Select):
+                    case nameof(Queryable.Join):
+                    case nameof(Queryable.GroupJoin):
+                        var selector = UnwrapLambda(call.Arguments[^1]);
+
+                        return ResolveProjection(selector.Body, members, selector.Parameters, call.Arguments);
+
+                    case nameof(Queryable.SelectMany):
+                        var collection = UnwrapLambda(call.Arguments[1]);
+                        var inner = ResolveProjection(
+                            collection.Body,
+                            new Stack<string>(),
+                            collection.Parameters,
+                            [call.Arguments[0]]);
+
+                        if (call.Arguments.Count == 2)
+                        {
+                            return inner is null
+                                ? null
+                                : FollowNavigations(inner, members);
+                        }
+
+                        var result = UnwrapLambda(call.Arguments[2]);
+
+                        return ResolveProjection(
+                            result.Body,
+                            members,
+                            result.Parameters,
+                            [call.Arguments[0], (Expression?)inner ?? Expression.Empty()]);
+
+                    case nameof(Queryable.Cast):
+                    case nameof(Queryable.OfType):
+                        var parent = ResolveOrigin(call.Arguments[0], new Stack<string>());
+                        var refined = parent is null
+                            ? null
+                            : RefineEntityType(
+                                parent,
+                                call
+                                    .Method
+                                    .GetGenericArguments()[0]);
+
+                        return refined is null
+                            ? null
+                            : FollowNavigations(refined, members);
+
+                    case nameof(Queryable.Concat):
+                    case nameof(Queryable.Union):
+                    case nameof(Queryable.Intersect):
+                    case nameof(Queryable.Except):
+                        var first = ResolveOrigin(call.Arguments[0], members);
+                        var second = ResolveOrigin(call.Arguments[1], members);
+
+                        // WHY: A source with conflicting origins cannot lend one branch's temporal or named
+                        // identity to the other. EF validates the original set operation independently.
+                        return first is not null && first.Equals(second)
+                            ? first
+                            : null;
+                }
+            }
+
+            if (!IsIdentityOperator(call))
+            {
+                return null;
+            }
+
+            source = call.Arguments[0];
+        }
     }
 
     /// <summary>Resolves retained entities through selectors and transparent projection members.</summary>
@@ -253,6 +287,8 @@ internal sealed class MySqlMaterializedSourceBinding(
         Stack<string> members
     )
     {
+        // WHY: Each stack member advances the current entity mapping and may terminate navigation resolution.
+        // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
         foreach (var member in members)
         {
             var target = origin.EntityType.FindNavigation(member)
@@ -310,7 +346,9 @@ internal sealed class MySqlMaterializedSourceBinding(
     /// <summary>Recognizes operators that retain their input entity identity.</summary>
     private static bool IsIdentityOperator(
         MethodCallExpression call
-    ) => ((call.Method.DeclaringType == typeof(Queryable) || call.Method.DeclaringType == typeof(Enumerable))
+    ) => (call.Method.IsGenericMethod
+            && call.Method.GetGenericMethodDefinition() == MySqlIndexedSelectLowering.CompleteMethod)
+        || ((call.Method.DeclaringType == typeof(Queryable) || call.Method.DeclaringType == typeof(Enumerable))
             && call.Method.Name is nameof(Queryable.Where)
                 or nameof(Queryable.OrderBy)
                 or nameof(Queryable.OrderByDescending)

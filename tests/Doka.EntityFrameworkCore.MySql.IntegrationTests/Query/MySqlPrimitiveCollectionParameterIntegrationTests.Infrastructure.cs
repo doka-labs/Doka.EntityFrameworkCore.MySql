@@ -57,6 +57,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
     }
 
     /// <summary>Selects the ids from the integration table.</summary>
+    /// <param name="query">The filtered query whose identifiers are materialized.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task<int[]> SelectIdsAsync(
         IQueryable<PrimitiveCollectionEntity> query,
@@ -82,6 +83,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         0);
 
     /// <summary>Drops the table using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropTableAsync(
         PrimitiveCollectionContext context,
@@ -91,6 +93,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         cancellationToken);
 
     /// <summary>Drops the char table using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropCharTableAsync(
         CharGuidCollectionContext context,
@@ -100,6 +103,7 @@ public sealed partial class MySqlPrimitiveCollectionParameterIntegrationTests
         cancellationToken);
 
     /// <summary>Drops the sql mode table using the caller's cancellation policy.</summary>
+    /// <param name="context">The context whose mapped test tables are removed.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropSqlModeTableAsync(
         SqlModeStringCollectionContext context,

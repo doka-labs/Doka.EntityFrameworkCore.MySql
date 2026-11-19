@@ -3,6 +3,7 @@ namespace Doka.EntityFrameworkCore.MySql.IntegrationTests;
 public sealed partial class MySqlMaterializedSourceIntegrationTests
 {
     /// <summary>Verifies the temporal navigation after binding contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertTemporalNavigationAfterBindingAsync(
         IntegrationDatabaseTarget target,
@@ -34,6 +35,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the projected temporal navigation after binding contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertProjectedTemporalNavigationAfterBindingAsync(
         IntegrationDatabaseTarget target,
@@ -66,6 +68,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the matching temporal bindings can concatenate contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertMatchingTemporalBindingsCanConcatenateAsync(
         IntegrationDatabaseTarget target,
@@ -99,6 +102,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     /// <summary>
     /// Verifies the current and historical bindings reject before io contract against the live database.
     /// </summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertCurrentAndHistoricalBindingsRejectBeforeIoAsync(
         IntegrationDatabaseTarget target,
@@ -127,6 +131,7 @@ public sealed partial class MySqlMaterializedSourceIntegrationTests
     }
 
     /// <summary>Verifies the different temporal bindings reject before io contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertDifferentTemporalBindingsRejectBeforeIoAsync(
         IntegrationDatabaseTarget target,

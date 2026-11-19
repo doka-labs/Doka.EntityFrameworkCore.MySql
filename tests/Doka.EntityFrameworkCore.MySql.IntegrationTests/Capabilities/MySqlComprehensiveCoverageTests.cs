@@ -37,6 +37,7 @@ public sealed class MySqlComprehensiveCoverageTests
         => await RunScaffoldingRoundTripTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the scaffolding round trip test integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunScaffoldingRoundTripTest(
         IntegrationDatabaseTarget target,
@@ -45,7 +46,6 @@ public sealed class MySqlComprehensiveCoverageTests
     {
         // Arrange
         var connectionString = IntegrationTestEnvironment.GetConnectionString(target);
-        var serverVersion = GetServerVersion(target);
 
         // Create a schema with diverse column types.
         await using var setupConn = new MySqlConnection(connectionString);
@@ -302,6 +302,9 @@ public sealed class MySqlComprehensiveCoverageTests
         => AssertParityQueryAsync(IntegrationDatabaseTarget.MariaDb114, "months", 5, CancellationToken.None);
 
     /// <summary>Verifies the parity query contract against the live database.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
+    /// <param name="scenario">The string, numeric, or temporal parity query to execute.</param>
+    /// <param name="expected">The expected scalar result of the parity query.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task AssertParityQueryAsync(
         IntegrationDatabaseTarget target,
@@ -637,6 +640,7 @@ public sealed class MySqlComprehensiveCoverageTests
         => await RunEnsureCreatedDeletedTest(IntegrationDatabaseTarget.MariaDb123, CancellationToken.None);
 
     /// <summary>Runs the ensure created deleted test integration scenario.</summary>
+    /// <param name="target">The database engine selected for this scenario.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task RunEnsureCreatedDeletedTest(
         IntegrationDatabaseTarget target,
@@ -779,6 +783,8 @@ public sealed class MySqlComprehensiveCoverageTests
     }
 
     /// <summary>Drops the database if exists using the caller's cancellation policy.</summary>
+    /// <param name="cs">The connection string used to open the administrative connection.</param>
+    /// <param name="db">The isolated test database to drop if it exists.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task DropDatabaseIfExistsAsync(
         string cs,
@@ -793,6 +799,8 @@ public sealed class MySqlComprehensiveCoverageTests
     }
 
     /// <summary>Executes the raw with the caller's cancellation token.</summary>
+    /// <param name="conn">The open connection used to execute the command.</param>
+    /// <param name="sql">The SQL command text to execute.</param>
     /// <param name="cancellationToken">The cancellation token to observe during database work.</param>
     private static async Task ExecuteRawAsync(
         MySqlConnection conn,

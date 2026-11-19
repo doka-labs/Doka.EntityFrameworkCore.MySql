@@ -1,10 +1,10 @@
 ---
 id: D-017
 status: implemented
-date: 2026-05-18
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Runtime posture and NativeAOT release gate"
 supersedes: []
 superseded-by: []
@@ -150,6 +150,8 @@ No mainstream EF Core provider ships a Design-assembly split today; the structur
 - 2026-08-16: Enabled trim analysis in the ordinary runtime-smoke build and
   bound migration-handler construction and runtime migrations to their exact
   trimming contracts after release qualification exposed IL2091 and IL2026.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

@@ -72,8 +72,8 @@ packages.
   (2.6.1 fixes [GHSA-473q-m89c-ghf8](https://github.com/advisories/GHSA-473q-m89c-ghf8)).
 - A supported MySQL or MariaDB server from the matrix below
 
-The 10.6.7 release preparation adds optional 3.x support; published 10.6.6
-retains its `< 3.0.0` boundary. The minimum and default resolution remain
+From 10.6.7, optional 3.x support is available; earlier 10.6.6 packages
+retain their `< 3.0.0` boundary. The minimum and default resolution remain
 2.6.1. Applications can select 3.0.0 explicitly to obtain its binary GUID
 `NO_BACKSLASH_ESCAPES` fix. Review the
 [driver compatibility notes](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/resilience-and-topology.md#mysqlconnector-3)
@@ -102,6 +102,20 @@ no manual inventory or new configuration ceremony.
 See [release lines][release-lines] and the
 [support policy][support] for activation, exact RC consumption and lifecycle.
 
+### Provider Features in 10.7.0
+
+Version 10.7.0 adds six provider contracts on .NET 10 / EF Core 10, documented
+in the following guides. Existing applications opt into these APIs explicitly.
+
+| Feature | Contract and guide |
+| --- | --- |
+| [Application text defaults](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/default-text-options.md) | Configure charset/collation fallbacks once; explicit mappings and JSON contracts keep precedence. |
+| [Locking reads](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/locking-reads.md) | Typed update/share/NOWAIT/SKIP LOCKED policies with explicit transaction and query-shape boundaries. |
+| [Scoped CTEs](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/ctes.md) | Ordinary binding and bounded UNION ALL recursion; materialized-source sharing remains a separate choice. |
+| [Window functions](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/window-functions.md) | Fluent typed calculations, frames and qualified ordered indexed LINQ at explicit relational scopes. |
+| [INSERT SELECT](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/insert-select.md) | Typed assignments into a mapped physical target, without materializing source rows. |
+| [UPSERT](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/upsert.md) | Bounded native conflict writes with native affected counts and no readback or tracker synchronization. |
+
 ## Install
 
 The following .NET 10 command installs the latest stable provider package and
@@ -128,49 +142,40 @@ For reproducible installs, add `--version` followed by the exact version from
 the [GitHub release](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/releases)
 or NuGet.org package page.
 
-### Next Stable Release: 10.6.7
+### Next Stable Release: 10.7.0
 
-`10.6.7` prepares a compatibility and engineering patch for all three packages.
-It admits MySqlConnector 3.x alongside 2.x without raising the patched 2.6.1
-minimum or default resolution. Applications selecting 3.0.0 receive its binary
-GUID `NO_BACKSLASH_ESCAPES` fix; review the
-[driver compatibility notes](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/resilience-and-topology.md#mysqlconnector-3)
-for upstream XA isolation, reader, pooled-session and telemetry changes.
-The existing driver matrix and isolated package consumers qualify both lines.
+`10.7.0` prepares the six additive provider features above for all three
+coordinated packages. Existing applications retain their current defaults;
+using text fallbacks changes the canonical model through the normal migration
+route. Locking reads and direct writes have explicit transaction, query-shape
+and result contracts. See the linked guides and [changelog][changelog].
 
-Routine Dependabot updates stay within each framework release line; independent
-major proposals remain reviewable. Coverlet 10.1.1 stays test-only, and C#
-checkouts retain LF to keep raw-string values consistent across platforms.
-Coverage floors and allocation ceilings remain unchanged; hardware-dependent
-timings remain diagnostic. See the [changelog][changelog].
+The .NET 10 requirement, EF Core 10.0.8 minimum, MySqlConnector range
+`>= 2.6.1` and `< 4.0.0`, supported engines, GUID storage defaults, cache schema
+and multiple-parameter collection default remain unchanged. SDK 10.0.404 is
+required to build this repository, not to consume its packages. Coverage floors
+and allocation ceilings remain unchanged; hardware-dependent timings remain
+diagnostic.
+
 These preparation notes do not assert NuGet availability or hosted release
-qualification; verify the published version on the package page before installing.
-
-The MySqlConnector range is `>= 2.6.1` and `< 4.0.0`. Review direct
-driver pins against the [security upgrade guidance][dependency-security-upgrade].
-
-Public APIs, application configuration, the .NET 10 requirement, EF Core 10.0.8
-minimum, supported engines, GUID storage defaults, cache schema and
-multiple-parameter collection default are unchanged. No database schema
-migration is required.
-When upgrading from a version before 10.6.4, regenerate existing compiled
-models to adopt the fixed-binary byte-array reader introduced in that release;
-see
-[fixed binary byte arrays][fixed-binary-byte-arrays].
-SDK 10.0.404 is required to build this repository, not to consume its packages.
-Applications using the optional SafeMigrations MySQL adapter must verify that
-its published dependency range includes 10.6.7 before upgrading the provider.
-
-After publication, pin the version explicitly when validating an application:
+qualification. After publication, pin the version explicitly when validating
+an application:
 
 ```bash
-dotnet package add Doka.EntityFrameworkCore.MySql --version 10.6.7
+dotnet package add Doka.EntityFrameworkCore.MySql --version 10.7.0
 ```
 
-See [Provider Configuration][provider-configuration] for collection transport
-and GUID representation contracts, [Limitations][external-limitations] for
-temporal boundaries, and [Migrating from Pomelo][migrating-from-pomelo] for the
-complete migration guidance.
+Applications using the optional SafeMigrations MySQL adapter must verify that
+its published dependency range admits 10.7.0. When upgrading from a version
+before 10.6.4, regenerate existing compiled models to adopt the corrected
+[fixed binary byte-array reader][fixed-binary-byte-arrays]. Review the
+[driver compatibility notes](https://github.com/doka-labs/Doka.EntityFrameworkCore.MySql/blob/main/docs/operations/resilience-and-topology.md#mysqlconnector-3)
+before selecting MySqlConnector 3.x explicitly.
+
+See [Provider Configuration][provider-configuration] for collection transport,
+GUID representations and text defaults; [Limitations][external-limitations]
+for external boundaries; and [Migrating from Pomelo][migrating-from-pomelo]
+for provider migration guidance.
 
 ## Quick Start
 

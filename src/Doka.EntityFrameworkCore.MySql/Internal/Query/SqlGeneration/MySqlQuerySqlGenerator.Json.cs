@@ -2,6 +2,29 @@ namespace Doka.EntityFrameworkCore.MySql;
 
 internal sealed partial class MySqlQuerySqlGenerator
 {
+    private static readonly HashSet<string> s_jsonMembershipAggregateNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AVG",
+        "BIT_AND",
+        "BIT_OR",
+        "BIT_XOR",
+        "COUNT",
+        "GROUP_CONCAT",
+        "JSON_ARRAYAGG",
+        "JSON_OBJECTAGG",
+        "MAX",
+        "MIN",
+        "ST_COLLECT",
+        "STD",
+        "STDDEV",
+        "STDDEV_POP",
+        "STDDEV_SAMP",
+        "SUM",
+        "VAR_POP",
+        "VAR_SAMP",
+        "VARIANCE",
+    };
+
     /// <summary>
     /// Emits a composable <c>JSON_SET(document, path, value)</c> call for ExecuteUpdate.
     /// The path stays in the SQL expression tree so constant and parameterized array
@@ -66,7 +89,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         if (!requiresLimitIsolation
             && !requiresTargetIsolation)
         {
-            GenerateInItem(inExpression.Item);
+            GenerateMembershipOperand(inExpression.Item);
             Sql.Append(
                 negated
                     ? " NOT IN ("
@@ -103,7 +126,7 @@ internal sealed partial class MySqlQuerySqlGenerator
             return;
         }
 
-        GenerateInItem(inExpression.Item);
+        GenerateMembershipOperand(inExpression.Item);
         Sql.Append(
             negated
                 ? " NOT IN ("
@@ -136,8 +159,9 @@ internal sealed partial class MySqlQuerySqlGenerator
     /// <remarks>
     /// MySQL can decorrelate a rowset-returning <c>IN</c> subquery before
     /// evaluating its <c>JSON_TABLE</c> input, which loses the current
-    /// outer-row value. Uncomposed membership becomes direct
-    /// <c>JSON_CONTAINS</c>. Filtered or naturally paginated membership becomes
+    /// outer-row value. Native uncomposed membership becomes direct
+    /// <c>JSON_CONTAINS</c>, while independent decoded parameter/constant rowsets
+    /// remain <c>IN</c> subqueries. Filtered or naturally paginated membership becomes
     /// a correlated scalar count, a shape both engines evaluate against the
     /// current row.
     /// </remarks>
@@ -158,33 +182,69 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Offset: var offset,
                 Projection:
                 [
-                    { Expression: ColumnExpression { Name: "value", TableAlias: var projectionAlias } },
+                    { Expression: var valueProjection },
                 ],
             }
-            || projectionAlias != jsonTable.Alias)
+            || !IsScalarJsonMembershipProjection(valueProjection))
         {
             return false;
         }
+
+        var candidateType = GetJsonCollectionCandidateType(inExpression.Item);
 
         if (predicate is null
             && !isDistinct
             && orderings.Count == 0
             && limit is null
             && offset is null
-            && CanUseNativeJsonCandidate(inExpression.Item.Type))
+            && IsNativeJsonValueProjection(valueProjection, jsonTable.Alias, candidateType)
+            && CanUseNativeJsonCandidate(inExpression.Item.Type)
+            && CanUseNativeJsonCandidate(candidateType))
         {
-            if (negated)
+            var valueColumn = jsonTable.ColumnInfos?.SingleOrDefault(column => column.Name == "value");
+            var wholeDocument = jsonTable.Path is null or { Count: 0 }
+                && valueColumn?.Path is null or { Count: 0 };
+
+            // WHY: Converters define the actual JSON scalar type. Whole-document membership
+            // also cannot stand in for a bound row path or an owned member projection.
+            if ((candidateType == typeof(string) || candidateType == typeof(char))
+                && (!wholeDocument || !Profile.Engine.Has(EngineCapability.JsonContainsComparesDecodedStrings)))
             {
-                Sql.Append("NOT ");
+                GenerateDecodedJsonStringMembership(jsonTable, inExpression.Item, negated);
+
+                return true;
             }
 
-            Sql.Append("JSON_CONTAINS(");
-            Visit(jsonTable.JsonExpression);
-            Sql.Append(", ");
-            GenerateJsonCollectionCandidate(inExpression.Item);
-            Sql.Append(")");
+            if (wholeDocument)
+            {
+                if (negated)
+                {
+                    Sql.Append("NOT ");
+                }
 
-            return true;
+                Sql.Append("JSON_CONTAINS(");
+                Visit(jsonTable.JsonExpression);
+                Sql.Append(", ");
+                GenerateJsonCollectionCandidate(inExpression.Item);
+                Sql.Append(")");
+
+                return true;
+            }
+        }
+
+        // WHY: Independent decoded collections must remain IN subqueries so the
+        // optimizer can materialize their JSON rowset once. A scalar COUNT introduces
+        // an outer-row dependency; correlated and composed collection safeguards stay intact.
+        if (jsonTable.JsonExpression is SqlParameterExpression or SqlConstantExpression
+            && jsonTable.Path is null or { Count: 0 }
+            && valueProjection is not ColumnExpression
+            && predicate is null
+            && !isDistinct
+            && orderings.Count == 0
+            && limit is null
+            && offset is null)
+        {
+            return false;
         }
 
         if (isDistinct
@@ -216,16 +276,13 @@ internal sealed partial class MySqlQuerySqlGenerator
                 Sql.Append(") AND ");
             }
 
-            Visit(
-                new ColumnExpression(
-                    "value",
-                    jsonTable.Alias!,
-                    inExpression.Item.Type,
-                    inExpression.Item.TypeMapping,
-                    nullable: true));
-
+            // WHY: Reconstructing a bare column discards the type-mapping pipeline's
+            // Binary16, Base64, temporal and model-converter representation decoders.
+            // The raw comparison has no AST parent to group complete operands;
+            // unconditional grouping also preserves IS NULL and future predicate shapes.
+            GenerateMembershipOperand(valueProjection);
             Sql.Append(" <=> ");
-            Visit(inExpression.Item);
+            GenerateMembershipOperand(inExpression.Item);
 
             if (offset is not null)
             {
@@ -279,6 +336,210 @@ internal sealed partial class MySqlQuerySqlGenerator
         return true;
     }
 
+    /// <summary>Recognizes identity text projections without treating representation decoders as native JSON values.</summary>
+    private static bool IsNativeJsonValueProjection(
+        SqlExpression expression,
+        string tableAlias,
+        Type candidateType
+    )
+    {
+        if (expression is ColumnExpression { Name: "value", TableAlias: var projectionAlias } column)
+        {
+            return projectionAlias == tableAlias
+                && SameJsonScalarType(GetJsonCollectionCandidateType(column), candidateType);
+        }
+
+        // WHY: Names alone do not identify native functions. Unquoting a number changes
+        // its JSON type, and unquoting SQL text alone can strip user-supplied quotes.
+        // Only the provider's quote/unquote text identity can disappear from membership.
+        return expression is SqlFunctionExpression
+            {
+                Name: "JSON_UNQUOTE",
+                IsBuiltIn: true,
+                Schema: null,
+                Instance: null,
+                Arguments:
+                [
+                    SqlFunctionExpression
+                    {
+                        Name: "JSON_QUOTE",
+                        IsBuiltIn: true,
+                        Schema: null,
+                        Instance: null,
+                        Arguments:
+                        [
+                            ColumnExpression { Name: "value", TableAlias: var valueAlias } value,
+                        ],
+                    },
+                ],
+            }
+            && valueAlias == tableAlias
+            && IsJsonTextType(GetJsonCollectionCandidateType(value))
+            && IsJsonTextType(GetJsonCollectionCandidateType(expression))
+            && IsJsonTextType(candidateType);
+    }
+
+    /// <summary>Compares JSON scalar representations while treating CLR char and string as JSON text.</summary>
+    private static bool SameJsonScalarType(
+        Type left,
+        Type right
+    ) => left == right || (IsJsonTextType(left) && IsJsonTextType(right));
+
+    /// <summary>Identifies scalar CLR representations serialized as JSON strings.</summary>
+    private static bool IsJsonTextType(
+        Type type
+    ) => type == typeof(string) || type == typeof(char);
+
+    /// <summary>Checks whether a complete row-scalar projection can move into the membership count's WHERE.</summary>
+    private static bool IsScalarJsonMembershipProjection(
+        SqlExpression expression
+    ) => expression switch
+    {
+        ColumnExpression or SqlConstantExpression or SqlParameterExpression => true,
+        SqlBinaryExpression binary => IsScalarJsonMembershipProjection(binary.Left)
+            && IsScalarJsonMembershipProjection(binary.Right),
+        SqlUnaryExpression unary => IsScalarJsonMembershipProjection(unary.Operand),
+        CaseExpression @case => IsScalarJsonMembershipCase(@case),
+        CollateExpression collate => IsScalarJsonMembershipProjection(collate.Operand),
+        LikeExpression like => IsScalarJsonMembershipProjection(like.Match)
+            && IsScalarJsonMembershipProjection(like.Pattern)
+            && (like.EscapeChar is null || IsScalarJsonMembershipProjection(like.EscapeChar)),
+        JsonScalarExpression json => IsScalarJsonMembershipProjection(json.Json)
+            && IsScalarJsonMembershipPath(json.Path),
+        InExpression { Subquery: null } membership => IsScalarJsonMembershipProjection(membership.Item)
+            && HasScalarJsonMembershipArguments(membership.Values)
+            && (membership.Values is not null || membership.ValuesParameter is not null),
+        AtTimeZoneExpression atTimeZone => IsScalarJsonMembershipProjection(atTimeZone.Operand)
+            && IsScalarJsonMembershipProjection(atTimeZone.TimeZone),
+        MySqlRecursiveTextCastExpression cast => IsScalarJsonMembershipProjection(cast.Operand),
+        SqlFunctionExpression { Instance: null, TypeMapping: not null } function
+            => IsScalarJsonMembershipFunction(function),
+
+        // WHY: Window and aggregate results cannot move into WHERE; scalar subqueries
+        // and unknown extension nodes keep their own scope instead of being flattened.
+        _ => false,
+    };
+
+    /// <summary>Checks scalar function children while preserving the native interval-unit grammar boundary.</summary>
+    private static bool IsScalarJsonMembershipFunction(
+        SqlFunctionExpression function
+    )
+    {
+        if (IsJsonMembershipAggregate(function))
+        {
+            return false;
+        }
+
+        if (function is { IsBuiltIn: true, Schema: null }
+            && function.Name.Equals("TIMESTAMPDIFF", StringComparison.OrdinalIgnoreCase))
+        {
+            // WHY: The provider emits interval units as grammar fragments. Only this
+            // closed first-argument grammar is safe; arbitrary SQL fragments remain
+            // ineligible, and both datetime arguments still require scalar validation.
+            return function.Arguments is
+                    [SqlFragmentExpression { Sql: var unit }, var start, var end]
+                && IsJsonMembershipTimestampDiffUnit(unit)
+                && IsScalarJsonMembershipProjection(start)
+                && IsScalarJsonMembershipProjection(end);
+        }
+
+        return HasScalarJsonMembershipArguments(function.Arguments);
+    }
+
+    /// <summary>Accepts the nine unprefixed native TIMESTAMPDIFF unit tokens without parsing arbitrary SQL.</summary>
+    private static bool IsJsonMembershipTimestampDiffUnit(
+        string unit
+    ) => unit.Equals("MICROSECOND", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("SECOND", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("MINUTE", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("HOUR", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("DAY", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("WEEK", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("MONTH", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("QUARTER", StringComparison.OrdinalIgnoreCase)
+        || unit.Equals("YEAR", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Rejects native aggregate calls, which EF represents with the same node type as scalar functions.</summary>
+    private static bool IsJsonMembershipAggregate(
+        SqlFunctionExpression function
+    )
+    {
+        // WHY: SqlFunctionExpression has no aggregate flag. These native aggregate names
+        // follow the MySQL/MariaDB aggregate references; mapped non-builtins retain EF's
+        // scalar-function contract regardless of their names.
+        return function.IsBuiltIn
+            && (s_jsonMembershipAggregateNames.Contains(function.Name)
+                || function.Name.Equals(MySqlSentinelContract.GetName(MySqlSentinelKind.GroupConcat),
+                    StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Checks every scalar function child without allocating traversal state or replacement expressions.</summary>
+    private static bool HasScalarJsonMembershipArguments(
+        IReadOnlyList<SqlExpression>? arguments
+    )
+    {
+        // WHY: Niladic scalar functions have no children; indexed traversal avoids an interface enumerator.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = 0; index < (arguments?.Count ?? 0); index++)
+        {
+            if (!IsScalarJsonMembershipProjection(arguments![index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Preserves searched/simple CASE semantics while rejecting unsafe expressions in every branch.</summary>
+    private static bool IsScalarJsonMembershipCase(
+        CaseExpression expression
+    )
+    {
+        if ((expression.Operand is not null && !IsScalarJsonMembershipProjection(expression.Operand))
+            || (expression.ElseResult is not null && !IsScalarJsonMembershipProjection(expression.ElseResult)))
+        {
+            return false;
+        }
+
+        // WHY: Every CASE arm participates in the expression's scope, including currently unreachable branches.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = 0; index < expression.WhenClauses.Count; index++)
+        {
+            var clause = expression.WhenClauses[index];
+
+            if (!IsScalarJsonMembershipProjection(clause.Test)
+                || !IsScalarJsonMembershipProjection(clause.Result))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Retains dynamic JSON path indices only when they are row-scalar expressions.</summary>
+    private static bool IsScalarJsonMembershipPath(
+        IReadOnlyList<PathSegment> path
+    )
+    {
+        // WHY: An aggregate or subquery can be hidden inside a dynamic path index as well as a function argument.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        for (var index = 0; index < path.Count; index++)
+        {
+            if (path[index].ArrayIndex is { } arrayIndex
+                && !IsScalarJsonMembershipProjection(arrayIndex))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool CanUseNativeJsonCandidate(
         Type itemType
     )
@@ -301,6 +562,11 @@ internal sealed partial class MySqlQuerySqlGenerator
             || itemType == typeof(double)
             || itemType == typeof(decimal);
     }
+
+    /// <summary>Uses the representation serialized into JSON rather than the model-side CLR type.</summary>
+    private static Type GetJsonCollectionCandidateType(
+        SqlExpression item
+    ) => (item.TypeMapping?.Converter?.ProviderClrType ?? item.Type).UnwrapNullableType();
 
     private static bool HasNaturalJsonTableOrdering(
         IReadOnlyList<OrderingExpression> orderings,
@@ -327,7 +593,7 @@ internal sealed partial class MySqlQuerySqlGenerator
         SqlExpression item
     )
     {
-        if (item.Type.UnwrapNullableType() == typeof(bool))
+        if (GetJsonCollectionCandidateType(item) == typeof(bool))
         {
             Sql.Append("JSON_EXTRACT(CASE WHEN ");
             Visit(item);
@@ -338,21 +604,43 @@ internal sealed partial class MySqlQuerySqlGenerator
         }
 
         Sql.Append("JSON_EXTRACT(JSON_ARRAY(");
-        Visit(item);
+        GenerateJsonStringCandidate(item);
         Sql.Append("), '$[0]')");
     }
 
+    /// <summary>Aligns JSON string encodings without folding case, accents or significant spaces.</summary>
+    private void GenerateJsonStringCandidate(
+        SqlExpression item
+    )
+    {
+        var candidateType = GetJsonCollectionCandidateType(item);
+
+        if (candidateType == typeof(string)
+            || candidateType == typeof(char))
+        {
+            // WHY: JSON strings are UTF-8. Binary comparison or native JSON construction from
+            // a Latin1 column must first represent the same Unicode value in that encoding.
+            Sql.Append("CONVERT(");
+            Visit(item);
+            Sql.Append(" USING utf8mb4)");
+        }
+        else
+        {
+            Visit(item);
+        }
+    }
+
     /// <summary>
-    /// Parenthesizes the value tested by an <c>IN</c> expression.
+    /// Parenthesizes a complete scalar operand in an IN or null-safe membership comparison.
     /// </summary>
     /// <remarks>
     /// EF Core can produce a predicate as the tested value from a custom
     /// function translation. MySQL and MariaDB require that predicate to be
-    /// grouped before it can be compared with a boolean value list. Grouping
-    /// every tested value keeps the SQL shape deterministic and is
-    /// semantics-neutral for scalar values.
+    /// grouped before it can be compared with a boolean value list or another
+    /// predicate. Grouping every complete operand preserves operator precedence
+    /// independently of its node type and is semantics-neutral for scalar values.
     /// </remarks>
-    private void GenerateInItem(
+    private void GenerateMembershipOperand(
         SqlExpression item
     )
     {

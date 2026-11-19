@@ -58,6 +58,10 @@ public sealed partial class MySqlNetTopologySuiteContractIntegrationTests
     /// <param name="context">The context used for this operation.</param>
     /// <param name="nullable">The nullable used by this operation.</param>
     /// <param name="cancellationToken">The token to observe during asynchronous work.</param>
+    [SuppressMessage("Security",
+        "EF1002:Risk of vulnerability to SQL injection",
+        Justification = "WHY: The table identifier is a fixture constant and both nullability fragments"
+            + " are fixed SQL keywords, not application values.")]
     private static Task<int> CreateCrossesTableAsync(
         SpatialCrossesContext context,
         bool nullable,

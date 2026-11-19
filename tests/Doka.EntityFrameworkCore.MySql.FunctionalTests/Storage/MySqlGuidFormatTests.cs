@@ -1,4 +1,3 @@
-using Doka.EntityFrameworkCore.MySql.FunctionalTests.Specification.TestUtilities;
 using static Doka.EntityFrameworkCore.MySql.FunctionalTests.MySqlGuidFormatTestOptions;
 
 namespace Doka.EntityFrameworkCore.MySql.FunctionalTests;

@@ -112,11 +112,17 @@ internal sealed class MySqlMigrationCommandLayout
     {
         var totalLength = bodyCommand.Length;
 
+        // WHY: Index the read-only command list while retaining checked length accumulation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < setupCommands.Count; index++)
         {
             totalLength = checked(totalLength + setupCommands[index].Length);
         }
 
+        // WHY: Index the read-only cleanup list while retaining checked length accumulation.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < cleanupCommands.Count; index++)
         {
             totalLength = checked(totalLength + cleanupCommands[index].Length);
@@ -150,6 +156,9 @@ internal sealed class MySqlMigrationCommandLayout
         int offset
     )
     {
+        // WHY: Copy each indexed command directly into the caller-owned span without a query pipeline.
+        // ReSharper disable once ForCanBeConvertedToForeach
+        // ReSharper disable once LoopCanBeConvertedToQuery
         for (var index = 0; index < commands.Count; index++)
         {
             var command = commands[index];

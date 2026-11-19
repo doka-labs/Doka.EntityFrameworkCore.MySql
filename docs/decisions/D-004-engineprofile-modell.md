@@ -1,10 +1,10 @@
 ---
 id: D-004
 status: implemented
-date: 2026-05-16
+date: 2026-11-19
 decision-makers: [Dominic Kalkbrenner]
 consulted: []
-informed: [Provider contributors]
+informed: ["@doka-labs/core-maintainers"]
 scope: "Engine capability modeling and version routing"
 supersedes: []
 superseded-by: []
@@ -204,6 +204,8 @@ thresholds and caches the frozen profile per `(family, version)`.
 - 2026-08-05: Clarified that the five removed entries were unconsumed
   provider metadata, not removed feature support, and linked the public
   external-limitations inventory.
+- 2026-11-19: Aligned current metadata with the shared notification audience and
+  last-update date contract; retained the original decision and status history.
 
 ### Implementation References
 

@@ -5,5 +5,6 @@ global using System.IO.Compression;
 global using System.Linq;
 global using System.Reflection.Metadata;
 global using System.Reflection.PortableExecutable;
+global using System.Runtime.CompilerServices;
 global using System.Security.Cryptography;
 global using System.Text.Json;

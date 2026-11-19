@@ -7,36 +7,37 @@ validated ADR metadata. Manual edits are rejected by the governance gate.
 
 | ID | Status | Date | Decision | Relationships |
 |---|---|---|---|---|
-| [D-001](D-001-ef-core-service-decorator.md) | implemented | 2026-05-16 | Centralize EF Core service decoration | - |
-| [D-002](D-002-database-scoped-advisory-lock.md) | implemented | 2026-05-16 | Scope migration advisory locks by database | - |
-| [D-003](D-003-hilo-state-cache-lifetime.md) | implemented | 2026-05-16 | Bound and isolate shared HiLo state | - |
-| [D-004](D-004-engineprofile-modell.md) | implemented | 2026-05-16 | Route engine behavior through EngineProfile | amended by D-024 |
-| [D-005](D-005-scaffolding-loader-hierarchy.md) | implemented | 2026-05-16 | Split reverse engineering into aspect loaders | - |
-| [D-006](D-006-default-decimal-breaking-change.md) | implemented | 2026-05-16 | Use decimal(18,2) as the default mapping | - |
-| [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-05-16 | Use shape-aware multi-row INSERT and generated-value readback | - |
-| [D-008](D-008-public-api-vertrag.md) | implemented | 2026-05-16 | Gate the public API with PublicApiAnalyzers | - |
-| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-05-16 | Support an EF Core patch range with a floor/latest matrix | amended by D-023 |
-| [D-010](D-010-activity-meter-surface.md) | implemented | 2026-05-16 | Emit a diagnostic triple for significant operations | - |
-| [D-011](D-011-spec-test-subklassen-strategie.md) | implemented | 2026-05-16 | Adopt the official EF Core relational specification corpus | amended by D-021 |
-| [D-012](D-012-spatial-engine-detail.md) | implemented | 2026-05-16 | Adapt spatial materialization per engine | - |
-| [D-013](D-013-ef-core-11-upgrade.md) | accepted | 2026-05-16 | Trigger the EF Core 11 upgrade as a new major line | amended by D-030 |
-| [D-014](D-014-mysql-8.0-support.md) | accepted | 2026-05-16 | Exclude MySQL 8.0 from the supported release matrix | - |
-| [D-015](D-015-json-query-warning-suppression.md) | implemented | 2026-05-17 | Scope JSON query warning behavior to its fixture | - |
-| [D-016](D-016-scalar-convert-to-boolean-vocabulary.md) | implemented | 2026-05-18 | Keep scalar boolean parsing aligned with the BCL | - |
-| [D-017](D-017-nativeaot-smoke-deferred.md) | implemented | 2026-05-18 | Defer NativeAOT until the EF Core path is supportable | - |
-| [D-018](D-018-coverage-gate-calibration.md) | implemented | 2026-05-18 | Enforce coverage by shipped assembly and risk-critical class | amended by D-023 |
-| [D-019](D-019-performance-gate-architecture.md) | implemented | 2026-05-18 | Gate performance from direct BenchmarkDotNet evidence | amended by D-026 |
-| [D-020](D-020-test-owned-database-lifecycle.md) | accepted | 2026-07-27 | Make live tests own their database lifecycle | - |
-| [D-021](D-021-provider-completeness-and-spec-dispositions.md) | implemented | 2026-07-27 | Enforce a zero provider-gap specification ledger | amends D-011 |
-| [D-022](D-022-madr-enterprise-profile.md) | implemented | 2026-07-27 | Adopt MADR 4.0.0 with the Doka enterprise profile | - |
-| [D-023](D-023-tiered-ci-verification.md) | superseded | 2026-07-31 | Use tiered CI verification under a fixed runner budget | superseded by D-025; amends D-009, D-018 |
-| [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-08-04 | Support native CTEs, directed joins, and portable temporal tables | amends D-004 |
-| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-08-08 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026, D-030 |
-| [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-08-09 | Qualify releases from PR-bound, tree-exact evidence | amends D-019, D-025; amended by D-030 |
-| [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-08-11 | Expose exact-type migration operation handlers | - |
-| [D-028](D-028-explicit-nullability-backfills.md) | implemented | 2026-08-21 | Require explicit migration data transformations | - |
-| [D-029](D-029-ownership-aware-connection-invariants.md) | implemented | 2026-08-30 | Centralize ownership-aware connection invariants | - |
-| [D-030](D-030-release-lines-and-monotonic-publication.md) | implemented | 2026-10-22 | Separate release-line qualification from current publication authority | amends D-013, D-025, D-026 |
+| [D-001](D-001-ef-core-service-decorator.md) | implemented | 2026-11-19 | Centralize EF Core service decoration | - |
+| [D-002](D-002-database-scoped-advisory-lock.md) | implemented | 2026-11-19 | Scope migration advisory locks by database | - |
+| [D-003](D-003-hilo-state-cache-lifetime.md) | implemented | 2026-11-19 | Bound and isolate shared HiLo state | - |
+| [D-004](D-004-engineprofile-modell.md) | implemented | 2026-11-19 | Route engine behavior through EngineProfile | amended by D-024 |
+| [D-005](D-005-scaffolding-loader-hierarchy.md) | implemented | 2026-11-19 | Split reverse engineering into aspect loaders | - |
+| [D-006](D-006-default-decimal-breaking-change.md) | implemented | 2026-11-19 | Use decimal(18,2) as the default mapping | - |
+| [D-007](D-007-multirow-insert-returning.md) | implemented | 2026-11-19 | Use shape-aware multi-row INSERT and generated-value readback | - |
+| [D-008](D-008-public-api-vertrag.md) | implemented | 2026-11-19 | Gate the public API with PublicApiAnalyzers | - |
+| [D-009](D-009-efcore-patch-coupling.md) | implemented | 2026-11-19 | Support an EF Core patch range with a floor/latest matrix | amended by D-023 |
+| [D-010](D-010-activity-meter-surface.md) | implemented | 2026-11-19 | Emit a diagnostic triple for significant operations | - |
+| [D-011](D-011-spec-test-subklassen-strategie.md) | implemented | 2026-11-19 | Adopt the official EF Core relational specification corpus | amended by D-021 |
+| [D-012](D-012-spatial-engine-detail.md) | implemented | 2026-11-19 | Adapt spatial materialization per engine | - |
+| [D-013](D-013-ef-core-11-upgrade.md) | accepted | 2026-11-19 | Trigger the EF Core 11 upgrade as a new major line | amended by D-030 |
+| [D-014](D-014-mysql-8.0-support.md) | accepted | 2026-11-19 | Exclude MySQL 8.0 from the supported release matrix | - |
+| [D-015](D-015-json-query-warning-suppression.md) | implemented | 2026-11-19 | Scope JSON query warning behavior to its fixture | - |
+| [D-016](D-016-scalar-convert-to-boolean-vocabulary.md) | implemented | 2026-11-19 | Keep scalar boolean parsing aligned with the BCL | - |
+| [D-017](D-017-nativeaot-smoke-deferred.md) | implemented | 2026-11-19 | Defer NativeAOT until the EF Core path is supportable | - |
+| [D-018](D-018-coverage-gate-calibration.md) | implemented | 2026-11-19 | Enforce coverage by shipped assembly and risk-critical class | amended by D-023 |
+| [D-019](D-019-performance-gate-architecture.md) | implemented | 2026-11-19 | Gate performance from direct BenchmarkDotNet evidence | amended by D-026 |
+| [D-020](D-020-test-owned-database-lifecycle.md) | accepted | 2026-11-19 | Make live tests own their database lifecycle | - |
+| [D-021](D-021-provider-completeness-and-spec-dispositions.md) | implemented | 2026-11-19 | Enforce a zero provider-gap specification ledger | amends D-011 |
+| [D-022](D-022-madr-enterprise-profile.md) | implemented | 2026-11-19 | Adopt MADR 4.0.0 with the Doka enterprise profile | - |
+| [D-023](D-023-tiered-ci-verification.md) | superseded | 2026-11-19 | Use tiered CI verification under a fixed runner budget | superseded by D-025; amends D-009, D-018 |
+| [D-024](D-024-cte-and-temporal-table-contract.md) | accepted | 2026-11-19 | Support native CTEs, directed joins, and portable temporal tables | amends D-004; amended by D-031 |
+| [D-025](D-025-public-repository-verification-model.md) | accepted | 2026-11-19 | Qualify pull-request changes once and harden public workflows | supersedes D-023; amended by D-026, D-030 |
+| [D-026](D-026-release-qualification-and-paired-performance.md) | implemented | 2026-11-19 | Qualify releases from PR-bound, tree-exact evidence | amends D-019, D-025; amended by D-030 |
+| [D-027](D-027-migration-operation-handler-spi.md) | implemented | 2026-11-19 | Expose exact-type migration operation handlers | - |
+| [D-028](D-028-explicit-nullability-backfills.md) | implemented | 2026-11-19 | Require explicit migration data transformations | - |
+| [D-029](D-029-ownership-aware-connection-invariants.md) | implemented | 2026-11-19 | Centralize ownership-aware connection invariants | - |
+| [D-030](D-030-release-lines-and-monotonic-publication.md) | implemented | 2026-11-19 | Separate release-line qualification from current publication authority | amends D-013, D-025, D-026 |
+| [D-031](D-031-query-and-direct-write-seams.md) | accepted | 2026-11-19 | Keep query and direct-write execution behind bounded EF adapters | amends D-024 |
 
 ## Relationship Graph
 
@@ -52,4 +53,5 @@ flowchart LR
   D_030["D-030"] -->|"amends"| D_013["D-013"]
   D_030["D-030"] -->|"amends"| D_025["D-025"]
   D_030["D-030"] -->|"amends"| D_026["D-026"]
+  D_031["D-031"] -->|"amends"| D_024["D-024"]
 ```

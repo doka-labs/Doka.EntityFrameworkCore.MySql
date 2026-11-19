@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json.Nodes;
-using Doka.EntityFrameworkCore.MySql.Benchmarks;
 using Program = Doka.EntityFrameworkCore.MySql.Benchmarks.Program;
 
 namespace Doka.EntityFrameworkCore.MySql.Tests;
@@ -13,7 +10,8 @@ public sealed partial class PerformanceGateTests
     /// <param name="expectedExitCode">The required command-line verdict.</param>
     [Theory]
     [InlineData("true", false, 0)]
-    [InlineData("false", false, 1)]
+    [InlineData("false", false, 0)]
+    [InlineData("false", true, 78)]
     [InlineData("true", true, 78)]
     public async Task Evaluator_process_keeps_hosted_timing_diagnostic_without_masking_bad_evidence(
         string actions,
@@ -64,31 +62,22 @@ public sealed partial class PerformanceGateTests
         Assert.True(process.ExitCode == expectedExitCode, diagnostics);
     }
 
-    /// <summary>Verifies every hosted request resolves to allocation-only enforcement.</summary>
-    /// <param name="requested">The requested local evaluation mode.</param>
-    /// <param name="actions">The GitHub Actions marker.</param>
-    /// <param name="allocationsOnly">Whether host-sensitive budgets must be diagnostic.</param>
+    /// <summary>Verifies every accepted request resolves to the common allocation/resource policy.</summary>
+    /// <param name="requested">The requested evaluation spelling.</param>
     [Theory]
-    [InlineData(null, "true", true)]
-    [InlineData("full", "true", true)]
-    [InlineData("full", "TRUE", true)]
-    [InlineData("allocations-only", "true", true)]
-    [InlineData("allocations-only", null, true)]
-    [InlineData(null, null, false)]
-    [InlineData("full", "false", false)]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("full")]
+    [InlineData("allocations-only")]
     public void Hosted_policy_cannot_enable_hardware_sensitive_rejection(
-        string? requested,
-        string? actions,
-        bool allocationsOnly
+        string? requested
     )
     {
         // Arrange
-        var expected = allocationsOnly
-            ? PerformanceEvaluationMode.AllocationsOnly
-            : PerformanceEvaluationMode.Full;
+        var expected = PerformanceEvaluationMode.AllocationsOnly;
 
         // Act
-        var actual = PerformanceEvaluationPolicy.Resolve(requested, actions);
+        var actual = PerformanceEvaluationPolicy.Resolve(requested);
 
         // Assert
         Assert.Equal(expected, actual);
@@ -105,7 +94,7 @@ public sealed partial class PerformanceGateTests
     )
     {
         // Arrange
-        Action act = () => PerformanceEvaluationPolicy.Resolve(requested, "true");
+        Action act = () => PerformanceEvaluationPolicy.Resolve(requested);
 
         // Act
         var exception = Record.Exception(act);
@@ -132,8 +121,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "smoke",
-            null,
-            PerformanceEvaluationMode.AllocationsOnly);
+            null);
 
         // Assert
         Assert.Empty(result.InvalidEvidence);
@@ -166,8 +154,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "smoke",
-            null,
-            PerformanceEvaluationMode.AllocationsOnly);
+            null);
 
         // Assert
         Assert.Equal(0, exitCode);
@@ -197,8 +184,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "smoke",
-            null,
-            PerformanceEvaluationMode.AllocationsOnly);
+            null);
 
         // Assert
         Assert.Equal(1, exitCode);
@@ -217,8 +203,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "smoke",
-            null,
-            PerformanceEvaluationMode.AllocationsOnly);
+            null);
 
         // Assert
         Assert.Equal(1, exitCode);
@@ -239,8 +224,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "smoke",
-            null,
-            PerformanceEvaluationMode.AllocationsOnly);
+            null);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
@@ -276,8 +260,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "scorecard",
-            soakPath,
-            PerformanceEvaluationMode.AllocationsOnly);
+            soakPath);
 
         // Assert
         Assert.Equal(expectedExitCode, exitCode);
@@ -301,8 +284,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "scorecard",
-            soakPath,
-            PerformanceEvaluationMode.AllocationsOnly);
+            soakPath);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
@@ -327,8 +309,7 @@ public sealed partial class PerformanceGateTests
             fixture.ReportsPath,
             "mysql84",
             "scorecard",
-            soakPath,
-            PerformanceEvaluationMode.AllocationsOnly);
+            soakPath);
 
         // Assert
         Assert.Equal(BenchmarkPerformanceGate.InvalidEvidenceExitCode, exitCode);
