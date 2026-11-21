@@ -36,6 +36,7 @@ WORKFLOWS = ("ci.yml", "container-matrix.yml", "benchmark.yml", SECURITY_WORKFLO
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 CORRELATION = re.compile(r"schedule-[1-9][0-9]*-[1-9][0-9]*\Z")
 CONTRACT = re.compile(r"^# release-line-schedule: (\{[^\n]+\})$", re.MULTILINE)
+STARTUP_IDENTITY_TIMEOUT_SECONDS = 60
 Api = Callable[..., Any]
 
 
@@ -105,14 +106,28 @@ def producer_contract(workflow: str, *, workflow_name: str | None = None) -> lis
     return ["schedule-identity", *producers]
 
 
-def _require_identity(run: dict, run_id: int, workflow: str, branch: str,
-                      commit: str, correlation: str) -> None:
-    """Reject branch races and wrong producers before reading their verdict."""
-    if (run.get("id") != run_id or run.get("event") != "workflow_dispatch"
-            or run.get("path", "").split("@", 1)[0] != f".github/workflows/{workflow}"
-            or run.get("head_branch") != branch or run.get("head_sha") != commit
-            or run.get("display_title") != f"maintenance {correlation}"):
-        raise ScheduleError("Scheduled child run identity does not match the dispatched producer.")
+def _require_identity(run: dict, expected: dict, *, allow_pending_title: bool) -> bool:
+    """Reject conflicting identities; return false only for a startup title."""
+    observed = {field: run.get(field) for field in expected}
+    if isinstance(observed["path"], str):
+        observed["path"] = observed["path"].split("@", 1)[0]
+
+    mismatches = [field for field in expected if observed[field] != expected[field]]
+    if not mismatches:
+        return True
+
+    title = observed["display_title"]
+    # WHY: A fresh queued run can expose its default title before run-name
+    # evaluation. A different maintenance marker is an actual correlation
+    # conflict, not missing metadata; immutable fields are never deferred.
+    if (allow_pending_title and mismatches == ["display_title"]
+            and (title is None or isinstance(title, str)
+                 and not title.startswith("maintenance "))):
+        return False
+
+    raise ScheduleError(
+        "Scheduled child run identity does not match the dispatched producer: "
+        + json.dumps({"mismatches": mismatches, "expected": expected, "observed": observed}))
 
 
 def _verify_producers(api: Api, repository: str, run_id: int,
@@ -147,17 +162,41 @@ def wait_for_child(api: Api, repository: str, run_id: int, workflow: str,
                    producers: list[str], *, timeout: int = 12600,
                    poll_interval: int = 15,
                    on_progress: Callable[[dict], None] | None = None) -> dict:
-    """Bound queue plus execution time and retain observed run identity."""
-    deadline = time.monotonic() + timeout
+    """Bound startup metadata and execution while retaining exact identity."""
+    started = time.monotonic()
+    deadline = started + timeout
+    identity_deadline = min(deadline, started + STARTUP_IDENTITY_TIMEOUT_SECONDS)
+    expected = {"id": run_id, "event": "workflow_dispatch",
+                "path": f".github/workflows/{workflow}", "head_branch": branch,
+                "head_sha": commit, "display_title": f"maintenance {correlation}"}
+    identity_observed = False
+    title_pending = False
     while True:
         run = api(f"repos/{repository}/actions/runs/{run_id}")
         if on_progress:
             on_progress({"observedRunId": run.get("id"), "headSha": run.get("head_sha"),
                          "observedSourceRef": f"refs/heads/{run.get('head_branch')}",
                          "observedWorkflowPath": run.get("path"), "status": run.get("status"),
-                         "conclusion": run.get("conclusion")})
+                         "conclusion": run.get("conclusion"), "observedEvent": run.get("event"),
+                         "observedDisplayTitle": run.get("display_title"), "expectedIdentity": dict(expected)})
 
-        _require_identity(run, run_id, workflow, branch, commit, correlation)
+        matched = _require_identity(
+            run, expected, allow_pending_title=not identity_observed and run.get("status") == "queued")
+        now = time.monotonic()
+        if now >= deadline:
+            raise ScheduleError(f"Scheduled child {run_id} exceeded its queue/execution timeout.")
+
+        if not identity_observed and (title_pending or not matched) and now >= identity_deadline:
+            raise ScheduleError(
+                f"Scheduled child {run_id} exceeded its startup identity timeout: "
+                + json.dumps({"expected": expected,
+                              "observed": {field: run.get(field) for field in expected}}))
+
+        # WHY: Matching once closes startup tolerance permanently. A later
+        # placeholder must not hide a changed identity or renew the deadline.
+        identity_observed = matched
+        title_pending = not matched
+
         if run.get("status") == "completed":
             if run.get("conclusion") != "success":
                 raise ScheduleError(
@@ -170,10 +209,8 @@ def wait_for_child(api: Api, repository: str, run_id: int, workflow: str,
                     "sourceRef": f"refs/heads/{branch}", "workflow": workflow,
                     "conclusion": run["conclusion"], "correlation": correlation}
 
-        if time.monotonic() >= deadline:
-            raise ScheduleError(f"Scheduled child {run_id} exceeded its queue/execution timeout.")
-
-        time.sleep(min(poll_interval, max(0, deadline - time.monotonic())))
+        next_deadline = deadline if identity_observed else identity_deadline
+        time.sleep(min(poll_interval, max(0, next_deadline - time.monotonic())))
 
 
 def dispatch_line(api: Api, repository: str, workflow: str, source_ref: str,
