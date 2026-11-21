@@ -133,6 +133,17 @@ binding its expected commit and awaiting its actual result. It does not run
 main's .NET 10 commands around a .NET 11 checkout. Ordinary manual feature CI
 remains non-publishing even when no preview release line is active.
 
+The coordinator follows only the run ID returned by the dispatch endpoint.
+Run ID, event, workflow path, branch and commit must match on every observation.
+An initial queued run may still have a provisional display title: the
+coordinator waits up to 60 seconds, within the existing queue/execution budget,
+for its exact correlation title. A different maintenance correlation is rejected
+immediately. After the first exact identity, any regression fails; running or
+completed runs cannot use provisional titles. Success still requires the exact
+full identity, successful completion and every declared producer job. Retained
+observations include expected identity, event and display title so a failed
+comparison can be diagnosed from the uploaded evidence.
+
 Normal manual CI calls the shared qualifier once. Standalone migration and
 floating dependency jobs run on schedules or an explicit `maintenance=true`
 dispatch, avoiding a second copy during normal qualification. Floating probes

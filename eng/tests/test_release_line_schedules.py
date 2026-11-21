@@ -23,6 +23,264 @@ FIXTURES = Path(__file__).parent / "fixtures"
 class ScheduledRunTests(unittest.TestCase):
     """Keep dispatch, workload completion and producer evidence inseparable."""
 
+    def test_dispatch_waits_for_initial_title_on_every_scheduled_workflow(self) -> None:
+        """A queued placeholder cannot invalidate the exact dispatched child."""
+        for workflow in schedules.WORKFLOWS:
+            with self.subTest(workflow=workflow):
+                # Arrange
+                content = (Path(__file__).resolve().parents[2]
+                           / ".github/workflows" / workflow).read_bytes()
+                producers = schedules.producer_contract(content.decode(), workflow_name=workflow)
+                run = {**child_run(), "path": f".github/workflows/{workflow}"}
+                queued = {**run, "status": "queued", "conclusion": None,
+                          "display_title": "Initial workflow title"}
+                api = mock.Mock(side_effect=[{"object": {"sha": "a" * 40}},
+                    {"content": base64.b64encode(content).decode()}, {"workflow_run_id": 27},
+                    queued, run, {"total_count": len(producers), "jobs": [
+                        {"name": name, "conclusion": "success"} for name in producers]}])
+                observations = []
+
+                # Act
+                with mock.patch.object(schedules.time, "monotonic", return_value=0), \
+                        mock.patch.object(schedules.time, "sleep"):
+                    result = schedules.dispatch_line(
+                        api, "owner/repo", workflow, "refs/heads/maintenance/10.x",
+                        "schedule-1-1", timeout=120, on_progress=observations.append)
+
+                # Assert
+                polled = [entry for entry in observations if "observedEvent" in entry]
+                self.assertEqual("success", result["verificationStatus"])
+                self.assertEqual(27, result["runId"])
+                self.assertEqual("workflow_dispatch", polled[0]["observedEvent"])
+                self.assertEqual("Initial workflow title", polled[0]["observedDisplayTitle"])
+                self.assertEqual("maintenance schedule-1-1", polled[0]["expectedIdentity"]["display_title"])
+                self.assertEqual(6, api.call_count)
+
+    def test_missing_queued_title_can_resolve_before_completion(self) -> None:
+        """Absent title metadata is pending, not successful identity proof."""
+        for title in (None, ""):
+            with self.subTest(title=title):
+                # Arrange
+                queued = {**child_run(), "status": "queued", "conclusion": None,
+                          "display_title": title}
+                api = mock.Mock(side_effect=[queued, child_run(), {"total_count": 1, "jobs": [
+                    {"name": "compatibility-matrix", "conclusion": "success"}]}])
+
+                # Act
+                with mock.patch.object(schedules.time, "monotonic", return_value=0), \
+                        mock.patch.object(schedules.time, "sleep"):
+                    result = schedules.wait_for_child(
+                        api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                        "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+                # Assert
+                self.assertEqual("success", result["conclusion"])
+                self.assertEqual(3, api.call_count)
+
+    def test_provisional_title_expires_at_the_startup_deadline(self) -> None:
+        """Repeated pending observations never renew the metadata window."""
+        # Arrange
+        queued = {**child_run(), "status": "queued", "conclusion": None,
+                  "display_title": "Initial workflow title"}
+        api = mock.Mock(return_value=queued)
+
+        # Act
+        with mock.patch.object(schedules.time, "monotonic", return_value=0) as clock, \
+                mock.patch.object(schedules.time, "sleep", side_effect=lambda _: setattr(
+                    clock, "return_value", clock.return_value + 60)):
+            with self.assertRaisesRegex(schedules.ScheduleError, "startup identity timeout") as failure:
+                schedules.wait_for_child(
+                    api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                    "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+        # Assert
+        self.assertEqual(2, api.call_count)
+        self.assertIn("display_title", str(failure.exception))
+        self.assertIn("Initial workflow title", str(failure.exception))
+
+    def test_pending_title_does_not_extend_the_overall_deadline(self) -> None:
+        """The shorter queue/execution deadline still bounds startup polling."""
+        # Arrange
+        api = mock.Mock(return_value={**child_run(), "status": "queued", "conclusion": None,
+                                      "display_title": None})
+
+        # Act
+        with mock.patch.object(schedules.time, "monotonic", return_value=0), \
+                mock.patch.object(schedules.time, "sleep") as sleep:
+            with self.assertRaisesRegex(schedules.ScheduleError, "queue/execution timeout"):
+                schedules.wait_for_child(
+                    api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                    "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=0)
+
+        # Assert
+        api.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_title_resolving_after_startup_deadline_is_not_accepted(self) -> None:
+        """A late successful result cannot erase expired identity observation."""
+        # Arrange
+        queued = {**child_run(), "status": "queued", "conclusion": None,
+                  "display_title": "Initial workflow title"}
+        api = mock.Mock(side_effect=[queued, child_run()])
+
+        # Act
+        with mock.patch.object(schedules.time, "monotonic", return_value=0) as clock, \
+                mock.patch.object(schedules.time, "sleep", side_effect=lambda _: setattr(
+                    clock, "return_value", clock.return_value + 60)):
+            with self.assertRaisesRegex(schedules.ScheduleError, "startup identity timeout"):
+                schedules.wait_for_child(
+                    api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                    "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+        # Assert
+        self.assertEqual(2, api.call_count)
+
+    def test_queued_envelope_conflicts_are_rejected_before_retry(self) -> None:
+        """Startup title tolerance must not admit a wrong immutable identity."""
+        conflicts = {"id": 28, "event": "push", "path": ".github/workflows/ci.yml",
+                     "head_branch": "main", "head_sha": "b" * 40,
+                     "display_title": "maintenance schedule-2-1"}
+        for field, value in conflicts.items():
+            with self.subTest(field=field):
+                # Arrange
+                queued = {**child_run(), "status": "queued", "conclusion": None,
+                          "display_title": "Initial workflow title", field: value}
+                api = mock.Mock(return_value=queued)
+
+                # Act
+                with mock.patch.object(schedules.time, "sleep", side_effect=AssertionError(
+                        "Conflicting identity retried.")) as sleep:
+                    with self.assertRaisesRegex(schedules.ScheduleError, "identity") as failure:
+                        schedules.wait_for_child(
+                            api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                            "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+                # Assert
+                api.assert_called_once()
+                sleep.assert_not_called()
+                self.assertIn(field, str(failure.exception))
+                self.assertIn("expected", str(failure.exception))
+                self.assertIn("observed", str(failure.exception))
+
+    def test_unresolved_title_outside_initial_queue_is_rejected(self) -> None:
+        """Running and completed jobs cannot use provisional correlation."""
+        for status in ("in_progress", "completed"):
+            with self.subTest(status=status):
+                # Arrange
+                run = {**child_run(), "status": status, "display_title": "Initial workflow title"}
+                api = mock.Mock(return_value=run)
+
+                # Act
+                with self.assertRaisesRegex(schedules.ScheduleError, "identity"):
+                    schedules.wait_for_child(
+                        api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                        "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+                # Assert
+                api.assert_called_once()
+
+    def test_observed_exact_identity_cannot_regress_to_a_provisional_title(self) -> None:
+        """Once verified, identity cannot reopen the startup grace period."""
+        # Arrange
+        queued = {**child_run(), "status": "queued", "conclusion": None}
+        api = mock.Mock(side_effect=[queued, {**queued, "display_title": "Initial workflow title"}])
+
+        # Act
+        with mock.patch.object(schedules.time, "sleep") as sleep:
+            with self.assertRaisesRegex(schedules.ScheduleError, "identity"):
+                schedules.wait_for_child(
+                    api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                    "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+        # Assert
+        self.assertEqual(2, api.call_count)
+        sleep.assert_called_once()
+
+    def test_exact_queued_identity_can_wait_beyond_the_title_window(self) -> None:
+        """Runner capacity uses the original execution budget after verification."""
+        # Arrange
+        queued = {**child_run(), "status": "queued", "conclusion": None}
+        api = mock.Mock(side_effect=[queued, child_run(), {"total_count": 1, "jobs": [
+            {"name": "compatibility-matrix", "conclusion": "success"}]}])
+
+        # Act
+        with mock.patch.object(schedules.time, "monotonic", return_value=0) as clock, \
+                mock.patch.object(schedules.time, "sleep", side_effect=lambda _: setattr(clock, "return_value", 90)):
+            result = schedules.wait_for_child(
+                api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+        # Assert
+        self.assertEqual("success", result["conclusion"])
+        self.assertEqual(3, api.call_count)
+
+    def test_resolved_title_does_not_hide_an_unsuccessful_child(self) -> None:
+        """Startup recovery cannot replace the child's real terminal result."""
+        for conclusion in ("failure", "cancelled", "timed_out", "startup_failure"):
+            with self.subTest(conclusion=conclusion):
+                # Arrange
+                queued = {**child_run(), "status": "queued", "conclusion": None,
+                          "display_title": "Initial workflow title"}
+                api = mock.Mock(side_effect=[queued, {**child_run(), "conclusion": conclusion}])
+
+                # Act
+                with mock.patch.object(schedules.time, "sleep"):
+                    with self.assertRaisesRegex(schedules.ScheduleError, conclusion):
+                        schedules.wait_for_child(
+                            api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                            "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120)
+
+                # Assert
+                self.assertEqual(2, api.call_count)
+
+    def test_expected_identity_in_progress_evidence_cannot_be_modified_by_observers(self) -> None:
+        """A retained snapshot must not expose the validator's own expectations."""
+        # Arrange
+        api = mock.Mock(return_value={**child_run(), "head_sha": "b" * 40})
+
+        def observe(snapshot: dict) -> None:
+            snapshot["expectedIdentity"]["head_sha"] = "b" * 40
+
+        # Act
+        with self.assertRaisesRegex(schedules.ScheduleError, "head_sha"):
+            schedules.wait_for_child(
+                api, "owner/repo", 27, "container-matrix.yml", "maintenance/10.x",
+                "a" * 40, "schedule-1-1", ["compatibility-matrix"], timeout=120,
+                on_progress=observe)
+
+        # Assert
+        api.assert_called_once()
+
+    def test_coordinator_persists_all_compared_identity_fields_after_failure(self) -> None:
+        """A failed queued observation retains enough evidence to diagnose it."""
+        # Arrange
+        workflow = (Path(__file__).resolve().parents[2]
+                    / ".github/workflows/security-audit.yml").read_bytes()
+        run = {**child_run(), "path": ".github/workflows/security-audit.yml",
+               "status": "queued", "conclusion": None, "event": "push",
+               "display_title": "Initial workflow title"}
+        api = mock.Mock(side_effect=[{"object": {"sha": "a" * 40}},
+            {"content": base64.b64encode(workflow).decode()}, {"workflow_run_id": 27}, run])
+
+        # Act
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "schedule.json"
+            result = schedules.coordinate_lines(
+                api, active_policy(), "security-audit.yml", "schedule-1-1", "b" * 40, output=output)
+            persisted = json.loads(output.read_text())
+
+        # Assert
+        child = persisted["children"][0]
+        self.assertEqual(result, persisted)
+        self.assertEqual("failure", result["conclusion"])
+        self.assertEqual("failed", child["verificationStatus"])
+        self.assertEqual("push", child["observedEvent"])
+        self.assertEqual("Initial workflow title", child["observedDisplayTitle"])
+        self.assertEqual("workflow_dispatch", child["expectedIdentity"]["event"])
+        self.assertEqual("maintenance schedule-1-1", child["expectedIdentity"]["display_title"])
+        self.assertIn('"event"', child["failure"])
+        self.assertEqual(27, child["observedRunId"])
+
     def test_security_workflow_dispatch_uses_its_own_exact_audit_producer(self) -> None:
         """An additional active line audits its own source and SDK, not main's."""
         # Arrange
